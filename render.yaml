@@ -13,7 +13,7 @@ databases:
 
 services:
   - type: web
-    name: eurostar-backend
+    name: eurostar-api
     runtime: node
     plan: free
     # No region override: the web service must share the database's region for

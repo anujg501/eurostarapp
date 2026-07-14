@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
+import path from 'path';
 import { config } from './config';
 import { HttpError } from './util/http';
 
@@ -45,8 +46,24 @@ app.use('/rfq', rfqRouter);
 app.use('/assistant', assistantRouter);
 app.use('/notifications', notificationsRouter);
 
-// 404
-app.use((_req, res) => res.status(404).json({ error: 'Not found' }));
+// ---------------------------------------------------------------------------
+// Serve the website (the React storefront) so one server runs the whole thing.
+// The site compiles in the browser (React + Babel), so we just serve the files.
+// ---------------------------------------------------------------------------
+const webDir = path.join(__dirname, '..', 'web');
+app.get('/favicon.ico', (_req, res) => res.sendFile(path.join(webDir, 'assets', 'eurostar-logo.png')));
+app.get('/', (_req, res) => res.sendFile(path.join(webDir, 'Eurostar Login.html')));
+app.get('/site', (_req, res) => res.sendFile(path.join(webDir, 'Eurostar Sales website.html')));
+app.get('/mobile', (_req, res) => res.sendFile(path.join(webDir, 'Eurostar Sales website (Mobile).html')));
+app.use(express.static(webDir));
+
+// 404 — JSON for API paths, otherwise fall back to the login page.
+app.use((req, res) => {
+  if (req.path.startsWith('/api') || req.accepts(['html', 'json']) === 'json') {
+    return res.status(404).json({ error: 'Not found' });
+  }
+  return res.status(404).sendFile(path.join(webDir, 'Eurostar Login.html'));
+});
 
 // Central error handler
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

@@ -37,17 +37,23 @@ actually remembers customers, saves orders, takes payments and checks logins.
 npm install
 cp .env.example .env      # then open .env and change the secrets
 npm run setup             # creates the database + sample data
-npm run dev               # starts the server on http://localhost:4000
+npm run dev               # starts everything on http://localhost:4000
 ```
+
+Then open **<http://localhost:4000>** — the full website runs there (the backend
+serves it). The React storefront and Babel are bundled locally (`web/vendor`), so
+it works with no internet/CDN.
+
+- Website (login): <http://localhost:4000/>
+- Storefront directly: <http://localhost:4000/site>
+- Health check: <http://localhost:4000/health> → `{"ok":true}`
 
 Test accounts created by `npm run setup`:
 
 - **Office** — id `office`, password `office123`
-- **Rep** — id `REP001`, password `rep123`
+- **Rep** — id `REP-204`, password `rep123`
 
 (Change these in `.env` before going live.)
-
-Check it's alive: open <http://localhost:4000/health> — you should see `{"ok":true}`.
 
 ## The API (endpoints)
 
@@ -67,6 +73,8 @@ Check it's alive: open <http://localhost:4000/health> — you should see `{"ok":
 ## Folders
 
 ```
+web/              # the React website (storefront + login), served by the backend
+  vendor/         # React + Babel bundled locally (no CDN needed)
 prisma/
   schema.prisma   # the database design (the "filing cabinet")
   seed.ts         # sample accounts + catalogue for testing

@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Eurostar Gemstones — Wholesale Portal</title>
+  <script>
+    /* Auth gate — if not signed in, bounce to the login screen and remember
+       where to return. Runs before anything renders to avoid a flash. */
+    (function () {
+      try {
+        // Always return to the login screen on a fresh load / refresh. The
+        // login sets a one-time 'eurostar_enter' flag right before redirecting
+        // here; we consume it once so this load proceeds, then clear it so the
+        // next refresh goes back to login.
+        // A ?enter=1 URL flag (used by the mobile preview frame) bypasses the
+        // gate so the app opens directly without the login round-trip.
+        var qs = new URLSearchParams(location.search);
+        if (qs.get('enter') === '1') {
+          // proceed directly
+        } else if (sessionStorage.getItem('eurostar_enter') === '1') {
+          sessionStorage.removeItem('eurostar_enter');
+        } else {
+          var here = (location.pathname.split('/').pop()) || 'Eurostar Sales website.html';
+          location.replace('Eurostar Login.html?next=' + encodeURIComponent(here));
+        }
+      } catch (e) {}
+    })();
+  </script>
+  <script>
+    // Desktop-mode escape hatch for mobile: forces the wide layout by pinning
+    // the viewport to a desktop width. Persisted so it survives navigation.
+    (function () {
+      window.__isDesktopMode = function () {
+        try { return localStorage.getItem('eurostar_view_mode') === 'desktop'; } catch (e) { return false; }
+      };
+      window.__applyViewMode = function () {
+        var vp = document.querySelector('meta[name="viewport"]');
+        if (!vp) return;
+        vp.setAttribute('content', window.__isDesktopMode()
+          ? 'width=1280'
+          : 'width=device-width, initial-scale=1');
+      };
+      window.__setViewMode = function (mode) {
+        try { localStorage.setItem('eurostar_view_mode', mode); } catch (e) {}
+        window.__applyViewMode();
+      };
+      window.__applyViewMode();
+    })();
+  </script>
+  <link rel="stylesheet" href="styles/tokens.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Gujarati:wght@400;500;600;700&family=Noto+Sans+Tamil:wght@400;500;600;700&family=Noto+Sans+Telugu:wght@400;500;600;700&family=Noto+Sans+Kannada:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="styles/app.css">
+  <script>
+    /* When running inside the review preview (an iframe), always fetch a fresh
+       copy of the local stylesheets so cached CSS never masks recent edits.
+       In production (top-level window) normal caching applies. */
+    if (window.self !== window.top) {
+      document.querySelectorAll('link[rel="stylesheet"][href^="styles/"]').forEach(function (l) {
+        l.href = l.getAttribute('href').split('?')[0] + '?v=' + Date.now();
+      });
+    }
+  </script>
+
+  <!-- React + Babel are bundled locally (web/vendor) so the site runs without any CDN. -->
+  <script src="vendor/react.development.js"></script>
+  <script src="vendor/react-dom.development.js"></script>
+  <script src="vendor/babel.min.js"></script>
+
+  <style>
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    body, html { margin: 0; padding: 0; }
+
+    /* Reclaim the space the native scrollbar reserves — the app is scrolled
+       with a thin transparent overlay indicator that only shows while moving. */
+    html { scrollbar-width: none; -ms-overflow-style: none; }
+    html::-webkit-scrollbar { width: 0; height: 0; }
+
+    #om-scroll-ind {
+      position: fixed;
+      top: 0; right: 2px;
+      width: 4px;
+      border-radius: 4px;
+      background: rgba(20, 40, 30, 0.28);
+      opacity: 0;
+      transition: opacity 0.35s ease;
+      pointer-events: none;
+      z-index: 2147483000;
+    }
+    #om-scroll-ind.is-active { opacity: 1; }
+    @media (prefers-color-scheme: dark) {
+      #om-scroll-ind { background: rgba(255, 255, 255, 0.35); }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <div id="om-scroll-ind" aria-hidden="true"></div>
+  <script>
+    /* Transparent auto-hiding scroll indicator (overlay — reserves no space). */
+    (function () {
+      var ind = document.getElementById('om-scroll-ind');
+      var hideTimer = null;
+      function update() {
+        var doc = document.documentElement;
+        var vh = window.innerHeight;
+        var sh = doc.scrollHeight;
+        if (sh <= vh + 4) { ind.classList.remove('is-active'); return; }
+        var track = vh - 8;                                   // 4px inset top & bottom
+        var thumb = Math.max(28, track * (vh / sh));          // min thumb size
+        var top = 4 + (track - thumb) * (window.scrollY / (sh - vh));
+        ind.style.height = thumb + 'px';
+        ind.style.transform = 'translateY(' + top + 'px)';
+        ind.classList.add('is-active');
+        if (hideTimer) clearTimeout(hideTimer);
+        hideTimer = setTimeout(function () { ind.classList.remove('is-active'); }, 700);
+      }
+      window.addEventListener('scroll', update, { passive: true });
+      window.addEventListener('resize', update, { passive: true });
+    })();
+  </script>
+
+  <script type="text/babel" src="tweaks-panel.jsx"></script>
+  <script src="assets/logo-data.js"></script>
+  <script type="text/babel" src="app/data.jsx"></script>
+  <script type="text/babel" src="app/i18n-strings.jsx"></script>
+  <script type="text/babel" src="app/product-images.jsx"></script>
+  <script type="text/babel" src="app/icons.jsx"></script>
+  <script type="text/babel" src="app/mop-data.jsx"></script>
+  <script type="text/babel" src="app/icecut-data.jsx"></script>
+  <script type="text/babel" src="app/laser-data.jsx"></script>
+  <script type="text/babel" src="app/hollowmop-data.jsx"></script>
+  <script type="text/babel" src="app/shell.jsx"></script>
+  <script type="text/babel" src="app/screen-home.jsx"></script>
+  <script type="text/babel" src="app/screen-catalog.jsx"></script>
+  <script type="text/babel" src="app/screen-browse.jsx"></script>
+  <script type="text/babel" src="app/screen-product.jsx"></script>
+  <script type="text/babel" src="app/screen-orders.jsx"></script>
+  <script type="text/babel" src="app/screen-checkout.jsx"></script>
+  <script type="text/babel" src="app/screen-order-detail.jsx"></script>
+  <script type="text/babel" src="app/chatbot.jsx"></script>
+  <script type="text/babel" src="app/app.jsx"></script>
+  <script src="app/lightbox.js"></script>
+
+  <template id="__bundler_thumbnail" data-bg-color="#0E5C4A">
+    <svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+      <rect width="1200" height="800" fill="#0E5C4A"/>
+      <g transform="translate(600 360)" fill="none" stroke="#F5E7C4" stroke-width="14" stroke-linejoin="round">
+        <path d="M-150 -60 L0 -150 L150 -60 L0 30 Z"/>
+        <path d="M-150 -60 L0 90 L150 -60" />
+        <path d="M0 -150 L0 30" stroke-width="8"/>
+      </g>
+      <text x="600" y="560" font-family="Georgia, serif" font-size="64" fill="#F5E7C4" text-anchor="middle">Eurostar</text>
+      <text x="600" y="620" font-family="system-ui, sans-serif" font-size="30" fill="#BFD9CD" text-anchor="middle" letter-spacing="6">WHOLESALE PORTAL</text>
+    </svg>
+  </template>
+</body>
+</html>

@@ -49,8 +49,9 @@ app.use('/notifications', notificationsRouter);
 // ---------------------------------------------------------------------------
 // Serve the website (the React storefront) so one server runs the whole thing.
 // The site compiles in the browser (React + Babel), so we just serve the files.
+// The folder is named "docs" so GitHub Pages can also publish it directly.
 // ---------------------------------------------------------------------------
-const webDir = path.join(__dirname, '..', 'web');
+const webDir = path.join(__dirname, '..', 'docs');
 app.get('/favicon.ico', (_req, res) => res.sendFile(path.join(webDir, 'assets', 'eurostar-logo.png')));
 app.get('/', (_req, res) => res.sendFile(path.join(webDir, 'Eurostar Login.html')));
 app.get('/site', (_req, res) => res.sendFile(path.join(webDir, 'Eurostar Sales website.html')));

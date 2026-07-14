@@ -41,7 +41,7 @@ npm run dev               # starts everything on http://localhost:4000
 ```
 
 Then open **<http://localhost:4000>** — the full website runs there (the backend
-serves it). The React storefront and Babel are bundled locally (`web/vendor`), so
+serves it). The React storefront and Babel are bundled locally (`docs/vendor`), so
 it works with no internet/CDN.
 
 - Website (login): <http://localhost:4000/>
@@ -73,7 +73,7 @@ Test accounts created by `npm run setup`:
 ## Folders
 
 ```
-web/              # the React website (storefront + login), served by the backend
+docs/             # the React website (storefront + login), served by the backend
   vendor/         # React + Babel bundled locally (no CDN needed)
 prisma/
   schema.prisma   # the database design (the "filing cabinet")

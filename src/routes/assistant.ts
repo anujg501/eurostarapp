@@ -78,7 +78,14 @@ assistantRouter.put(
 );
 
 // POST /assistant/chat — send a message, get Mira's reply.
-const chatSchema = z.object({ sessionId: z.string().min(1), message: z.string().min(1) });
+const chatSchema = z.object({
+  sessionId: z.string().min(1),
+  message: z.string().min(1),
+  app: z.enum(['sales', 'crm', 'lms']).optional(),
+  who: z.string().optional(),
+  contact: z.string().optional(),
+  cust: z.string().optional(),
+});
 
 assistantRouter.post(
   '/chat',
@@ -86,14 +93,14 @@ assistantRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = chatSchema.safeParse(req.body);
     if (!parsed.success) return failValidation(res, parsed.error);
-    const { sessionId, message } = parsed.data;
+    const { sessionId, message, app = 'sales', who, contact, cust } = parsed.data;
 
     const cfg = await getConfig();
-    await prisma.chatLog.create({ data: { sessionId, role: 'user', message } });
+    await prisma.chatLog.create({ data: { sessionId, app, role: 'user', message, who, contact, cust } });
 
     const reply = await generateReply(message, cfg);
 
-    await prisma.chatLog.create({ data: { sessionId, role: 'assistant', message: reply } });
+    await prisma.chatLog.create({ data: { sessionId, app, role: 'assistant', message: reply, who, contact, cust } });
     return ok(res, { reply });
   })
 );
@@ -154,3 +161,28 @@ async function generateReply(message: string, cfg: { instructions: string; rules
   const data: any = await resp.json();
   return data?.content?.[0]?.text ?? "I didn't catch that — could you rephrase?";
 }
+
+// GET /assistant/chatlogs?app=sales|crm|lms — transcripts per app (Mira Admin).
+assistantRouter.get(
+  '/chatlogs',
+  authenticate,
+  requireRole('office'),
+  asyncHandler(async (req, res) => {
+    const app = typeof req.query.app === 'string' ? req.query.app : undefined;
+    const logs = await prisma.chatLog.findMany({
+      where: { ...(app ? { app } : {}) },
+      orderBy: { createdAt: 'desc' },
+      take: 500,
+    });
+    return ok(res, logs.map((l) => ({
+      sessionId: l.sessionId,
+      app: l.app,
+      role: l.role,
+      message: l.message,
+      who: l.who,
+      contact: l.contact,
+      cust: l.cust,
+      ts: l.createdAt,
+    })));
+  })
+);

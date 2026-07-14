@@ -7,6 +7,14 @@ import { nextCustomerCode } from '../services/ids';
 
 export const customersRouter = Router();
 
+// Normalise a GSTIN for dedupe (uppercase, strip spaces). The CRM keys its
+// customer master on this so the same GST number never creates two records.
+function normGst(gstin?: string | null): string | null {
+  if (!gstin) return null;
+  const n = gstin.replace(/\s+/g, '').toUpperCase();
+  return n.length ? n : null;
+}
+
 // GET /customers?rep=<id> — customers mapped to a rep.
 // Reps see their own customers; office can pass ?rep= or see all.
 customersRouter.get(
@@ -78,6 +86,25 @@ customersRouter.post(
       repUserId = rep?.id ?? null;
     }
 
+    // Dedupe on normalised GSTIN — if this GST already exists, return that
+    // customer (the master record) instead of creating a duplicate.
+    const gstinNorm = normGst(d.gstin);
+    if (gstinNorm) {
+      const existing = await prisma.customer.findFirst({ where: { gstinNorm } });
+      if (existing) {
+        return ok(res, {
+          id: existing.id,
+          code: existing.code,
+          name: existing.name,
+          phone: existing.phone,
+          city: existing.city,
+          gstin: existing.gstin,
+          terms: existing.terms,
+          deduped: true,
+        });
+      }
+    }
+
     const code = await nextCustomerCode();
     const customer = await prisma.customer.create({
       data: {
@@ -86,6 +113,7 @@ customersRouter.post(
         phone: d.phone,
         city: d.city,
         gstin: d.gstin,
+        gstinNorm,
         terms: d.terms ?? 'cash',
         repUserId,
       },
@@ -100,5 +128,29 @@ customersRouter.post(
       gstin: customer.gstin,
       terms: customer.terms,
     }, 201);
+  })
+);
+
+// GET /customers/:id — a single customer (master record).
+customersRouter.get(
+  '/:id',
+  authenticate,
+  requireStaff,
+  asyncHandler(async (req, res) => {
+    const c = await prisma.customer.findFirst({
+      where: { OR: [{ id: req.params.id }, { code: req.params.id }] },
+      include: { rep: true },
+    });
+    if (!c) return res.status(404).json({ error: 'Customer not found' });
+    return ok(res, {
+      id: c.id,
+      code: c.code,
+      name: c.name,
+      phone: c.phone,
+      city: c.city,
+      gstin: c.gstin,
+      terms: c.terms,
+      rep: c.rep?.repId ?? null,
+    });
   })
 );

@@ -15,6 +15,10 @@ import { paymentsRouter } from './routes/payments';
 import { rfqRouter } from './routes/rfq';
 import { assistantRouter } from './routes/assistant';
 import { notificationsRouter } from './routes/notifications';
+import { repsRouter } from './routes/reps';
+import { announcementsRouter } from './routes/announcements';
+import { candidatesRouter, modulesRouter } from './routes/candidates';
+import { adminRouter } from './routes/admin';
 
 const app = express();
 
@@ -45,6 +49,11 @@ app.use('/payments', paymentsRouter);
 app.use('/rfq', rfqRouter);
 app.use('/assistant', assistantRouter);
 app.use('/notifications', notificationsRouter);
+app.use('/reps', repsRouter);
+app.use('/announcements', announcementsRouter);
+app.use('/candidates', candidatesRouter);
+app.use('/modules', modulesRouter);
+app.use('/admin', adminRouter);
 
 // ---------------------------------------------------------------------------
 // Serve the website (the React storefront) so one server runs the whole thing.

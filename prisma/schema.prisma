@@ -76,6 +76,7 @@ model Customer {
   phone     String?
   city      String?
   gstin     String?
+  gstinNorm String? // normalised GSTIN for dedupe (CRM customer master)
   terms     String   @default("cash") // "cash" | "15" | "30" | "45" | "60"
   repUserId String? // which rep owns this customer
   rep       User?    @relation("RepCustomers", fields: [repUserId], references: [id])
@@ -88,6 +89,7 @@ model Customer {
   payments Payment[]
 
   @@index([repUserId])
+  @@index([gstinNorm])
 }
 
 // ---------------------------------------------------------------------------
@@ -168,6 +170,8 @@ model Order {
   paid            Boolean  @default(false)
   dispatchBy      DateTime?
   dispatchByLabel String? // e.g. "Wed, 17 Jul" (as the client stores it)
+  courier         String? // CRM pipeline: assigned courier
+  track           String? // CRM pipeline: tracking / AWB number
   status          String   @default("pending") // pending|confirmed|packed|shipped|delivered|cancelled
   source          String   @default("Sales App")
   queuedOffline   Boolean  @default(false)
@@ -266,11 +270,16 @@ model AssistantConfig {
 model ChatLog {
   id        String   @id @default(cuid())
   sessionId String
+  app       String   @default("sales") // which surface: "sales" | "crm" | "lms"
   role      String // "user" | "assistant"
   message   String
+  who       String? // company / persona name
+  contact   String?
+  cust      String? // customer code
   createdAt DateTime @default(now())
 
   @@index([sessionId])
+  @@index([app])
 }
 
 model Notification {
@@ -295,4 +304,93 @@ model Notification {
 model Counter {
   key   String @id
   value Int    @default(0)
+}
+
+// ---------------------------------------------------------------------------
+// PHASE 1: shared resources for CRM / LMS / Admin
+// ---------------------------------------------------------------------------
+
+// A sales rep record in the CRM (ingested from LMS "Onboard to CRM").
+// Distinct from a User(role=rep) login — this is the CRM's rep/commission record.
+model Rep {
+  id             String   @id @default(cuid())
+  repId          String?  @unique // public rep id, e.g. "REP-204"
+  name           String
+  city           String?
+  state          String?
+  source         String? // where the hire came from (LMS)
+  tier           String? // e.g. "Gold partner"
+  commissionRate Float    @default(0) // fraction, e.g. 0.05 = 5%
+  hiredAt        DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// LMS recruitment pipeline candidate.
+model Candidate {
+  id        String   @id @default(cuid())
+  name      String
+  email     String?
+  phone     String?
+  city      String?
+  state     String?
+  source    String? // Google / LinkedIn / Instagram / ...
+  stage     String   @default("applied") // applied|screening|training|test|recommended|hired|rejected
+  score     Int? // screening/test score
+  exp       String? // experience note (e.g. "4 yrs")
+  repId     String? // assigned rep id once hired
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  practices Practice[]
+
+  @@index([stage])
+}
+
+// Per-candidate practice checklist state (maps to lms-practice-<candId>-<app>).
+model Practice {
+  id          String    @id @default(cuid())
+  candidateId String
+  candidate   Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  app         String // which app's checklist
+  data        String // JSON-encoded tick state
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([candidateId, app])
+}
+
+// LMS training module + its practice checklist definition.
+model TrainingModule {
+  id        String   @id @default(cuid())
+  title     String
+  summary   String?
+  videoUrl  String? // link to the training video (hosted externally)
+  checklist String   @default("[]") // JSON-encoded list of checklist items
+  sortOrder Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Rep broadcast announcement (single active banner). Written by CRM/Admin,
+// shown once-a-day to reps in the Sales app.
+model Announcement {
+  id          String   @id @default("default")
+  active      Boolean  @default(false)
+  image       String? // banner image URL / dataURL
+  title       String?
+  message     String?
+  badge       String?
+  windowStart DateTime?
+  windowEnd   DateTime?
+  updatedAt   DateTime @updatedAt
+}
+
+// Generic key/value store (JSON as text) for admin content overlays:
+// catalog extra colours/shapes, category/shape thumbnails, splash pop-up,
+// category order, Mira images/enabled flags, language default, etc.
+model Setting {
+  key       String   @id
+  value     String // JSON-encoded
+  updatedAt DateTime @updatedAt
 }

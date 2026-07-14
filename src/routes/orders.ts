@@ -258,3 +258,56 @@ ordersRouter.post(
     return ok(res, serialiseOrder(order));
   })
 );
+
+// PUT /orders/:id — CRM pipeline update: courier, tracking, and status
+// (new → confirmed → packed → shipped → delivered). Marking it shipped/dispatched
+// writes a Mira shipment notification for the customer.
+const pipelineSchema = z.object({
+  status: z.enum(['pending', 'confirmed', 'packed', 'shipped', 'dispatched', 'delivered', 'cancelled']).optional(),
+  courier: z.string().optional(),
+  track: z.string().optional(),
+});
+
+ordersRouter.put(
+  '/:id',
+  authenticate,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    if (req.user!.role === 'customer') return fail(res, 403, 'Staff only');
+    const parsed = pipelineSchema.safeParse(req.body);
+    if (!parsed.success) return failValidation(res, parsed.error);
+    const d = parsed.data;
+
+    const existing = await prisma.order.findUnique({ where: { id: req.params.id } });
+    if (!existing) return fail(res, 404, 'Order not found');
+
+    // Normalise "dispatched" (CRM term) to "shipped".
+    const status = d.status === 'dispatched' ? 'shipped' : d.status;
+    const order = await prisma.order.update({
+      where: { id: existing.id },
+      data: {
+        ...(status ? { status } : {}),
+        ...(d.courier !== undefined ? { courier: d.courier } : {}),
+        ...(d.track !== undefined ? { track: d.track } : {}),
+      },
+      include: { lines: true },
+    });
+
+    // On dispatch, notify the customer (the Mira shipment bus).
+    const nowShipped = status === 'shipped' && existing.status !== 'shipped';
+    if (nowShipped) {
+      await prisma.notification.create({
+        data: {
+          customerId: order.customerId,
+          kind: 'shipment',
+          orderId: order.id,
+          courier: order.courier,
+          track: order.track,
+          title: 'Your order has been dispatched',
+          body: `Order ${order.id} is on its way${order.courier ? ` via ${order.courier}` : ''}${order.track ? ` (${order.track})` : ''}.`,
+        },
+      });
+    }
+
+    return ok(res, serialiseOrder(order));
+  })
+);

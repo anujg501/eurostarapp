@@ -7,7 +7,7 @@ type Category = { key: string; name: string; short: string; blurb: string; unit:
 
 const UNIT_LABEL: Record<string, string> = { pc: 'per piece', ct: 'per carat', pkt: 'per packet', strip: 'per strip' };
 
-export default function HomeScreen() {
+export default function HomeScreen({ navigation }: any) {
   const [cats, setCats] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -52,7 +52,11 @@ export default function HomeScreen() {
         </View>
       }
       renderItem={({ item }) => (
-        <TouchableOpacity style={styles.card} activeOpacity={0.8}>
+        <TouchableOpacity
+          style={styles.card}
+          activeOpacity={0.8}
+          onPress={() => navigation.navigate('Products', { cat: item.key, name: item.name })}
+        >
           <View style={styles.cardTop}>
             <Text style={styles.cardName}>{item.name}</Text>
             <View style={styles.unitPill}>
@@ -60,7 +64,10 @@ export default function HomeScreen() {
             </View>
           </View>
           <Text style={styles.cardBlurb} numberOfLines={2}>{item.blurb}</Text>
-          {item.count ? <Text style={styles.cardCount}>{item.count.toLocaleString('en-IN')} SKUs</Text> : null}
+          <View style={styles.cardTop}>
+            {item.count ? <Text style={styles.cardCount}>{item.count.toLocaleString('en-IN')} SKUs</Text> : <View />}
+            <Text style={styles.cardCta}>Shop →</Text>
+          </View>
         </TouchableOpacity>
       )}
     />
@@ -81,5 +88,6 @@ const styles = StyleSheet.create({
   unitPill: { backgroundColor: theme.emeraldSoft, borderRadius: 99, paddingHorizontal: 10, paddingVertical: 3 },
   unitText: { color: theme.emeraldInk, fontSize: 11, fontWeight: '700' },
   cardBlurb: { color: theme.ink3, marginTop: 8, lineHeight: 20 },
-  cardCount: { color: theme.emerald, marginTop: 10, fontWeight: '700', fontSize: 12 },
+  cardCount: { color: theme.ink3, marginTop: 10, fontWeight: '600', fontSize: 12 },
+  cardCta: { color: theme.emerald, marginTop: 10, fontWeight: '800', fontSize: 13 },
 });

@@ -1,6 +1,6 @@
 {
   "name": "eurostar-mobile",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Eurostar customer mobile app (Expo / React Native) — talks to the same back room API.",
   "main": "index.ts",

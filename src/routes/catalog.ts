@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { asyncHandler, ok } from '../util/http';
 import { CATEGORIES, SHAPES, TONES } from '../data/catalog';
+import { PRODUCTS } from '../data/products';
 
 export const catalogRouter = Router();
 
@@ -16,5 +17,16 @@ catalogRouter.get(
       shapes: SHAPES,
       tones: TONES,
     });
+  })
+);
+
+// GET /catalog/products — the 18 real SKUs with fixed wholesale prices. Powers
+// the mobile app's shop + ordering flow. Optional ?cat= filters by category.
+catalogRouter.get(
+  '/products',
+  asyncHandler(async (req, res) => {
+    const cat = typeof req.query.cat === 'string' ? req.query.cat : null;
+    const items = cat ? PRODUCTS.filter((p) => p.cat === cat) : PRODUCTS;
+    return ok(res, { products: items });
   })
 );

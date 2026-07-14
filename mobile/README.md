@@ -3,9 +3,14 @@
 A native mobile app (Expo / React Native) for customers, wired to the same back
 room as the web apps (`https://eurostar-api.onrender.com`).
 
-## What it does (v0.1)
-- **Login** with mobile number + OTP (test mode shows the code on screen).
-- **Shop** — browse the real 28 categories from the catalogue.
+## What it does (v0.2)
+- **Login** with mobile number + OTP (test mode shows the code on screen). New
+  customers add their name + GSTIN to create an account.
+- **Shop** — browse the real 28 categories, then tap into a category to see the
+  real SKUs with wholesale prices, sizes, clarity and stock.
+- **Cart** — set quantities (respecting each item's minimum order), review a
+  running total, and place the order. The back room computes the final total
+  (GST/shipping) and the order appears instantly in the CRM.
 - **Orders** — see your orders, live from the back room.
 
 ## Run it on your phone (easiest — no app store needed)
@@ -25,15 +30,15 @@ The app talks to the live back room, so it shares data with the website apps.
   different back room (e.g. a local one) if needed.
 
 ## Next steps (planned)
-- Full ordering flow (grade → colour → shape → size → cart → checkout).
-- Live prices (port the web pricing calculator or serve it from the API).
-- Shipment notifications, RFQ, Mira assistant chat.
+- Shipment notifications (push), RFQ, and the Mira assistant chat in-app.
+- Order detail screen with tracking/courier once dispatched.
 - App-store builds (EAS Build) for a real installable app.
 
 ## Structure
 ```
-App.tsx              app shell + auth gate + bottom tabs
+App.tsx              app shell + auth gate + bottom tabs + Shop stack
 src/api.ts           API client (talks to the back room)
+src/cart.tsx         shopping-cart store (React context)
 src/theme.ts         Eurostar colours
-src/screens/         Login, Home (shop), Orders
+src/screens/         Login, Home (categories), Products, Cart, Orders
 ```

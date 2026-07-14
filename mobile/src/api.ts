@@ -5,6 +5,23 @@ import Constants from 'expo-constants';
 const BASE_URL: string =
   (Constants.expoConfig?.extra as any)?.apiBaseUrl || 'https://eurostar-api.onrender.com';
 
+export type Product = {
+  id: string;
+  name: string;
+  cat: string;
+  tone: string;
+  shape: string;
+  size: string;
+  clarity: string;
+  price: number;
+  unit: string;
+  moq: number;
+  stock: 'in' | 'low' | 'out';
+  stockCount: number;
+  badge?: string;
+  desc?: string;
+};
+
 let accessToken: string | null = null;
 
 export async function loadToken(): Promise<string | null> {
@@ -63,6 +80,9 @@ export const api = {
 
   catalog: () =>
     request<{ categories: any[]; shapes: any[]; tones: any[] }>('/catalog'),
+
+  products: (cat?: string) =>
+    request<{ products: Product[] }>(`/catalog/products${cat ? `?cat=${encodeURIComponent(cat)}` : ''}`),
 
   myOrders: () => request<any[]>('/orders'),
 

@@ -53,10 +53,11 @@ app.use('/notifications', notificationsRouter);
 // ---------------------------------------------------------------------------
 const webDir = path.join(__dirname, '..', 'docs');
 app.get('/favicon.ico', (_req, res) => res.sendFile(path.join(webDir, 'assets', 'eurostar-logo.png')));
-app.get('/', (_req, res) => res.sendFile(path.join(webDir, 'Eurostar Login.html')));
+app.get('/', (_req, res) => res.sendFile(path.join(webDir, 'index.html'))); // app portal hub
+app.get('/login', (_req, res) => res.sendFile(path.join(webDir, 'Eurostar Login.html')));
 app.get('/site', (_req, res) => res.sendFile(path.join(webDir, 'Eurostar Sales website.html')));
 app.get('/mobile', (_req, res) => res.sendFile(path.join(webDir, 'Eurostar Sales website (Mobile).html')));
-app.use(express.static(webDir));
+app.use(express.static(webDir)); // serves the portal, Sales, and /crm/ (each has an index.html)
 
 // 404 — JSON for API paths, otherwise fall back to the login page.
 app.use((req, res) => {

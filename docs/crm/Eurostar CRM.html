@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Eurostar CRM</title>
+  <link rel="stylesheet" href="styles/tokens.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Gujarati:wght@400;500;600;700&family=Noto+Sans+Tamil:wght@400;500;600;700&family=Noto+Sans+Telugu:wght@400;500;600;700&family=Noto+Sans+Kannada:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="crm/crm.css">
+  <style>
+    /* Overlay scroll indicator (same as Sales App) — native scrollbar reserves no space. */
+    html { scrollbar-width: none; -ms-overflow-style: none; }
+    html::-webkit-scrollbar { width: 0; height: 0; }
+    #om-scroll-ind {
+      position: fixed;
+      top: 0; right: 2px;
+      width: 4px;
+      border-radius: 4px;
+      background: rgba(20, 40, 30, 0.28);
+      opacity: 0;
+      transition: opacity 0.35s ease;
+      pointer-events: none;
+      z-index: 2147483000;
+    }
+    #om-scroll-ind.is-active { opacity: 1; }
+  </style>
+  <script>
+    /* In the review preview (iframe), always fetch fresh local stylesheets. */
+    if (window.self !== window.top) {
+      document.querySelectorAll('link[rel="stylesheet"][href^="crm/"], link[rel="stylesheet"][href^="styles/"]').forEach(function (l) {
+        l.href = l.getAttribute('href').split('?')[0] + '?v=' + Date.now();
+      });
+    }
+  </script>
+</head>
+<body>
+  <div id="root"></div>
+  <div id="om-scroll-ind" aria-hidden="true"></div>
+  <script>
+    /* Transparent auto-hiding scroll indicator (overlay — reserves no space). */
+    (function () {
+      var ind = document.getElementById('om-scroll-ind');
+      var hideTimer = null;
+      function update() {
+        var doc = document.documentElement;
+        var vh = window.innerHeight;
+        var sh = doc.scrollHeight;
+        if (sh <= vh + 4) { ind.classList.remove('is-active'); return; }
+        var track = vh - 8;
+        var thumb = Math.max(28, track * (vh / sh));
+        var top = 4 + (track - thumb) * (window.scrollY / (sh - vh));
+        ind.style.height = thumb + 'px';
+        ind.style.transform = 'translateY(' + top + 'px)';
+        ind.classList.add('is-active');
+        if (hideTimer) clearTimeout(hideTimer);
+        hideTimer = setTimeout(function () { ind.classList.remove('is-active'); }, 700);
+      }
+      window.addEventListener('scroll', update, { passive: true });
+      window.addEventListener('resize', update, { passive: true });
+    })();
+  </script>
+  <script src="../vendor/react.development.js"></script>
+  <script src="../vendor/react-dom.development.js"></script>
+  <script src="../vendor/babel.min.js"></script>
+  <script src="assets/logo-data.js"></script>
+  <script type="text/babel" src="crm/crm-data.jsx"></script>
+  <script type="text/babel" src="crm/crm-app.jsx"></script>
+  <script src="app/mira-staff.js"></script>
+
+  <template id="__bundler_thumbnail" data-bg-color="#4F46E5">
+    <svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+      <rect width="1200" height="800" fill="#101826"/>
+      <g transform="translate(600 320)" fill="none" stroke="#A9B4F5" stroke-width="14" stroke-linejoin="round">
+        <path d="M-150 -60 L0 -150 L150 -60 L0 30 Z"/>
+        <path d="M-150 -60 L0 90 L150 -60"/>
+      </g>
+      <text x="600" y="540" font-family="Georgia, serif" font-size="64" fill="#F5E7C4" text-anchor="middle">Sales CRM</text>
+      <text x="600" y="600" font-family="system-ui, sans-serif" font-size="28" fill="#9AA3C9" text-anchor="middle" letter-spacing="6">PIPELINE · COMMISSIONS</text>
+    </svg>
+  </template>
+</body>
+</html>

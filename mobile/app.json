@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "Eurostar",
+    "slug": "eurostar-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "eurostar",
+    "splash": {
+      "backgroundColor": "#0E5C4A"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "in.eurostar.app"
+    },
+    "android": {
+      "package": "in.eurostar.app"
+    },
+    "extra": {
+      "apiBaseUrl": "https://eurostar-api.onrender.com"
+    }
+  }
+}

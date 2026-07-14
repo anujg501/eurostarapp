@@ -16,7 +16,8 @@ services:
     name: eurostar-backend
     runtime: node
     plan: free
-    region: singapore # closest Render region to India
+    # No region override: the web service must share the database's region for
+    # Render's internal (private) DB connection to work, so both use the default.
     branch: claude/github-connection-306nod
     autoDeploy: true
     healthCheckPath: /health

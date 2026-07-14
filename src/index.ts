@@ -51,7 +51,9 @@ app.use('/notifications', notificationsRouter);
 // The site compiles in the browser (React + Babel), so we just serve the files.
 // The folder is named "docs" so GitHub Pages can also publish it directly.
 // ---------------------------------------------------------------------------
-const webDir = path.join(__dirname, '..', 'docs');
+// Resolve from the working directory (repo root) so it works both under ts-node
+// (src/) and compiled (dist/src/) — the docs/ folder is always at the repo root.
+const webDir = path.join(process.cwd(), 'docs');
 app.get('/favicon.ico', (_req, res) => res.sendFile(path.join(webDir, 'assets', 'eurostar-logo.png')));
 app.get('/', (_req, res) => res.sendFile(path.join(webDir, 'index.html'))); // app portal hub
 app.get('/login', (_req, res) => res.sendFile(path.join(webDir, 'Eurostar Login.html')));

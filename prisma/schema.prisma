@@ -1,16 +1,16 @@
 // Eurostar backend — database schema.
 // This describes every "drawer" of information the app remembers.
 //
-// We use SQLite (a single simple file) for local development so there is
-// nothing to install. To move to a bigger production database later, change
-// `provider` to "postgresql" and update DATABASE_URL — the models stay the same.
+// Production uses PostgreSQL (Render's built-in database). DATABASE_URL points
+// at it. The models are database-agnostic, so the same schema also works on
+// SQLite for quick local testing if you switch the provider back.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 

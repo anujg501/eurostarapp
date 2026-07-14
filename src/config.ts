@@ -30,6 +30,14 @@ export const config = {
     length: parseInt(process.env.OTP_LENGTH ?? '6', 10),
   },
 
+  // Twilio SMS (real OTP delivery). Set these in Render to send real codes.
+  twilio: {
+    accountSid: process.env.TWILIO_ACCOUNT_SID ?? '',
+    authToken: process.env.TWILIO_AUTH_TOKEN ?? '',
+    from: process.env.TWILIO_FROM ?? '', // your Twilio phone number, e.g. +1... or a Messaging Service SID
+    defaultCountryCode: process.env.SMS_DEFAULT_COUNTRY_CODE ?? '+91', // India by default
+  },
+
   company: {
     upiId: process.env.COMPANY_UPI_ID ?? 'eurostar@okhdfcbank',
     upiName: process.env.COMPANY_UPI_NAME ?? 'Eurostar Technologies Inc.',

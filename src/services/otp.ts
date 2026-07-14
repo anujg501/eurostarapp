@@ -58,11 +58,41 @@ export async function verifyOtp(phone: string, code: string): Promise<boolean> {
   return match;
 }
 
-// --- Plug your SMS provider here -------------------------------------------
+// --- SMS delivery via Twilio -----------------------------------------------
+// Ensure the number is E.164 (e.g. +919876543210). Bare 10-digit Indian numbers
+// get the default country code prepended.
+function toE164(phone: string): string {
+  const trimmed = phone.replace(/[\s-()]/g, '');
+  if (trimmed.startsWith('+')) return trimmed;
+  if (/^\d{10}$/.test(trimmed)) return config.twilio.defaultCountryCode + trimmed;
+  return '+' + trimmed;
+}
+
 async function sendSms(phone: string, message: string): Promise<void> {
-  // Example (MSG91 / Twilio) goes here. For now we throw so misconfiguration
-  // is obvious rather than silently dropping login codes.
-  throw new Error(
-    `No SMS provider configured. Set OTP_DEV_MODE=true for testing, or implement sendSms() (phone=${phone}).`
-  );
+  const { accountSid, authToken, from } = config.twilio;
+  if (!accountSid || !authToken || !from) {
+    throw new Error(
+      'No SMS provider configured. Set OTP_DEV_MODE=true for testing, or set TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM.'
+    );
+  }
+
+  const to = toE164(phone);
+  const body = new URLSearchParams({ To: to, Body: message });
+  // "From" may be a phone number (+...) or a Messaging Service SID (starts with MG).
+  if (from.startsWith('MG')) body.set('MessagingServiceSid', from);
+  else body.set('From', from);
+
+  const resp = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/x-www-form-urlencoded',
+      authorization: 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64'),
+    },
+    body: body.toString(),
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '');
+    throw new Error(`Twilio SMS failed (${resp.status}): ${text.slice(0, 300)}`);
+  }
 }

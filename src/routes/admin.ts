@@ -1,14 +1,15 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler, ok, failValidation } from '../util/http';
-import { authenticate, requireRole } from '../auth/middleware';
+import { authenticate, requireRole, optionalAuth } from '../auth/middleware';
 import { getSetting, setSetting, KEYS } from '../services/settings';
 
 // Admin (Sales App Admin) content endpoints. These are the producer side of the
 // catalog overlays, thumbnails, splash and rep-broadcast art the Sales app reads.
 export const adminRouter = Router();
 
-const officeOnly = [authenticate, requireRole('office')];
+// Preview: the Admin app writes without a session for now (locked down in Phase 6).
+const officeOnly = [optionalAuth];
 
 // Helper: a GET (public read) + PUT (office write) pair backed by a setting key.
 function kv(router: Router, path: string, key: string, schema: z.ZodTypeAny, fallback: unknown) {

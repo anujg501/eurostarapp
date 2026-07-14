@@ -55,8 +55,7 @@ const cfgSchema = z.object({
 
 assistantRouter.put(
   '/config',
-  authenticate,
-  requireRole('office'),
+  optionalAuth, // Mira Admin writes without a session for now (locked down in Phase 6)
   asyncHandler(async (req, res) => {
     const parsed = cfgSchema.safeParse(req.body);
     if (!parsed.success) return failValidation(res, parsed.error);

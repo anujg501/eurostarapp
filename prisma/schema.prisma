@@ -1,0 +1,306 @@
+// Eurostar backend — database schema.
+// This describes every "drawer" of information the app remembers.
+//
+// We use SQLite (a single simple file) for local development so there is
+// nothing to install. To move to a bigger production database later, change
+// `provider` to "postgresql" and update DATABASE_URL — the models stay the same.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// PEOPLE & LOGIN
+// ---------------------------------------------------------------------------
+
+// A person who can log in: a customer, a sales rep, or a back-office staffer.
+model User {
+  id           String   @id @default(cuid())
+  role         String // "customer" | "rep" | "office"
+  name         String
+  phone        String?  @unique // customers log in with phone + OTP
+  gstin        String? // captured at first customer sign-up
+  userId       String?  @unique // login id for rep/office (e.g. "REP001", "office")
+  passwordHash String? // set for rep/office only
+  repId        String? // if this user IS a rep, their public rep id
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  refreshTokens RefreshToken[]
+  // Customers this user (a rep) owns, via the Customer.rep relation.
+  customersAsRep Customer[] @relation("RepCustomers")
+  ordersTaken    Order[]    @relation("OrderTakenBy")
+  paymentsTaken  Payment[]  @relation("PaymentReceivedBy")
+}
+
+// "Remember me" tokens — let a user stay logged in without retyping.
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// One-time codes sent by SMS for customer login.
+model OtpCode {
+  id        String   @id @default(cuid())
+  phone     String
+  codeHash  String
+  expiresAt DateTime
+  consumed  Boolean  @default(false)
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([phone])
+}
+
+// ---------------------------------------------------------------------------
+// CUSTOMERS (the businesses that buy)
+// ---------------------------------------------------------------------------
+
+model Customer {
+  id        String   @id @default(cuid())
+  code      String   @unique // human-friendly code, e.g. "CUST-1042"
+  name      String // company or contact name
+  phone     String?
+  city      String?
+  gstin     String?
+  terms     String   @default("cash") // "cash" | "15" | "30" | "45" | "60"
+  repUserId String? // which rep owns this customer
+  rep       User?    @relation("RepCustomers", fields: [repUserId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  carts    Cart[]
+  orders   Order[]
+  rfqs     Rfq[]
+  payments Payment[]
+
+  @@index([repUserId])
+}
+
+// ---------------------------------------------------------------------------
+// CATALOG (what is for sale)
+// ---------------------------------------------------------------------------
+
+model Category {
+  id        String   @id @default(cuid())
+  key       String   @unique // stable code, e.g. "moissanite"
+  name      String
+  unit      String // "pc" | "ct" | "pkt" | "strip"
+  sortOrder Int      @default(0)
+  thumbUrl  String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  skus Sku[]
+}
+
+// A single sellable variant: category + grade + colour + shape + size.
+model Sku {
+  id            String   @id @default(cuid())
+  categoryKey   String
+  category      Category @relation(fields: [categoryKey], references: [key])
+  grade         String?
+  colour        String?
+  shape         String?
+  size          String
+  unit          String // usually inherited from the category
+  pricePerPiece Int // stored in paise-free rupees (whole ₹), pricing is per piece
+  packetPcs     Int? // pieces per packet, when unit is "pkt"
+  soldOut       Boolean  @default(false)
+  imageUrl      String?
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([categoryKey, grade, colour, shape, size])
+  @@index([categoryKey])
+}
+
+// ---------------------------------------------------------------------------
+// CARTS & ORDERS
+// ---------------------------------------------------------------------------
+
+model Cart {
+  id         String   @id @default(cuid())
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id])
+  repUserId  String?
+  personaId  String? // client-side owner key ("eurostar-drafts-<personaId>")
+  status     String   @default("active") // "active" | "confirmed"
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  lines CartLine[]
+
+  @@index([customerId])
+  @@index([personaId])
+}
+
+model CartLine {
+  id         String  @id @default(cuid())
+  cartId     String
+  cart       Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  skuId      String?
+  categoryKey String?
+  grade      String?
+  colour     String?
+  shape      String?
+  size       String?
+  unit       String
+  qty        Int
+  unitPrice  Int
+  lineTotal  Int
+
+  @@index([cartId])
+}
+
+model Order {
+  id         String   @id // server-generated, e.g. "ESO-2026-0001"
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id])
+  repUserId  String?
+  takenBy    User?    @relation("OrderTakenBy", fields: [repUserId], references: [id])
+
+  // Denormalised snapshot fields the CRM/back-office stream reads directly.
+  customerName String?
+  customerCode String?
+  city         String?
+  repName      String?
+  repId        String?
+
+  subtotal   Int
+  gst        Int // 3%
+  courier    Int // free over ₹1000 else ₹300
+  grandTotal Int
+  dispatchBy DateTime? // 3 working days from confirmation
+  status     String   @default("active") // "active" | "confirmed"
+  source     String   @default("app") // "app" | "rep" | "office" | "offline"
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  lines    OrderLine[]
+  payments Payment[]
+
+  @@index([customerId])
+  @@index([status])
+}
+
+model OrderLine {
+  id            String  @id @default(cuid())
+  orderId       String
+  order         Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  skuId         String?
+  categoryKey   String?
+  grade         String?
+  colour        String?
+  shape         String?
+  size          String?
+  unit          String
+  qty           Int
+  unitPrice     Int
+  priceOverride Int? // office may charge higher than list
+  overrideBy    String? // audit: who overrode the price
+  lineTotal     Int
+
+  @@index([orderId])
+}
+
+// ---------------------------------------------------------------------------
+// PAYMENTS
+// ---------------------------------------------------------------------------
+
+model Payment {
+  id           String   @id @default(cuid())
+  orderId      String?
+  order        Order?   @relation(fields: [orderId], references: [id])
+  customerId   String?
+  customer     Customer? @relation(fields: [customerId], references: [id])
+  custCode     String?
+  custName     String?
+  mode         String // "upi" | "card" | "netbanking" | "neft" | "qr"
+  amount       Int
+  utr          String? // bank/UPI reference number
+  status       String   @default("received") // "pending" | "received" | "failed"
+  receivedById String?
+  receivedBy   User?    @relation("PaymentReceivedBy", fields: [receivedById], references: [id])
+  ts           DateTime @default(now())
+
+  @@index([orderId])
+  @@index([customerId])
+}
+
+// ---------------------------------------------------------------------------
+// RFQ (request for quote — ₹10,000 minimum)
+// ---------------------------------------------------------------------------
+
+model Rfq {
+  id         String   @id @default(cuid())
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id])
+  value      Int
+  status     String   @default("open") // "open" | "quoted" | "closed"
+  lines      String // JSON-encoded list of requested items (SQLite has no JSON type)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([customerId])
+}
+
+// ---------------------------------------------------------------------------
+// MIRA ASSISTANT
+// ---------------------------------------------------------------------------
+
+model AssistantConfig {
+  id           String   @id @default("default")
+  enabled      Boolean  @default(true)
+  instructions String   @default("")
+  rules        String   @default("")
+  knowledge    String   @default("")
+  examples     String   @default("")
+  updatedAt    DateTime @updatedAt
+}
+
+model ChatLog {
+  id        String   @id @default(cuid())
+  sessionId String
+  role      String // "user" | "assistant"
+  message   String
+  createdAt DateTime @default(now())
+
+  @@index([sessionId])
+}
+
+model Notification {
+  id         String   @id @default(cuid())
+  customerId String?
+  kind       String   @default("shipment") // "shipment" | "info"
+  title      String
+  body       String
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([customerId])
+}
+
+// ---------------------------------------------------------------------------
+// COUNTERS (for human-friendly ids like ESO-2026-0001)
+// ---------------------------------------------------------------------------
+
+model Counter {
+  key   String @id
+  value Int    @default(0)
+}

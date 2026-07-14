@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Eurostar LMS — Recruitment & Training</title>
+  <link rel="stylesheet" href="lms/lms.css">
+  <style>
+    /* Overlay scroll indicator (same as Sales App) — native scrollbar reserves no space. */
+    html { scrollbar-width: none; -ms-overflow-style: none; }
+    html::-webkit-scrollbar { width: 0; height: 0; }
+    #om-scroll-ind {
+      position: fixed;
+      top: 0; right: 2px;
+      width: 4px;
+      border-radius: 4px;
+      background: rgba(20, 40, 30, 0.28);
+      opacity: 0;
+      transition: opacity 0.35s ease;
+      pointer-events: none;
+      z-index: 2147483000;
+    }
+    #om-scroll-ind.is-active { opacity: 1; }
+  </style>
+  <script>
+    /* In the review preview (iframe), always fetch fresh local stylesheets. */
+    if (window.self !== window.top) {
+      document.querySelectorAll('link[rel="stylesheet"][href^="lms/"]').forEach(function (l) {
+        l.href = l.getAttribute('href').split('?')[0] + '?v=' + Date.now();
+      });
+    }
+  </script>
+  <script src="../vendor/react.development.js"></script>
+  <script src="../vendor/react-dom.development.js"></script>
+  <script src="../vendor/babel.min.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <div id="om-scroll-ind" aria-hidden="true"></div>
+  <script>
+    /* Transparent auto-hiding scroll indicator (overlay — reserves no space). */
+    (function () {
+      var ind = document.getElementById('om-scroll-ind');
+      var hideTimer = null;
+      function update() {
+        var doc = document.documentElement;
+        var vh = window.innerHeight;
+        var sh = doc.scrollHeight;
+        if (sh <= vh + 4) { ind.classList.remove('is-active'); return; }
+        var track = vh - 8;
+        var thumb = Math.max(28, track * (vh / sh));
+        var top = 4 + (track - thumb) * (window.scrollY / (sh - vh));
+        ind.style.height = thumb + 'px';
+        ind.style.transform = 'translateY(' + top + 'px)';
+        ind.classList.add('is-active');
+        if (hideTimer) clearTimeout(hideTimer);
+        hideTimer = setTimeout(function () { ind.classList.remove('is-active'); }, 700);
+      }
+      window.addEventListener('scroll', update, { passive: true });
+      window.addEventListener('resize', update, { passive: true });
+    })();
+  </script>
+  <script src="assets/logo-data.js"></script>
+  <script type="text/babel" src="lms/lms-data.jsx"></script>
+  <script type="text/babel" src="lms/lms-candidate.jsx"></script>
+  <script type="text/babel" src="lms/lms-admin.jsx"></script>
+  <script type="text/babel" src="lms/lms-app.jsx"></script>
+  <script src="app/mira-staff.js"></script>
+
+  <template id="__bundler_thumbnail" data-bg-color="#15803D">
+    <svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+      <rect width="1200" height="800" fill="#0F2A1A"/>
+      <g transform="translate(600 320)" fill="none" stroke="#A8E0BD" stroke-width="14" stroke-linejoin="round">
+        <path d="M-150 -60 L0 -150 L150 -60 L0 30 Z"/>
+        <path d="M-150 -60 L0 90 L150 -60"/>
+      </g>
+      <text x="600" y="540" font-family="Georgia, serif" font-size="60" fill="#F5E7C4" text-anchor="middle">Recruitment LMS</text>
+      <text x="600" y="600" font-family="system-ui, sans-serif" font-size="28" fill="#8FBDA0" text-anchor="middle" letter-spacing="6">HIRE · TRAIN · TEST</text>
+    </svg>
+  </template>
+</body>
+</html>

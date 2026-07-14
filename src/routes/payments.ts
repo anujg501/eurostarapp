@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../db';
 import { config } from '../config';
 import { asyncHandler, fail, ok, failValidation } from '../util/http';
-import { AuthedRequest, authenticate } from '../auth/middleware';
+import { AuthedRequest, authenticate, optionalAuth } from '../auth/middleware';
 import { dispatchInfo } from '../services/totals';
 
 export const paymentsRouter = Router();
@@ -62,12 +62,12 @@ const createSchema = z.object({
 
 paymentsRouter.post(
   '/',
-  authenticate,
+  optionalAuth, // session used when present; otherwise the app supplies the details
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = createSchema.safeParse(req.body);
     if (!parsed.success) return failValidation(res, parsed.error);
     const d = parsed.data;
-    const me = req.user!;
+    const me = req.user; // may be undefined
 
     const id = d.id ?? (d.orderId ? `PAY-APP-${d.orderId}` : `PAY-${Date.now()}`);
     const status = d.status ?? 'confirmed';
@@ -81,12 +81,12 @@ paymentsRouter.post(
       amount: d.amount,
       utr: d.utr,
       date: d.date ?? new Date().toISOString().slice(0, 10),
-      by: d.by ?? me.name,
+      by: d.by ?? me?.name,
       contact: d.contact,
       img: d.img ?? null,
       status,
       source: d.source ?? 'Sales App',
-      receivedById: me.sub,
+      receivedById: me?.sub ?? null,
     };
 
     // Upsert by id so a re-sent payment does not duplicate (client dedups by orderId).

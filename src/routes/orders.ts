@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db';
 import { asyncHandler, fail, ok, failValidation } from '../util/http';
-import { AuthedRequest, authenticate } from '../auth/middleware';
+import { AuthedRequest, authenticate, optionalAuth } from '../auth/middleware';
 import { computeTotals, dispatchInfo, isExportCity } from '../services/totals';
 import { nextOrderId } from '../services/ids';
 
@@ -37,17 +37,27 @@ type LineIn = z.infer<typeof lineSchema>;
 const createOrderSchema = z.object({
   id: z.string().optional(), // client-generated id (e.g. "SO-24987")
   customerId: z.string().optional(),
+  // "customer" may be an object (rich checkout payload) or a plain name string
+  // (the minimal object the app mirrors to eurostar-crm-incoming-orders).
   customer: z
-    .object({
-      name: z.string().optional(),
-      phone: z.string().optional(),
-      code: z.string().optional(),
-      id: z.string().optional(),
-      isNew: z.boolean().optional(),
-    })
+    .union([
+      z.string(),
+      z
+        .object({
+          name: z.string().optional(),
+          phone: z.string().optional(),
+          code: z.string().optional(),
+          id: z.string().optional(),
+          isNew: z.boolean().optional(),
+        })
+        .partial(),
+    ])
     .optional(),
   code: z.string().optional(),
   city: z.string().optional(),
+  rep: z.string().optional(), // rep name (from the client CRM order object)
+  repId: z.string().optional(),
+  value: z.number().optional(), // grand total (the client CRM object's "value")
   items: z.array(lineSchema).optional(),
   subtotal: z.number().optional(), // client-computed (recomputed server-side when items present)
   isExport: z.boolean().optional(),
@@ -57,6 +67,7 @@ const createOrderSchema = z.object({
   dispatchBy: z.string().optional(), // client label, e.g. "Wed, 17 Jul"
   queuedOffline: z.boolean().optional(),
   clientTs: z.number().optional(),
+  ts: z.number().optional(), // the client CRM object uses "ts"
 });
 
 // Per-line unit rate (per ct/pkt/pc) and quantity, tolerant of field naming.
@@ -115,22 +126,28 @@ function serialiseOrder(o: any) {
 // This is the stream the CRM/back-office consumes (was eurostar-crm-incoming-orders).
 ordersRouter.post(
   '/',
-  authenticate,
+  optionalAuth, // a logged-in session is used when present; otherwise the app
   asyncHandler(async (req: AuthedRequest, res) => {
+    // supplies customer/rep details in the payload (real user auth lands in Phase 6).
     const parsed = createOrderSchema.safeParse(req.body);
     if (!parsed.success) return failValidation(res, parsed.error);
     const d = parsed.data;
-    const me = req.user!;
-    const canOverride = me.role === 'office'; // only back office may override price
+    const me = req.user; // may be undefined
+    const staff = !!me && me.role !== 'customer';
+    const canOverride = me?.role === 'office'; // only back office may override price
 
     const customer = d.customerId
       ? await prisma.customer.findUnique({ where: { id: d.customerId } })
       : null;
 
+    // "customer" can be a name string or an object.
+    const customerObj = typeof d.customer === 'object' ? d.customer : undefined;
+    const customerNameFromPayload = typeof d.customer === 'string' ? d.customer : customerObj?.name;
+
     const city = customer?.city ?? d.city ?? null;
     const isExport = d.isExport ?? isExportCity(city);
 
-    // Build lines and the authoritative subtotal.
+    // Build lines and the authoritative subtotal (when line items are provided).
     const items = d.items ?? [];
     const lines = items.map((l) => {
       const total = effectiveLineTotal(l, canOverride);
@@ -146,13 +163,29 @@ ordersRouter.post(
         qty: lineUnits(l),
         unitPrice: lineRate(l),
         priceOverride: override,
-        overrideBy: override != null ? me.sub : null,
+        overrideBy: override != null ? me?.sub ?? 'app' : null,
         lineTotal: total,
       };
     });
 
-    const subtotal = items.length ? lines.reduce((s, l) => s + l.lineTotal, 0) : d.subtotal ?? 0;
-    const totals = computeTotals([{ unitPrice: subtotal, qty: 1 }], isExport); // reuse rules on the subtotal
+    // With items: compute totals from the rules. Without items (the mirrored CRM
+    // object): trust the client-provided grand "value".
+    let subtotal: number, tax: number, shipping: number, insurance: number, grand: number;
+    if (items.length) {
+      subtotal = lines.reduce((s, l) => s + l.lineTotal, 0);
+      const totals = computeTotals([{ unitPrice: subtotal, qty: 1 }], isExport);
+      tax = totals.tax;
+      shipping = totals.shipping;
+      insurance = totals.insurance;
+      grand = totals.grand;
+    } else {
+      grand = d.value ?? d.subtotal ?? 0;
+      subtotal = d.subtotal ?? grand;
+      tax = 0;
+      shipping = 0;
+      insurance = 0;
+    }
+
     const dispatch = dispatchInfo(isExport);
     const dispatchLabel = d.dispatchBy ?? dispatch.label;
 
@@ -162,17 +195,17 @@ ordersRouter.post(
 
     const data = {
       customerId: customer?.id,
-      repUserId: me.role !== 'customer' ? me.sub : null,
-      customerName: customer?.name ?? d.customer?.name ?? me.name,
-      customerCode: customer?.code ?? d.customer?.code ?? d.code,
+      repUserId: staff ? me!.sub : null,
+      customerName: customer?.name ?? customerNameFromPayload ?? me?.name,
+      customerCode: customer?.code ?? customerObj?.code ?? d.code,
       city,
-      repName: me.role !== 'customer' ? me.name : null,
-      repId: me.role !== 'customer' ? me.repId ?? null : null,
+      repName: d.rep ?? (staff ? me!.name : null),
+      repId: d.repId ?? (staff ? me!.repId ?? null : null),
       subtotal,
-      tax: totals.tax,
-      shipping: totals.shipping,
-      insurance: totals.insurance,
-      grand: totals.grand,
+      tax,
+      shipping,
+      insurance,
+      grand,
       isExport,
       paid,
       dispatchBy: dispatch.date,
@@ -180,7 +213,7 @@ ordersRouter.post(
       status,
       source: d.source ?? 'Sales App',
       queuedOffline: d.queuedOffline ?? false,
-      clientTs: d.clientTs != null ? String(d.clientTs) : null,
+      clientTs: d.clientTs != null ? String(d.clientTs) : d.ts != null ? String(d.ts) : null,
     };
 
     // Upsert by id so an offline order flushed twice does not duplicate

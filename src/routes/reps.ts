@@ -44,8 +44,7 @@ const createSchema = z.object({
 
 repsRouter.post(
   '/',
-  authenticate,
-  requireStaff,
+  optionalAuth, // LMS "Onboard to CRM" posts here without a session for now (locked in Phase 6)
   asyncHandler(async (req, res) => {
     const parsed = createSchema.safeParse(req.body);
     if (!parsed.success) return failValidation(res, parsed.error);

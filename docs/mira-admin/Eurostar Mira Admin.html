@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mira Admin — Eurostar AI Assistant</title>
+<style>
+  :root{
+    --emerald:#0E5C4A; --emerald-ink:#0a3f33; --emerald-soft:#e6f1ec;
+    --paper:#FBF8F1; --surface:#ffffff; --surface-2:#f3efe5;
+    --fg:#23211c; --fg-meta:#8a8372; --border:#e4ddcd; --divider:#ece6da;
+    --ruby:#8B1E2E; --amber-ink:#8a6d1f;
+    --serif:"Georgia","Times New Roman",serif;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--fg);font-family:var(--sans);font-size:15px;line-height:1.5}
+  .top{background:var(--emerald);color:#FDFAF2;padding:18px 28px;display:flex;align-items:center;gap:14px}
+  .top .logo{width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;font-size:22px}
+  .top h1{font-family:var(--serif);font-weight:500;font-size:22px;margin:0}
+  .top p{margin:2px 0 0;font-size:12.5px;color:rgba(253,250,242,.8)}
+  .wrap{max-width:1080px;margin:0 auto;padding:24px 28px 80px}
+  .tabs{display:flex;flex-wrap:wrap;gap:18px 26px;margin:18px 0 24px;align-items:flex-end}
+  .tabgroup{display:flex;flex-direction:column;gap:7px}
+  .tabgroup-label{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--fg-meta);padding-left:2px}
+  .tabgroup-pills{display:flex;gap:7px;flex-wrap:wrap}
+  .tab{padding:9px 16px;border-radius:999px;border:1px solid var(--border);background:var(--surface);cursor:pointer;font-family:inherit;font-size:14px;font-weight:600;color:var(--fg)}
+  .tab.active{background:var(--emerald);color:#fff;border-color:var(--emerald)}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;margin-bottom:18px}
+  .card h2{font-family:var(--serif);font-weight:500;font-size:19px;margin:0 0 6px}
+  .card .sub{color:var(--fg-meta);font-size:13.5px;margin:0 0 16px}
+  label{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--fg-meta);margin:0 0 6px}
+  textarea,input{width:100%;padding:11px 13px;border:1px solid var(--border);border-radius:10px;font-family:inherit;font-size:14px;background:var(--surface);color:var(--fg);box-sizing:border-box}
+  textarea{resize:vertical;line-height:1.6}
+  .btn{border:none;border-radius:10px;padding:10px 18px;font-family:inherit;font-weight:600;font-size:14px;cursor:pointer}
+  .btn-pri{background:var(--emerald);color:#fff}
+  .btn-ghost{background:var(--surface-2);color:var(--fg);border:1px solid var(--border)}
+  .btn-sm{padding:7px 12px;font-size:13px}
+  .btn-danger{background:transparent;color:var(--ruby);border:1px solid var(--border)}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .saved{color:var(--emerald-ink);font-size:13px;font-weight:600;opacity:0;transition:opacity .2s}
+  .saved.show{opacity:1}
+  .item{border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px;background:var(--surface)}
+  .item .ttl{font-weight:600;font-size:14px;margin-bottom:3px}
+  .item .txt{font-size:13.5px;color:var(--fg-meta);white-space:pre-wrap}
+  .item .meta{font-size:11.5px;color:var(--fg-meta)}
+  .empty{color:var(--fg-meta);font-size:13.5px;padding:18px 0;text-align:center}
+  .pill{display:inline-block;background:var(--emerald-soft);color:var(--emerald-ink);border-radius:999px;padding:2px 10px;font-size:11px;font-weight:700}
+  .hint{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:12.5px;color:var(--fg-meta);margin-bottom:14px;line-height:1.55}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:640px){.grid2{grid-template-columns:1fr}}
+  .chat-q{font-size:13.5px;margin:0 0 4px}
+  .chat-a{font-size:13.5px;color:var(--fg-meta);margin:0}
+  a.back{color:#FDFAF2;text-decoration:none;font-size:13px;margin-left:auto;border:1px solid rgba(255,255,255,.3);padding:7px 13px;border-radius:8px}
+</style>
+</head>
+<body>
+  <template id="__bundler_thumbnail" data-bg-color="#0E5C4A">
+    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <rect width="100" height="100" fill="#0E5C4A"/>
+      <circle cx="50" cy="38" r="16" fill="#FDFAF2"/>
+      <text x="50" y="45" font-size="18" text-anchor="middle" fill="#0E5C4A">💎</text>
+      <rect x="28" y="60" width="44" height="6" rx="3" fill="#FDFAF2" opacity="0.9"/>
+      <rect x="34" y="72" width="32" height="5" rx="2.5" fill="#FDFAF2" opacity="0.6"/>
+    </svg>
+  </template>
+  <div class="top">
+    <div class="logo">💎</div>
+    <div>
+      <h1>Mira Admin</h1>
+      <p>Train your AI assistant — no code. Changes apply instantly in the Sales App.</p>
+    </div>
+    <a class="back" href="../Eurostar Sales website.html">Open Sales App →</a>
+  </div>
+
+  <div class="wrap">
+    <div class="tabs" id="tabs"></div>
+    <div id="panel"></div>
+  </div>
+
+<script>
+const LS = {
+  inst: 'eurostar-mira-instructions',
+  rules: 'eurostar-mira-rules',
+  know: 'eurostar-mira-knowledge',
+  ex: 'eurostar-mira-examples',
+  log: 'eurostar-mira-chatlog',
+  logCrm: 'eurostar-mira-chatlog-crm',
+  logLms: 'eurostar-mira-chatlog-lms',
+  img: 'eurostar-mira-images',
+  enabled: 'eurostar-mira-enabled',
+};
+const getJSON = (k) => { try { return JSON.parse(localStorage.getItem(k) || '[]'); } catch(e){ return []; } };
+const setJSON = (k,v) => localStorage.setItem(k, JSON.stringify(v));
+
+// ===== Internal staff knowledge: how the Eurostar CRM, LMS and Sales App work =====
+// Used by Mira's Staff Helpdesk so reps, office & HR can ask her how to do things.
+const STAFF_KNOWLEDGE = `EUROSTAR INTERNAL SYSTEMS GUIDE (for staff only — never share these operational details with customers).
+
+=== SALES APP (the customer-facing ordering app reps show customers) ===
+- Ordering flow: Category → Grade → Colour → Shape → Size list → quantity → cart → checkout.
+- 18+ categories (laser engraved, moissanite, alpanite, multi sapphire, cabochon, pearls, HD zirconia, corundum, lab grown, beads, CZ, etc.). Units vary: per piece (pc), per carat (ct), per packet (pkt), per strip.
+- Beads sell by carat with a 100 ct minimum, in multiples of 100 ct. Moissanite polki carries a +₹25/piece foiling charge.
+- Minimum order value ₹1,000 (flat ₹300 courier at ₹1,000; free above). Everyone starts on CASH (pay then ship). RFQ Enquiry is for custom items (₹10,000 min).
+- Reorder: open any past order → "Reorder same items" re-adds those lines to the cart.
+- Offline: if signal drops, orders are saved offline and auto-sync when back online.
+- Mira (this assistant) is the in-app chatbot that takes orders, reorders, checks stock/dues, raises issues, in the customer's language.
+
+=== CRM (three roles: Admin, Back Office, Sales Rep) ===
+SALES REP DESK: Quick Actions bar for one-tap daily tasks (check-in, log payment, etc.).
+- CHECK-IN / CHECK-OUT: rep checks in at a customer — the app captures live GPS location & time so the office can see where reps go and how long each meeting lasts. To check out, the rep requests check-out → an OTP is sent to the CUSTOMER's phone → the customer gives the rep the OTP → check-out is validated (fool-proof proof of visit). If a check-out is not validated by 11:59 pm, it shows as "Check-out failed".
+- LOG PAYMENT (rep side): record a customer payment. UPI/bank: enter amount + UTR/reference. CASH: also give "Transferred to Head office by", contact info, date, amount, and upload a receipt image. The office then verifies it.
+BACK OFFICE: Order desk shows orders "Incoming from Sales App" (with which rep/customer they came from). Also handles ASSIGN leads.
+ADMIN: Dashboard; Customers & Payment Terms; Reps; Reports (Outstanding shows Billed / Received / Balance — a confirmed payment reduces the balance automatically; cleared accounts show ₹0); Customer Pipeline (filter by rep for weekly follow-up calls); Rep Broadcast; Check leads (Customer Database); ASSIGN leads; Field Visits (rep GPS check-in/out log with customer name + phone).
+LEADS WORKFLOW (Admin/Back Office → "ASSIGN leads", 3 steps):
+  1. Upload purchased leads (Excel/CSV).
+  2. App checks every lead's GST against the permanent Customer Database (falls back to name + city/mobile if no GST). Matches = FLAGGED as existing customers and held for approval (so reps don't re-visit accounts with negotiated prices). The flagged list always shows for peace of mind, even when empty.
+  3. Clean (unflagged) leads are assigned — by city (auto-forward) or to an individual rep. Flagged leads need admin approval; "Approve & assign to…" releases and assigns in one step.
+- CUSTOMER DATABASE ("Check leads"): permanent list of existing customers (name, address, GST). Upload/maintain it here; it's what new leads are checked against.
+- REP BROADCAST: Admin → Rep Broadcast. Compose a banner (headline, message, highlight badge, optional image) with a start & end date; reps see it once a day. Used for new-product pushes and special commission offers.
+
+=== LMS (recruitment + training; roles: Admin and Candidate/Rep) ===
+CANDIDATE/REP FLOW: register → sign confidentiality agreement → choose language → watch training module videos → take the MCQ test → see result. Pass mark is 70%.
+HIRING HANDOFF: when a candidate passes and is approved/hired, the LMS issues a permanent Rep ID (format ES-REP-XX-0001) and "Onboard to CRM" creates them as an active rep in the CRM (city, ASM/Sales-Head, target, commission), tagged "FROM LMS". The same Rep ID links the person across LMS and CRM forever.
+POST-HIRE KYC (rep does this in the LMS): upload photograph, Aadhaar card image, PAN (if available), and bank details (account number, bank name, IFSC). Admin views all of it in the candidate's drawer (KYC & bank panel, with image thumbnails).
+QUESTION BANK (Admin): add questions one by one, or BULK UPLOAD MCQs via CSV/Excel — use the "↓ Template" button to get the correct columns, fill it, then "⬆ Bulk upload". Supports MCQ (answer by letter or number) and True/False.
+
+=== MIRA ADMIN (training this assistant) ===
+- Tabs: Instructions & persona, Correction rules, Knowledge base, Images Mira can send, Example answers, Customer chats (threaded — open a thread, each reply has an "Improve this reply" button to teach a better answer), and the chat sandboxes.
+- To fix a wrong answer: add a Correction rule, or improve a reply inside a customer chat thread. To teach phrasing: add an Example. To add facts: Knowledge base. To let Mira send a picture/certificate: upload it under Images.
+
+Always give clear, step-by-step answers and name the exact role/tab/button. If something is outside these systems, say so honestly.`;
+const esc = (s) => String(s||'').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const when = (ts) => { try { return new Date(ts).toLocaleString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}); } catch(e){ return ''; } };
+
+const TAB_GROUPS = [
+  ['Training Mira', [
+    ['instructions','Instructions & persona'],
+    ['rules','Correction rules'],
+    ['knowledge','Knowledge base'],
+    ['images','Images Mira can send'],
+    ['examples','Example answers'],
+  ]],
+  ['Conversations', [
+    ['chats','Customer chats'],
+    ['crmchats','CRM chats'],
+    ['lmschats','LMS chats'],
+  ]],
+  ['Test & control', [
+    ['testcust','Chat as customer'],
+    ['testadmin','Train Mira (chat)'],
+    ['toggles','Turn Mira on/off'],
+  ]],
+];
+const TABS = TAB_GROUPS.reduce((a,g)=>a.concat(g[1]),[]);
+let active = 'instructions';
+let openThread = null; // sessionId of the chat thread currently open in the Chats tab
+let chatLogKey = 'eurostar-mira-chatlog'; // which log the Chats viewer is currently showing
+let chatRoleFilter = 'all'; // role sub-filter for CRM/LMS chat lists
+let staffTopic = 'crm'; // staff helpdesk: which app a logged session belongs to (crm | lms)
+let editTurnTs = null; // ts of the Mira reply currently being coached with a better answer
+let testMsgs = { cust: [], admin: [], staff: [] }; // separate test conversations per mode (not saved to customer chat log)
+let testBusy = { cust: false, admin: false, staff: false };
+
+function flashSaved(el){ el.classList.add('show'); setTimeout(()=>el.classList.remove('show'), 1400); }
+
+function render(){
+  document.getElementById('tabs').innerHTML = TAB_GROUPS.map(([label, tabs]) =>
+    `<div class="tabgroup"><div class="tabgroup-label">${label}</div><div class="tabgroup-pills">` +
+    tabs.map(([id,t]) => `<button class="tab ${active===id?'active':''}" onclick="go('${id}')">${t}</button>`).join('') +
+    `</div></div>`).join('');
+  const p = document.getElementById('panel');
+  if (active==='instructions') p.innerHTML = viewInstructions();
+  else if (active==='rules') p.innerHTML = viewList('rules', LS.rules, 'correction rule', 'e.g. HD Zirconia is white only, single grade — never claim fancy colours or grades.');
+  else if (active==='knowledge') p.innerHTML = viewKnowledge();
+  else if (active==='images') p.innerHTML = viewImages();
+  else if (active==='examples') p.innerHTML = viewExamples();
+  else if (active==='chats') { chatLogKey = LS.log; p.innerHTML = viewChats(); }
+  else if (active==='crmchats') { chatLogKey = LS.logCrm; p.innerHTML = viewChats(); }
+  else if (active==='lmschats') { chatLogKey = LS.logLms; p.innerHTML = viewChats(); }
+  else if (active==='testcust') { p.innerHTML = viewTest('cust'); renderTestMsgs('cust'); }
+  else if (active==='testadmin') { p.innerHTML = viewTest('admin'); renderTestMsgs('admin'); }
+  else if (active==='toggles') p.innerHTML = viewToggles();
+}
+function go(id){ active=id; chatRoleFilter='all'; openThread=null; render(); }
+
+/* ---- Instructions ---- */
+function viewInstructions(){
+  const v = esc(localStorage.getItem(LS.inst) || '');
+  return `<div class="card">
+    <h2>Mira's instructions &amp; personality</h2>
+    <p class="sub">The master briefing layered on top of Mira's built-in Eurostar training. Set her tone, priorities, and any do's &amp; don'ts. This has the highest priority.</p>
+    <div class="hint">Examples you can paste here:<br>• "Always greet by the customer's first name and use a warm, respectful tone."<br>• "Push White Round CZ once trust is built, never on the first message."<br>• "If a customer is upset, apologise first, then offer to connect their rep."</div>
+    <label>Instruction text</label>
+    <textarea id="instBox" rows="10" placeholder="Write Mira's instructions here…">${v}</textarea>
+    <div class="row" style="margin-top:12px">
+      <button class="btn btn-pri" onclick="saveInst()">Save instructions</button>
+      <span class="saved" id="instSaved">✓ Saved — live in the Sales App</span>
+    </div>
+  </div>`;
+}
+function saveInst(){ localStorage.setItem(LS.inst, document.getElementById('instBox').value); flashSaved(document.getElementById('instSaved')); }
+
+/* ---- Simple list (rules) ---- */
+function viewList(kind, key, noun, ph){
+  const items = getJSON(key);
+  return `<div class="card">
+    <h2>Correction rules <span class="pill">${items.length}</span></h2>
+    <p class="sub">One-line rules Mira must always follow. Add one whenever you spot a wrong or over-enthusiastic answer — she'll obey it from the next message on.</p>
+    <div class="row" style="margin-bottom:14px">
+      <input id="newRule" placeholder="${ph}" onkeydown="if(event.key==='Enter')addRule()">
+      <button class="btn btn-pri" onclick="addRule()">Add rule</button>
+    </div>
+    ${items.length ? items.map((r,i)=>`<div class="item"><div class="row"><div class="txt" style="flex:1;color:var(--fg)">${esc(r)}</div><button class="btn btn-danger btn-sm" onclick="delRule(${i})">Remove</button></div></div>`).join('')
+      : '<div class="empty">No correction rules yet.</div>'}
+  </div>`;
+}
+function addRule(){ const el=document.getElementById('newRule'); const v=el.value.trim(); if(!v)return; const a=getJSON(LS.rules); a.push(v); setJSON(LS.rules,a); render(); }
+function delRule(i){ const a=getJSON(LS.rules); a.splice(i,1); setJSON(LS.rules,a); render(); }
+
+/* ---- Knowledge base ---- */
+function viewKnowledge(){
+  const items = getJSON(LS.know);
+  return `<div class="card">
+    <h2>Knowledge base <span class="pill">${items.length}</span></h2>
+    <p class="sub">Facts &amp; reference notes Mira can use — product specs, policies, FAQs, anything from your training script. Add a title and the details. (For long documents, paste the key facts here.)</p>
+    <div class="grid2" style="margin-bottom:10px">
+      <div><label>Title</label><input id="kTitle" placeholder="e.g. HD Zirconia facts"></div>
+      <div><label>Upload a text/CSV file (optional)</label><input type="file" id="kFile" accept=".txt,.csv,.md" onchange="loadKFile()"></div>
+    </div>
+    <label>Details</label>
+    <textarea id="kText" rows="4" placeholder="The facts Mira should know…"></textarea>
+    <div class="row" style="margin-top:12px"><button class="btn btn-pri" onclick="addKnow()">Add to knowledge base</button></div>
+    <div style="margin-top:18px">
+      ${items.length ? items.map((k,i)=>`<div class="item"><div class="row"><div style="flex:1"><div class="ttl">${esc(k.title)}</div><div class="txt">${esc(k.text)}</div></div><button class="btn btn-danger btn-sm" onclick="delKnow(${i})">Remove</button></div></div>`).join('')
+        : '<div class="empty">No knowledge entries yet.</div>'}
+    </div>
+  </div>`;
+}
+function loadKFile(){ const f=document.getElementById('kFile').files[0]; if(!f)return; const r=new FileReader(); r.onload=()=>{ document.getElementById('kText').value=r.result; if(!document.getElementById('kTitle').value) document.getElementById('kTitle').value=f.name.replace(/\.[^.]+$/,''); }; r.readAsText(f); }
+function addKnow(){ const t=document.getElementById('kTitle').value.trim(), x=document.getElementById('kText').value.trim(); if(!t||!x){alert('Add a title and details.');return;} const a=getJSON(LS.know); a.push({title:t,text:x}); setJSON(LS.know,a); render(); }
+function delKnow(i){ const a=getJSON(LS.know); a.splice(i,1); setJSON(LS.know,a); render(); }
+
+/* ---- Images Mira can send ---- */
+function viewImages(){
+  const items = getJSON(LS.img);
+  return `<div class="card">
+    <h2>Images Mira can send <span class="pill">${items.length}</span></h2>
+    <p class="sub">Upload product photos, certificates, size charts — anything Mira should be able to send customers in chat. Give each a clear name; Mira sends it when it's relevant (e.g. “show me the moissanite certificate”).</p>
+    <div class="grid2" style="margin-top:6px">
+      <div><label>Name / keyword</label><input id="imgName" placeholder="e.g. Moissanite GRA certificate"></div>
+      <div><label>Short description (optional)</label><input id="imgDesc" placeholder="e.g. Sample GRA cert for 6.5mm round"></div>
+    </div>
+    <div class="row" style="margin-top:12px;align-items:center;gap:10px">
+      <input type="file" id="imgFile" accept="image/*" style="font-family:inherit;font-size:13px">
+      <button class="btn btn-pri" onclick="addImage()">Add image</button>
+    </div>
+    <div style="margin-top:18px;display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px">
+      ${items.length ? items.map((im,i)=>`<div class="item" style="padding:10px">
+        <img src="${im.data}" alt="${esc(im.name)}" style="width:100%;height:130px;object-fit:cover;border-radius:8px;border:1px solid var(--border);background:#fff">
+        <div style="font-weight:600;font-size:13px;margin-top:8px">${esc(im.name)}</div>
+        ${im.desc?`<div class="meta" style="margin-top:2px">${esc(im.desc)}</div>`:''}
+        <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="delImage(${i})">Remove</button>
+      </div>`).join('') : '<div class="empty">No images yet. Add product photos or certificates Mira can share.</div>'}
+    </div>
+  </div>`;
+}
+function addImage(){
+  const name=document.getElementById('imgName').value.trim();
+  const desc=document.getElementById('imgDesc').value.trim();
+  const f=document.getElementById('imgFile').files[0];
+  if(!name){ alert('Give the image a name so Mira knows when to send it.'); return; }
+  if(!f){ alert('Choose an image file.'); return; }
+  if(f.size > 1500000){ alert('Please use an image under ~1.5 MB so it loads fast in chat.'); return; }
+  const r=new FileReader();
+  r.onload=()=>{ const a=getJSON(LS.img); a.push({ id:'IMG-'+Date.now().toString(36), name, desc, data:r.result }); setJSON(LS.img,a); render(); };
+  r.readAsDataURL(f);
+}
+function delImage(i){ const a=getJSON(LS.img); a.splice(i,1); setJSON(LS.img,a); render(); }
+
+/* ---- Examples ---- */
+function viewExamples(){
+  const items = getJSON(LS.ex);
+  return `<div class="card">
+    <h2>Example answers <span class="pill">${items.length}</span></h2>
+    <p class="sub">Teach Mira your preferred phrasing. Give a customer question and the ideal reply — she'll match this style.</p>
+    <div style="margin-bottom:10px"><label>Customer says</label><input id="exQ" placeholder="e.g. Do you give credit?"></div>
+    <label>Mira should answer like</label>
+    <textarea id="exA" rows="3" placeholder="e.g. Every account starts on cash terms, sir. Credit is set by our office — I'll have your rep raise the request for you."></textarea>
+    <div class="row" style="margin-top:12px"><button class="btn btn-pri" onclick="addEx()">Add example</button></div>
+    <div style="margin-top:18px">
+      ${items.length ? items.map((e,i)=>`<div class="item"><div class="row"><div style="flex:1"><p class="chat-q"><b>Q:</b> ${esc(e.q)}</p><p class="chat-a"><b>A:</b> ${esc(e.a)}</p></div><button class="btn btn-danger btn-sm" onclick="delEx(${i})">Remove</button></div></div>`).join('')
+        : '<div class="empty">No examples yet.</div>'}
+    </div>
+  </div>`;
+}
+function addEx(){ const q=document.getElementById('exQ').value.trim(), a=document.getElementById('exA').value.trim(); if(!q||!a){alert('Add both the question and answer.');return;} const arr=getJSON(LS.ex); arr.push({q,a}); setJSON(LS.ex,arr); render(); }
+function delEx(i){ const a=getJSON(LS.ex); a.splice(i,1); setJSON(LS.ex,a); render(); }
+
+/* ---- Chats ---- */
+/* ---- Chats (grouped into one thread per customer session) ---- */
+function groupThreads(){
+  const log = getJSON(chatLogKey);
+  const map = {};
+  log.forEach((c, idx) => {
+    // Group by session; fall back to customer+day for older entries that predate sessionIds.
+    const day = (()=>{ try { return new Date(c.ts).toISOString().slice(0,10); } catch(e){ return ''; } })();
+    const key = c.sessionId || ('legacy-' + (c.cust || c.who || 'x') + '-' + day);
+    if (!map[key]) map[key] = { id: key, who: c.who || 'Customer', cust: c.cust || '', contact: c.contact || '', role: c.role || '', turns: [], first: c.ts, last: c.ts };
+    const t = map[key];
+    t.turns.push(c);
+    if (c.ts < t.first) t.first = c.ts;
+    if (c.ts > t.last) t.last = c.ts;
+    if (!t.contact && c.contact) t.contact = c.contact;
+    if (!t.cust && c.cust) t.cust = c.cust;
+    if (!t.role && c.role) t.role = c.role;
+  });
+  return Object.values(map).sort((a,b)=> b.last - a.last);
+}
+function viewChats(){
+  const threads = groupThreads();
+  if (openThread){
+    const t = threads.find(x=>x.id===openThread);
+    if (!t){ openThread = null; return viewChats(); }
+    const turns = t.turns.slice().sort((a,b)=>a.ts-b.ts);
+    const bubbles = turns.map(c=>{
+      const editing = editTurnTs === c.ts;
+      const coached = c.better && c.better.trim();
+      return `
+      <div style="margin:14px 0">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
+          <div style="max-width:78%;background:var(--emerald);color:#fff;padding:9px 13px;border-radius:14px 14px 4px 14px;font-size:13.5px">${esc(c.q)}</div>
+        </div>
+        <div style="display:flex;justify-content:flex-start;align-items:flex-end;gap:8px">
+          <div style="max-width:78%;background:#f1ede3;color:var(--fg);padding:9px 13px;border-radius:14px 14px 14px 4px;font-size:13.5px;white-space:pre-wrap;${coached?'opacity:.6':''}">${esc(c.a)}</div>
+          ${!editing ? `<button onclick="teachBetter(${c.ts})" style="flex:0 0 auto;background:${coached?'var(--emerald)':'#fff'};color:${coached?'#fff':'var(--emerald)'};border:1px solid var(--emerald);border-radius:999px;padding:5px 12px;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">${coached?'✓ Improved':'✎ Improve this reply'}</button>` : ''}
+        </div>
+        ${coached && !editing ? `<div style="display:flex;justify-content:flex-start;margin-top:6px"><div style="max-width:78%;background:#eaf3ef;border:1px solid var(--emerald);color:var(--fg);padding:9px 13px;border-radius:14px 14px 14px 4px;font-size:13.5px;white-space:pre-wrap"><span style="display:block;font-size:10.5px;font-weight:700;color:var(--emerald);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px">✓ Better reply — Mira will learn this</span>${esc(c.better)}</div></div>` : ''}
+        ${editing ? `<div style="margin-top:8px;background:#fff;border:1px solid var(--emerald);border-radius:12px;padding:12px">
+          <div style="font-size:11.5px;font-weight:700;color:var(--emerald);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Teach a better reply</div>
+          <div class="meta" style="margin-bottom:6px">Customer asked: “${esc(c.q)}”</div>
+          <textarea id="betterBox" style="width:100%;min-height:90px;font-family:inherit;font-size:13.5px;padding:9px;border:1px solid var(--border);border-radius:8px;box-sizing:border-box">${esc(c.better||c.a)}</textarea>
+          <div class="row" style="margin-top:10px;gap:8px">
+            <button class="btn btn-pri btn-sm" onclick="saveBetter(${c.ts})">Save & teach Mira</button>
+            <button class="btn btn-ghost btn-sm" onclick="cancelBetter()">Cancel</button>
+            ${coached?`<button class="btn btn-ghost btn-sm" onclick="removeBetter(${c.ts})" style="margin-left:auto">Remove coaching</button>`:''}
+          </div>
+        </div>` : ''}
+        <div class="meta" style="text-align:center;margin-top:6px;font-size:11px;opacity:.7">${when(c.ts)}</div>
+      </div>`;}).join('');
+    return `<div class="card">
+      <div class="row" style="align-items:center;gap:10px">
+        <button class="btn btn-ghost btn-sm" onclick="backThreads()">← All chats</button>
+        <h2 style="margin:0">${esc(t.who)}</h2>
+        <span class="pill">${turns.length} message${turns.length>1?'s':''}</span>
+      </div>
+      <p class="sub" style="margin-top:6px">${t.cust?esc(t.cust)+' · ':''}${t.contact?esc(t.contact)+' · ':''}${when(t.first)} — ${when(t.last)}</p>
+      <p class="sub" style="margin-top:2px;color:var(--emerald)">💡 Each of Mira's replies has its own “Improve this reply” button — click it to teach her a better answer for that exact message.</p>
+      <div style="margin-top:10px">${bubbles}</div>
+      <div class="row" style="margin-top:14px"><button class="btn btn-ghost btn-sm" onclick="delThread('${t.id}')">Delete this thread</button></div>
+    </div>`;
+  }
+  const ctx = chatLogKey===LS.logCrm ? {who:'CRM staff conversations', sub:'Conversations staff had with Mira inside the CRM, grouped per session. Open one and click “Improve this reply” on any answer to teach her a better one.', empty:'No CRM conversations yet. They appear here as staff use the “Ask Mira” chat inside the CRM.', roles:['Admin','Back Office','Sales Rep']}
+    : chatLogKey===LS.logLms ? {who:'LMS staff conversations', sub:'Conversations staff had with Mira inside the LMS, grouped per session. Open one and click “Improve this reply” on any answer to teach her a better one.', empty:'No LMS conversations yet. They appear here as staff use the “Ask Mira” chat inside the LMS.', roles:['Admin','Rep']}
+    : {who:'Customer chat threads', sub:"Each customer's conversation with Mira is grouped into one thread. Click a thread to read the full chat. Spot a bad answer? Improve the reply or add a Correction Rule and she'll fix it everywhere.", empty:'No conversations logged yet. Chat with Mira in the Sales App and they\'ll appear here.', roles:null};
+  let shown = threads;
+  if (ctx.roles && chatRoleFilter !== 'all') shown = threads.filter(t => (t.role||'') === chatRoleFilter);
+  const filterBar = ctx.roles ? `<div class="row" style="gap:6px;flex-wrap:wrap;margin:0 0 14px">
+    <button class="btn btn-sm ${chatRoleFilter==='all'?'btn-pri':'btn-ghost'}" onclick="setChatRole('all')">All (${threads.length})</button>
+    ${ctx.roles.map(r=>`<button class="btn btn-sm ${chatRoleFilter===r?'btn-pri':'btn-ghost'}" onclick="setChatRole('${r}')">${r} (${threads.filter(t=>(t.role||'')===r).length})</button>`).join('')}
+  </div>` : '';
+  return `<div class="card">
+    <h2>${ctx.who} <span class="pill">${shown.length}</span></h2>
+    <p class="sub">${ctx.sub}</p>
+    ${filterBar}
+    ${shown.length ? shown.map(t=>{
+      const firstQ = (t.turns.slice().sort((a,b)=>a.ts-b.ts)[0]||{}).q || '';
+      return `<div class="item" style="cursor:pointer" onclick="openThreadFn('${t.id}')">
+        <div class="row" style="align-items:center;gap:8px">
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:14px">${esc(t.who)}${t.contact?` <span class="meta" style="font-weight:400">· ${esc(t.contact)}</span>`:''}</div>
+            <div class="meta" style="margin-top:2px">${t.turns.length} message${t.turns.length>1?'s':''} · ${when(t.last)}</div>
+            <p class="chat-q" style="margin:6px 0 0;color:var(--fg-meta)">“${esc(firstQ.slice(0,90))}${firstQ.length>90?'…':''}”</p>
+          </div>
+          <span class="meta" style="font-size:18px">›</span>
+        </div>
+      </div>`;
+    }).join('') : `<div class="empty">${(ctx.roles && chatRoleFilter!=='all') ? 'No '+chatRoleFilter+' conversations yet.' : ctx.empty}</div>`}
+    ${threads.length ? '<div class="row" style="margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="clearLog()">Clear all chats</button></div>' : ''}
+  </div>`;
+}
+function openThreadFn(id){ openThread = id; editTurnTs = null; render(); }
+function setChatRole(r){ chatRoleFilter = r; render(); }
+function backThreads(){ openThread = null; editTurnTs = null; render(); }
+function teachBetter(ts){ editTurnTs = ts; render(); setTimeout(()=>{ var b=document.getElementById('betterBox'); if(b){ b.focus(); b.setSelectionRange(b.value.length, b.value.length); } }, 30); }
+function cancelBetter(){ editTurnTs = null; render(); }
+function saveBetter(ts){
+  const box = document.getElementById('betterBox'); if(!box) return;
+  const improved = box.value.trim(); if(!improved){ alert('Type the better reply first.'); return; }
+  const log = getJSON(chatLogKey);
+  const turn = log.find(c=>c.ts===ts);
+  if(!turn){ editTurnTs=null; render(); return; }
+  // Record the improved reply on the chat turn (keeps the original visible above it).
+  turn.better = improved;
+  setJSON(chatLogKey, log);
+  // Teach Mira: store as an Example answer (replace any existing example for the same question).
+  const ex = getJSON(LS.ex).filter(e => (e.q||'').trim().toLowerCase() !== (turn.q||'').trim().toLowerCase());
+  ex.push({ q: turn.q, a: improved });
+  setJSON(LS.ex, ex);
+  editTurnTs = null; render();
+}
+function removeBetter(ts){
+  const log = getJSON(chatLogKey);
+  const turn = log.find(c=>c.ts===ts);
+  if(turn){ const q=turn.q; delete turn.better; setJSON(chatLogKey, log);
+    const ex = getJSON(LS.ex).filter(e => (e.q||'').trim().toLowerCase() !== (q||'').trim().toLowerCase());
+    setJSON(LS.ex, ex);
+  }
+  editTurnTs = null; render();
+}
+function delThread(id){ if(!confirm('Delete this whole conversation thread?')) return; const log=getJSON(chatLogKey).filter(c=>{ const day=(()=>{try{return new Date(c.ts).toISOString().slice(0,10);}catch(e){return '';}})(); const key=c.sessionId||('legacy-'+(c.cust||c.who||'x')+'-'+day); return key!==id; }); setJSON(chatLogKey, log); openThread=null; render(); }
+function clearLog(){ if(confirm('Clear all logged conversations in this list?')){ setJSON(chatLogKey, []); openThread=null; render(); } }
+
+/* ---- Turn Mira on/off per surface ---- */
+const MIRA_SURFACES = [
+  ['crmRep','CRM \u00b7 Sales Rep','Mira chat on the rep\u2019s CRM desk (field staff).'],
+  ['crmOffice','CRM \u00b7 Back Office','Mira chat for back-office staff in the CRM.'],
+  ['crmAdmin','CRM \u00b7 Admin','Mira chat for admins in the CRM.'],
+  ['lmsAdmin','LMS \u00b7 Admin','Mira chat for the LMS admin/office.'],
+  ['lmsRep','LMS \u00b7 Rep / Candidate','Mira chat for reps & candidates in the LMS.'],
+  ['salesApp','Sales App \u00b7 Customer','The customer-facing Mira in the Sales App.'],
+];
+function miraEnabled(){ return Object.assign({crmRep:true,crmOffice:true,crmAdmin:true,lmsAdmin:true,lmsRep:true,salesApp:true}, getJSON(LS.enabled)); }
+function viewToggles(){
+  const en = miraEnabled();
+  return `<div class="card">
+    <h2>Turn Mira on / off</h2>
+    <p class="sub">Switch Mira\u2019s chat on or off for each place she appears. Turning one off hides her button there immediately (staff can refresh to see the change).</p>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:6px">
+      ${MIRA_SURFACES.map(([k,label,desc])=>{
+        const on = en[k] !== false;
+        return `<div class="item" style="display:flex;align-items:center;gap:14px">
+          <div style="flex:1"><div style="font-weight:600;font-size:14px">${label}</div><div class="meta" style="margin-top:2px">${desc}</div></div>
+          <button onclick="toggleMira('${k}')" aria-label="Toggle ${label}" style="flex:0 0 auto;width:52px;height:30px;border-radius:999px;border:none;cursor:pointer;position:relative;background:${on?'var(--emerald)':'#cfc8b9'};transition:background .15s">
+            <span style="position:absolute;top:3px;left:${on?'25px':'3px'};width:24px;height:24px;border-radius:50%;background:#fff;transition:left .15s;box-shadow:0 1px 3px rgba(0,0,0,.25)"></span>
+          </button>
+          <span class="meta" style="width:34px;text-align:left;font-weight:700;color:${on?'var(--emerald)':'var(--fg-meta)'}">${on?'ON':'OFF'}</span>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+}
+function toggleMira(k){ const en = miraEnabled(); en[k] = !(en[k] !== false); setJSON(LS.enabled, en); render(); }
+
+/* ---- Chat with Mira (test sandboxes: customer mode + admin training mode) ---- */
+function miraTrainingFacts(){
+  let s = '';
+  try {
+    const inst = localStorage.getItem(LS.inst);
+    if (inst && inst.trim()) s += '\n\nADMIN INSTRUCTIONS (highest priority):\n' + inst.trim();
+    const rules = getJSON(LS.rules);
+    if (rules.length) s += '\n\nCORRECTION RULES (always follow):\n- ' + rules.join('\n- ');
+    const know = getJSON(LS.know);
+    if (know.length) s += '\n\nKNOWLEDGE BASE:\n' + know.map(k => '• ' + k.title + ': ' + k.text).join('\n');
+    const ex = getJSON(LS.ex);
+    if (ex.length) s += '\n\nEXAMPLE ANSWERS (match this phrasing/approach):\nQ: ' + ex.map(e => e.q + '\nA: ' + e.a).join('\nQ: ');
+    const imgs = getJSON(LS.img);
+    if (imgs.length) s += '\n\nIMAGE LIBRARY (you can mention you would send these): ' + imgs.map(i => i.name).join(', ');
+  } catch (e) {}
+  return s;
+}
+function miraTestPrompt(mode){
+  if (mode === 'staff'){
+    return `You are "Mira", Eurostar Technologies' internal assistant for STAFF (sales reps, back office, admins, HR) — NOT a customer. Answer their how-to and policy questions about the Eurostar systems clearly and step by step, naming the exact role, tab and button. Be concise and practical.\n\n${STAFF_KNOWLEDGE}` + miraTrainingFacts() + `\n\nReply as Mira to the staff member's question.`;
+  }
+  if (mode === 'admin'){
+    return `You are "Mira", Eurostar Technologies' AI sales assistant. You are now in a PRIVATE TRAINING conversation with the Eurostar office (your trainer) — NOT a customer.\n\nIn this mode: explain your reasoning, accept corrections gracefully, and when the trainer tells you how to behave or answer, confirm clearly that you've understood and restate the rule in one short line so they can save it. Be candid about what you currently know. You can suggest rules, knowledge or examples that would make you better.` + miraTrainingFacts() + `\n\nReply concisely as Mira to your trainer.`;
+  }
+  return `You are "Mira", the warm, concise WhatsApp-style assistant for Eurostar Technologies — a B2B wholesale supplier of cubic zirconia, moissanite and coloured gemstones to jewellers across Asia-Pacific. Answer EXACTLY as you would to a real trade customer. Keep replies short (2-5 sentences), friendly and practical. Respect Eurostar rules: minimum order ₹1,000, everyone starts on cash terms, credit/discounts only via the office, HD Zirconia is white-only single grade, never invent products, grades or colours.` + miraTrainingFacts() + `\n\nReply as Mira.`;
+}
+function viewTest(mode){
+  const isAdmin = mode === 'admin';
+  const isStaff = mode === 'staff';
+  const title = isStaff ? 'Staff helpdesk — ask about CRM, LMS &amp; Sales App' : (isAdmin ? 'Train Mira' : 'Chat with Mira as a customer');
+  const pill = isStaff ? 'staff' : (isAdmin ? 'training' : 'preview');
+  const sub = isStaff
+      ? 'For your team. Reps, office staff and HR can ask Mira how to do anything in the CRM, LMS or Sales App — e.g. “How does check-out OTP work?”, “How do I bulk-upload test questions?”, “How are flagged leads approved?” She knows all three systems.'
+      : (isAdmin
+      ? 'Coach Mira in plain language — tell her how to answer, correct her, or ask what she knows. When she confirms a rule you like, click “Save as correction rule” to make it permanent.'
+      : 'Talk to Mira exactly as a customer would, using her current training. Use this to check her answers before customers do. Not saved to Customer chats.');
+  const ph = isStaff ? 'Ask about the CRM, LMS or Sales App…' : (isAdmin ? 'e.g. Always quote GST separately for credit customers' : 'Ask Mira something a customer might ask…');
+  return `<div class="card">
+    <h2>${title} <span class="pill">${pill}</span></h2>
+    <p class="sub">${sub}</p>
+    ${isStaff?`<div class="row" style="gap:8px;margin-bottom:10px;align-items:center"><span class="meta">This conversation is about:</span>
+      <button class="btn btn-sm ${staffTopic==='crm'?'btn-pri':'btn-ghost'}" onclick="setStaffTopic('crm')">CRM</button>
+      <button class="btn btn-sm ${staffTopic==='lms'?'btn-pri':'btn-ghost'}" onclick="setStaffTopic('lms')">LMS</button>
+      <span class="meta" style="margin-left:6px">→ saved to ${staffTopic==='crm'?'“CRM chats”':'“LMS chats”'} for review</span></div>`:''}
+    <div id="testMsgs" style="display:flex;flex-direction:column;gap:10px;min-height:240px;max-height:420px;overflow-y:auto;padding:14px;background:#faf7f0;border:1px solid var(--border);border-radius:12px"></div>
+    <div class="row" style="margin-top:12px;gap:8px;align-items:center">
+      <input id="testInput" placeholder="${ph}" onkeydown="if(event.key==='Enter')sendTest('${mode}')" style="flex:1">
+      <button class="btn btn-pri" onclick="sendTest('${mode}')">Send</button>
+      <button class="btn btn-ghost" onclick="clearTest('${mode}')">Clear</button>
+    </div>
+    ${isAdmin?`<div class="row" style="margin-top:10px"><button class="btn btn-ghost btn-sm" onclick="saveLastAsRule()">➕ Save my last instruction as a correction rule</button></div>`:''}
+  </div>`;
+}
+function renderTestMsgs(mode){
+  const box = document.getElementById('testMsgs'); if(!box) return;
+  const list = testMsgs[mode] || [];
+  if(!list.length && !testBusy[mode]){ box.innerHTML = '<div class="empty" style="margin:auto">'+(mode==='admin'?'Start coaching — e.g. “When a customer asks for credit, always say it needs office approval.”':(mode==='staff'?'Ask anything about the CRM, LMS or Sales App — e.g. “How does the check-out OTP work?” or “How do I approve a flagged lead?”':'Start a conversation — e.g. “Do you give credit?” or “White round CZ 2mm rate?”'))+'</div>'; return; }
+  box.innerHTML = list.map(m=>`<div style="align-self:${m.role==='user'?'flex-end':'flex-start'};max-width:80%;background:${m.role==='user'?'var(--emerald)':'#fff'};color:${m.role==='user'?'#fff':'var(--fg)'};border:${m.role==='user'?'none':'1px solid var(--border)'};border-radius:14px;padding:9px 13px;font-size:13.5px;white-space:pre-wrap">${esc(m.text)}</div>`).join('')
+    + (testBusy[mode]?'<div style="align-self:flex-start;background:#fff;border:1px solid var(--border);border-radius:14px;padding:9px 14px;color:var(--fg-meta);font-size:13.5px">•••</div>':'');
+  box.scrollTop = box.scrollHeight;
+}
+async function sendTest(mode){
+  const el = document.getElementById('testInput'); if(!el) return;
+  const q = el.value.trim(); if(!q || testBusy[mode]) return;
+  testMsgs[mode].push({role:'user', text:q}); el.value=''; testBusy[mode]=true; renderTestMsgs(mode);
+  try {
+    if(!(window.claude && window.claude.complete)) throw new Error('no-ai');
+    const history = testMsgs[mode].slice(-12).map(m=>(m.role==='user'?(mode==='admin'?'Trainer':(mode==='staff'?'Staff':'Customer')):'Mira')+': '+m.text).join('\n');
+    const reply = await window.claude.complete({ messages:[{role:'user', content: miraTestPrompt(mode) + '\n\nConversation so far:\n' + history + '\n\nReply as Mira to the last message. Do NOT output any <<ACTION>> markers in this chat.'}] });
+    const cleanReply = (reply||'').replace(/<<[\s\S]*?<<END>>/g,'').trim() || '(no reply)';
+    testMsgs[mode].push({role:'assistant', text:cleanReply});
+    // Staff helpdesk: log the Q&A into the CRM or LMS review list so it can be coached later.
+    if(mode==='staff'){
+      const key = staffTopic==='lms' ? LS.logLms : LS.logCrm;
+      const lg = getJSON(key);
+      lg.push({ sessionId: staffSessionId, who: 'Staff', contact: (staffTopic==='lms'?'LMS question':'CRM question'), q, a: cleanReply, ts: Date.now() });
+      setJSON(key, lg.slice(-300));
+    }
+  } catch(e){
+    testMsgs[mode].push({role:'assistant', text:'⚠ Could not reach the AI in this preview. Once the app is connected to your Claude account, Mira replies here live.'});
+  } finally { testBusy[mode]=false; renderTestMsgs(mode); }
+}
+function clearTest(mode){ testMsgs[mode]=[]; testBusy[mode]=false; renderTestMsgs(mode); }
+let staffSessionId = 'ST-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,7);
+function setStaffTopic(t){ staffTopic = t; staffSessionId = 'ST-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,7); render(); }
+function saveLastAsRule(){
+  const mine = (testMsgs.admin||[]).filter(m=>m.role==='user');
+  const last = mine.length ? mine[mine.length-1].text.trim() : '';
+  if(!last){ alert('Type an instruction to Mira first, then save it.'); return; }
+  const a = getJSON(LS.rules); a.push(last); setJSON(LS.rules, a);
+  alert('Saved as a correction rule. Mira will follow it everywhere from now on.');
+}
+
+render();
+</script>
+</body>
+</html>

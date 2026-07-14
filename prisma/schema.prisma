@@ -92,42 +92,18 @@ model Customer {
 
 // ---------------------------------------------------------------------------
 // CATALOG (what is for sale)
+//
+// The catalogue and its live price calculation live in the frontend
+// (app/data.jsx) and are served by the API from a static module
+// (src/data/catalog.ts) — 28 real categories with their unit-of-sale.
+// The only *stateful* catalogue data the backend owns is per-variant
+// sold-out flags, keyed exactly like the client ("cat|grade|color|shape|size").
 // ---------------------------------------------------------------------------
 
-model Category {
-  id        String   @id @default(cuid())
-  key       String   @unique // stable code, e.g. "moissanite"
-  name      String
-  unit      String // "pc" | "ct" | "pkt" | "strip"
-  sortOrder Int      @default(0)
-  thumbUrl  String?
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
+model SoldOut {
+  key       String   @id // "cat|grade|color|shape|size" (matches client soldOutKey)
+  soldOut   Boolean  @default(true)
   updatedAt DateTime @updatedAt
-
-  skus Sku[]
-}
-
-// A single sellable variant: category + grade + colour + shape + size.
-model Sku {
-  id            String   @id @default(cuid())
-  categoryKey   String
-  category      Category @relation(fields: [categoryKey], references: [key])
-  grade         String?
-  colour        String?
-  shape         String?
-  size          String
-  unit          String // usually inherited from the category
-  pricePerPiece Int // stored in paise-free rupees (whole ₹), pricing is per piece
-  packetPcs     Int? // pieces per packet, when unit is "pkt"
-  soldOut       Boolean  @default(false)
-  imageUrl      String?
-  active        Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  @@unique([categoryKey, grade, colour, shape, size])
-  @@index([categoryKey])
 }
 
 // ---------------------------------------------------------------------------
@@ -169,28 +145,35 @@ model CartLine {
 }
 
 model Order {
-  id         String   @id // server-generated, e.g. "ESO-2026-0001"
+  id         String   @id // client id (e.g. "SO-24987") or server "ESO-2026-0001"
   customerId String?
   customer   Customer? @relation(fields: [customerId], references: [id])
   repUserId  String?
   takenBy    User?    @relation("OrderTakenBy", fields: [repUserId], references: [id])
 
-  // Denormalised snapshot fields the CRM/back-office stream reads directly.
-  customerName String?
-  customerCode String?
+  // Denormalised snapshot fields the CRM/back-office order stream reads directly
+  // (mirrors the object the client wrote to eurostar-crm-incoming-orders).
+  customerName String? // "customer"
+  customerCode String? // "code"
   city         String?
-  repName      String?
+  repName      String? // "rep"
   repId        String?
 
-  subtotal   Int
-  gst        Int // 3%
-  courier    Int // free over ₹1000 else ₹300
-  grandTotal Int
-  dispatchBy DateTime? // 3 working days from confirmation
-  status     String   @default("active") // "active" | "confirmed"
-  source     String   @default("app") // "app" | "rep" | "office" | "offline"
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  subtotal        Int
+  tax             Int // GST 3% (0 for export)
+  shipping        Int // courier: free over ₹1000 else ₹300
+  insurance       Int      @default(0)
+  grand           Int // "value" in the client order object
+  isExport        Boolean  @default(false)
+  paid            Boolean  @default(false)
+  dispatchBy      DateTime?
+  dispatchByLabel String? // e.g. "Wed, 17 Jul" (as the client stores it)
+  status          String   @default("pending") // pending|confirmed|packed|shipped|delivered|cancelled
+  source          String   @default("Sales App")
+  queuedOffline   Boolean  @default(false)
+  clientTs        String? // client Date.now() epoch ms (kept as string; can exceed 32-bit)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   lines    OrderLine[]
   payments Payment[]
@@ -224,20 +207,26 @@ model OrderLine {
 // ---------------------------------------------------------------------------
 
 model Payment {
-  id           String   @id @default(cuid())
+  id           String   @id // "PAY-APP-<orderId>" (matches client) or generated
   orderId      String?
   order        Order?   @relation(fields: [orderId], references: [id])
   customerId   String?
   customer     Customer? @relation(fields: [customerId], references: [id])
+  custId       String? // client "custId"
   custCode     String?
   custName     String?
   mode         String // "upi" | "card" | "netbanking" | "neft" | "qr"
   amount       Int
   utr          String? // bank/UPI reference number
-  status       String   @default("received") // "pending" | "received" | "failed"
+  date         String? // "YYYY-MM-DD" (as the client stores it)
+  by           String? // who collected the payment
+  contact      String?
+  img          String? // receipt image dataURL | null
+  status       String   @default("confirmed") // pending|confirmed|failed
+  source       String   @default("Sales App")
   receivedById String?
   receivedBy   User?    @relation("PaymentReceivedBy", fields: [receivedById], references: [id])
-  ts           DateTime @default(now())
+  loggedAt     DateTime @default(now())
 
   @@index([orderId])
   @@index([customerId])
@@ -288,8 +277,11 @@ model Notification {
   id         String   @id @default(cuid())
   customerId String?
   kind       String   @default("shipment") // "shipment" | "info"
-  title      String
-  body       String
+  orderId    String? // shipment notices reference an order
+  courier    String?
+  track      String? // tracking number / AWB
+  title      String? // used by "info" notices
+  body       String?
   read       Boolean  @default(false)
   createdAt  DateTime @default(now())
 

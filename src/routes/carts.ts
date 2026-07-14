@@ -40,7 +40,8 @@ function serialiseCart(cart: any) {
     unitPrice: l.unitPrice,
     lineTotal: l.lineTotal,
   }));
-  const totals = computeTotals(lines.map((l: any) => ({ unitPrice: l.unitPrice, qty: l.qty })));
+  const subtotal = lines.reduce((s: number, l: any) => s + (l.lineTotal ?? 0), 0);
+  const totals = computeTotals([{ unitPrice: subtotal, qty: 1 }]);
   return {
     id: cart.id,
     customerId: cart.customerId,

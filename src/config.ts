@@ -31,8 +31,8 @@ export const config = {
   },
 
   company: {
-    upiId: process.env.COMPANY_UPI_ID ?? 'eurostar@icici',
-    upiName: process.env.COMPANY_UPI_NAME ?? 'Eurostar Gems',
+    upiId: process.env.COMPANY_UPI_ID ?? 'eurostar@okhdfcbank',
+    upiName: process.env.COMPANY_UPI_NAME ?? 'Eurostar Technologies Inc.',
   },
 
   assistant: {
@@ -40,12 +40,14 @@ export const config = {
     model: process.env.ASSISTANT_MODEL ?? 'claude-opus-4-8',
   },
 
-  // Business rules from the handoff README.
+  // Business rules — verified against the frontend (screen-checkout.jsx / screen-orders.jsx).
   rules: {
-    gstRate: 0.03, // 3%
-    courierFlat: 300, // ₹300
-    courierFreeOver: 1000, // free over ₹1,000
-    dispatchWorkingDays: 3,
+    gstRate: 0.03, // 3% GST (waived on export orders)
+    courierFlat: 300, // ₹300 courier
+    courierFreeOver: 1000, // courier free over ₹1,000
+    minOrderValue: 1000, // cart minimum before checkout is allowed
+    dispatchWorkingDays: 3, // domestic dispatch: today + 3 days
+    exportDispatchDays: 5, // export dispatch: today + 5 days
     rfqMinValue: 10000, // ₹10,000 minimum order value for RFQ
   },
 };

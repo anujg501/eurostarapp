@@ -74,6 +74,7 @@ src/
   index.ts        # starts the server, wires everything together
   config.ts       # settings + business rules
   db.ts           # database connection
+  data/           # real catalogue (28 categories) generated from app/data.jsx
   auth/           # logins, passwords, tokens, permissions
   services/       # OTP, totals maths, id generation
   routes/         # each API area (auth, catalog, orders, payments, ...)
@@ -82,10 +83,20 @@ src/
 
 ## Important notes
 
-1. **The catalogue is placeholder data for now.** The real prices live in the
-   website's `app/data.jsx` file. Once that file is added to this repo, we swap
-   the sample catalogue for the exact one so prices match the website perfectly.
-2. **SMS is in test mode.** Login codes are printed to the server log instead of
+1. **Catalogue & prices live on the client.** The website (`app/data.jsx`) has a
+   live price calculator (grades, colours, size charts, packet/carat conversions,
+   volume tiers). The backend does **not** duplicate that — it records what was
+   ordered and for how much. `GET /catalog` serves the real 28-category structure
+   (from `src/data/catalog.ts`, generated from `data.jsx`); the backend owns only
+   the *stateful* catalogue bit — per-variant sold-out flags, keyed exactly like
+   the client (`cat|grade|color|shape|size`).
+2. **Data shapes match the frontend.** Orders, payments, carts and customers use
+   the same field names the app already writes to `localStorage`
+   (`eurostar-crm-incoming-orders`, `-payments`, `eurostar-drafts-*`, etc.), so
+   the UI can swap its browser-storage calls for API calls with no reshaping.
+   Totals follow the app exactly: GST 3% (0 on export/Dubai), courier free over
+   ₹1,000 else ₹300, dispatch +3 days (+5 export), cart min ₹1,000, RFQ min ₹10,000.
+3. **SMS is in test mode.** Login codes are printed to the server log instead of
    being texted. To send real texts, add an SMS provider in `src/services/otp.ts`.
-3. **Database is a simple file now** (`prisma/dev.db`). To move to a bigger
+4. **Database is a simple file now** (`prisma/dev.db`). To move to a bigger
    production database (Postgres), change two lines in `.env` and `schema.prisma`.

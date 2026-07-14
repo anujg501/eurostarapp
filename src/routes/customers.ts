@@ -29,6 +29,7 @@ customersRouter.get(
 
     const customers = await prisma.customer.findMany({
       where: { ...(repUserId ? { repUserId } : {}) },
+      include: { rep: true },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -42,6 +43,7 @@ customersRouter.get(
         city: c.city,
         gstin: c.gstin,
         terms: c.terms,
+        rep: c.rep?.repId ?? null, // the checkout customer picker keys on this
       }))
     );
   })

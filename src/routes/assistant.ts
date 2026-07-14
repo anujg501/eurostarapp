@@ -15,18 +15,32 @@ async function getConfig() {
   });
 }
 
+// rules/knowledge/examples are stored as JSON strings but exposed as the lists
+// the client uses (rules: string[]; knowledge: {title,text}[]; examples: {q,a}[]).
+function parseList(text: string): unknown[] {
+  try {
+    const v = JSON.parse(text);
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
+
+function serialiseConfig(c: any) {
+  return {
+    enabled: c.enabled,
+    instructions: c.instructions,
+    rules: parseList(c.rules),
+    knowledge: parseList(c.knowledge),
+    examples: parseList(c.examples),
+  };
+}
+
 // GET /assistant/config — the Mira setup (instructions, rules, knowledge…).
 assistantRouter.get(
   '/config',
   asyncHandler(async (_req, res) => {
-    const c = await getConfig();
-    return ok(res, {
-      enabled: c.enabled,
-      instructions: c.instructions,
-      rules: c.rules,
-      knowledge: c.knowledge,
-      examples: c.examples,
-    });
+    return ok(res, serialiseConfig(await getConfig()));
   })
 );
 
@@ -34,9 +48,9 @@ assistantRouter.get(
 const cfgSchema = z.object({
   enabled: z.boolean().optional(),
   instructions: z.string().optional(),
-  rules: z.string().optional(),
-  knowledge: z.string().optional(),
-  examples: z.string().optional(),
+  rules: z.array(z.string()).optional(),
+  knowledge: z.array(z.object({ title: z.string(), text: z.string() })).optional(),
+  examples: z.array(z.object({ q: z.string(), a: z.string() })).optional(),
 });
 
 assistantRouter.put(
@@ -46,18 +60,20 @@ assistantRouter.put(
   asyncHandler(async (req, res) => {
     const parsed = cfgSchema.safeParse(req.body);
     if (!parsed.success) return failValidation(res, parsed.error);
+    const d = parsed.data;
+    const data = {
+      ...(d.enabled != null ? { enabled: d.enabled } : {}),
+      ...(d.instructions != null ? { instructions: d.instructions } : {}),
+      ...(d.rules != null ? { rules: JSON.stringify(d.rules) } : {}),
+      ...(d.knowledge != null ? { knowledge: JSON.stringify(d.knowledge) } : {}),
+      ...(d.examples != null ? { examples: JSON.stringify(d.examples) } : {}),
+    };
     const c = await prisma.assistantConfig.upsert({
       where: { id: 'default' },
-      create: { id: 'default', ...parsed.data },
-      update: parsed.data,
+      create: { id: 'default', ...data },
+      update: data,
     });
-    return ok(res, {
-      enabled: c.enabled,
-      instructions: c.instructions,
-      rules: c.rules,
-      knowledge: c.knowledge,
-      examples: c.examples,
-    });
+    return ok(res, serialiseConfig(c));
   })
 );
 
@@ -104,11 +120,15 @@ async function generateReply(message: string, cfg: { instructions: string; rules
     return "Hi, I'm Mira. The assistant isn't fully connected yet, but a team member will help you shortly. Meanwhile you can browse the catalogue and place your order.";
   }
 
+  const rules = parseList(cfg.rules) as string[];
+  const knowledge = parseList(cfg.knowledge) as { title: string; text: string }[];
+  const examples = parseList(cfg.examples) as { q: string; a: string }[];
+
   const systemPrompt = [
     cfg.instructions && `Instructions:\n${cfg.instructions}`,
-    cfg.rules && `Rules:\n${cfg.rules}`,
-    cfg.knowledge && `Knowledge:\n${cfg.knowledge}`,
-    cfg.examples && `Examples:\n${cfg.examples}`,
+    rules.length && `Rules:\n${rules.map((r) => `- ${r}`).join('\n')}`,
+    knowledge.length && `Knowledge:\n${knowledge.map((k) => `${k.title}: ${k.text}`).join('\n')}`,
+    examples.length && `Examples:\n${examples.map((e) => `Q: ${e.q}\nA: ${e.a}`).join('\n\n')}`,
   ]
     .filter(Boolean)
     .join('\n\n');

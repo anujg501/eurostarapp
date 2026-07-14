@@ -25,12 +25,19 @@ notificationsRouter.get(
 );
 
 // POST /notifications — staff push a shipment/info notification to a customer.
-const createSchema = z.object({
-  customerId: z.string().optional(),
-  kind: z.enum(['shipment', 'info']).optional(),
-  title: z.string().min(1),
-  body: z.string().min(1),
-});
+// Shipment notices mirror the client's eurostar-mira-notifications shape
+// ({ orderId, courier, track, read }); "info" notices use title/body.
+const createSchema = z
+  .object({
+    customerId: z.string().optional(),
+    kind: z.enum(['shipment', 'info']).optional(),
+    orderId: z.string().optional(),
+    courier: z.string().optional(),
+    track: z.string().optional(),
+    title: z.string().optional(),
+    body: z.string().optional(),
+  })
+  .refine((d) => d.orderId || d.title || d.body, { message: 'Provide an orderId (shipment) or title/body (info)' });
 
 notificationsRouter.post(
   '/',
@@ -39,12 +46,16 @@ notificationsRouter.post(
   asyncHandler(async (req, res) => {
     const parsed = createSchema.safeParse(req.body);
     if (!parsed.success) return failValidation(res, parsed.error);
+    const d = parsed.data;
     const n = await prisma.notification.create({
       data: {
-        customerId: parsed.data.customerId,
-        kind: parsed.data.kind ?? 'shipment',
-        title: parsed.data.title,
-        body: parsed.data.body,
+        customerId: d.customerId,
+        kind: d.kind ?? (d.orderId ? 'shipment' : 'info'),
+        orderId: d.orderId,
+        courier: d.courier,
+        track: d.track,
+        title: d.title,
+        body: d.body,
       },
     });
     return ok(res, n, 201);

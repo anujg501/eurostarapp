@@ -1,29 +1,29 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db';
-import { asyncHandler, fail, ok, failValidation } from '../util/http';
+import { asyncHandler, ok, failValidation } from '../util/http';
 import { authenticate, requireRole } from '../auth/middleware';
 
 export const inventoryRouter = Router();
 
-// GET /inventory — list of sold-out SKU ids (and full flags map).
+// GET /inventory — sold-out flags, matching the client's eurostar-soldout-v1
+// object: { "cat|grade|color|shape|size": true, ... }.
 inventoryRouter.get(
   '/',
   asyncHandler(async (req, res) => {
-    const categoryKey = typeof req.query.category === 'string' ? req.query.category : undefined;
-    const skus = await prisma.sku.findMany({
-      where: { ...(categoryKey ? { categoryKey } : {}) },
-      select: { id: true, soldOut: true, categoryKey: true },
-    });
+    const category = typeof req.query.category === 'string' ? req.query.category : undefined;
+    const rows = await prisma.soldOut.findMany({ where: { soldOut: true } });
+    const filtered = category ? rows.filter((r) => r.key.startsWith(category + '|')) : rows;
     return ok(res, {
-      soldOut: skus.filter((s) => s.soldOut).map((s) => s.id),
-      flags: Object.fromEntries(skus.map((s) => [s.id, s.soldOut])),
+      flags: Object.fromEntries(filtered.map((r) => [r.key, true])),
+      soldOut: filtered.map((r) => r.key),
     });
   })
 );
 
-// PUT /admin/inventory — set a SKU's sold-out flag (office only).
-const setSchema = z.object({ skuId: z.string().min(1), soldOut: z.boolean() });
+// PUT /inventory/admin — set/clear a sold-out flag (office only).
+// The key is the client's composite: "cat|grade|color|shape|size".
+const setSchema = z.object({ key: z.string().min(1), soldOut: z.boolean() });
 
 inventoryRouter.put(
   '/admin',
@@ -32,10 +32,13 @@ inventoryRouter.put(
   asyncHandler(async (req, res) => {
     const parsed = setSchema.safeParse(req.body);
     if (!parsed.success) return failValidation(res, parsed.error);
-    const sku = await prisma.sku
-      .update({ where: { id: parsed.data.skuId }, data: { soldOut: parsed.data.soldOut } })
-      .catch(() => null);
-    if (!sku) return fail(res, 404, 'SKU not found');
-    return ok(res, { id: sku.id, soldOut: sku.soldOut });
+    const { key, soldOut } = parsed.data;
+
+    if (soldOut) {
+      await prisma.soldOut.upsert({ where: { key }, create: { key, soldOut: true }, update: { soldOut: true } });
+    } else {
+      await prisma.soldOut.deleteMany({ where: { key } });
+    }
+    return ok(res, { key, soldOut });
   })
 );

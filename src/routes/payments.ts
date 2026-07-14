@@ -4,7 +4,7 @@ import { prisma } from '../db';
 import { config } from '../config';
 import { asyncHandler, fail, ok, failValidation } from '../util/http';
 import { AuthedRequest, authenticate } from '../auth/middleware';
-import { dispatchDate } from '../services/totals';
+import { dispatchInfo } from '../services/totals';
 
 export const paymentsRouter = Router();
 
@@ -12,19 +12,39 @@ function serialisePayment(p: any) {
   return {
     id: p.id,
     orderId: p.orderId,
-    custId: p.customerId,
+    custId: p.custId ?? p.customerId,
     custCode: p.custCode,
     custName: p.custName,
     mode: p.mode,
     amount: p.amount,
     utr: p.utr,
+    date: p.date,
+    by: p.by,
+    contact: p.contact,
+    img: p.img,
     status: p.status,
-    ts: p.ts,
+    source: p.source,
+    loggedAt: p.loggedAt,
   };
 }
 
-// POST /payments — record a payment against an order.
+async function markOrderPaid(orderId: string) {
+  const order = await prisma.order.findUnique({ where: { id: orderId } });
+  if (!order) return;
+  const dispatch = order.dispatchBy ? null : dispatchInfo(order.isExport);
+  await prisma.order.update({
+    where: { id: orderId },
+    data: {
+      paid: true,
+      status: 'confirmed',
+      ...(dispatch ? { dispatchBy: dispatch.date, dispatchByLabel: dispatch.label } : {}),
+    },
+  });
+}
+
+// POST /payments — record a payment (was eurostar-crm-incoming-payments).
 const createSchema = z.object({
+  id: z.string().optional(),
   orderId: z.string().optional(),
   custId: z.string().optional(),
   custCode: z.string().optional(),
@@ -32,6 +52,12 @@ const createSchema = z.object({
   mode: z.enum(['upi', 'card', 'netbanking', 'neft', 'qr']),
   amount: z.number().int().positive(),
   utr: z.string().optional(),
+  date: z.string().optional(),
+  by: z.string().optional(),
+  contact: z.string().optional(),
+  img: z.string().nullable().optional(),
+  status: z.enum(['pending', 'confirmed', 'failed']).optional(),
+  source: z.string().optional(),
 });
 
 paymentsRouter.post(
@@ -43,29 +69,34 @@ paymentsRouter.post(
     const d = parsed.data;
     const me = req.user!;
 
-    const payment = await prisma.payment.create({
-      data: {
-        orderId: d.orderId,
-        customerId: d.custId,
-        custCode: d.custCode,
-        custName: d.custName,
-        mode: d.mode,
-        amount: d.amount,
-        utr: d.utr,
-        status: 'received',
-        receivedById: me.sub,
-      },
+    const id = d.id ?? (d.orderId ? `PAY-APP-${d.orderId}` : `PAY-${Date.now()}`);
+    const status = d.status ?? 'confirmed';
+    const data = {
+      orderId: d.orderId,
+      customerId: d.custId,
+      custId: d.custId,
+      custCode: d.custCode,
+      custName: d.custName,
+      mode: d.mode,
+      amount: d.amount,
+      utr: d.utr,
+      date: d.date ?? new Date().toISOString().slice(0, 10),
+      by: d.by ?? me.name,
+      contact: d.contact,
+      img: d.img ?? null,
+      status,
+      source: d.source ?? 'Sales App',
+      receivedById: me.sub,
+    };
+
+    // Upsert by id so a re-sent payment does not duplicate (client dedups by orderId).
+    const payment = await prisma.payment.upsert({
+      where: { id },
+      create: { id, ...data },
+      update: data,
     });
 
-    // A confirmed payment flips its order to "confirmed".
-    if (d.orderId) {
-      await prisma.order
-        .update({
-          where: { id: d.orderId },
-          data: { status: 'confirmed', dispatchBy: dispatchDate() },
-        })
-        .catch(() => null);
-    }
+    if (status === 'confirmed' && d.orderId) await markOrderPaid(d.orderId);
 
     return ok(res, serialisePayment(payment), 201);
   })
@@ -82,14 +113,14 @@ paymentsRouter.get(
         ...(typeof orderId === 'string' ? { orderId } : {}),
         ...(typeof customer === 'string' ? { customerId: customer } : {}),
       },
-      orderBy: { ts: 'desc' },
+      orderBy: { loggedAt: 'desc' },
       take: 200,
     });
     return ok(res, payments.map(serialisePayment));
   })
 );
 
-// GET /payments/qr?orderId=…&amount=… — company UPI QR / intent string.
+// GET /payments/qr?orderId=…&amount=… — company UPI QR / intent.
 paymentsRouter.get(
   '/qr',
   authenticate,
@@ -99,25 +130,20 @@ paymentsRouter.get(
 
     if (orderId && !amount) {
       const order = await prisma.order.findUnique({ where: { id: orderId } });
-      amount = order?.grandTotal;
+      amount = order?.grand;
     }
 
-    // Standard UPI deep-link the frontend can render as a QR image.
-    const params = new URLSearchParams({
-      pa: config.company.upiId,
-      pn: config.company.upiName,
-      cu: 'INR',
-    });
+    const params = new URLSearchParams({ pa: config.company.upiId, pn: config.company.upiName, cu: 'INR' });
     if (amount) params.set('am', String(amount));
     if (orderId) params.set('tn', `Order ${orderId}`);
-    const upiIntent = `upi://pay?${params.toString()}`;
 
     return ok(res, {
       upiId: config.company.upiId,
       payeeName: config.company.upiName,
       amount,
       orderId,
-      upiIntent,
+      upiIntent: `upi://pay?${params.toString()}`,
+      qrAsset: 'assets/eurostar-upi-qr.svg',
     });
   })
 );
@@ -128,7 +154,7 @@ const webhookSchema = z.object({
   orderId: z.string(),
   utr: z.string().optional(),
   amount: z.number().int().positive().optional(),
-  status: z.enum(['received', 'failed']).default('received'),
+  status: z.enum(['confirmed', 'failed']).default('confirmed'),
   mode: z.enum(['upi', 'card', 'netbanking', 'neft', 'qr']).default('upi'),
 });
 
@@ -142,25 +168,26 @@ paymentsRouter.post(
     const order = await prisma.order.findUnique({ where: { id: d.orderId } });
     if (!order) return fail(res, 404, 'Unknown order');
 
-    await prisma.payment.create({
-      data: {
+    const id = `PAY-PSP-${d.orderId}`;
+    await prisma.payment.upsert({
+      where: { id },
+      create: {
+        id,
         orderId: order.id,
         customerId: order.customerId,
         custCode: order.customerCode,
         custName: order.customerName,
         mode: d.mode,
-        amount: d.amount ?? order.grandTotal,
+        amount: d.amount ?? order.grand,
         utr: d.utr,
+        date: new Date().toISOString().slice(0, 10),
         status: d.status,
+        source: 'PSP Webhook',
       },
+      update: { status: d.status, utr: d.utr },
     });
 
-    if (d.status === 'received') {
-      await prisma.order.update({
-        where: { id: order.id },
-        data: { status: 'confirmed', dispatchBy: order.dispatchBy ?? dispatchDate() },
-      });
-    }
+    if (d.status === 'confirmed') await markOrderPaid(order.id);
 
     return ok(res, { ok: true });
   })

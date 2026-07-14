@@ -3,39 +3,73 @@ import { z } from 'zod';
 import { prisma } from '../db';
 import { asyncHandler, fail, ok, failValidation } from '../util/http';
 import { AuthedRequest, authenticate } from '../auth/middleware';
-import { computeTotals, dispatchDate, effectiveUnitPrice } from '../services/totals';
+import { computeTotals, dispatchInfo, isExportCity } from '../services/totals';
 import { nextOrderId } from '../services/ids';
 
 export const ordersRouter = Router();
 
+// A cart/order line. Flexible to accept the client's cart-line fields
+// (pid, ct, perCtPrice, lineTotal, unitMode…) as well as plainer names.
 const lineSchema = z.object({
-  skuId: z.string().optional(),
+  pid: z.string().optional(),
+  name: z.string().optional(),
+  cat: z.string().optional(),
   categoryKey: z.string().optional(),
   grade: z.string().optional(),
+  quality: z.string().optional(),
+  color: z.string().optional(),
   colour: z.string().optional(),
   shape: z.string().optional(),
   size: z.string().optional(),
-  unit: z.string().min(1),
-  qty: z.number().int().positive(),
-  unitPrice: z.number().int().nonnegative(),
+  unit: z.string().optional(),
+  unitMode: z.string().optional(),
+  ct: z.number().optional(), // quantity in the chosen unit (carats/packets/pieces)
+  qty: z.number().optional(), // total pieces (derived)
+  unitPrice: z.number().optional(),
+  perCtPrice: z.number().optional(), // ₹ per unit — drives lineTotal
+  lineTotal: z.number().optional(),
   priceOverride: z.number().int().nonnegative().optional(), // office only
+  basePrice: z.number().optional(),
+  priceEdited: z.boolean().optional(),
 });
+type LineIn = z.infer<typeof lineSchema>;
 
 const createOrderSchema = z.object({
+  id: z.string().optional(), // client-generated id (e.g. "SO-24987")
   customerId: z.string().optional(),
-  // A quick inline customer (rep/office adding a walk-in at checkout).
   customer: z
-    .object({ name: z.string().optional(), phone: z.string().optional(), city: z.string().optional() })
+    .object({
+      name: z.string().optional(),
+      phone: z.string().optional(),
+      code: z.string().optional(),
+      id: z.string().optional(),
+      isNew: z.boolean().optional(),
+    })
     .optional(),
   code: z.string().optional(),
   city: z.string().optional(),
-  items: z.array(lineSchema).min(1),
-  source: z.enum(['app', 'rep', 'office', 'offline']).optional(),
-  status: z.enum(['active', 'confirmed']).optional(),
-  // Client may send its own reference id (e.g. an offline-generated ESO-…);
-  // we keep it for idempotency but the server id is authoritative.
-  clientRef: z.string().optional(),
+  items: z.array(lineSchema).optional(),
+  subtotal: z.number().optional(), // client-computed (recomputed server-side when items present)
+  isExport: z.boolean().optional(),
+  paid: z.boolean().optional(),
+  status: z.enum(['pending', 'confirmed', 'packed', 'shipped', 'delivered', 'cancelled']).optional(),
+  source: z.string().optional(),
+  dispatchBy: z.string().optional(), // client label, e.g. "Wed, 17 Jul"
+  queuedOffline: z.boolean().optional(),
+  clientTs: z.number().optional(),
 });
+
+// Per-line unit rate (per ct/pkt/pc) and quantity, tolerant of field naming.
+function lineRate(l: LineIn): number {
+  return l.perCtPrice ?? l.unitPrice ?? 0;
+}
+function lineUnits(l: LineIn): number {
+  return l.ct ?? l.qty ?? 0;
+}
+function effectiveLineTotal(l: LineIn, canOverride: boolean): number {
+  if (canOverride && l.priceOverride != null) return lineUnits(l) * l.priceOverride;
+  return l.lineTotal ?? lineRate(l) * lineUnits(l);
+}
 
 function serialiseOrder(o: any) {
   return {
@@ -47,16 +81,22 @@ function serialiseOrder(o: any) {
     rep: o.repName,
     repId: o.repId,
     subtotal: o.subtotal,
-    gst: o.gst,
-    courier: o.courier,
-    value: o.grandTotal,
-    grandTotal: o.grandTotal,
-    dispatchBy: o.dispatchBy,
+    tax: o.tax,
+    shipping: o.shipping,
+    insurance: o.insurance,
+    value: o.grand, // the client order object calls the grand total "value"
+    grand: o.grand,
+    isExport: o.isExport,
+    paid: o.paid,
+    dispatchBy: o.dispatchByLabel, // client stores the label string
+    dispatchDate: o.dispatchBy,
     status: o.status,
     source: o.source,
+    queuedOffline: o.queuedOffline,
+    ts: o.clientTs ? Number(o.clientTs) : o.createdAt?.getTime?.(),
     createdAt: o.createdAt,
     items: (o.lines ?? []).map((l: any) => ({
-      skuId: l.skuId,
+      pid: l.skuId,
       categoryKey: l.categoryKey,
       grade: l.grade,
       colour: l.colour,
@@ -71,7 +111,8 @@ function serialiseOrder(o: any) {
   };
 }
 
-// POST /orders — create the real order (the CRM/back-office stream).
+// POST /orders — create (or upsert, for offline flush) the real order.
+// This is the stream the CRM/back-office consumes (was eurostar-crm-incoming-orders).
 ordersRouter.post(
   '/',
   authenticate,
@@ -80,73 +121,76 @@ ordersRouter.post(
     if (!parsed.success) return failValidation(res, parsed.error);
     const d = parsed.data;
     const me = req.user!;
+    const canOverride = me.role === 'office'; // only back office may override price
 
-    // Only office can override prices. Silently ignore overrides from others.
-    const canOverride = me.role === 'office';
-
-    // Resolve the customer (existing, or the customer's own account).
-    let customer = d.customerId
+    const customer = d.customerId
       ? await prisma.customer.findUnique({ where: { id: d.customerId } })
       : null;
 
-    // Figure out the rep on the order.
-    let repName: string | null = null;
-    let repId: string | null = null;
-    if (me.role === 'rep' || me.role === 'office') {
-      repName = me.name;
-      repId = me.repId ?? null;
-    }
+    const city = customer?.city ?? d.city ?? null;
+    const isExport = d.isExport ?? isExportCity(city);
 
-    const lines = d.items.map((l) => {
+    // Build lines and the authoritative subtotal.
+    const items = d.items ?? [];
+    const lines = items.map((l) => {
+      const total = effectiveLineTotal(l, canOverride);
       const override = canOverride ? l.priceOverride ?? null : null;
       return {
-        ...l,
+        skuId: l.pid,
+        categoryKey: l.cat ?? l.categoryKey,
+        grade: l.grade ?? l.quality,
+        colour: l.colour ?? l.color,
+        shape: l.shape,
+        size: l.size,
+        unit: l.unitMode ?? l.unit ?? 'pc',
+        qty: lineUnits(l),
+        unitPrice: lineRate(l),
         priceOverride: override,
         overrideBy: override != null ? me.sub : null,
-        lineTotal: effectiveUnitPrice({ unitPrice: l.unitPrice, priceOverride: override, qty: l.qty }) * l.qty,
+        lineTotal: total,
       };
     });
 
-    const totals = computeTotals(
-      lines.map((l) => ({ unitPrice: l.unitPrice, priceOverride: l.priceOverride, qty: l.qty }))
-    );
+    const subtotal = items.length ? lines.reduce((s, l) => s + l.lineTotal, 0) : d.subtotal ?? 0;
+    const totals = computeTotals([{ unitPrice: subtotal, qty: 1 }], isExport); // reuse rules on the subtotal
+    const dispatch = dispatchInfo(isExport);
+    const dispatchLabel = d.dispatchBy ?? dispatch.label;
 
-    const status = d.status ?? (me.role === 'customer' ? 'active' : 'active');
-    const id = await nextOrderId();
+    const id = d.id ?? (await nextOrderId());
+    const paid = d.paid ?? false;
+    const status = d.status ?? (paid ? 'confirmed' : 'pending');
 
-    const order = await prisma.order.create({
-      data: {
-        id,
-        customerId: customer?.id,
-        repUserId: me.role !== 'customer' ? me.sub : null,
-        customerName: customer?.name ?? d.customer?.name ?? me.name,
-        customerCode: customer?.code ?? d.code,
-        city: customer?.city ?? d.customer?.city ?? d.city,
-        repName,
-        repId,
-        subtotal: totals.subtotal,
-        gst: totals.gst,
-        courier: totals.courier,
-        grandTotal: totals.grandTotal,
-        dispatchBy: status === 'confirmed' ? dispatchDate() : null,
-        status,
-        source: d.source ?? (me.role === 'customer' ? 'app' : me.role),
-        lines: {
-          create: lines.map((l) => ({
-            skuId: l.skuId,
-            categoryKey: l.categoryKey,
-            grade: l.grade,
-            colour: l.colour,
-            shape: l.shape,
-            size: l.size,
-            unit: l.unit,
-            qty: l.qty,
-            unitPrice: l.unitPrice,
-            priceOverride: l.priceOverride,
-            overrideBy: l.overrideBy,
-            lineTotal: l.lineTotal,
-          })),
-        },
+    const data = {
+      customerId: customer?.id,
+      repUserId: me.role !== 'customer' ? me.sub : null,
+      customerName: customer?.name ?? d.customer?.name ?? me.name,
+      customerCode: customer?.code ?? d.customer?.code ?? d.code,
+      city,
+      repName: me.role !== 'customer' ? me.name : null,
+      repId: me.role !== 'customer' ? me.repId ?? null : null,
+      subtotal,
+      tax: totals.tax,
+      shipping: totals.shipping,
+      insurance: totals.insurance,
+      grand: totals.grand,
+      isExport,
+      paid,
+      dispatchBy: dispatch.date,
+      dispatchByLabel: dispatchLabel,
+      status,
+      source: d.source ?? 'Sales App',
+      queuedOffline: d.queuedOffline ?? false,
+      clientTs: d.clientTs != null ? String(d.clientTs) : null,
+    };
+
+    // Upsert by id so an offline order flushed twice does not duplicate
+    // (the client dedups eurostar-crm-incoming-orders by id).
+    const order = await prisma.order.upsert({
+      where: { id },
+      create: { id, ...data, lines: { create: lines } },
+      update: {
+        ...data,
+        lines: items.length ? { deleteMany: {}, create: lines } : undefined,
       },
       include: { lines: true },
     });
@@ -155,7 +199,7 @@ ordersRouter.post(
   })
 );
 
-// GET /orders?scope=…&status=active|confirmed
+// GET /orders?scope=…&status=…
 ordersRouter.get(
   '/',
   authenticate,
@@ -164,10 +208,8 @@ ordersRouter.get(
     const status = typeof req.query.status === 'string' ? req.query.status : undefined;
     const scope = typeof req.query.scope === 'string' ? req.query.scope : undefined;
 
-    // Customers only ever see their own orders.
     const where: any = { ...(status ? { status } : {}) };
     if (me.role === 'customer') {
-      // Match by the customer's linked account or their phone-based name.
       where.OR = [{ customerId: me.sub }, { repUserId: null, customerName: me.name }];
     } else if (me.role === 'rep' && scope !== 'all') {
       where.repUserId = me.sub;
@@ -203,11 +245,13 @@ ordersRouter.post(
     const existing = await prisma.order.findUnique({ where: { id: req.params.id } });
     if (!existing) return fail(res, 404, 'Order not found');
 
+    const dispatch = existing.dispatchBy ? null : dispatchInfo(existing.isExport);
     const order = await prisma.order.update({
       where: { id: existing.id },
       data: {
         status: 'confirmed',
-        dispatchBy: existing.dispatchBy ?? dispatchDate(),
+        paid: true,
+        ...(dispatch ? { dispatchBy: dispatch.date, dispatchByLabel: dispatch.label } : {}),
       },
       include: { lines: true },
     });

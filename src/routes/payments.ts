@@ -105,7 +105,7 @@ paymentsRouter.post(
 // GET /payments?orderId=…&customer=…
 paymentsRouter.get(
   '/',
-  authenticate,
+  optionalAuth, // CRM reads this without a session for now (locked down in Phase 6)
   asyncHandler(async (req, res) => {
     const { orderId, customer } = req.query;
     const payments = await prisma.payment.findMany({

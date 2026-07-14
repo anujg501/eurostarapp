@@ -235,19 +235,19 @@ ordersRouter.post(
 // GET /orders?scope=…&status=…
 ordersRouter.get(
   '/',
-  authenticate,
+  optionalAuth, // CRM reads this without a session for now (locked down in Phase 6)
   asyncHandler(async (req: AuthedRequest, res) => {
-    const me = req.user!;
+    const me = req.user;
     const status = typeof req.query.status === 'string' ? req.query.status : undefined;
     const scope = typeof req.query.scope === 'string' ? req.query.scope : undefined;
 
     const where: any = { ...(status ? { status } : {}) };
-    if (me.role === 'customer') {
+    if (me?.role === 'customer') {
       where.OR = [{ customerId: me.sub }, { repUserId: null, customerName: me.name }];
-    } else if (me.role === 'rep' && scope !== 'all') {
+    } else if (me?.role === 'rep' && scope !== 'all') {
       where.repUserId = me.sub;
     }
-    // office (and rep scope=all) see everything.
+    // office, no session (CRM), and rep scope=all see everything.
 
     const orders = await prisma.order.findMany({
       where,

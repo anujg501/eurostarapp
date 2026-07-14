@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db';
 import { asyncHandler, fail, ok, failValidation } from '../util/http';
-import { authenticate, requireStaff } from '../auth/middleware';
+import { authenticate, requireStaff, optionalAuth } from '../auth/middleware';
 
 export const repsRouter = Router();
 
@@ -23,8 +23,7 @@ function serialiseRep(r: any) {
 // GET /reps — the CRM's rep list (ingested from LMS hires).
 repsRouter.get(
   '/',
-  authenticate,
-  requireStaff,
+  optionalAuth, // CRM reads this without a session for now (locked down in Phase 6)
   asyncHandler(async (_req, res) => {
     const reps = await prisma.rep.findMany({ orderBy: { createdAt: 'desc' }, take: 500 });
     return ok(res, reps.map(serialiseRep));

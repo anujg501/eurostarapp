@@ -5,6 +5,8 @@ import { asyncHandler, fail, ok, failValidation } from '../util/http';
 import { AuthedRequest, authenticate, optionalAuth } from '../auth/middleware';
 import { computeTotals, dispatchInfo, isExportCity } from '../services/totals';
 import { nextOrderId } from '../services/ids';
+import { sendWhatsApp } from '../services/otp';
+import { config } from '../config';
 
 export const ordersRouter = Router();
 
@@ -339,6 +341,23 @@ ordersRouter.put(
           body: `Order ${order.id} is on its way${order.courier ? ` via ${order.courier}` : ''}${order.track ? ` (${order.track})` : ''}.`,
         },
       });
+
+      // Also send a WhatsApp update, if a WhatsApp sender is configured and we
+      // have the customer's phone. Never let a message failure break dispatch.
+      if (config.twilio.whatsappFrom && order.customerId) {
+        try {
+          const cust = await prisma.customer.findUnique({ where: { id: order.customerId } });
+          if (cust?.phone) {
+            await sendWhatsApp(
+              cust.phone,
+              `📦 Eurostar: Order ${order.id} has been dispatched${order.courier ? ` via ${order.courier}` : ''}${order.track ? `. Tracking: ${order.track}` : ''}. Thank you for your business!`
+            );
+          }
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.error('WhatsApp dispatch notification failed:', e);
+        }
+      }
     }
 
     return ok(res, serialiseOrder(order));

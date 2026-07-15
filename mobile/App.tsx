@@ -14,6 +14,8 @@ import ProductsScreen from './src/screens/ProductsScreen';
 import OrdersScreen from './src/screens/OrdersScreen';
 import CartScreen from './src/screens/CartScreen';
 import CheckInScreen from './src/screens/CheckInScreen';
+import CustomersScreen from './src/screens/CustomersScreen';
+import LearnScreen from './src/screens/LearnScreen';
 
 const Tab = createBottomTabNavigator();
 const ShopStack = createNativeStackNavigator();
@@ -75,6 +77,13 @@ function CartTabLabel({ color }: { color: string }) {
   );
 }
 
+// Simple emoji tab icons — no extra icon-font dependency, works on iOS + Android.
+function emojiIcon(glyph: string) {
+  return ({ focused }: { focused: boolean }) => (
+    <Text style={{ fontSize: 18, opacity: focused ? 1 : 0.5 }}>{glyph}</Text>
+  );
+}
+
 function MainTabs({ onSignOut, staff }: { onSignOut: () => void; staff: boolean }) {
   const tabScreenOptions = {
     headerShown: false,
@@ -82,12 +91,13 @@ function MainTabs({ onSignOut, staff }: { onSignOut: () => void; staff: boolean 
     tabBarInactiveTintColor: theme.ink3,
     tabBarStyle: { backgroundColor: theme.surface, borderTopColor: theme.border },
   };
-  // Staff (reps/office/admin): field check-in + their orders. No shopping cart.
+  // Staff (reps/office/admin): the CRM + LMS rep tools — field visits, their
+  // customer book, training/recruitment, and orders. No shopping cart.
   if (staff) {
     return (
       <NavigationContainer>
         <Tab.Navigator screenOptions={tabScreenOptions}>
-          <Tab.Screen name="Check-in">
+          <Tab.Screen name="Visit" options={{ tabBarIcon: emojiIcon('📍') }}>
             {() => (
               <View style={{ flex: 1 }}>
                 <Header title="Check in / out" onSignOut={onSignOut} />
@@ -95,7 +105,23 @@ function MainTabs({ onSignOut, staff }: { onSignOut: () => void; staff: boolean 
               </View>
             )}
           </Tab.Screen>
-          <Tab.Screen name="Orders">
+          <Tab.Screen name="Customers" options={{ tabBarIcon: emojiIcon('👥') }}>
+            {() => (
+              <View style={{ flex: 1 }}>
+                <Header title="My customers" onSignOut={onSignOut} />
+                <CustomersScreen />
+              </View>
+            )}
+          </Tab.Screen>
+          <Tab.Screen name="Learn" options={{ tabBarIcon: emojiIcon('🎓') }}>
+            {() => (
+              <View style={{ flex: 1 }}>
+                <Header title="Learn & recruit" onSignOut={onSignOut} />
+                <LearnScreen />
+              </View>
+            )}
+          </Tab.Screen>
+          <Tab.Screen name="Orders" options={{ tabBarIcon: emojiIcon('📦') }}>
             {() => (
               <View style={{ flex: 1 }}>
                 <Header title="Orders" onSignOut={onSignOut} />
@@ -111,8 +137,13 @@ function MainTabs({ onSignOut, staff }: { onSignOut: () => void; staff: boolean 
   return (
     <NavigationContainer>
       <Tab.Navigator screenOptions={tabScreenOptions}>
-        <Tab.Screen name="Shop">{() => <ShopFlow onSignOut={onSignOut} />}</Tab.Screen>
-        <Tab.Screen name="Cart" options={{ tabBarLabel: ({ color }) => <CartTabLabel color={color} /> }}>
+        <Tab.Screen name="Shop" options={{ tabBarIcon: emojiIcon('💎') }}>
+          {() => <ShopFlow onSignOut={onSignOut} />}
+        </Tab.Screen>
+        <Tab.Screen
+          name="Cart"
+          options={{ tabBarIcon: emojiIcon('🛒'), tabBarLabel: ({ color }) => <CartTabLabel color={color} /> }}
+        >
           {() => (
             <View style={{ flex: 1 }}>
               <Header title="Cart" onSignOut={onSignOut} />
@@ -120,7 +151,7 @@ function MainTabs({ onSignOut, staff }: { onSignOut: () => void; staff: boolean 
             </View>
           )}
         </Tab.Screen>
-        <Tab.Screen name="Orders">
+        <Tab.Screen name="Orders" options={{ tabBarIcon: emojiIcon('📦') }}>
           {() => (
             <View style={{ flex: 1 }}>
               <Header title="Orders" onSignOut={onSignOut} />

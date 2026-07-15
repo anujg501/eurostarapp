@@ -101,4 +101,60 @@ export const api = {
 
   placeOrder: (order: any) =>
     request<any>('/orders', { method: 'POST', body: JSON.stringify(order) }),
+
+  // --- CRM (rep side) ---
+  // Reps get their own customers; office/admin get all (optionally ?rep=).
+  customers: (rep?: string) =>
+    request<Customer[]>(`/customers${rep ? `?rep=${encodeURIComponent(rep)}` : ''}`),
+
+  createCustomer: (data: {
+    name: string;
+    phone: string;
+    city?: string;
+    gstin?: string;
+    terms?: 'cash' | '15' | '30' | '45' | '60';
+  }) => request<Customer>('/customers', { method: 'POST', body: JSON.stringify(data) }),
+
+  // --- LMS (rep side) ---
+  // Recruitment pipeline (candidates the rep referred / is screening).
+  candidates: (stage?: string) =>
+    request<Candidate[]>(`/candidates${stage ? `?stage=${encodeURIComponent(stage)}` : ''}`),
+
+  // Training modules — product/sales learning with video links + checklists.
+  modules: () => request<TrainingModule[]>('/modules'),
+};
+
+export type Customer = {
+  id: string;
+  code: string;
+  name: string;
+  phone: string;
+  city?: string | null;
+  gstin?: string | null;
+  terms?: string | null;
+  rep?: string | null;
+};
+
+export type Candidate = {
+  id: string;
+  name: string;
+  email?: string | null;
+  phone?: string | null;
+  city?: string | null;
+  state?: string | null;
+  source?: string | null;
+  stage: string;
+  score?: number | null;
+  exp?: string | null;
+  repId?: string | null;
+  createdAt: string;
+};
+
+export type TrainingModule = {
+  id: string;
+  title: string;
+  summary?: string | null;
+  videoUrl?: string | null;
+  checklist: string[];
+  sortOrder?: number;
 };

@@ -68,6 +68,16 @@ app.get('/', (_req, res) => res.sendFile(path.join(webDir, 'index.html'))); // a
 app.get('/login', (_req, res) => res.sendFile(path.join(webDir, 'Eurostar Login.html')));
 app.get('/site', (_req, res) => res.sendFile(path.join(webDir, 'Eurostar Sales website.html')));
 app.get('/mobile', (_req, res) => res.sendFile(path.join(webDir, 'Eurostar Sales website (Mobile).html')));
+
+// Clean, memorable paths for each app (e.g. eurostargemstones.com/shop). The
+// Sales page is a single file served directly; the folder-based apps redirect
+// to their folder so their relative assets (app/, styles/…) keep loading.
+app.get(['/shop', '/sales'], (_req, res) => res.sendFile(path.join(webDir, 'Eurostar Sales website.html')));
+app.get('/crm', (_req, res) => res.redirect(301, '/crm/'));
+app.get('/lms', (_req, res) => res.redirect(301, '/lms/'));
+app.get('/admin', (_req, res) => res.redirect(301, '/admin/'));
+app.get('/mira', (_req, res) => res.redirect(301, '/mira-admin/'));
+
 app.use(express.static(webDir)); // serves the portal, Sales, and /crm/ (each has an index.html)
 
 // 404 — JSON for API paths, otherwise fall back to the login page.

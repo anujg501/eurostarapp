@@ -24,6 +24,55 @@
       z-index: 2147483000;
     }
     #om-scroll-ind.is-active { opacity: 1; }
+
+    /* ===== CRM login gate ===== */
+    #crm-login {
+      position: fixed; inset: 0; z-index: 2147483001;
+      background: var(--paper); display: flex; font-family: var(--font-sans);
+    }
+    #crm-login .lg-left {
+      flex: 1; min-width: 0; position: relative; overflow: hidden; color: #F5EFDD;
+      background: linear-gradient(160deg, #0E5C4A 0%, #0A3F33 60%, #072d24 100%);
+      padding: 54px 56px; display: flex; flex-direction: column;
+    }
+    #crm-login .lg-left::after {
+      content: ""; position: absolute; right: -140px; top: 40px; width: 520px; height: 520px;
+      border: 1px solid rgba(245,231,196,0.10); border-radius: 40px; transform: rotate(38deg);
+    }
+    #crm-login .lg-left .lgl-logo { height: 32px; width: auto; align-self: flex-start; display: block; position: relative; z-index: 2; }
+    #crm-login .lg-left .lgl-eyebrow { position: relative; z-index: 2; margin-top: auto; font-size: 11.5px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #E9C877; }
+    #crm-login .lg-left h1 { position: relative; z-index: 2; font-family: var(--font-serif); font-weight: 500; font-size: 42px; line-height: 1.08; letter-spacing: -0.01em; margin: 16px 0 0; color: #F7F1E1; }
+    #crm-login .lg-left h1 em { font-style: italic; color: #E9C877; }
+    #crm-login .lg-left .lgl-sub { position: relative; z-index: 2; font-size: 15px; line-height: 1.6; color: rgba(245,239,221,0.78); margin: 18px 0 26px; max-width: 400px; }
+    #crm-login .lg-left .lgl-item { position: relative; z-index: 2; display: flex; gap: 12px; align-items: flex-start; margin-top: 14px; }
+    #crm-login .lg-left .lgl-item .ic { width: 34px; height: 34px; border-radius: 50%; background: rgba(245,231,196,0.12); display: flex; align-items: center; justify-content: center; font-size: 15px; flex: none; }
+    #crm-login .lg-left .lgl-item b { display: block; font-size: 13.5px; font-weight: 600; color: #F5EFDD; }
+    #crm-login .lg-left .lgl-item span { font-size: 12.5px; color: rgba(245,239,221,0.66); }
+    #crm-login .lg-right { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; padding: 40px 44px; overflow-y: auto; }
+    #crm-login .lg-form { width: 100%; max-width: 388px; }
+    #crm-login .lg-tabs { display: flex; gap: 6px; background: var(--paper-2); border: 1px solid var(--border); padding: 6px; border-radius: var(--r-lg); margin-bottom: 30px; }
+    #crm-login .lg-tab { flex: 1; border: none; background: transparent; border-radius: var(--r-md); padding: 12px 6px; cursor: pointer; font-family: inherit; display: flex; flex-direction: column; align-items: center; gap: 5px; color: var(--fg-meta); font-size: 12.5px; font-weight: 600; }
+    #crm-login .lg-tab .ti { font-size: 17px; line-height: 1; }
+    #crm-login .lg-tab.on { background: var(--surface); color: var(--fg); box-shadow: var(--shadow-sm); }
+    #crm-login h2 { font-family: var(--font-serif); font-weight: 500; font-size: 30px; margin: 0 0 6px; color: var(--fg); letter-spacing: -0.01em; }
+    #crm-login .lgsub { color: var(--fg-meta); font-size: 14px; margin: 0 0 24px; line-height: 1.5; }
+    #crm-login label { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--fg-meta); margin: 0 0 6px; }
+    #crm-login .lgfield { margin-bottom: 16px; }
+    #crm-login input[type=text], #crm-login input[type=password] {
+      width: 100%; padding: 13px 14px; border: 1px solid var(--border);
+      border-radius: var(--r-md); font-family: inherit; font-size: 14.5px;
+      background: var(--surface); color: var(--fg);
+    }
+    #crm-login input:focus { outline: none; border-color: #0E5C4A; box-shadow: 0 0 0 3px rgba(14,92,74,0.15); }
+    #crm-login .lgrow { display: flex; align-items: center; gap: 9px; margin: 4px 0 22px; cursor: pointer; user-select: none; }
+    #crm-login .lgrow input { width: auto; margin: 0; accent-color: #0E5C4A; }
+    #crm-login .lgrow label { margin: 0; text-transform: none; letter-spacing: 0; font-weight: 500; font-size: 13.5px; color: var(--fg); cursor: pointer; }
+    #crm-login .lgbtn { width: 100%; padding: 15px; border: none; border-radius: var(--r-md); background: #0E5C4A; color: #fff; font-family: inherit; font-weight: 600; font-size: 15px; cursor: pointer; }
+    #crm-login .lgbtn:hover { background: #0A3F33; }
+    #crm-login .lgerr { color: var(--ruby); font-size: 12.5px; font-weight: 600; margin: 0 0 14px; display: none; }
+    #crm-login .lgerr.show { display: block; }
+    #crm-login .lghint { text-align: center; color: var(--fg-meta); font-size: 11.5px; margin: 20px 0 0; }
+    @media (max-width: 860px) { #crm-login .lg-left { display: none; } }
   </style>
   <script>
     /* In the review preview (iframe), always fetch fresh local stylesheets. */
@@ -36,6 +85,111 @@
 </head>
 <body>
   <div id="root"></div>
+
+  <div id="crm-login">
+    <div class="lg-left">
+      <img id="crm-lg-logo" class="lgl-logo" alt="Eurostar">
+      <div class="lgl-eyebrow">Back-office console · Mumbai &amp; Jaipur</div>
+      <h1>Run the <em>trade</em>,<br>end to end.</h1>
+      <p class="lgl-sub">Orders, payments, reps and commissions — the Eurostar wholesale pipeline in one place.</p>
+      <div class="lgl-item"><div class="ic">📦</div><div><b>Live order pipeline</b><span>From new enquiry to dispatched &amp; delivered</span></div></div>
+      <div class="lgl-item"><div class="ic">💳</div><div><b>Payments &amp; reconciliation</b><span>Cash, credit terms and QR collections</span></div></div>
+      <div class="lgl-item"><div class="ic">👥</div><div><b>Reps &amp; commissions</b><span>Territory routing and payout tracking</span></div></div>
+    </div>
+    <div class="lg-right">
+      <form class="lg-form" id="crm-login-form" autocomplete="on">
+        <div class="lg-tabs" id="crm-lg-tabs">
+          <button type="button" class="lg-tab on" data-role="rep"><span class="ti">👤</span>Sales Rep</button>
+          <button type="button" class="lg-tab" data-role="admin"><span class="ti">✦</span>Admin</button>
+          <button type="button" class="lg-tab" data-role="office"><span class="ti">🏢</span>Back Office</button>
+        </div>
+        <h2>Welcome back</h2>
+        <p class="lgsub" id="crm-lg-rolesub">Sign in with your Sales Rep credentials.</p>
+        <p class="lgerr" id="crm-lgerr">Incorrect username or password.</p>
+        <div class="lgfield">
+          <label for="crm-lg-user">Username</label>
+          <input id="crm-lg-user" name="username" type="text" autocomplete="username" placeholder="e.g. rep">
+        </div>
+        <div class="lgfield">
+          <label for="crm-lg-pass">Password</label>
+          <input id="crm-lg-pass" name="password" type="password" autocomplete="current-password" placeholder="••••••••">
+        </div>
+        <div class="lgrow" onclick="var c=document.getElementById('crm-lg-remember');c.checked=!c.checked;">
+          <input id="crm-lg-remember" type="checkbox" checked>
+          <label for="crm-lg-remember">Keep me signed in on this device</label>
+        </div>
+        <button type="submit" class="lgbtn">Sign in</button>
+        <p class="lghint">Eurostar Technologies · Internal use only</p>
+      </form>
+    </div>
+  </div>
+  <script>
+    (function () {
+      var AUTH_KEY = 'eurostar-crm-authed';
+      var ROLES = {
+        rep:    { user: 'rep',    pass: 'eurostar', sub: 'Sign in with your Sales Rep credentials.',  ph: 'e.g. rep' },
+        admin:  { user: 'admin',  pass: 'eurostar', sub: 'Sign in with your Admin credentials.',      ph: 'e.g. admin' },
+        office: { user: 'office', pass: 'eurostar', sub: 'Sign in with your Back Office credentials.', ph: 'e.g. office' }
+      };
+      var role = 'rep';
+      var gate = document.getElementById('crm-login');
+      var form = document.getElementById('crm-login-form');
+      var err = document.getElementById('crm-lgerr');
+      var lg = document.getElementById('crm-lg-logo');
+      var subEl = document.getElementById('crm-lg-rolesub');
+      var userEl = document.getElementById('crm-lg-user');
+      function setLogo() {
+        var src = window.EUROSTAR_LOGO_WHITE || window.EUROSTAR_LOGO_PNG || window.EUROSTAR_LOGO;
+        if (src) { lg.src = src; lg.style.display = 'block'; } else { lg.style.display = 'none'; }
+      }
+      setLogo();
+      window.addEventListener('load', setLogo);
+      document.documentElement.style.overflow = 'hidden'; document.body.style.overflow = 'hidden';
+      function applyRole(r) {
+        role = r;
+        subEl.textContent = ROLES[r].sub;
+        userEl.placeholder = ROLES[r].ph;
+        err.classList.remove('show');
+      }
+      [].forEach.call(document.querySelectorAll('#crm-lg-tabs .lg-tab'), function (t) {
+        t.addEventListener('click', function () {
+          document.querySelectorAll('#crm-lg-tabs .lg-tab').forEach(function (x) { x.classList.remove('on'); });
+          t.classList.add('on');
+          applyRole(t.getAttribute('data-role'));
+        });
+      });
+      // Prefill the last-used username (Keep-me-signed-in), never the password.
+      try { var savedUser = localStorage.getItem(AUTH_KEY); if (savedUser) userEl.value = savedUser; } catch (e) {}
+      applyRole(role);
+      function unlock() { gate.style.display = 'none'; document.documentElement.style.overflow = ''; document.body.style.overflow = ''; }
+      var API = window.EUROSTAR_API || (/^(localhost|127\.|0\.0\.0\.0)/.test(location.hostname) ? location.origin : 'https://eurostar-api.onrender.com');
+      var btn = form.querySelector('.lgbtn');
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var username = userEl.value.trim();
+        var password = document.getElementById('crm-lg-pass').value;
+        var remember = document.getElementById('crm-lg-remember').checked;
+        if (!username || !password) { err.textContent = 'Enter your username and password.'; err.classList.add('show'); return; }
+        err.classList.remove('show'); btn.disabled = true; btn.textContent = 'Signing in…';
+        fetch(API + '/auth/login', {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ role: role, username: username, password: password, remember: remember })
+        }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+          .then(function (res) {
+            if (!res.ok || !res.d || !res.d.accessToken) throw new Error((res.d && res.d.error) || 'Incorrect username or password.');
+            try {
+              localStorage.setItem('eurostar-admin-token', res.d.accessToken);
+              if (remember) localStorage.setItem(AUTH_KEY, username); else localStorage.removeItem(AUTH_KEY);
+            } catch (e) {}
+            unlock();
+          })
+          .catch(function (ex) {
+            btn.disabled = false; btn.textContent = 'Sign in';
+            err.textContent = ex.message || 'Incorrect username or password.'; err.classList.add('show');
+          });
+      });
+    })();
+  </script>
   <div id="om-scroll-ind" aria-hidden="true"></div>
   <script>
     /* Transparent auto-hiding scroll indicator (overlay — reserves no space). */
@@ -60,6 +214,7 @@
       window.addEventListener('resize', update, { passive: true });
     })();
   </script>
+  <!-- React + Babel bundled locally (no CDN) so the site runs anywhere. -->
   <script src="../vendor/react.development.js"></script>
   <script src="../vendor/react-dom.development.js"></script>
   <script src="../vendor/babel.min.js"></script>

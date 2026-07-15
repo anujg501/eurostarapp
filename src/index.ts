@@ -69,13 +69,13 @@ app.get('/login', (_req, res) => res.sendFile(path.join(webDir, 'Eurostar Login.
 app.get('/site', (_req, res) => res.sendFile(path.join(webDir, 'Eurostar Sales website.html')));
 app.get('/mobile', (_req, res) => res.sendFile(path.join(webDir, 'Eurostar Sales website (Mobile).html')));
 
-// Clean, memorable paths for each app (e.g. eurostargemstones.com/shop). The
-// Sales page is a single file served directly; the folder-based apps redirect
-// to their folder so their relative assets (app/, styles/…) keep loading.
+// Clean, memorable paths for each app (e.g. eurostargems.com/shop).
+// The Sales page is a single file, so serve it directly. /mira points at the
+// mira-admin folder (different name). /crm, /lms and /admin need no route here:
+// the static server below already turns /crm into /crm/ and serves its
+// index.html (adding our own /crm redirect would loop, since Express treats
+// /crm and /crm/ as the same route).
 app.get(['/shop', '/sales'], (_req, res) => res.sendFile(path.join(webDir, 'Eurostar Sales website.html')));
-app.get('/crm', (_req, res) => res.redirect(301, '/crm/'));
-app.get('/lms', (_req, res) => res.redirect(301, '/lms/'));
-app.get('/admin', (_req, res) => res.redirect(301, '/admin/'));
 app.get('/mira', (_req, res) => res.redirect(301, '/mira-admin/'));
 
 app.use(express.static(webDir)); // serves the portal, Sales, and /crm/ (each has an index.html)

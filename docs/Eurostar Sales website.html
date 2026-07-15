@@ -68,6 +68,8 @@
   <script src="vendor/babel.min.js"></script>
   <!-- Phase 2: mirror orders/payments to the live back room (no UI change). -->
   <script src="app/api-bridge.js"></script>
+  <!-- Razorpay checkout box (loads window.Razorpay). Falls back gracefully if blocked. -->
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 
   <style>
     @keyframes slideUp {

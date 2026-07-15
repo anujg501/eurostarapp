@@ -43,6 +43,19 @@ export const config = {
     upiName: process.env.COMPANY_UPI_NAME ?? 'Eurostar Technologies Inc.',
   },
 
+  // Razorpay online payments. Set these in Render to take real payments.
+  // The Key ID is public (used by the checkout box in the browser); the Key
+  // Secret is private (used only on the server to create orders and verify
+  // payment signatures). Until both are set, the app falls back to its
+  // simulated "mark as paid" flow so nothing breaks.
+  razorpay: {
+    keyId: process.env.RAZORPAY_KEY_ID ?? '',
+    keySecret: process.env.RAZORPAY_KEY_SECRET ?? '',
+    get configured() {
+      return !!(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET);
+    },
+  },
+
   assistant: {
     apiKey: process.env.ANTHROPIC_API_KEY ?? '',
     model: process.env.ASSISTANT_MODEL ?? 'claude-opus-4-8',

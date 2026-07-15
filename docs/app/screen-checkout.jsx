@@ -172,7 +172,12 @@ function CheckoutScreen({ cart, persona, onBack, onPlace, isOnline }) {
 function PaymentScreen({ order, persona, onPaid, onBack }) {
   const [method, setMethod] = React.useState('upi');
   const [processing, setProcessing] = React.useState(false);
-  const pay = () => { setProcessing(true); setTimeout(() => { setProcessing(false);
+  const API = window.EUROSTAR_API || location.origin;
+
+  // Fallback used when online payment isn't live yet (Razorpay keys not set) or
+  // the gateway can't load — the previous simulated confirmation. Keeps the app
+  // fully working before/without Razorpay.
+  const simulatedPay = () => { setProcessing(true); setTimeout(() => { setProcessing(false);
     try {
       const k = 'eurostar-crm-incoming-payments';
       const arr = JSON.parse(localStorage.getItem(k) || '[]') || [];
@@ -181,7 +186,62 @@ function PaymentScreen({ order, persona, onPaid, onBack }) {
         localStorage.setItem(k, JSON.stringify(arr));
       }
     } catch (e) {}
-    onPaid(); }, 1800); };
+    onPaid(); }, 1400); };
+
+  // Make sure the order exists in the back room so the verified payment can be
+  // attached to it (the confirmation screen also pushes it; upsert dedups by id).
+  const ensureOrder = () => fetch(API + '/orders', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      id: order.id, customer: persona.company, code: persona.code || '',
+      city: (persona.location || '').split(',')[0].trim(),
+      rep: localStorage.getItem('eurostar-rep-name') || 'Rohit Shah',
+      repId: localStorage.getItem('eurostar-rep-id') || 'REP-204',
+      value: order.grand || 0, dispatchBy: order.dispatchBy || '',
+      isExport: !!order.isExport, paid: false, ts: Date.now(), source: 'Sales App',
+    }),
+  }).catch(function () {});
+
+  const pay = async () => {
+    setProcessing(true);
+    try {
+      // Online payment only if the back room has Razorpay keys AND the gateway loaded.
+      const keyInfo = await fetch(API + '/payments/razorpay/key').then((r) => r.json()).catch(() => null);
+      if (!keyInfo || !keyInfo.configured || !window.Razorpay) { setProcessing(false); return simulatedPay(); }
+
+      await ensureOrder();
+      const rp = await fetch(API + '/payments/razorpay/order', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ orderId: order.id }),
+      }).then((r) => r.json()).catch(() => null);
+      if (!rp || !rp.configured || !rp.razorpayOrderId) { setProcessing(false); return simulatedPay(); }
+
+      const rzp = new window.Razorpay({
+        key: rp.keyId, order_id: rp.razorpayOrderId, amount: rp.amount, currency: rp.currency || 'INR',
+        name: rp.name || 'Eurostar', description: 'Order ' + order.id,
+        prefill: { name: persona.company || '', contact: persona.phone || '' },
+        theme: { color: '#0E5C4A' },
+        handler: function (resp) {
+          fetch(API + '/payments/razorpay/verify', {
+            method: 'POST', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              orderId: order.id,
+              razorpayOrderId: resp.razorpay_order_id,
+              razorpayPaymentId: resp.razorpay_payment_id,
+              razorpaySignature: resp.razorpay_signature,
+            }),
+          }).then((r) => r.json()).then(function (v) {
+            setProcessing(false);
+            if (v && v.verified) onPaid();
+            else alert('We could not confirm your payment. If any money was deducted it will be refunded. Please try again.');
+          }).catch(function () { setProcessing(false); alert('Payment confirmation failed. Please try again.'); });
+        },
+        modal: { ondismiss: function () { setProcessing(false); } },
+      });
+      rzp.on('payment.failed', function () { setProcessing(false); });
+      rzp.open();
+    } catch (e) { setProcessing(false); simulatedPay(); }
+  };
   const methods = [
     ['upi', 'UPI', 'GPay · PhonePe · Paytm'],
     ['card', 'Credit / Debit card', 'Visa · Mastercard · RuPay'],

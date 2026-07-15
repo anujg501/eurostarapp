@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import crypto from 'crypto';
 import { prisma } from '../db';
 import { config } from '../config';
 import { asyncHandler, fail, ok, failValidation } from '../util/http';
@@ -190,5 +191,133 @@ paymentsRouter.post(
     if (d.status === 'confirmed') await markOrderPaid(order.id);
 
     return ok(res, { ok: true });
+  })
+);
+
+// ---------------------------------------------------------------------------
+// Razorpay online payments
+// ---------------------------------------------------------------------------
+
+// GET /payments/razorpay/key — tell the browser whether online payment is live
+// and hand it the PUBLIC key id to open the checkout box. Never exposes the
+// secret. When not configured, the app falls back to its simulated flow.
+paymentsRouter.get(
+  '/razorpay/key',
+  asyncHandler(async (_req, res) =>
+    ok(res, { configured: config.razorpay.configured, keyId: config.razorpay.keyId || null })
+  )
+);
+
+// POST /payments/razorpay/order — create a Razorpay order for one of our orders
+// (or a raw rupee amount). The browser uses the returned razorpayOrderId to open
+// the checkout box. Returns { configured:false } when keys aren't set yet.
+const rpOrderSchema = z.object({
+  orderId: z.string().optional(),
+  amount: z.number().positive().optional(), // rupees; converted to paise below
+});
+paymentsRouter.post(
+  '/razorpay/order',
+  optionalAuth,
+  asyncHandler(async (req, res) => {
+    const parsed = rpOrderSchema.safeParse(req.body);
+    if (!parsed.success) return failValidation(res, parsed.error);
+    const { orderId } = parsed.data;
+    let amountRupees = parsed.data.amount;
+
+    if (orderId && amountRupees == null) {
+      const order = await prisma.order.findUnique({ where: { id: orderId } });
+      if (!order) return fail(res, 404, 'Unknown order');
+      amountRupees = order.grand;
+    }
+    if (!amountRupees || amountRupees <= 0) {
+      return fail(res, 400, 'A positive amount or a valid orderId is required');
+    }
+
+    if (!config.razorpay.configured) return ok(res, { configured: false });
+
+    const auth = Buffer.from(`${config.razorpay.keyId}:${config.razorpay.keySecret}`).toString('base64');
+    const resp = await fetch('https://api.razorpay.com/v1/orders', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Basic ${auth}` },
+      body: JSON.stringify({
+        amount: Math.round(amountRupees * 100), // paise
+        currency: 'INR',
+        receipt: orderId ?? `rcpt_${Date.now()}`,
+        notes: orderId ? { orderId } : {},
+      }),
+    });
+    if (!resp.ok) {
+      const text = await resp.text();
+      return fail(res, 502, 'Could not start the payment. Please try again.', { provider: text.slice(0, 300) });
+    }
+    const rp: any = await resp.json();
+    return ok(res, {
+      configured: true,
+      keyId: config.razorpay.keyId,
+      razorpayOrderId: rp.id,
+      amount: rp.amount, // paise
+      currency: rp.currency,
+      orderId: orderId ?? null,
+      name: config.company.upiName,
+    });
+  })
+);
+
+// POST /payments/razorpay/verify — verify the payment signature (proves the
+// payment is genuine and came from Razorpay), then record it and mark the order
+// paid. This signature check is the ONLY thing that marks an online order paid.
+const rpVerifySchema = z.object({
+  orderId: z.string(),
+  razorpayOrderId: z.string(),
+  razorpayPaymentId: z.string(),
+  razorpaySignature: z.string(),
+});
+paymentsRouter.post(
+  '/razorpay/verify',
+  optionalAuth,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = rpVerifySchema.safeParse(req.body);
+    if (!parsed.success) return failValidation(res, parsed.error);
+    const d = parsed.data;
+    if (!config.razorpay.configured) return fail(res, 400, 'Payments are not configured');
+
+    const expected = crypto
+      .createHmac('sha256', config.razorpay.keySecret)
+      .update(`${d.razorpayOrderId}|${d.razorpayPaymentId}`)
+      .digest('hex');
+
+    // Constant-time comparison so we don't leak the signature via timing.
+    const a = Buffer.from(expected);
+    const b = Buffer.from(d.razorpaySignature);
+    const valid = a.length === b.length && crypto.timingSafeEqual(a, b);
+    if (!valid) return fail(res, 400, 'Payment could not be verified');
+
+    const order = await prisma.order.findUnique({ where: { id: d.orderId } });
+    if (!order) return fail(res, 404, 'Unknown order');
+
+    const me = req.user;
+    const id = `PAY-RZP-${d.razorpayPaymentId}`;
+    await prisma.payment.upsert({
+      where: { id },
+      create: {
+        id,
+        orderId: order.id,
+        customerId: order.customerId,
+        custCode: order.customerCode,
+        custName: order.customerName,
+        mode: 'card', // Razorpay aggregates UPI/card/netbanking; logged as the online bucket
+        amount: order.grand,
+        utr: d.razorpayPaymentId,
+        date: new Date().toISOString().slice(0, 10),
+        by: me?.name,
+        status: 'confirmed',
+        source: 'Razorpay',
+        receivedById: me?.sub ?? null,
+      },
+      update: { status: 'confirmed', utr: d.razorpayPaymentId },
+    });
+
+    await markOrderPaid(order.id);
+    return ok(res, { verified: true, orderId: order.id });
   })
 );

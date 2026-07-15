@@ -13,6 +13,7 @@ import HomeScreen from './src/screens/HomeScreen';
 import ProductsScreen from './src/screens/ProductsScreen';
 import OrdersScreen from './src/screens/OrdersScreen';
 import CartScreen from './src/screens/CartScreen';
+import CheckInScreen from './src/screens/CheckInScreen';
 
 const Tab = createBottomTabNavigator();
 const ShopStack = createNativeStackNavigator();
@@ -74,17 +75,42 @@ function CartTabLabel({ color }: { color: string }) {
   );
 }
 
-function MainTabs({ onSignOut }: { onSignOut: () => void }) {
+function MainTabs({ onSignOut, staff }: { onSignOut: () => void; staff: boolean }) {
+  const tabScreenOptions = {
+    headerShown: false,
+    tabBarActiveTintColor: theme.emerald,
+    tabBarInactiveTintColor: theme.ink3,
+    tabBarStyle: { backgroundColor: theme.surface, borderTopColor: theme.border },
+  };
+  // Staff (reps/office/admin): field check-in + their orders. No shopping cart.
+  if (staff) {
+    return (
+      <NavigationContainer>
+        <Tab.Navigator screenOptions={tabScreenOptions}>
+          <Tab.Screen name="Check-in">
+            {() => (
+              <View style={{ flex: 1 }}>
+                <Header title="Check in / out" onSignOut={onSignOut} />
+                <CheckInScreen />
+              </View>
+            )}
+          </Tab.Screen>
+          <Tab.Screen name="Orders">
+            {() => (
+              <View style={{ flex: 1 }}>
+                <Header title="Orders" onSignOut={onSignOut} />
+                <OrdersScreen />
+              </View>
+            )}
+          </Tab.Screen>
+        </Tab.Navigator>
+      </NavigationContainer>
+    );
+  }
+  // Customers: shop, cart, orders.
   return (
     <NavigationContainer>
-      <Tab.Navigator
-        screenOptions={{
-          headerShown: false,
-          tabBarActiveTintColor: theme.emerald,
-          tabBarInactiveTintColor: theme.ink3,
-          tabBarStyle: { backgroundColor: theme.surface, borderTopColor: theme.border },
-        }}
-      >
+      <Tab.Navigator screenOptions={tabScreenOptions}>
         <Tab.Screen name="Shop">{() => <ShopFlow onSignOut={onSignOut} />}</Tab.Screen>
         <Tab.Screen name="Cart" options={{ tabBarLabel: ({ color }) => <CartTabLabel color={color} /> }}>
           {() => (
@@ -117,13 +143,15 @@ function CartScreenWithNav() {
 export default function App() {
   const [ready, setReady] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
+  const [role, setRole] = useState<string>('customer');
 
   useEffect(() => {
     (async () => {
       const token = await loadToken();
       if (token) {
         try {
-          await api.me();
+          const me = await api.me();
+          setRole(me.role || 'customer');
           setSignedIn(true);
         } catch {
           await setToken(null);
@@ -131,6 +159,16 @@ export default function App() {
       }
       setReady(true);
     })();
+  }, []);
+
+  const completeSignIn = useCallback(async () => {
+    try {
+      const me = await api.me();
+      setRole(me.role || 'customer');
+    } catch {
+      setRole('customer');
+    }
+    setSignedIn(true);
   }, []);
 
   const signOut = useCallback(async () => {
@@ -150,16 +188,17 @@ export default function App() {
     return (
       <SafeAreaProvider>
         <StatusBar style="light" />
-        <LoginScreen onSignedIn={() => setSignedIn(true)} />
+        <LoginScreen onSignedIn={completeSignIn} />
       </SafeAreaProvider>
     );
   }
 
+  const staff = role === 'rep' || role === 'office' || role === 'admin';
   return (
     <SafeAreaProvider>
       <StatusBar style="light" />
       <CartProvider>
-        <MainTabs onSignOut={signOut} />
+        <MainTabs onSignOut={signOut} staff={staff} />
       </CartProvider>
     </SafeAreaProvider>
   );

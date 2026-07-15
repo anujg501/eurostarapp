@@ -1,6 +1,6 @@
 {
   "name": "eurostar-mobile",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Eurostar customer mobile app (Expo / React Native) — talks to the same back room API.",
   "main": "index.ts",
@@ -13,6 +13,7 @@
   "dependencies": {
     "expo": "~51.0.0",
     "expo-constants": "~16.0.2",
+    "expo-location": "~17.0.1",
     "expo-status-bar": "~1.12.1",
     "react": "18.2.0",
     "react-native": "0.74.5",

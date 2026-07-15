@@ -76,7 +76,20 @@ export const api = {
       body: JSON.stringify({ phone, otp, name, gstin, remember: true }),
     }),
 
-  me: () => request<any>('/auth/me'),
+  // Staff (rep / office / admin) sign in with username + password.
+  staffLogin: (role: string, username: string, password: string) =>
+    request<{ accessToken: string; user: any }>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ role, username, password, remember: true }),
+    }),
+
+  me: () => request<{ id: string; role: string; name: string; repId?: string }>('/auth/me'),
+
+  // Field check-in / out with the phone's GPS.
+  checkin: (data: { type: 'in' | 'out'; lat: number; lng: number; accuracy?: number; address?: string }) =>
+    request<any>('/reps/checkin', { method: 'POST', body: JSON.stringify(data) }),
+
+  myCheckins: () => request<any[]>('/reps/checkins'),
 
   catalog: () =>
     request<{ categories: any[]; shapes: any[]; tones: any[] }>('/catalog'),

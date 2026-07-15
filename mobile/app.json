@@ -11,11 +11,23 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "in.eurostar.app"
+      "bundleIdentifier": "in.eurostar.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Eurostar records your location when a sales rep checks in or out of a visit."
+      }
     },
     "android": {
-      "package": "in.eurostar.app"
+      "package": "in.eurostar.app",
+      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"]
     },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Eurostar records your location when a sales rep checks in or out of a visit."
+        }
+      ]
+    ],
     "extra": {
       "apiBaseUrl": "https://eurostar-api.onrender.com"
     }

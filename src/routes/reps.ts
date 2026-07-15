@@ -3,8 +3,24 @@ import { z } from 'zod';
 import { prisma } from '../db';
 import { asyncHandler, fail, ok, failValidation } from '../util/http';
 import { authenticate, requireStaff, optionalAuth } from '../auth/middleware';
+import { config } from '../config';
 
 export const repsRouter = Router();
+
+function serialiseCheckIn(c: any) {
+  return {
+    id: c.id,
+    userId: c.userId,
+    repId: c.repId,
+    repName: c.repName,
+    type: c.type,
+    lat: c.lat,
+    lng: c.lng,
+    accuracy: c.accuracy,
+    address: c.address,
+    at: c.createdAt,
+  };
+}
 
 function serialiseRep(r: any) {
   return {
@@ -60,6 +76,68 @@ repsRouter.post(
       : await prisma.rep.create({ data: { ...d, commissionRate: d.commissionRate ?? 0 } });
 
     return ok(res, serialiseRep(rep), 201);
+  })
+);
+
+// --- Field check-in / check-out (Google Maps) -------------------------------
+
+// GET /reps/maps-key — the PUBLIC Google Maps key so the CRM can draw the map.
+repsRouter.get(
+  '/maps-key',
+  asyncHandler(async (_req, res) => ok(res, { key: config.maps.apiKey || null }))
+);
+
+// POST /reps/checkin — the logged-in rep records a check-in or check-out with
+// their phone's GPS. Staff (office/admin) may post on a rep's behalf via repId.
+const checkinSchema = z.object({
+  type: z.enum(['in', 'out']),
+  lat: z.number(),
+  lng: z.number(),
+  accuracy: z.number().optional(),
+  address: z.string().optional(),
+  repId: z.string().optional(),
+  repName: z.string().optional(),
+});
+repsRouter.post(
+  '/checkin',
+  authenticate,
+  asyncHandler(async (req: any, res) => {
+    const parsed = checkinSchema.safeParse(req.body);
+    if (!parsed.success) return failValidation(res, parsed.error);
+    const d = parsed.data;
+    const me = req.user;
+    const checkin = await prisma.checkIn.create({
+      data: {
+        userId: me.sub,
+        repId: d.repId ?? me.repId ?? null,
+        repName: d.repName ?? me.name ?? null,
+        type: d.type,
+        lat: d.lat,
+        lng: d.lng,
+        accuracy: d.accuracy ?? null,
+        address: d.address ?? null,
+      },
+    });
+    return ok(res, serialiseCheckIn(checkin), 201);
+  })
+);
+
+// GET /reps/checkins — recent check-ins. Staff see everyone; a rep sees only
+// their own. Optional ?userId= / ?repId= filters (staff only).
+repsRouter.get(
+  '/checkins',
+  authenticate,
+  asyncHandler(async (req: any, res) => {
+    const me = req.user;
+    const staff = me.role === 'office' || me.role === 'admin';
+    const where: any = {};
+    if (!staff) where.userId = me.sub;
+    else {
+      if (typeof req.query.userId === 'string') where.userId = req.query.userId;
+      if (typeof req.query.repId === 'string') where.repId = req.query.repId;
+    }
+    const items = await prisma.checkIn.findMany({ where, orderBy: { createdAt: 'desc' }, take: 300 });
+    return ok(res, items.map(serialiseCheckIn));
   })
 );
 

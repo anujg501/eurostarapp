@@ -65,6 +65,12 @@ export const config = {
     model: process.env.ASSISTANT_MODEL ?? 'claude-opus-4-8',
   },
 
+  // Google Maps — public browser key used only to draw the rep check-in map in
+  // the CRM. Check-ins themselves use the phone's GPS and need no key.
+  maps: {
+    apiKey: process.env.GOOGLE_MAPS_API_KEY ?? '',
+  },
+
   // Business rules — verified against the frontend (screen-checkout.jsx / screen-orders.jsx).
   rules: {
     gstRate: 0.03, // 3% GST (waived on export orders)

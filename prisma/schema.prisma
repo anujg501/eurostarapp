@@ -326,6 +326,22 @@ model Rep {
   updatedAt      DateTime @updatedAt
 }
 
+// Field-sales attendance: a rep checks in/out with their phone's GPS.
+model CheckIn {
+  id        String   @id @default(cuid())
+  userId    String // the rep's User.id
+  repId     String? // public rep id (e.g. REP-204)
+  repName   String?
+  type      String // "in" | "out"
+  lat       Float
+  lng       Float
+  accuracy  Float? // GPS accuracy in metres
+  address   String? // optional label/place the rep is visiting
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
 // LMS recruitment pipeline candidate.
 model Candidate {
   id        String   @id @default(cuid())

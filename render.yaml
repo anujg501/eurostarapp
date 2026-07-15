@@ -69,6 +69,9 @@ services:
       # When set, login codes go via WhatsApp instead of SMS.
       - key: TWILIO_WHATSAPP_FROM
         sync: false
+      # Google Maps browser key — draws the rep check-in map in the CRM.
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false
       # Online payments via Razorpay (add both to turn on the real Pay box):
       - key: RAZORPAY_KEY_ID
         sync: false

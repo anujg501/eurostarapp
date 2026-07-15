@@ -42,7 +42,7 @@ services:
         value: 30d
       # Which website origins may call the API (the live apps on GitHub Pages).
       - key: CORS_ORIGINS
-        value: https://anujg501.github.io,http://localhost:3000,http://localhost:5173
+        value: https://eurostargems.com,https://www.eurostargems.com,https://eurostar-api.onrender.com,https://anujg501.github.io,http://localhost:3000,http://localhost:5173
       # OTP stays in test mode until a real SMS provider is added.
       - key: OTP_DEV_MODE
         value: "true"

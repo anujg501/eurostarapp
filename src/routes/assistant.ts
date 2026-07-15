@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, urlencoded } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db';
 import { config } from '../config';
@@ -101,6 +101,32 @@ assistantRouter.post(
 
     await prisma.chatLog.create({ data: { sessionId, app, role: 'assistant', message: reply, who, contact, cust } });
     return ok(res, { reply });
+  })
+);
+
+// POST /assistant/whatsapp — Twilio inbound WhatsApp webhook. A customer messages
+// your WhatsApp number; Mira replies with the same brain as the website chat.
+// Twilio sends form-encoded fields (From, Body) and expects a TwiML response.
+assistantRouter.post(
+  '/whatsapp',
+  urlencoded({ extended: false }),
+  asyncHandler(async (req, res) => {
+    const from = String((req.body && req.body.From) || ''); // "whatsapp:+91..."
+    const body = String((req.body && req.body.Body) || '').trim();
+    const contact = from.replace(/^whatsapp:/, '');
+    const sessionId = 'wa-' + (contact || 'unknown');
+
+    let reply = "Hi! I'm Mira from Eurostar. How can I help you today?";
+    if (body) {
+      const cfg = await getConfig();
+      await prisma.chatLog.create({ data: { sessionId, app: 'sales', role: 'user', message: body, who: 'WhatsApp', contact } });
+      reply = await generateReply(body, cfg);
+      await prisma.chatLog.create({ data: { sessionId, app: 'sales', role: 'assistant', message: reply, who: 'WhatsApp', contact } });
+    }
+
+    const escaped = reply.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    res.set('content-type', 'text/xml');
+    return res.send(`<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escaped}</Message></Response>`);
   })
 );
 

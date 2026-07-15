@@ -19,6 +19,7 @@ import { repsRouter } from './routes/reps';
 import { announcementsRouter } from './routes/announcements';
 import { candidatesRouter, modulesRouter } from './routes/candidates';
 import { adminRouter } from './routes/admin';
+import { usersRouter } from './routes/users';
 
 const app = express();
 
@@ -54,6 +55,7 @@ app.use('/announcements', announcementsRouter);
 app.use('/candidates', candidatesRouter);
 app.use('/modules', modulesRouter);
 app.use('/admin', adminRouter);
+app.use('/users', usersRouter);
 
 // ---------------------------------------------------------------------------
 // Serve the website (the React storefront) so one server runs the whole thing.

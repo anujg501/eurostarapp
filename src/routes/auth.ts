@@ -10,6 +10,7 @@ import {
   hashToken,
   refreshExpiryDate,
   checkPassword,
+  hashPassword,
   Role,
 } from '../auth/tokens';
 import { AuthedRequest, authenticate } from '../auth/middleware';
@@ -95,28 +96,51 @@ authRouter.post(
   })
 );
 
-// --- Rep / office password login --------------------------------------------
-const loginSchema = z.object({
-  role: z.enum(['rep', 'office']),
-  userId: z.string().min(1),
-  password: z.string().min(1),
-  remember: z.boolean().optional(),
-});
+// --- Staff password login (rep / office / admin) ----------------------------
+// The login gates send { role, username, password }. "username" is the login id
+// (stored as User.userId). "userId" is accepted too for backward compatibility.
+const loginSchema = z
+  .object({
+    role: z.enum(['rep', 'office', 'admin']),
+    username: z.string().min(1).optional(),
+    userId: z.string().min(1).optional(),
+    password: z.string().min(1),
+    remember: z.boolean().optional(),
+  })
+  .refine((d) => !!(d.username || d.userId), { message: 'username is required' });
 
 authRouter.post(
   '/login',
   asyncHandler(async (req, res) => {
     const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) return failValidation(res, parsed.error);
-    const { role, userId, password, remember } = parsed.data;
+    const { role, password, remember } = parsed.data;
+    const username = (parsed.data.username ?? parsed.data.userId)!;
 
-    const user = await prisma.user.findFirst({ where: { userId, role, active: true } });
-    if (!user || !user.passwordHash) return fail(res, 401, 'Wrong id or password');
+    const user = await prisma.user.findFirst({ where: { userId: username, role, active: true } });
+    if (!user || !user.passwordHash) return fail(res, 401, 'Wrong username or password');
 
     const good = await checkPassword(password, user.passwordHash);
-    if (!good) return fail(res, 401, 'Wrong id or password');
+    if (!good) return fail(res, 401, 'Wrong username or password');
 
     return ok(res, await issueSession(user, remember ?? false));
+  })
+);
+
+// --- Change my own password (staff self-service) ----------------------------
+const changePwSchema = z.object({ oldPassword: z.string().min(1), newPassword: z.string().min(4) });
+authRouter.post(
+  '/change-password',
+  authenticate,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = changePwSchema.safeParse(req.body);
+    if (!parsed.success) return failValidation(res, parsed.error);
+    const user = await prisma.user.findUnique({ where: { id: req.user!.sub } });
+    if (!user || !user.passwordHash) return fail(res, 400, 'This account has no password.');
+    const good = await checkPassword(parsed.data.oldPassword, user.passwordHash);
+    if (!good) return fail(res, 401, 'Your current password is incorrect.');
+    await prisma.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(parsed.data.newPassword) } });
+    return ok(res, { changed: true });
   })
 );
 

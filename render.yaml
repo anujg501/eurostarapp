@@ -74,3 +74,11 @@ services:
         sync: false
       - key: RAZORPAY_KEY_SECRET
         sync: false
+      # Your admin/owner login (change from the defaults before going live).
+      # Applied by the seed on each deploy. Defaults: admin / admin123.
+      - key: SEED_ADMIN_USER
+        sync: false
+      - key: SEED_ADMIN_PASSWORD
+        sync: false
+      - key: SEED_OFFICE_PASSWORD
+        sync: false

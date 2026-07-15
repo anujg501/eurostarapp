@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { config } from '../config';
 
-export type Role = 'customer' | 'rep' | 'office';
+export type Role = 'customer' | 'rep' | 'office' | 'admin';
 
 export interface AccessClaims {
   sub: string; // user id

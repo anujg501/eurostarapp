@@ -11,10 +11,24 @@ const prisma = new PrismaClient();
 // you can test the ordering, payment and CRM flows end-to-end.
 
 async function main() {
+  const adminUser = process.env.SEED_ADMIN_USER ?? 'admin';
+  const adminPass = process.env.SEED_ADMIN_PASSWORD ?? 'admin123';
   const officeUser = process.env.SEED_OFFICE_USER ?? 'office';
   const officePass = process.env.SEED_OFFICE_PASSWORD ?? 'office123';
   const repIdVal = process.env.SEED_REP_ID ?? 'REP-204'; // matches the app's default rep id
   const repPass = process.env.SEED_REP_PASSWORD ?? 'rep123';
+
+  // The owner/admin account. Protected from deletion in the Users & access screen.
+  await prisma.user.upsert({
+    where: { userId: adminUser },
+    create: {
+      role: 'admin',
+      name: 'Administrator',
+      userId: adminUser,
+      passwordHash: await bcrypt.hash(adminPass, 10),
+    },
+    update: {},
+  });
 
   await prisma.user.upsert({
     where: { userId: officeUser },
@@ -69,6 +83,7 @@ async function main() {
 
   // eslint-disable-next-line no-console
   console.log('Seed complete.');
+  console.log(`  Admin login   -> id: ${adminUser}  password: ${adminPass}`);
   console.log(`  Office login  -> id: ${officeUser}  password: ${officePass}`);
   console.log(`  Rep login     -> id: ${repIdVal}  password: ${repPass}`);
 }

@@ -37,4 +37,5 @@ export const KEYS = {
   miraImages: 'eurostar-mira-images',
   miraEnabled: 'eurostar-mira-enabled',
   lang: 'eurostar-lang',
+  lmsMeetingLinks: 'eurostar-lms-meeting-links-v1',
 } as const;

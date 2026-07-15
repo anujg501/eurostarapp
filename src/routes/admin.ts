@@ -45,6 +45,10 @@ kv(adminRouter, '/product-images', KEYS.productImages, z.record(z.string()), {})
 kv(adminRouter, '/thumbs/categories', KEYS.catThumbs, z.record(z.string()), {});
 kv(adminRouter, '/thumbs/shapes', KEYS.shapeThumbs, z.record(z.string()), {});
 
+// LMS interview links: a map of candidate id -> Google Meet (or any) link. The
+// LMS admin sets it; the candidate sees a "Join interview" button.
+kv(adminRouter, '/lms/meeting-links', KEYS.lmsMeetingLinks, z.record(z.string()), {});
+
 // Category display order.
 kv(adminRouter, '/catorder', KEYS.catOrder, z.array(z.string()), []);
 

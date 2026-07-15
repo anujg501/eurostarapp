@@ -227,6 +227,12 @@ function CandStatus({ go, stage, cand }) {
   const steps = window.LMS_STAGES.filter(s => s.id !== 'rejected');
   const idx = steps.findIndex(s => s.id === stage);
   const c = cand || {};
+  const [meetLink, setMeetLink] = cUseState('');
+  React.useEffect(() => {
+    if (!c.candId) return;
+    const API = window.EUROSTAR_API || (/^(localhost|127\.|0\.0\.0\.0)/.test(location.hostname) ? location.origin : 'https://eurostar-api.onrender.com');
+    fetch(API + '/admin/lms/meeting-links').then(r => r.ok ? r.json() : {}).then(mp => { if (mp && mp[c.candId]) setMeetLink(mp[c.candId]); }).catch(() => {});
+  }, [c.candId]);
   const w = window.lmsWindow(c);
   const t = window.lmsTestWindow(c);
   // per-stage date + next-action hints
@@ -265,6 +271,11 @@ function CandStatus({ go, stage, cand }) {
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--lms-purple-ink)', textTransform: 'uppercase', letterSpacing: '.05em' }}>What's next</div>
             <div style={{ fontSize: 13.5, color: 'var(--lms-ink-2)', marginTop: 4 }}>{m.next}</div>
           </div>
+        )}
+        {meetLink && (
+          <a href={meetLink} target="_blank" rel="noopener noreferrer" style={{ display: 'block', marginTop: 12, background: 'var(--lms-green)', color: '#fff', textAlign: 'center', padding: '14px', borderRadius: 12, fontWeight: 700, textDecoration: 'none', fontSize: 15 }}>
+            📹 Join your interview
+          </a>
         )}
         <div style={{ marginTop: 12, fontSize: 12.5, color: 'var(--lms-meta)', textAlign: 'center' }}>
           Need help? Call the Eurostar hiring desk: <b style={{ color: 'var(--lms-ink)' }}>+91 77100 65480</b>

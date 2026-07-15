@@ -675,6 +675,37 @@ function CrmOnboardModal({ cand, onClose, onConfirm }) {
 }
 
 /* ===================== CANDIDATE DETAIL DRAWER ===================== */
+// Interview link (Google Meet, Zoom, etc.) the admin sets for a candidate.
+// Stored in the back room (keyed by candidate id) so the candidate sees it too.
+function MeetLinkField({ candId }) {
+  const API = window.EUROSTAR_API || (/^(localhost|127\.|0\.0\.0\.0)/.test(location.hostname) ? location.origin : 'https://eurostar-api.onrender.com');
+  const [link, setLink] = aUseState('');
+  const [busy, setBusy] = aUseState(false);
+  const [saved, setSaved] = aUseState(false);
+  React.useEffect(() => {
+    fetch(API + '/admin/lms/meeting-links').then(r => r.ok ? r.json() : {}).then(m => { if (m && m[candId]) setLink(m[candId]); }).catch(() => {});
+  }, [candId]);
+  const save = () => {
+    setBusy(true);
+    fetch(API + '/admin/lms/meeting-links').then(r => r.ok ? r.json() : {}).then(m => {
+      m = m || {}; const v = link.trim(); if (v) m[candId] = v; else delete m[candId];
+      return fetch(API + '/admin/lms/meeting-links', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(m) });
+    }).then(() => { setSaved(true); setTimeout(() => setSaved(false), 1600); }).catch(() => {}).finally(() => setBusy(false));
+  };
+  return (
+    <div style={{ marginTop: 14, borderTop: '1px solid var(--lms-divider)', paddingTop: 12 }}>
+      <div className="lms-muted" style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', marginBottom: 6 }}>INTERVIEW / MEET LINK</div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input style={{ flex: 1, padding: '10px 12px', border: '1px solid var(--lms-border)', borderRadius: 9, fontFamily: 'inherit', fontSize: 13.5, background: '#fff', color: 'var(--lms-ink)' }}
+          placeholder="Paste a Meet link (meet.google.com/…)" value={link} onChange={e => setLink(e.target.value)} />
+        <button className="lms-btn lms-btn-pri lms-btn-sm" onClick={save} disabled={busy}>{saved ? 'Saved ✓' : busy ? '…' : 'Save'}</button>
+      </div>
+      {link ? <a href={link} target="_blank" rel="noopener noreferrer" className="lms-muted" style={{ fontSize: 12, display: 'inline-block', marginTop: 6 }}>Open link →</a> : null}
+      <div className="lms-muted" style={{ fontSize: 11.5, marginTop: 6 }}>The candidate sees a “Join interview” button on their status screen.</div>
+    </div>
+  );
+}
+
 function LmsCandidateDrawer({ cand, actions, onClose }) {
   if (!cand) return null;
   const w = window.lmsWindow(cand);
@@ -727,6 +758,7 @@ function LmsCandidateDrawer({ cand, actions, onClose }) {
             {cand.screenResult
               ? <><div style={{ fontSize: 13.5 }}>{cand.screenResult === 'pass' ? '✅ Passed' : '❌ Failed'} · Rating {stars(cand.screenRating)}</div><div className="lms-muted" style={{ fontSize: 13, marginTop: 6 }}>{cand.screenNote || 'No notes.'}</div></>
               : <div className="lms-muted" style={{ fontSize: 13 }}>Not screened yet — schedule and record the outcome from the Screening tab.</div>}
+            <MeetLinkField candId={cand.candId} />
           </div>
           {/* attempts */}
           <div className="lms-card lms-card-pad" style={{ marginBottom: 14 }}>

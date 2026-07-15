@@ -972,6 +972,163 @@ function Settings() {
   );
 }
 
+/* ---------------- USERS & ACCESS ---------------- */
+const USERS_KEY = 'eurostar-users-v1';
+const ROLE_META = {
+  admin:  { label:'Admin',       hint:'Full access to this console' },
+  office: { label:'Back Office', hint:'Quotations, payments, QR collections' },
+  rep:    { label:'Sales Rep',   hint:'Quotations · treated as cash customer' },
+};
+// Users & access is backed by the real /users API (hashed passwords server-side).
+function usersApiBase(){ return window.EUROSTAR_API || (/^(localhost|127\.|0\.0\.0\.0)/.test(location.hostname) ? location.origin : 'https://eurostar-api.onrender.com'); }
+function usersAuthToken(){ try { return localStorage.getItem('eurostar-admin-token') || ''; } catch(e){ return ''; } }
+function usersApi(path, opts){
+  opts = opts || {};
+  opts.headers = Object.assign({ 'content-type':'application/json', authorization:'Bearer '+usersAuthToken() }, opts.headers||{});
+  return fetch(usersApiBase()+'/users'+path, opts).then(function(r){
+    return r.json().then(function(d){ return { ok:r.ok, status:r.status, d:d }; }, function(){ return { ok:r.ok, status:r.status, d:null }; });
+  });
+}
+function genPassword(){ return 'ES' + Math.random().toString(36).slice(2,7) + Math.floor(10+Math.random()*89); }
+
+function UsersAccess() {
+  const [users, setUsers] = useState([]);
+  const [tab, setTab] = useState('all');
+  const [reveal, setReveal] = useState({}); // id -> plaintext password (only for logins we just issued this session)
+  const [editing, setEditing] = useState(null); // user id or 'new'
+  const [draft, setDraft] = useState(null);
+
+  const refresh = ()=> usersApi('').then(function(r){
+    if (r.ok && Array.isArray(r.d)) setUsers(r.d.map(function(u){ return Object.assign({ password:'' }, u); }));
+    else if (r.status===401 || r.status===403) alert('Please sign in as an administrator to manage users.');
+  });
+  React.useEffect(function(){ refresh(); }, []);
+
+  const startNew = (role)=>{ setEditing('new'); setDraft({ id:'new', role:role||'rep', name:'', username:'', password:genPassword(), active:true, phone:'' }); };
+  const startEdit = (u)=>{ setEditing(u.id); setDraft(Object.assign({}, u)); };
+  const cancel = ()=>{ setEditing(null); setDraft(null); };
+  const saveDraft = ()=>{
+    if (!draft.name.trim() || !draft.username.trim()){ alert('Name and username are required.'); return; }
+    const isNew = editing==='new';
+    const body = isNew
+      ? { role:draft.role, name:draft.name.trim(), username:draft.username.trim(), password:draft.password, phone:draft.phone||'' }
+      : { role:draft.role, name:draft.name.trim(), phone:draft.phone||'' };
+    usersApi(isNew?'':'/'+draft.id, { method:isNew?'POST':'PUT', body:JSON.stringify(body) }).then(function(r){
+      if (!r.ok){ alert((r.d&&r.d.error)||'Could not save the user.'); return; }
+      if (isNew && r.d && r.d.password){
+        setReveal(function(x){ var n=Object.assign({},x); n[r.d.id]=r.d.password; return n; });
+        alert('User created.\n\nUsername: '+r.d.username+'\nPassword: '+r.d.password+'\n\nShare these — they can change the password after signing in.');
+      }
+      cancel(); refresh();
+    });
+  };
+  const toggleActive = (u)=> usersApi('/'+u.id, { method:'PUT', body:JSON.stringify({ active:!u.active }) }).then(function(r){ if(!r.ok){ alert((r.d&&r.d.error)||'Could not update.'); } refresh(); });
+  const resetPw = (id)=> usersApi('/'+id+'/reset-password', { method:'POST' }).then(function(r){ if(!r.ok){ alert((r.d&&r.d.error)||'Could not reset the password.'); return; } setReveal(function(x){ var n=Object.assign({},x); n[id]=r.d.password; return n; }); alert('New password set: '+r.d.password+'\n\nShare it with the user — they can change it after signing in.'); });
+  const removeUser = (u)=>{ if(u.isOwner){ alert('You cannot delete the primary owner account.'); return; } if(confirm('Remove this login? They will no longer be able to sign in.')) usersApi('/'+u.id, { method:'DELETE' }).then(function(r){ if(!r.ok){ alert((r.d&&r.d.error)||'Could not remove the user.'); } refresh(); }); };
+
+  const changeMyPassword = ()=>{
+    var oldPw = prompt('Enter your current password:'); if(!oldPw) return;
+    var newPw = prompt('Enter your new password (at least 4 characters):'); if(!newPw) return;
+    fetch(usersApiBase()+'/auth/change-password', { method:'POST', headers:{ 'content-type':'application/json', authorization:'Bearer '+usersAuthToken() }, body:JSON.stringify({ oldPassword:oldPw, newPassword:newPw }) })
+      .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
+      .then(function(res){ alert(res.ok ? 'Password changed. Use the new one next time you sign in.' : ((res.d&&res.d.error)||'Could not change the password.')); });
+  };
+
+  const filtered = tab==='all' ? users : users.filter((u)=>u.role===tab);
+  const count = (r)=> users.filter((u)=>u.role===r).length;
+  const me = users.find((u)=>u.isOwner) || users.find((u)=>u.username==='admin');
+
+  const Field = ({label, children})=> <label style={{display:'block',marginBottom:12}}><span style={{display:'block',fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.05em',color:'var(--fg-meta)',marginBottom:5}}>{label}</span>{children}</label>;
+  const inp = { width:'100%', padding:'10px 12px', border:'1px solid var(--border)', borderRadius:'var(--r-md)', fontFamily:'inherit', fontSize:14, background:'var(--surface)', color:'var(--fg)' };
+
+  return (
+    <div>
+      <PageHead title="Users & access" sub="Create and manage logins for admins, back office and sales reps. Customers sign in with mobile OTP and are not listed here."
+        action={<button className="ad-btn ad-btn-acc" onClick={()=>startNew('rep')}>＋ Add user</button>} />
+
+      {/* My account */}
+      {me && <div className="ad-card ad-card-pad" style={{marginBottom:22}}>
+        <div className="ad-sechead" style={{padding:0,marginBottom:12}}><h3>Your account</h3><span className="meta">Owner · admin</span></div>
+        <div style={{display:'flex',flexWrap:'wrap',gap:16,alignItems:'flex-end'}}>
+          <Field label="Username"><input style={Object.assign({},inp,{minWidth:180})} value={me.username} readOnly /></Field>
+          <Field label="Password"><input style={Object.assign({},inp,{minWidth:180})} type="password" value="********" readOnly /></Field>
+          <button className="ad-btn ad-btn-pri" style={{marginBottom:12}} onClick={changeMyPassword}>Change password</button>
+        </div>
+        <p className="ad-muted" style={{fontSize:12,marginTop:6}}>Passwords are stored securely (hashed) and can’t be displayed. Use “Change password”, or “Reset password” for a teammate.</p>
+      </div>}
+
+      {/* Role tabs */}
+      <div style={{display:'flex',gap:8,marginBottom:14,flexWrap:'wrap'}}>
+        {[['all','All'],['admin','Admins'],['office','Back office'],['rep','Sales reps']].map(([id,lbl])=>(
+          <button key={id} className={`ad-btn ${tab===id?'ad-btn-pri':'ad-btn-ghost'}`} onClick={()=>setTab(id)}>
+            {lbl}{id!=='all' && <span style={{opacity:.6,marginLeft:6}}>{count(id)}</span>}
+          </button>
+        ))}
+      </div>
+
+      <div className="ad-card">
+        <table className="ad-table">
+          <thead><tr><th>Name</th><th>Role</th><th>Username</th><th>Password</th><th>Status</th><th style={{textAlign:'right'}}>Actions</th></tr></thead>
+          <tbody>
+            {filtered.length===0 && <tr><td colSpan={6} className="ad-muted" style={{padding:'26px 16px',textAlign:'center'}}>No users in this group yet.</td></tr>}
+            {filtered.map((u)=>(
+              <tr key={u.id} style={{opacity:u.active?1:0.5}}>
+                <td style={{fontWeight:600}}>{u.name||'—'}</td>
+                <td>{ROLE_META[u.role]?.label||u.role}</td>
+                <td className="ad-id">{u.username}</td>
+                <td className="ad-id">
+                  <span>{reveal[u.id] ? reveal[u.id] : '••••••••'}</span>
+                </td>
+                <td>{u.active ? <span className="ad-pill">Active</span> : <span style={{fontSize:12,color:'var(--fg-meta)',fontWeight:600}}>Disabled</span>}</td>
+                <td style={{textAlign:'right',whiteSpace:'nowrap'}}>
+                  <button className="ad-btn ad-btn-ghost" style={{padding:'5px 10px',fontSize:12,marginLeft:6}} onClick={()=>resetPw(u.id)}>Reset password</button>
+                  <button className="ad-btn ad-btn-ghost" style={{padding:'5px 10px',fontSize:12,marginLeft:6}} onClick={()=>startEdit(u)}>Edit</button>
+                  <button className="ad-btn ad-btn-ghost" style={{padding:'5px 10px',fontSize:12,marginLeft:6}} onClick={()=>toggleActive(u)}>{u.active?'Disable':'Enable'}</button>
+                  <button className="ad-btn ad-btn-ghost" style={{padding:'5px 10px',fontSize:12,marginLeft:6,color:'var(--ruby)'}} onClick={()=>removeUser(u)}>Remove</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <p className="ad-muted" style={{fontSize:12.5,marginTop:14,lineHeight:1.6,maxWidth:640}}>
+        Logins are stored securely on the back room (hashed passwords) and shared across all apps. Customers sign in with mobile OTP and are not listed here. Reps onboarded from the LMS appear here automatically.
+      </p>
+
+      {/* Editor drawer */}
+      {editing && draft && <div style={{position:'fixed',inset:0,background:'rgba(20,18,15,0.44)',zIndex:200,display:'flex',justifyContent:'flex-end'}} onClick={cancel}>
+        <div style={{width:400,maxWidth:'92vw',height:'100%',background:'var(--surface)',boxShadow:'var(--shadow-lg)',padding:'26px 26px 30px',overflowY:'auto'}} onClick={(e)=>e.stopPropagation()}>
+          <h3 style={{fontFamily:'var(--font-serif)',fontWeight:500,fontSize:22,margin:'0 0 4px'}}>{editing==='new'?'Add user':'Edit user'}</h3>
+          <p className="ad-muted" style={{fontSize:13,margin:'0 0 20px'}}>{ROLE_META[draft.role]?.hint}</p>
+          <Field label="Role">
+            <select style={inp} value={draft.role} onChange={(e)=>setDraft(Object.assign({},draft,{role:e.target.value}))}>
+              <option value="rep">Sales Rep</option><option value="office">Back Office</option><option value="admin">Admin</option>
+            </select>
+          </Field>
+          <Field label="Full name"><input style={inp} value={draft.name} onChange={(e)=>setDraft(Object.assign({},draft,{name:e.target.value}))} placeholder="e.g. Ramesh K." /></Field>
+          <Field label="Phone (optional)"><input style={inp} value={draft.phone} onChange={(e)=>setDraft(Object.assign({},draft,{phone:e.target.value}))} placeholder="+91 …" /></Field>
+          <Field label="Username"><input style={inp} value={draft.username} onChange={(e)=>setDraft(Object.assign({},draft,{username:e.target.value}))} placeholder="e.g. ramesh" autoComplete="off" /></Field>
+          <Field label="Password">
+            <div style={{display:'flex',gap:8}}>
+              <input style={inp} value={draft.password} onChange={(e)=>setDraft(Object.assign({},draft,{password:e.target.value}))} />
+              <button className="ad-btn ad-btn-ghost" onClick={()=>setDraft(Object.assign({},draft,{password:genPassword()}))}>Generate</button>
+            </div>
+          </Field>
+          <label style={{display:'flex',alignItems:'center',gap:9,margin:'8px 0 24px',cursor:'pointer'}}>
+            <input type="checkbox" checked={draft.active} onChange={(e)=>setDraft(Object.assign({},draft,{active:e.target.checked}))} style={{accentColor:'var(--emerald)'}} />
+            <span style={{fontSize:13.5}}>Account active (can sign in)</span>
+          </label>
+          <div style={{display:'flex',gap:10}}>
+            <button className="ad-btn ad-btn-acc" onClick={saveDraft}>Save user</button>
+            <button className="ad-btn ad-btn-ghost" onClick={cancel}>Cancel</button>
+          </div>
+        </div>
+      </div>}
+    </div>
+  );
+}
+
 /* ---------------- SHELL ---------------- */
 const NAV = [
   { id:'dashboard', label:'Dashboard' },
@@ -982,6 +1139,7 @@ const NAV = [
   { id:'homethumbs', label:'Home thumbnails' },
   { id:'splash', label:'Pop-up window' },
   { id:'repbroadcast', label:'Rep broadcast' },
+  { id:'users', label:'Users & access' },
   { id:'content', label:'Content' },
   { id:'settings', label:'Settings' },
 ];
@@ -1001,6 +1159,7 @@ function Admin() {
     newcat:<CreateCategory onDone={()=>go('catalog')} />,
     bulk:<BulkUpload />, media:<Media />, homethumbs:<HomeThumbs />, splash:<SplashAdmin />,    content:<Content />, settings:<Settings />,
     repbroadcast:<RepBroadcast />,
+    users:<UsersAccess />,
   })[page];
 
   const cur = NAV.find((n)=>n.id===page)||{};

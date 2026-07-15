@@ -7,13 +7,129 @@
   <title>Eurostar — Sales App Admin</title>
   <link rel="stylesheet" href="styles/tokens.css">
   <link rel="stylesheet" href="admin/admin.css">
+  <style>
+    #ad-login { position: fixed; inset: 0; z-index: 2147483001; background: var(--paper); display: flex; font-family: var(--font-sans); }
+    #ad-login .lg-left {
+      flex: 1; min-width: 0; position: relative; overflow: hidden; color: #EFE9DE;
+      background: linear-gradient(160deg, #201A16 0%, #17110D 58%, #0C0907 100%);
+      padding: 54px 56px; display: flex; flex-direction: column;
+    }
+    #ad-login .lg-left::after { content: ""; position: absolute; right: -140px; top: 40px; width: 520px; height: 520px; border: 1px solid rgba(245,231,196,0.12); border-radius: 40px; transform: rotate(38deg); }
+    #ad-login .lgl-logo { height: 32px; width: auto; align-self: flex-start; display: block; position: relative; z-index: 2; }
+    #ad-login .lgl-eyebrow { position: relative; z-index: 2; margin-top: auto; font-size: 11.5px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #E9C877; }
+    #ad-login .lg-left h1 { position: relative; z-index: 2; font-family: var(--font-serif); font-weight: 500; font-size: 42px; line-height: 1.08; letter-spacing: -0.01em; margin: 16px 0 0; color: #F7F1E1; }
+    #ad-login .lg-left h1 em { font-style: italic; color: #E9C877; }
+    #ad-login .lgl-sub { position: relative; z-index: 2; font-size: 15px; line-height: 1.6; color: rgba(239,233,222,0.74); margin: 18px 0 26px; max-width: 400px; }
+    #ad-login .lgl-item { position: relative; z-index: 2; display: flex; gap: 12px; align-items: flex-start; margin-top: 18px; }
+    #ad-login .lgl-item .ic { width: 34px; height: 34px; border-radius: 50%; background: rgba(245,231,196,0.12); display: flex; align-items: center; justify-content: center; font-size: 15px; flex: none; }
+    #ad-login .lgl-item b { display: block; font-size: 13.5px; font-weight: 600; color: #EFE9DE; }
+    #ad-login .lgl-item span { font-size: 12.5px; color: rgba(239,233,222,0.62); }
+    #ad-login .lg-right { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; padding: 40px 44px; overflow-y: auto; }
+    #ad-login .lg-form { width: 100%; max-width: 388px; }
+    #ad-login .lg-badge { display: inline-flex; align-items: center; gap: 7px; padding: 7px 13px; border-radius: 999px; background: var(--surface-2, #F3EEE1); border: 1px solid var(--border); font-size: 12px; font-weight: 700; color: var(--ink); margin-bottom: 26px; }
+    #ad-login h2 { font-family: var(--font-serif); font-weight: 500; font-size: 30px; margin: 0 0 6px; color: var(--fg); letter-spacing: -0.01em; }
+    #ad-login .lgsub { color: var(--fg-meta); font-size: 14px; margin: 0 0 24px; line-height: 1.5; }
+    #ad-login label { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--fg-meta); margin: 0 0 6px; }
+    #ad-login .lgfield { margin-bottom: 16px; }
+    #ad-login input[type=text], #ad-login input[type=password] { width: 100%; padding: 13px 14px; border: 1px solid var(--border); border-radius: var(--r-md); font-family: inherit; font-size: 14.5px; background: var(--surface); color: var(--fg); }
+    #ad-login input:focus { outline: none; border-color: #201A16; box-shadow: 0 0 0 3px rgba(32,26,22,0.14); }
+    #ad-login .lgrow { display: flex; align-items: center; gap: 9px; margin: 4px 0 22px; cursor: pointer; user-select: none; }
+    #ad-login .lgrow input { width: auto; margin: 0; accent-color: #201A16; }
+    #ad-login .lgrow label { margin: 0; text-transform: none; letter-spacing: 0; font-weight: 500; font-size: 13.5px; color: var(--fg); cursor: pointer; }
+    #ad-login .lgbtn { width: 100%; padding: 15px; border: none; border-radius: var(--r-md); background: #201A16; color: #F7F1E1; font-family: inherit; font-weight: 600; font-size: 15px; cursor: pointer; }
+    #ad-login .lgbtn:hover { background: #0C0907; }
+    #ad-login .lgerr { color: var(--ruby, #8B1E2E); font-size: 12.5px; font-weight: 600; margin: 0 0 14px; display: none; }
+    #ad-login .lgerr.show { display: block; }
+    #ad-login .lghint { text-align: center; color: var(--fg-meta); font-size: 11.5px; margin: 20px 0 0; }
+    @media (max-width: 860px) { #ad-login .lg-left { display: none; } }
+  </style>
 </head>
 <body>
   <div id="root"></div>
+
+  <div id="ad-login">
+    <div class="lg-left">
+      <img id="ad-lg-logo" class="lgl-logo" alt="Eurostar">
+      <div class="lgl-eyebrow">Sales App Admin · Mumbai &amp; Jaipur</div>
+      <h1>Control the<br><em>catalog</em>, cleanly.</h1>
+      <p class="lgl-sub">Categories, grades, pricing, inventory and bulk uploads — the control room behind the Eurostar Sales App.</p>
+      <div class="lgl-item"><div class="ic">💎</div><div><b>Catalog &amp; pricing</b><span>Grades, colours, shapes and sizes</span></div></div>
+      <div class="lgl-item"><div class="ic">📦</div><div><b>Inventory &amp; sold-out</b><span>Per-SKU availability control</span></div></div>
+      <div class="lgl-item"><div class="ic">⬆️</div><div><b>Bulk upload</b><span>CSV / Excel product import</span></div></div>
+    </div>
+    <div class="lg-right">
+      <form class="lg-form" id="ad-login-form" autocomplete="on">
+        <span class="lg-badge">✦ Administrator</span>
+        <h2>Welcome back</h2>
+        <p class="lgsub">Sign in with your Admin credentials.</p>
+        <p class="lgerr" id="ad-lgerr">Incorrect username or password.</p>
+        <div class="lgfield">
+          <label for="ad-lg-user">Username</label>
+          <input id="ad-lg-user" name="username" type="text" autocomplete="username" placeholder="e.g. admin">
+        </div>
+        <div class="lgfield">
+          <label for="ad-lg-pass">Password</label>
+          <input id="ad-lg-pass" name="password" type="password" autocomplete="current-password" placeholder="••••••••">
+        </div>
+        <div class="lgrow" onclick="var c=document.getElementById('ad-lg-remember');c.checked=!c.checked;">
+          <input id="ad-lg-remember" type="checkbox" checked>
+          <label for="ad-lg-remember">Keep me signed in on this device</label>
+        </div>
+        <button type="submit" class="lgbtn">Sign in</button>
+        <p class="lghint">Eurostar Technologies · Internal use only</p>
+      </form>
+    </div>
+  </div>
+  <script>
+    (function () {
+      var AUTH_KEY = 'eurostar-admin-authed';
+      var gate = document.getElementById('ad-login');
+      var form = document.getElementById('ad-login-form');
+      var err = document.getElementById('ad-lgerr');
+      var lg = document.getElementById('ad-lg-logo');
+      var userEl = document.getElementById('ad-lg-user');
+      function setLogo() {
+        var src = window.EUROSTAR_LOGO_WHITE || window.EUROSTAR_LOGO_PNG || window.EUROSTAR_LOGO;
+        if (src) { lg.src = src; lg.style.display = 'block'; } else { lg.style.display = 'none'; }
+      }
+      setLogo();
+      window.addEventListener('load', setLogo);
+      document.documentElement.style.overflow = 'hidden'; document.body.style.overflow = 'hidden';
+      try { var savedUser = localStorage.getItem(AUTH_KEY); if (savedUser) userEl.value = savedUser; } catch (e) {}
+      function unlock() { gate.style.display = 'none'; document.documentElement.style.overflow = ''; document.body.style.overflow = ''; }
+      var API = window.EUROSTAR_API || (/^(localhost|127\.|0\.0\.0\.0)/.test(location.hostname) ? location.origin : 'https://eurostar-api.onrender.com');
+      var btn = form.querySelector('.lgbtn') || form.querySelector('button[type=submit]');
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var username = userEl.value.trim();
+        var password = document.getElementById('ad-lg-pass').value;
+        var remember = document.getElementById('ad-lg-remember').checked;
+        if (!username || !password) { err.textContent = 'Enter your username and password.'; err.classList.add('show'); return; }
+        err.classList.remove('show'); if (btn) { btn.disabled = true; btn.textContent = 'Signing in…'; }
+        fetch(API + '/auth/login', {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ role: 'admin', username: username, password: password, remember: remember })
+        }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+          .then(function (res) {
+            if (!res.ok || !res.d || !res.d.accessToken) throw new Error((res.d && res.d.error) || 'Incorrect username or password.');
+            try {
+              localStorage.setItem('eurostar-admin-token', res.d.accessToken);
+              if (remember) localStorage.setItem(AUTH_KEY, username); else localStorage.removeItem(AUTH_KEY);
+            } catch (e) {}
+            unlock();
+          })
+          .catch(function (ex) {
+            if (btn) { btn.disabled = false; btn.textContent = 'Sign in'; }
+            err.textContent = ex.message || 'Incorrect username or password.'; err.classList.add('show');
+          });
+      });
+    })();
+  </script>
+  <!-- React + Babel bundled locally (no CDN) so the site runs anywhere. -->
   <script src="../vendor/react.development.js"></script>
   <script src="../vendor/react-dom.development.js"></script>
   <script src="../vendor/babel.min.js"></script>
-  <!-- Phase 5: save/load admin content (overlays, thumbs, splash, broadcast) to the back room. -->
+  <!-- Persist admin content (colours/shapes/thumbs/announcements) to the back room. -->
   <script src="api-bridge.js"></script>
   <script src="assets/logo-data.js"></script>
   <script type="text/babel" src="app/icons.jsx"></script>

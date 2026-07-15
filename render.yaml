@@ -65,6 +65,10 @@ services:
         sync: false
       - key: TWILIO_FROM
         sync: false
+      # WhatsApp sender (e.g. whatsapp:+14155238886 for the Twilio sandbox).
+      # When set, login codes go via WhatsApp instead of SMS.
+      - key: TWILIO_WHATSAPP_FROM
+        sync: false
       # Online payments via Razorpay (add both to turn on the real Pay box):
       - key: RAZORPAY_KEY_ID
         sync: false

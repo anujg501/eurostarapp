@@ -35,7 +35,10 @@ export async function requestOtp(phone: string): Promise<{ devCode?: string }> {
     return { devCode: code };
   }
 
-  await sendSms(phone, `Your Eurostar login code is ${code}. It expires in 5 minutes.`);
+  const message = `Your Eurostar login code is ${code}. It expires in 5 minutes.`;
+  // Prefer WhatsApp when configured (best delivery in India); otherwise SMS.
+  if (config.twilio.whatsappFrom) await sendWhatsApp(phone, message);
+  else await sendSms(phone, message);
   return {};
 }
 
@@ -68,6 +71,23 @@ function toE164(phone: string): string {
   return '+' + trimmed;
 }
 
+// Low-level Twilio Messages API call, shared by SMS and WhatsApp.
+async function twilioSend(params: URLSearchParams, channel: string): Promise<void> {
+  const { accountSid, authToken } = config.twilio;
+  const resp = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/x-www-form-urlencoded',
+      authorization: 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64'),
+    },
+    body: params.toString(),
+  });
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '');
+    throw new Error(`Twilio ${channel} failed (${resp.status}): ${text.slice(0, 300)}`);
+  }
+}
+
 async function sendSms(phone: string, message: string): Promise<void> {
   const { accountSid, authToken, from } = config.twilio;
   if (!accountSid || !authToken || !from) {
@@ -76,23 +96,28 @@ async function sendSms(phone: string, message: string): Promise<void> {
     );
   }
 
-  const to = toE164(phone);
-  const body = new URLSearchParams({ To: to, Body: message });
+  const body = new URLSearchParams({ To: toE164(phone), Body: message });
   // "From" may be a phone number (+...) or a Messaging Service SID (starts with MG).
   if (from.startsWith('MG')) body.set('MessagingServiceSid', from);
   else body.set('From', from);
 
-  const resp = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/x-www-form-urlencoded',
-      authorization: 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64'),
-    },
-    body: body.toString(),
-  });
+  await twilioSend(body, 'SMS');
+}
 
-  if (!resp.ok) {
-    const text = await resp.text().catch(() => '');
-    throw new Error(`Twilio SMS failed (${resp.status}): ${text.slice(0, 300)}`);
+// Send via WhatsApp. Both numbers are prefixed "whatsapp:" per Twilio's API.
+export async function sendWhatsApp(phone: string, message: string): Promise<void> {
+  const { accountSid, authToken, whatsappFrom } = config.twilio;
+  if (!accountSid || !authToken || !whatsappFrom) {
+    throw new Error(
+      'No WhatsApp sender configured. Set TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_WHATSAPP_FROM.'
+    );
   }
+  // whatsappFrom may already include the "whatsapp:" prefix; normalise either way.
+  const fromAddr = whatsappFrom.startsWith('whatsapp:') ? whatsappFrom : `whatsapp:${whatsappFrom}`;
+  const body = new URLSearchParams({
+    To: `whatsapp:${toE164(phone)}`,
+    From: fromAddr,
+    Body: message,
+  });
+  await twilioSend(body, 'WhatsApp');
 }

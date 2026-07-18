@@ -71,7 +71,21 @@ paymentsRouter.post(
     const me = req.user; // may be undefined
 
     const id = d.id ?? (d.orderId ? `PAY-APP-${d.orderId}` : `PAY-${Date.now()}`);
-    const status = d.status ?? 'confirmed';
+
+    // This endpoint is unauthenticated (the Sales app has no session), so a
+    // caller must not be able to declare an order paid. Once real payment keys
+    // exist, "confirmed" may only come from a verified source — the signature
+    // check in /razorpay/verify, the signed webhook, or a signed-in staff member
+    // logging a cash/NEFT receipt. Anything else is recorded as pending for the
+    // back office to verify, which is what the CRM's payment queue is for.
+    const claimed = d.status ?? 'confirmed';
+    const staff = !!me && me.role !== 'customer';
+    const mayConfirm = staff || !config.razorpay.configured;
+    const status = claimed === 'confirmed' && !mayConfirm ? 'pending' : claimed;
+    if (status !== claimed) {
+      // eslint-disable-next-line no-console
+      console.warn(`[payments] unverified "confirmed" for order ${d.orderId ?? '?'} recorded as pending`);
+    }
     const data = {
       orderId: d.orderId,
       customerId: d.custId,

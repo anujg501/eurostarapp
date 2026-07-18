@@ -202,19 +202,36 @@ function PaymentScreen({ order, persona, onPaid, onBack }) {
     }),
   }).catch(function () {});
 
+  // Only ever reachable when the back room has NO payment keys — see payFailed.
+  const payUnavailable = (why) => {
+    setProcessing(false);
+    alert(
+      'We could not open the payment window' + (why ? ' (' + why + ')' : '') +
+      '.\n\nYour order has been saved but is NOT paid. Please try again, or ' +
+      'contact us to pay another way. Nothing has been charged.'
+    );
+  };
+
   const pay = async () => {
     setProcessing(true);
+    // Whether real payments are switched on. This decides what a failure means:
+    // with keys configured a failure must NEVER mark the order paid — the
+    // simulated flow is a no-keys demo convenience, and reaching it here would
+    // hand a free order to anyone whose browser blocks the gateway script.
+    let live = false;
     try {
-      // Online payment only if the back room has Razorpay keys AND the gateway loaded.
       const keyInfo = await fetch(API + '/payments/razorpay/key').then((r) => r.json()).catch(() => null);
-      if (!keyInfo || !keyInfo.configured || !window.Razorpay) { setProcessing(false); return simulatedPay(); }
+      live = !!(keyInfo && keyInfo.configured);
+
+      if (!live) { setProcessing(false); return simulatedPay(); }
+      if (!window.Razorpay) return payUnavailable('the payment gateway did not load — an ad blocker may be blocking it');
 
       await ensureOrder();
       const rp = await fetch(API + '/payments/razorpay/order', {
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ orderId: order.id }),
       }).then((r) => r.json()).catch(() => null);
-      if (!rp || !rp.configured || !rp.razorpayOrderId) { setProcessing(false); return simulatedPay(); }
+      if (!rp || !rp.configured || !rp.razorpayOrderId) return payUnavailable('the payment could not be started');
 
       const rzp = new window.Razorpay({
         key: rp.keyId, order_id: rp.razorpayOrderId, amount: rp.amount, currency: rp.currency || 'INR',
@@ -240,7 +257,12 @@ function PaymentScreen({ order, persona, onPaid, onBack }) {
       });
       rzp.on('payment.failed', function () { setProcessing(false); });
       rzp.open();
-    } catch (e) { setProcessing(false); simulatedPay(); }
+    } catch (e) {
+      // Same rule in the catch-all: only the no-keys demo path may mark paid.
+      if (live) return payUnavailable('unexpected error');
+      setProcessing(false);
+      simulatedPay();
+    }
   };
   const methods = [
     ['upi', 'UPI', 'GPay · PhonePe · Paytm'],

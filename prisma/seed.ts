@@ -1,11 +1,9 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
-import fs from 'fs';
-import path from 'path';
-import vm from 'vm';
 import { CATEGORIES } from '../src/data/catalog';
 import { PRODUCTS } from '../src/data/products';
+import { liftBuiltinCatalogOverlays } from '../src/services/catalogOverlays';
 
 dotenv.config();
 const prisma = new PrismaClient();
@@ -151,95 +149,11 @@ async function main() {
 
   await seedCategories();
   await seedProducts();
-  await seedCatalogOverlays();
-}
 
-// ---------------------------------------------------------------------------
-// Colour/shape overlays. The storefront's built-in colours and shapes live in
-// docs/app/data.jsx, which the server cannot import — so the Admin's
-// colour × shape matrix starts empty on a fresh database even though the
-// storefront shows a full palette. This lifts the built-ins into the same
-// overlay maps the Admin edits (the storefront merge deduplicates by id, so
-// seeding them is invisible to customers). Idempotent, and never removes or
-// rewrites anything an admin has added.
-// ---------------------------------------------------------------------------
-
-const XCOL_KEY = 'eurostar-extra-colors-v1';
-const XSHP_KEY = 'eurostar-extra-shapes-v1';
-
-type SeedColour = { id: string; name: string; hex?: string };
-
-function readBuiltinCatalogue(): { colours: Record<string, SeedColour[]>; shapes: Record<string, string[]> } | null {
-  try {
-    const file = path.join(process.cwd(), 'docs', 'app', 'data.jsx');
-    const code = fs.readFileSync(file, 'utf8');
-    // data.jsx is plain JS (no JSX) written for the browser; give it the two
-    // browser globals it touches and read the tables back out.
-    const sandbox: Record<string, unknown> = {
-      window: {},
-      localStorage: { getItem: () => null, setItem: () => undefined, removeItem: () => undefined },
-      console: { log: () => undefined, warn: () => undefined, error: () => undefined },
-    };
-    sandbox.globalThis = sandbox;
-    const out = vm.runInNewContext(
-      code + '\n;({ colours: COLORS_BY_CATEGORY, shapes: SHAPES_BY_CATEGORY });',
-      sandbox,
-      { timeout: 10_000 }
-    ) as { colours?: unknown; shapes?: unknown };
-    if (!out || typeof out.colours !== 'object' || typeof out.shapes !== 'object') return null;
-    return out as { colours: Record<string, SeedColour[]>; shapes: Record<string, string[]> };
-  } catch (e) {
-    console.warn('  Catalog overlays -> could not read docs/app/data.jsx:', (e as Error).message);
-    return null;
-  }
-}
-
-async function getKV<T>(key: string, fallback: T): Promise<T> {
-  const row = await prisma.setting.findUnique({ where: { key } });
-  if (!row) return fallback;
-  try {
-    return (JSON.parse(row.value) as T) ?? fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-async function setKV(key: string, value: unknown): Promise<void> {
-  const json = JSON.stringify(value);
-  await prisma.setting.upsert({ where: { key }, create: { key, value: json }, update: { value: json } });
-}
-
-async function seedCatalogOverlays() {
-  const builtin = readBuiltinCatalogue();
-  if (!builtin) return;
-
-  const colours = await getKV<Record<string, SeedColour[]>>(XCOL_KEY, {});
-  let addedColours = 0;
-  for (const [cat, list] of Object.entries(builtin.colours)) {
-    if (!Array.isArray(list)) continue;
-    const cur = colours[cat] ?? [];
-    const missing = list.filter((c) => c && c.id && !cur.some((x) => x.id === c.id));
-    if (missing.length) {
-      colours[cat] = [...missing.map((c) => ({ id: c.id, name: c.name, hex: c.hex || '#CCCCCC' })), ...cur];
-      addedColours += missing.length;
-    }
-  }
-  if (addedColours) await setKV(XCOL_KEY, colours);
-
-  const shapes = await getKV<Record<string, string[]>>(XSHP_KEY, {});
-  let addedShapes = 0;
-  for (const [cat, list] of Object.entries(builtin.shapes)) {
-    if (!Array.isArray(list)) continue;
-    const cur = shapes[cat] ?? [];
-    const missing = list.filter((s) => s && !cur.includes(s));
-    if (missing.length) {
-      shapes[cat] = [...missing, ...cur];
-      addedShapes += missing.length;
-    }
-  }
-  if (addedShapes) await setKV(XSHP_KEY, shapes);
-
-  console.log(`  Catalog overlays -> ${addedColours} colours, ${addedShapes} shapes lifted from the storefront data`);
+  // Lift the storefront's built-in colours/shapes into the admin overlays —
+  // shared with server startup; idempotent (see src/services/catalogOverlays).
+  const lifted = await liftBuiltinCatalogOverlays();
+  console.log(`  Catalog overlays -> ${lifted.colours} colours, ${lifted.shapes} shapes lifted from the storefront data`);
 }
 
 main()

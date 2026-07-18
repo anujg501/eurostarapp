@@ -20,6 +20,7 @@ import { announcementsRouter } from './routes/announcements';
 import { candidatesRouter, modulesRouter } from './routes/candidates';
 import { adminRouter } from './routes/admin';
 import { usersRouter } from './routes/users';
+import { liftBuiltinCatalogOverlays } from './services/catalogOverlays';
 
 const app = express();
 
@@ -119,4 +120,17 @@ app.use((err: unknown, _req: express.Request, res: express.Response, _next: expr
 app.listen(config.port, () => {
   // eslint-disable-next-line no-console
   console.log(`Eurostar backend running on http://localhost:${config.port}`);
+
+  // One-time lift of the storefront's built-in colours/shapes into the admin
+  // overlay maps (no-op once done — see catalogOverlays.ts). Runs after boot
+  // so a failure can never keep the API from starting.
+  liftBuiltinCatalogOverlays()
+    .then(({ colours, shapes }) => {
+      // eslint-disable-next-line no-console
+      if (colours || shapes) console.log(`Catalog overlays: lifted ${colours} colours, ${shapes} shapes from the storefront data`);
+    })
+    .catch((e) => {
+      // eslint-disable-next-line no-console
+      console.warn('Catalog overlays lift failed:', e);
+    });
 });

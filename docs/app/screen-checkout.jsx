@@ -282,6 +282,31 @@ function PaymentScreen({ order, persona, onPaid, onBack }) {
 }
 
 function ConfirmationScreen({ order, persona, setRoute }) {
+  // Record the order in this account's "Your orders" list — the static demo
+  // orders never grew when a real order was placed. Runs for offline orders
+  // too: the customer placed it either way.
+  React.useEffect(() => {
+    try {
+      const mk = 'eurostar-my-orders-' + (persona.id || persona.code || 'guest');
+      const mine = JSON.parse(localStorage.getItem(mk) || '[]') || [];
+      if (!mine.some((o) => o.id === order.id)) {
+        const isCredit = ['15', '30', '45', '60'].includes(String(persona.terms));
+        mine.unshift({
+          id: order.id,
+          date: new Date().toISOString().slice(0, 10),
+          status: 'pending',
+          lines: order.lines || [],
+          placedTotal: order.grand || 0,
+          paymentTerm: order.paid ? 'Paid' : isCredit ? 'NET ' + persona.terms : 'Cash',
+          notes: order.notes || '',
+          ship: '', expected: order.dispatchBy || '',
+          custName: (order.customer && order.customer.name) || '',
+          custPhone: (order.customer && order.customer.phone) || '',
+        });
+        localStorage.setItem(mk, JSON.stringify(mine));
+      }
+    } catch (e) {}
+  }, []);
   // Push this order onto the shared CRM bus so the office sees it on the Order desk.
   // Skip when queued offline — it syncs from the offline queue when the connection returns.
   React.useEffect(() => {

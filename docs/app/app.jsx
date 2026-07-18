@@ -129,17 +129,20 @@ function App() {
                   onPlace={(details) => {
                     const id = 'SO-' + (24900 + Math.floor(Math.random() * 90));
                     const isCredit = ['15','30','45','60'].includes(String(persona.terms));
+                    // Snapshot the lines before the cart is cleared — the
+                    // confirmation screen stores them in "Your orders".
+                    const lines = cart.map((l) => ({ pid: l.pid, qty: l.qty || 0 }));
                     if (!isOnline) {
                       const o = { id, customer: persona.company, code: persona.code || '', city: (persona.location || '').split(',')[0].trim(), rep: localStorage.getItem('eurostar-rep-name') || 'Rohit Shah', repId: localStorage.getItem('eurostar-rep-id') || 'REP-204', value: details.grand || 0, dispatchBy: details.dispatchBy || '', isExport: !!details.isExport, paid: false, ts: Date.now(), source: 'Sales App', queuedOffline: true };
                       try { const q = JSON.parse(localStorage.getItem('eurostar-offline-orders') || '[]') || []; q.push(o); localStorage.setItem('eurostar-offline-orders', JSON.stringify(q)); } catch (e) {}
                       setQueued((n) => n + 1);
                       setCart([]);
-                      navigate({ name: 'confirmed', order: { id, ...details, queuedOffline: true } });
+                      navigate({ name: 'confirmed', order: { id, ...details, lines, queuedOffline: true } });
                       return;
                     }
                     setCart([]);
-                    if (isCredit) navigate({ name: 'confirmed', order: { id, ...details } });
-                    else navigate({ name: 'payment', order: { id, ...details } });
+                    if (isCredit) navigate({ name: 'confirmed', order: { id, ...details, lines } });
+                    else navigate({ name: 'payment', order: { id, ...details, lines } });
                   }} />;
       break;
     case 'payment':

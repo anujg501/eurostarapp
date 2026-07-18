@@ -30,7 +30,7 @@ function OrdersScreen({ persona, setRoute, cart, setCart, initialTab, editCart, 
   const [tab, setTab] = React.useState(initialTab || (cart.length ? 'cart' : 'active'));
   React.useEffect(() => { if (initialTab) setTab(initialTab); }, [initialTab]);
 
-  const orders = ORDERS[persona.id] || [];
+  const orders = [...loadMyOrders(persona), ...(ORDERS[persona.id] || [])];
   const groups = {
     active:    orders.filter(o => ['pending', 'confirmed', 'packed', 'shipped'].includes(o.status)),
     delivered: orders.filter(o => o.status === 'delivered'),
@@ -112,7 +112,9 @@ function OrdersScreen({ persona, setRoute, cart, setCart, initialTab, editCart, 
           <tbody>
             {visible.map(o => {
               const items = orderQty(o);
-              const total = orderTotal(o);
+              // Placed orders carry the total they were actually charged;
+              // recomputing from list prices would drift from negotiated rates.
+              const total = typeof o.placedTotal === 'number' ? o.placedTotal : orderTotal(o);
               const status = STATUS_META[o.status];
               const cust = staff ? (o.custName ? { name: o.custName, phone: o.custPhone || '' } : customerForOrder(o.id)) : null;
               return (
@@ -163,6 +165,12 @@ function KpiCard({ label, value, sub, tone = 'neutral' }) {
 }
 
 // ---------- The CART view ----------
+// Orders placed from this app, stored per account by the confirmation screen.
+// Shown ahead of the built-in demo orders.
+function myOrdersKey(persona) { return 'eurostar-my-orders-' + (persona.id || persona.code || 'guest'); }
+function loadMyOrders(persona) { try { return JSON.parse(localStorage.getItem(myOrdersKey(persona)) || '[]') || []; } catch (e) { return []; } }
+Object.assign(window, { myOrdersKey, loadMyOrders });
+
 function draftsKey(persona) { return 'eurostar-drafts-' + (persona.id || persona.code || 'guest'); }
 function loadDrafts(persona) { try { return JSON.parse(localStorage.getItem(draftsKey(persona)) || '[]'); } catch (e) { return []; } }
 function saveDrafts(persona, list) { try { localStorage.setItem(draftsKey(persona), JSON.stringify(list)); } catch (e) {} }
@@ -193,9 +201,19 @@ function CartView({ cart, setCart, persona, setRoute }) {
     if (name === null) return;
     const d = { id: 'D' + Date.now(), name: name || 'Draft', date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }), lines: cart, count: cart.length, value: cart.reduce((s, l) => s + (l.lineTotal || 0), 0) };
     const next = [d, ...drafts]; setDrafts(next); saveDrafts(persona, next);
-    alert('Saved to drafts.');
+    // A draft is the cart set aside for later — moving it out of the cart, not
+    // copying it. Restoring the draft brings the lines back.
+    setCart([]);
+    alert('Saved to drafts. Your cart is now empty — open the draft to bring it back.');
   };
-  const restoreDraft = (d) => { if (cart.length && !confirm('Replace your current cart with this draft?')) return; setCart(d.lines); };
+  const restoreDraft = (d) => {
+    if (cart.length && !confirm('Replace your current cart with this draft?')) return;
+    setCart(d.lines);
+    // The lines are back in the cart, so the draft has been "used up" —
+    // keeping it too would show the same order in both places.
+    const next = drafts.filter((x) => x.id !== d.id);
+    setDrafts(next); saveDrafts(persona, next);
+  };
   const deleteDraft = (id) => { const next = drafts.filter((x) => x.id !== id); setDrafts(next); saveDrafts(persona, next); };
 
   if (cart.length === 0) {

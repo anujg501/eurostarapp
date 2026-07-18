@@ -35,15 +35,60 @@
     };
   }
 
+  // Server-saved admin content is mirrored into the exact localStorage keys
+  // the screens already read — the Admin panel stopped writing localStorage
+  // when it moved to the API, so without this mirror an uploaded thumbnail
+  // (or colour, or product photo) never reached the storefront.
+  function mirrorToLocal(key, value) {
+    if (!value || typeof value !== 'object') return;
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* quota — keep the cached copy */ }
+  }
+
   window.EUROSTAR_CATALOG_READY = Promise.all([
     getJson('/catalog'),
     getJson('/catalog/products'),
     getJson('/admin/catalog/grades'),
+    getJson('/admin/thumbs/categories'),
+    getJson('/admin/thumbs/shapes'),
+    getJson('/admin/product-images'),
+    getJson('/admin/catalog/colours'),
+    getJson('/admin/catalog/shapes'),
   ])
     .then(function (res) {
       var cat = res[0];
       var prod = res[1];
       var extraGrades = res[2];
+      var catThumbs = res[3];
+      var shapeThumbs = res[4];
+      var productImages = res[5];
+      var extraColours = res[6];
+      var extraShapes = res[7];
+
+      mirrorToLocal('eurostar-cat-thumbs-v1', catThumbs);
+      mirrorToLocal('eurostar-shape-thumbs-v1', shapeThumbs);
+      mirrorToLocal('eurostar-product-images-v1', productImages);
+      mirrorToLocal('eurostar-extra-colors-v1', extraColours);
+      mirrorToLocal('eurostar-extra-shapes-v1', extraShapes);
+
+      // data.jsx merged the colour/shape overlays from localStorage before this
+      // sync ran, so merge the server copies into the live tables here too.
+      if (extraColours && typeof extraColours === 'object') {
+        Object.keys(extraColours).forEach(function (key) {
+          if (!COLORS_BY_CATEGORY[key]) COLORS_BY_CATEGORY[key] = [];
+          (extraColours[key] || []).forEach(function (col) {
+            if (col && col.id && !COLORS_BY_CATEGORY[key].some(function (c) { return c.id === col.id; }))
+              COLORS_BY_CATEGORY[key].push({ id: col.id, name: col.name, hex: col.hex || '#CCCCCC' });
+          });
+        });
+      }
+      if (extraShapes && typeof extraShapes === 'object') {
+        Object.keys(extraShapes).forEach(function (key) {
+          if (!SHAPES_BY_CATEGORY[key]) SHAPES_BY_CATEGORY[key] = [];
+          (extraShapes[key] || []).forEach(function (sid) {
+            if (sid && SHAPES_BY_CATEGORY[key].indexOf(sid) === -1) SHAPES_BY_CATEGORY[key].push(sid);
+          });
+        });
+      }
 
       if (cat && Array.isArray(cat.categories) && cat.categories.length) {
         var mapped = cat.categories.map(toClientCategory);

@@ -1,7 +1,8 @@
 // screen-order-detail.jsx — Single order view with timeline + line items + invoice summary
 
 function OrderDetailScreen({ route, setRoute, persona, addToCart }) {
-  const order = (ORDERS[persona.id] || []).find(o => o.id === route.oid);
+  // Orders placed from this app live in localStorage; the demo book is static.
+  const order = [...(window.loadMyOrders ? loadMyOrders(persona) : []), ...(ORDERS[persona.id] || [])].find(o => o.id === route.oid);
   if (!order) {
     return (
       <div className="page">
@@ -16,7 +17,8 @@ function OrderDetailScreen({ route, setRoute, persona, addToCart }) {
   }
 
   const status = STATUS_META[order.status];
-  const total = orderTotal(order);
+  // Placed orders carry the total they were actually charged.
+  const total = typeof order.placedTotal === 'number' ? order.placedTotal : orderTotal(order);
   const itemCount = orderQty(order);
   const tax = Math.round(total * 0.03); // IGST 3% for export, GST varies; using rough 3% for prototype
   const shipping = order.ship.includes('DHL') ? 8500 : 1200;

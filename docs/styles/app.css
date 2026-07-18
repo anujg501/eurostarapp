@@ -435,7 +435,11 @@ img[src*="assets/products/"] {
 .testi-org { font-size: 14px; font-weight: 600; color: var(--fg); }
 .testi-name { font-size: 12px; color: var(--fg-meta); margin-top: 1px; }
 
-.pricepad-wrap { position: relative; overflow: hidden; }
+/* `clip`, not `hidden`: hidden makes this a scroll container, which traps the
+   sticky .order-summary bar inside it — the Add-to-cart bar then sits below
+   the fold instead of sticking to the viewport. clip crops the rotated price
+   watermark exactly the same without capturing sticky descendants. */
+.pricepad-wrap { position: relative; overflow: clip; }
 .price-wm {
   position: absolute; inset: 0; z-index: 5;
   pointer-events: none; overflow: hidden;

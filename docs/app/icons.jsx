@@ -1,8 +1,8 @@
 // icons.jsx — UI icons + gemstone shape SVGs for Eurostar app
 
-const I = ({ children, size = 20, stroke = 'currentColor', fill = 'none', strokeWidth = 1.6, style = {} }) => (
+const I = ({ children, size = 20, stroke = 'currentColor', fill = 'none', strokeWidth = 1.6, style = {}, ...rest }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke={stroke}
-       strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={style}>
+       strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={style} {...rest}>
     {children}
   </svg>
 );

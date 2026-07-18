@@ -41,7 +41,19 @@ function App() {
     } catch (e) {}
     return { name: 'home' };
   });
-  const [cart, setCart] = React.useState(() => sampleCart());
+  // The cart survives refreshes: whatever the user last had (including an
+  // emptied cart) is restored from localStorage. The sample cart only seeds
+  // the very first visit, before any cart has ever been saved.
+  const [cart, setCart] = React.useState(() => {
+    try {
+      const raw = localStorage.getItem('eurostar-cart');
+      if (raw !== null) return JSON.parse(raw) || [];
+    } catch (e) {}
+    return sampleCart();
+  });
+  React.useEffect(() => {
+    try { localStorage.setItem('eurostar-cart', JSON.stringify(cart)); } catch (e) {}
+  }, [cart]);
   const [wishlist, setWishlist] = React.useState(new Set());
   const [toast, setToast] = React.useState(null);
 

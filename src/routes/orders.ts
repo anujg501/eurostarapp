@@ -61,6 +61,10 @@ const createOrderSchema = z.object({
   repId: z.string().optional(),
   value: z.number().optional(), // grand total (the client CRM object's "value")
   items: z.array(lineSchema).optional(),
+  // The storefront's confirmation screen sends the cart under "lines". Accepting
+  // both is what makes a placed order arrive with its contents — without this
+  // every real order reached the office as a bare total with no products on it.
+  lines: z.array(lineSchema).optional(),
   subtotal: z.number().optional(), // client-computed (recomputed server-side when items present)
   isExport: z.boolean().optional(),
   paid: z.boolean().optional(),
@@ -150,20 +154,36 @@ ordersRouter.post(
     const isExport = d.isExport ?? isExportCity(city);
 
     // Build lines and the authoritative subtotal (when line items are provided).
-    const items = d.items ?? [];
+    const items = d.items ?? d.lines ?? [];
+
+    // Price from the catalogue, not from the request. The storefront sends only
+    // {pid, qty}, so without this lookup every line lands at ₹0 — and a price
+    // supplied by the caller is not something to bill on regardless. Only the
+    // back office may override, via priceOverride below.
+    const skuIds = [...new Set(items.map((l) => l.pid).filter((x): x is string => !!x))];
+    const catalogue = new Map(
+      skuIds.length
+        ? (await prisma.product.findMany({ where: { id: { in: skuIds } } })).map((p) => [p.id, p] as const)
+        : []
+    );
+
     const lines = items.map((l) => {
-      const total = effectiveLineTotal(l, canOverride);
+      const sku = l.pid ? catalogue.get(l.pid) : undefined;
+      // Fall back to the catalogue rate when the caller sent no price.
+      const priced = sku && lineRate(l) === 0 ? { ...l, unitPrice: sku.price } : l;
+
+      const total = effectiveLineTotal(priced, canOverride);
       const override = canOverride ? l.priceOverride ?? null : null;
       return {
         skuId: l.pid,
-        categoryKey: l.cat ?? l.categoryKey,
+        categoryKey: l.cat ?? l.categoryKey ?? sku?.cat,
         grade: l.grade ?? l.quality,
-        colour: l.colour ?? l.color,
-        shape: l.shape,
-        size: l.size,
-        unit: l.unitMode ?? l.unit ?? 'pc',
-        qty: lineUnits(l),
-        unitPrice: lineRate(l),
+        colour: l.colour ?? l.color ?? sku?.tone,
+        shape: l.shape ?? sku?.shape,
+        size: l.size ?? sku?.size,
+        unit: l.unitMode ?? l.unit ?? sku?.unit ?? 'pc',
+        qty: lineUnits(priced),
+        unitPrice: lineRate(priced),
         priceOverride: override,
         overrideBy: override != null ? me?.sub ?? 'app' : null,
         lineTotal: total,

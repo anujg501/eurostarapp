@@ -83,7 +83,12 @@ app.use('/users', usersRouter);
 // (src/) and compiled (dist/src/) — the docs/ folder is always at the repo root.
 const webDir = path.join(process.cwd(), 'docs');
 app.get('/favicon.ico', (_req, res) => res.sendFile(path.join(webDir, 'assets', 'eurostar-logo.png')));
-app.get('/', (_req, res) => res.sendFile(path.join(webDir, 'index.html'))); // app portal hub
+// The root is the customer-facing storefront. It used to be the internal portal
+// hub, which listed the CRM, LMS, Mira and Admin panels — fine on a private demo
+// box, wrong on a public domain where it advertises the back office to every
+// visitor. Staff reach the hub at /portal, and each app keeps its own login.
+app.get('/', (_req, res) => res.sendFile(path.join(webDir, 'Eurostar Sales website.html')));
+app.get('/portal', (_req, res) => res.sendFile(path.join(webDir, 'index.html')));
 app.get('/login', (_req, res) => res.sendFile(path.join(webDir, 'Eurostar Login.html')));
 app.get('/site', (_req, res) => res.sendFile(path.join(webDir, 'Eurostar Sales website.html')));
 app.get('/mobile', (_req, res) => res.sendFile(path.join(webDir, 'Eurostar Sales website (Mobile).html')));

@@ -4,52 +4,53 @@ import { Login } from './screens/Login';
 import { Dashboard } from './screens/Dashboard';
 import { Catalog } from './screens/Catalog';
 import { Media } from './screens/Media';
-import { Products } from './screens/Products';
 import { Settings } from './screens/Settings';
 import { Content } from './screens/Content';
 import { Users } from './screens/Users';
 import { Marketing } from './screens/Marketing';
+import { AddCategory } from './screens/AddCategory';
+import { BulkUploadPage } from './screens/BulkUpload';
+import { TweaksPanel } from './TweaksPanel';
 
-type ScreenId = 'dashboard' | 'catalog' | 'products' | 'media' | 'marketing' | 'content' | 'users' | 'settings';
+type ScreenId =
+  | 'dashboard'
+  | 'catalog'
+  | 'newcat'
+  | 'bulk'
+  | 'media'
+  | 'homethumbs'
+  | 'splash'
+  | 'repbroadcast'
+  | 'users'
+  | 'content'
+  | 'settings';
 
-// Grouped the way the original panel's sidebar was.
-const NAV: { group: string; items: { id: ScreenId; label: string; icon: string }[] }[] = [
-  {
-    group: 'Overview',
-    items: [{ id: 'dashboard', label: 'Dashboard', icon: '▦' }],
-  },
-  {
-    group: 'Catalogue',
-    items: [
-      { id: 'catalog', label: 'Categories', icon: '💎' },
-      { id: 'products', label: 'Products & pricing', icon: '🏷️' },
-      { id: 'media', label: 'Images', icon: '🖼️' },
-    ],
-  },
-  {
-    group: 'Storefront',
-    items: [
-      { id: 'marketing', label: 'Marketing', icon: '📣' },
-      { id: 'content', label: 'Content', icon: '📝' },
-    ],
-  },
-  {
-    group: 'Admin',
-    items: [
-      { id: 'users', label: 'Users & access', icon: '👤' },
-      { id: 'settings', label: 'Settings', icon: '⚙️' },
-    ],
-  },
+// The original panel's sidebar: one flat list under a single group label.
+const NAV: { id: ScreenId; label: string }[] = [
+  { id: 'dashboard', label: 'Dashboard' },
+  { id: 'catalog', label: 'Catalog' },
+  { id: 'newcat', label: '＋ Add category' },
+  { id: 'bulk', label: 'Bulk upload' },
+  { id: 'media', label: 'Product images' },
+  { id: 'homethumbs', label: 'Home thumbnails' },
+  { id: 'splash', label: 'Pop-up window' },
+  { id: 'repbroadcast', label: 'Rep broadcast' },
+  { id: 'users', label: 'Users & access' },
+  { id: 'content', label: 'Content' },
+  { id: 'settings', label: 'Settings' },
 ];
 
 const TITLES: Record<ScreenId, string> = {
   dashboard: 'Dashboard',
   catalog: 'Catalog',
-  products: 'Products & pricing',
-  media: 'Images',
-  marketing: 'Marketing',
-  content: 'Content',
+  newcat: '＋ Add category',
+  bulk: 'Bulk upload',
+  media: 'Product images',
+  homethumbs: 'Home thumbnails',
+  splash: 'Pop-up window',
+  repbroadcast: 'Rep broadcast',
   users: 'Users & access',
+  content: 'Content',
   settings: 'Settings',
 };
 
@@ -76,32 +77,37 @@ export function App() {
     <div className="ad-shell">
       <aside className="ad-side">
         <div className="ad-brand">
+          {/* The jpeg has a white background, so the mark stays visible on the
+              dark sidebar — the transparent png disappears against it. */}
+          <img src="/assets/eurostar-logo.jpeg" alt="Eurostar" />
           <div>
-            <b>eurostar</b>
-            <small>Sales App Admin</small>
+            <b>Eurostar</b>
+            <small>Admin</small>
           </div>
         </div>
 
         <nav className="ad-nav">
-          {NAV.map((g) => (
-            <div key={g.group}>
-              <div className="ad-nav-label">{g.group}</div>
-              {g.items.map((n) => (
-                <button
-                  key={n.id}
-                  className={`ad-nav-item ${screen === n.id ? 'active' : ''}`}
-                  onClick={() => setScreen(n.id)}
-                >
-                  <span aria-hidden="true">{n.icon}</span>
-                  {n.label}
-                </button>
-              ))}
-            </div>
+          <div className="ad-nav-label">Sales App Admin</div>
+          {NAV.map((n) => (
+            <button
+              key={n.id}
+              className={`ad-nav-item ${screen === n.id ? 'active' : ''}`}
+              onClick={() => setScreen(n.id)}
+            >
+              {n.label}
+            </button>
           ))}
         </nav>
 
         <div className="ad-side-foot">
-          <button className="ad-applink" onClick={signOut} style={{ width: '100%', border: 'none', cursor: 'pointer' }}>
+          <a className="ad-applink" href="/site" target="_blank" rel="noreferrer">
+            ↗ Open Sales App
+          </a>
+          <button
+            className="ad-applink"
+            onClick={signOut}
+            style={{ width: '100%', border: 'none', cursor: 'pointer', marginTop: 6 }}
+          >
             ↩ Sign out
           </button>
         </div>
@@ -115,13 +121,21 @@ export function App() {
 
         {screen === 'dashboard' && <Dashboard onGo={setScreen} />}
         {screen === 'catalog' && <Catalog />}
-        {screen === 'media' && <Media />}
-        {screen === 'products' && <Products />}
-        {screen === 'marketing' && <Marketing />}
-        {screen === 'content' && <Content />}
+        {/* "＋ Add category" is its own full-page questionnaire, like the
+            original panel. The Catalog's own "＋ Create new category" button
+            still opens the client's dialog. */}
+        {screen === 'newcat' && <AddCategory key="newcat" onDone={() => setScreen('catalog')} />}
+        {screen === 'bulk' && <BulkUploadPage />}
+        {screen === 'media' && <Media key="products" initialTab="products" />}
+        {screen === 'homethumbs' && <Media key="thumbs" initialTab="thumbs" />}
+        {screen === 'splash' && <Marketing only="splash" />}
+        {screen === 'repbroadcast' && <Marketing only="broadcast" />}
         {screen === 'users' && <Users />}
+        {screen === 'content' && <Content />}
         {screen === 'settings' && <Settings />}
       </main>
+
+      <TweaksPanel />
     </div>
   );
 }

@@ -278,3 +278,165 @@
 /* Primary action on the client's dialog is ruby, not ink. */
 .ad-btn-danger { background: var(--ruby); color: #fff; border-color: var(--ruby); }
 .ad-btn-danger:hover:not(:disabled) { background: #6f1725; }
+
+/* ===== Compact density — the rest of the skin =====
+ * admin.css's [data-density="compact"] rules only cover the body, cards, KPIs
+ * and tables. The reference panel ran compact everywhere, so these extend the
+ * same skin to the chrome admin.css leaves at full size. Scoped to the same
+ * data attribute; nothing here touches the default density. */
+[data-density="compact"] .ad-top { padding: 9px 24px; }
+[data-density="compact"] .ad-top h1 { font-size: 19px; }
+[data-density="compact"] .ad-pill { padding: 4px 10px; font-size: 11px; }
+[data-density="compact"] .ad-brand { padding: 14px 16px 12px; gap: 9px; }
+[data-density="compact"] .ad-brand img { height: 26px; }
+[data-density="compact"] .ad-brand b { font-size: 16px; }
+[data-density="compact"] .ad-nav-item { font-size: 13.5px; }
+[data-density="compact"] .ad-nav-label { padding: 12px 12px 5px; }
+[data-density="compact"] .ad-side-foot { padding: 10px; }
+[data-density="compact"] .ad-applink { padding: 8px 11px; font-size: 12.5px; }
+[data-density="compact"] .ad-pagehead { margin-bottom: 14px; }
+[data-density="compact"] .ad-pagehead p { font-size: 12.5px; }
+[data-density="compact"] .ad-kpi .lbl { font-size: 11.5px; }
+[data-density="compact"] .ad-kpi .sub { font-size: 11.5px; margin-top: 3px; }
+[data-density="compact"] .ad-kpis { gap: 12px; margin-bottom: 18px; }
+[data-density="compact"] .ad-btn { padding: 6px 12px; font-size: 12.5px; }
+[data-density="compact"] .ad-btn-sm { padding: 4px 9px; font-size: 11.5px; }
+[data-density="compact"] .ad-sechead-h { font-size: 16px; }
+
+/* Soft-selected chip — the Add-category questionnaire's radio pills. Follows
+   the accent palette: rose under ruby, green under emerald, and so on. */
+.ad-chip.soft-sel {
+  background: var(--emerald-soft);
+  color: var(--emerald-ink);
+  border-color: color-mix(in srgb, var(--emerald) 35%, transparent);
+}
+
+/* ===== Bulk upload page: step rail + drop zone ===== */
+.bu-steps { display: flex; align-items: center; gap: 12px; margin: 0 0 18px; flex-wrap: wrap; }
+.bu-step { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--fg-meta); }
+.bu-step .n {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--paper-2);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+.bu-step.on { color: var(--fg); }
+.bu-step.on .n { background: var(--emerald); border-color: var(--emerald-ink); color: #fff; }
+.bu-sep { width: 40px; height: 1px; background: var(--border-strong); }
+
+.bu-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 44px 20px;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  cursor: pointer;
+  text-align: center;
+  transition: background 240ms ease, border-color 240ms ease;
+}
+.bu-drop b { font-size: 15px; }
+.bu-drop .ad-muted { font-size: 13px; }
+/* Hover and drag-over share one highlighted state: brand-tinted background,
+   accent dashed border. Same box, no layout shift. */
+.bu-drop:hover,
+.bu-drop.over {
+  border-color: var(--emerald);
+  background: var(--emerald-soft);
+}
+.bu-drop.over { border-color: var(--emerald-ink); }
+.bu-file { font-size: 12px; font-weight: 600; color: var(--emerald-ink); margin-top: 4px; }
+
+/* ===== Product-images matrix: colours × shapes ===== */
+.pi-scroll { overflow-x: auto; margin-top: 14px; }
+.pi-table { width: 100%; border-collapse: collapse; }
+.pi-table th {
+  text-align: left;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg-meta);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.pi-table td { padding: 9px 10px; border-bottom: 1px solid var(--divider); white-space: nowrap; }
+.pi-table tr:last-child td { border-bottom: none; }
+.pi-colour { font-size: 13px; font-weight: 600; }
+.pi-colour .ad-sw { margin-right: 8px; vertical-align: -2px; }
+.pi-cell { display: flex; align-items: center; gap: 4px; }
+.pi-thumb {
+  width: 22px;
+  height: 22px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  margin-right: 5px;
+}
+
+/* ===== Pop-up window: dashed upload zone ===== */
+.sp-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  text-align: center;
+  max-width: 360px;
+  min-height: 165px;
+  padding: 26px 20px;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: var(--r-lg);
+  cursor: pointer;
+  transition: background 240ms ease, border-color 240ms ease;
+}
+.sp-drop b { font-size: 14px; }
+.sp-drop .ad-muted { font-size: 12.5px; }
+.sp-drop:hover { border-color: var(--emerald); background: var(--emerald-soft); }
+.sp-drop img { max-width: 100%; max-height: 240px; object-fit: contain; border-radius: var(--r-md); }
+.sp-arrow { font-size: 20px; line-height: 1; margin-bottom: 4px; }
+
+/* ===== Rep broadcast: "what reps see" preview card ===== */
+.rb-preview {
+  background: var(--surface);
+  border-radius: 16px;
+  max-width: 380px;
+  width: 100%;
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+}
+.rb-preview > img { width: 100%; display: block; max-height: 55vh; object-fit: contain; background: var(--paper-2); }
+.rb-card { padding: 18px 20px 14px; }
+.rb-badge {
+  display: inline-block;
+  background: var(--amber-soft);
+  color: #7a5214;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  margin-bottom: 8px;
+}
+.rb-card h3 { font-family: var(--font-serif); font-weight: 500; font-size: 20px; margin: 0 0 6px; }
+.rb-card p { font-size: 13.5px; color: var(--fg-muted); margin: 0; line-height: 1.55; }
+
+/* ===== Home thumbnails: section heads + card polish ===== */
+.th-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+.th-count { font-size: 12px; color: var(--fg-meta); white-space: nowrap; }
+.ad-thumb-hint { font-size: 11.5px; color: var(--fg-meta); margin-bottom: 2px; }
+.ad-thumb-cell { transition: transform 160ms ease, filter 160ms ease; }
+.ad-thumb-cell:hover { transform: translateY(-2px); }
+.ad-thumb-cell:hover .ad-thumb-art { border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
+.ad-thumb-art { transition: border-color 160ms ease, box-shadow 160ms ease; }

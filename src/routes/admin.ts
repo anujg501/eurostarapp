@@ -226,6 +226,11 @@ kv(
     dispatchWorkingDays: z.number().int().min(0).max(60).optional(),
     exportDispatchDays: z.number().int().min(0).max(60).optional(),
     rfqMinValue: z.number().int().min(0).optional(),
+    defaultPayment: z.string().optional(),
+    languages: z.array(z.string()).optional(),
+    inviteOnly: z.boolean().optional(),
+    watermarkPriceSheets: z.boolean().optional(),
+    noindex: z.boolean().optional(),
   }),
   {}
 );
@@ -239,6 +244,7 @@ kv(
     heroTitle: z.string().optional(),
     heroSub: z.string().optional(),
     footerNote: z.string().optional(),
+    businessHours: z.string().optional(),
     testimonials: z
       .array(z.object({ id: z.string(), name: z.string(), text: z.string(), city: z.string().optional() }))
       .optional(),

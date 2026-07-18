@@ -5,7 +5,9 @@ import { adminApi, type Category, type Colour, type Grade } from '../lib/api';
 // "Remove" and "Save grades" had no onClick at all, and the colour/shape chips
 // wrote to localStorage. These write to the overlay endpoints the storefront
 // already reads.
-export function CategoryDetail({ cat, onBack }: { cat: Category; onBack: () => void }) {
+// onDeleted: the catalogue cards no longer carry a Delete button (they match
+// the original panel's toggle-only cards), so deletion lives here instead.
+export function CategoryDetail({ cat, onBack, onDeleted }: { cat: Category; onBack: () => void; onDeleted?: () => void }) {
   const [grades, setGrades] = useState<Grade[] | null>(null);
   const [colours, setColours] = useState<Colour[]>([]);
   const [shapes, setShapes] = useState<string[]>([]);
@@ -87,9 +89,30 @@ export function CategoryDetail({ cat, onBack }: { cat: Category; onBack: () => v
             Grades, colours and shapes · {cat.unit.toUpperCase()} · {cat.count} SKUs
           </p>
         </div>
-        <button className="ad-btn ad-btn-ghost" onClick={onBack}>
-          ← Back to catalog
-        </button>
+        <div className="ad-row">
+          <button
+            className="ad-btn ad-btn-ghost ad-danger"
+            disabled={busy}
+            onClick={async () => {
+              if (!confirm(`Delete "${cat.name}"? This removes it from the catalogue for everyone.`)) return;
+              setBusy(true);
+              setError('');
+              try {
+                await adminApi.deleteCategory(cat.key);
+                onDeleted?.();
+              } catch (e) {
+                setError(e instanceof Error ? e.message : 'Could not delete the category.');
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            Delete category
+          </button>
+          <button className="ad-btn ad-btn-ghost" onClick={onBack}>
+            ← Back to catalog
+          </button>
+        </div>
       </div>
 
       {error && <div className="ad-error">{error}</div>}

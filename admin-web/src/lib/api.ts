@@ -144,12 +144,18 @@ export interface StoreRules {
   dispatchWorkingDays?: number;
   exportDispatchDays?: number;
   rfqMinValue?: number;
+  defaultPayment?: string;
+  languages?: string[];
+  inviteOnly?: boolean;
+  watermarkPriceSheets?: boolean;
+  noindex?: boolean;
 }
 
 export interface SiteContent {
   heroTitle?: string;
   heroSub?: string;
   footerNote?: string;
+  businessHours?: string;
   testimonials?: { id: string; name: string; text: string; city?: string }[];
 }
 

@@ -4,12 +4,14 @@ import { adminApi, type Category, type Product } from '../lib/api';
 const STOCK: Product['stock'][] = ['in', 'low', 'out'];
 const stockLabel = { in: 'In stock', low: 'Low', out: 'Sold out' } as const;
 
-export function Products() {
+// startBulk opens with the bulk-upload panel showing — the sidebar's
+// "Bulk upload" entry, kept as its own page like the original panel.
+export function Products({ startBulk = false }: { startBulk?: boolean } = {}) {
   const [products, setProducts] = useState<Product[] | null>(null);
   const [cats, setCats] = useState<Category[]>([]);
   const [filter, setFilter] = useState('');
   const [error, setError] = useState('');
-  const [showBulk, setShowBulk] = useState(false);
+  const [showBulk, setShowBulk] = useState(startBulk);
   const [adding, setAdding] = useState(false);
 
   const load = async () => {
@@ -365,7 +367,7 @@ function AddProduct({
   );
 }
 
-const CSV_COLUMNS = [
+export const CSV_COLUMNS = [
   'id',
   'name',
   'cat',
@@ -381,9 +383,84 @@ const CSV_COLUMNS = [
 ] as const;
 
 /** Quote a CSV cell so commas and quotes inside a value survive the round trip. */
-function csvCell(v: unknown): string {
+export function csvCell(v: unknown): string {
   const s = String(v ?? '');
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/**
+ * Validate a products CSV. Returns the importable rows plus one message per
+ * skipped row. Throws for file-level problems (no rows, missing columns).
+ */
+export function parseProductsCsv(
+  text: string,
+  cats: Category[]
+): { rows: Record<string, unknown>[]; problems: string[] } {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim());
+  if (lines.length < 2) throw new Error('That file has no rows under the header.');
+
+  // Strip the UTF-8 BOM Excel writes, or the first column reads as "﻿id".
+  const head = splitCsvLine(lines[0].replace(/^﻿/, ''));
+  const required = ['id', 'name', 'cat', 'price'];
+  const missing = required.filter((r) => !head.includes(r));
+  if (missing.length) throw new Error(`Missing column(s): ${missing.join(', ')}`);
+
+  // Nobody knows the internal key ("emerald-gemstones") — they know the name
+  // they typed ("Emerald Gemstones"). Accept the name, the short name or the
+  // key, any casing, and resolve it to the key the API expects.
+  const lookup = new Map<string, string>();
+  for (const c of cats) {
+    for (const alias of [c.key, c.name, c.short]) {
+      if (alias) lookup.set(alias.trim().toLowerCase(), c.key);
+    }
+    // also the slug of the name, which is how the key was generated
+    lookup.set(
+      c.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''),
+      c.key
+    );
+  }
+
+  const rows: Record<string, unknown>[] = [];
+  const problems: string[] = [];
+
+  lines.slice(1).forEach((line, i) => {
+    const cells = splitCsvLine(line);
+    const row: Record<string, string> = {};
+    head.forEach((h, j) => (row[h] = cells[j] ?? ''));
+
+    if (!row.id || !row.name || !row.cat) {
+      problems.push(`Row ${i + 2}: id, name and cat are required`);
+      return;
+    }
+    const catKey = lookup.get(row.cat.trim().toLowerCase());
+    if (!catKey) {
+      problems.push(
+        `Row ${i + 2}: no category called "${row.cat}". Use one of the names listed above, or create it first under Catalog.`
+      );
+      return;
+    }
+    const price = Number(row.price);
+    if (!Number.isFinite(price) || price < 0) {
+      problems.push(`Row ${i + 2}: price "${row.price}" is not a number`);
+      return;
+    }
+    rows.push({
+      id: row.id,
+      name: row.name,
+      cat: catKey, // resolved from whatever alias the file used
+      price: Math.round(price),
+      tone: row.tone || '',
+      shape: row.shape || '',
+      size: row.size || '',
+      clarity: row.clarity || '',
+      unit: row.unit || 'per pc',
+      moq: Number(row.moq) > 0 ? Number(row.moq) : 1,
+      stockCount: Number(row.stockCount) >= 0 ? Number(row.stockCount) : 0,
+      stock: ['in', 'low', 'out'].includes(row.stock) ? row.stock : 'in',
+    });
+  });
+
+  return { rows, problems };
 }
 
 /**
@@ -413,7 +490,7 @@ function splitCsvLine(line: string): string[] {
   return out;
 }
 
-function downloadSampleCsv(cats: Category[]) {
+export function downloadSampleCsv(cats: Category[]) {
   // Use the operator's real category keys so the example rows import as-is.
   const a = cats[0]?.key ?? 'moissanite';
   const b = cats[1]?.key ?? a;
@@ -437,7 +514,7 @@ function downloadSampleCsv(cats: Category[]) {
 }
 
 /** Export every current SKU, so bulk editing starts from real data. */
-function downloadCurrentCsv(products: Product[]) {
+export function downloadCurrentCsv(products: Product[]) {
   const rows = [
     CSV_COLUMNS.join(','),
     ...products.map((p) => CSV_COLUMNS.map((c) => csvCell(p[c])).join(',')),
@@ -466,71 +543,7 @@ function BulkUpload({ cats, products, onDone }: { cats: Category[]; products: Pr
     setError('');
     setResult(null);
     try {
-      const text = await file.text();
-      const lines = text.split(/\r?\n/).filter((l) => l.trim());
-      if (lines.length < 2) throw new Error('That file has no rows under the header.');
-
-      // Strip the UTF-8 BOM Excel writes, or the first column reads as "﻿id".
-      const head = splitCsvLine(lines[0].replace(/^﻿/, ''));
-      const required = ['id', 'name', 'cat', 'price'];
-      const missing = required.filter((r) => !head.includes(r));
-      if (missing.length) throw new Error(`Missing column(s): ${missing.join(', ')}`);
-
-      // Nobody knows the internal key ("emerald-gemstones") — they know the name
-      // they typed ("Emerald Gemstones"). Accept the name, the short name or the
-      // key, any casing, and resolve it to the key the API expects.
-      const lookup = new Map<string, string>();
-      for (const c of cats) {
-        for (const alias of [c.key, c.name, c.short]) {
-          if (alias) lookup.set(alias.trim().toLowerCase(), c.key);
-        }
-        // also the slug of the name, which is how the key was generated
-        lookup.set(
-          c.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''),
-          c.key
-        );
-      }
-
-      const out: Record<string, unknown>[] = [];
-      const errs: string[] = [];
-
-      lines.slice(1).forEach((line, i) => {
-        const cells = splitCsvLine(line);
-        const row: Record<string, string> = {};
-        head.forEach((h, j) => (row[h] = cells[j] ?? ''));
-
-        if (!row.id || !row.name || !row.cat) {
-          errs.push(`Row ${i + 2}: id, name and cat are required`);
-          return;
-        }
-        const catKey = lookup.get(row.cat.trim().toLowerCase());
-        if (!catKey) {
-          errs.push(
-            `Row ${i + 2}: no category called "${row.cat}". Use one of the names listed above, or create it first under Catalog.`
-          );
-          return;
-        }
-        const price = Number(row.price);
-        if (!Number.isFinite(price) || price < 0) {
-          errs.push(`Row ${i + 2}: price "${row.price}" is not a number`);
-          return;
-        }
-        out.push({
-          id: row.id,
-          name: row.name,
-          cat: catKey, // resolved from whatever alias the file used
-          price: Math.round(price),
-          tone: row.tone || '',
-          shape: row.shape || '',
-          size: row.size || '',
-          clarity: row.clarity || '',
-          unit: row.unit || 'per pc',
-          moq: Number(row.moq) > 0 ? Number(row.moq) : 1,
-          stockCount: Number(row.stockCount) >= 0 ? Number(row.stockCount) : 0,
-          stock: ['in', 'low', 'out'].includes(row.stock) ? row.stock : 'in',
-        });
-      });
-
+      const { rows: out, problems: errs } = parseProductsCsv(await file.text(), cats);
       setRows(out);
       setProblems(errs);
     } catch (e) {

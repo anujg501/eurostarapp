@@ -4,15 +4,24 @@ import { adminApi, fileToDataUrl, type Announcement } from '../lib/api';
 // Two things the storefront shows: the pop-up customers see on entering the
 // Sales app, and the banner reps see. Both had working endpoints already — the
 // prototype simply wrote to localStorage and told the operator it had "pushed".
-export function Marketing() {
+// `only` renders a single section as its own page — the original panel had
+// "Pop-up window" and "Rep broadcast" as separate sidebar entries.
+export function Marketing({ only }: { only?: 'splash' | 'broadcast' } = {}) {
+  const head =
+    only === 'splash'
+      ? { h: 'Pop-up window', sub: 'Upload the splash image shown once after a customer signs in — new categories, offers & discounts' }
+      : only === 'broadcast'
+        ? { h: 'Rep broadcast', sub: 'Upload a single image shown once a day to every sales rep in their CRM — new products, push items & announcements' }
+        : { h: 'Marketing', sub: 'The pop-up customers see, and the banner reps see.' };
+
   return (
     <div className="ad-body">
       <div className="ad-pagehead">
-        <h2>Marketing</h2>
-        <p className="ad-muted">The pop-up customers see, and the banner reps see.</p>
+        <h2>{head.h}</h2>
+        <p className="ad-muted">{head.sub}</p>
       </div>
-      <Splash />
-      <Broadcast />
+      {only !== 'broadcast' && <Splash />}
+      {only !== 'splash' && <Broadcast />}
     </div>
   );
 }
@@ -23,6 +32,7 @@ function Splash() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
+  const [preview, setPreview] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -63,29 +73,61 @@ function Splash() {
   };
 
   return (
-    <section className="ad-card ad-card-pad">
-      <h2 className="ad-sechead-h">Pop-up window</h2>
-      <p className="ad-muted">Shown once to customers when they enter the Sales App.</p>
-
+    <section className="ad-card ad-card-pad" style={{ maxWidth: 560 }}>
       {error && <div className="ad-error">{error}</div>}
 
-      {image && <img className="ad-preview" src={image} alt="Pop-up" />}
-
-      <div className="ad-row">
-        <label className="ad-btn ad-btn-ghost ad-btn-sm">
-          {image ? 'Change image' : '＋ Upload image'}
-          <input type="file" accept="image/*" hidden onChange={(e) => pick(e.target.files?.[0])} />
-        </label>
-        {image && (
-          <button className="ad-btn ad-btn-ghost ad-btn-sm ad-danger" disabled={busy} onClick={() => save({ image: null })}>
-            Remove
-          </button>
-        )}
-        <button className={`ad-btn ad-btn-sm ${active ? 'ad-btn-pri' : 'ad-btn-ghost'}`} disabled={busy} onClick={() => save({ active: !active })}>
-          {active ? 'ON — customers see it' : 'OFF'}
-        </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+        <button
+          type="button"
+          className={`ad-toggle ${active ? 'on' : ''}`}
+          disabled={busy}
+          aria-label="Pop-up on/off"
+          onClick={() => save({ active: !active })}
+        />
+        <b style={{ fontSize: 14 }}>{active ? 'Pop-up is ON — shown to customers' : 'Pop-up is OFF'}</b>
         {saved && <span className="ad-hint">Saved ✓</span>}
       </div>
+
+      {/* The dashed zone is the upload control — click it to pick (or replace)
+          the image. Same pick/save path as before. */}
+      <label className="sp-drop">
+        {image ? (
+          <img src={image} alt="Pop-up" />
+        ) : (
+          <>
+            <span className="sp-arrow" aria-hidden="true">↑</span>
+            <b>Upload pop-up image</b>
+            <span className="ad-muted">Portrait (4:5) works best · PNG or JPG</span>
+          </>
+        )}
+        <input type="file" accept="image/*" hidden onChange={(e) => pick(e.target.files?.[0])} />
+      </label>
+
+      <p className="ad-muted" style={{ fontSize: 12.5, lineHeight: 1.6, margin: '12px 0 12px', maxWidth: 480 }}>
+        Shown once per session, centred, and must be dismissed before the customer can browse. Recommended size 1080 ×
+        1350 px.
+      </p>
+
+      <div className="ad-row">
+        <button className="ad-btn ad-btn-pri ad-btn-sm" disabled={!image} onClick={() => setPreview(true)}>
+          👁 Preview pop-up
+        </button>
+        {image && (
+          <button className="ad-btn ad-btn-ghost ad-btn-sm ad-danger" disabled={busy} onClick={() => save({ image: null })}>
+            Remove image
+          </button>
+        )}
+      </div>
+
+      {preview && image && (
+        <div className="ad-modal-backdrop" onClick={() => setPreview(false)}>
+          <img
+            src={image}
+            alt="Pop-up preview"
+            style={{ maxWidth: 'min(92vw, 480px)', maxHeight: '82vh', borderRadius: 12, boxShadow: 'var(--shadow-lg)' }}
+          />
+        </div>
+      )}
     </section>
   );
 }
@@ -95,6 +137,7 @@ function Broadcast() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
+  const [preview, setPreview] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -137,49 +180,118 @@ function Broadcast() {
 
   if (!a && !error) return <section className="ad-card ad-card-pad ad-muted">Loading broadcast…</section>;
 
+  const hasContent = !!(a?.image || a?.title || a?.message || a?.badge);
+
   return (
-    <section className="ad-card ad-card-pad">
-      <h2 className="ad-sechead-h">Rep broadcast</h2>
-      <p className="ad-muted">A banner every sales rep sees once a day.</p>
+    <>
+      <section className="ad-card ad-card-pad" style={{ maxWidth: 560, marginBottom: 16 }}>
+        {error && <div className="ad-error">{error}</div>}
 
-      {error && <div className="ad-error">{error}</div>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+          <button
+            type="button"
+            className={`ad-toggle ${a?.active ? 'on' : ''}`}
+            disabled={busy}
+            aria-label="Broadcast on/off"
+            onClick={() => save({ active: !a?.active })}
+          />
+          <b style={{ fontSize: 14 }}>{a?.active ? 'Broadcast is ON — reps see it' : 'Broadcast is OFF'}</b>
+        </div>
 
-      {a?.image && <img className="ad-preview" src={a.image} alt="Broadcast" />}
-
-      <label className="ad-label">
-        Title
-        <input className="ad-input" value={a?.title ?? ''} onChange={(e) => set('title', e.target.value)} placeholder="e.g. New arrivals this week" />
-      </label>
-      <label className="ad-label">
-        Message
-        <textarea className="ad-input" rows={2} value={a?.message ?? ''} onChange={(e) => set('message', e.target.value)} placeholder="What reps should know" />
-      </label>
-      <label className="ad-label">
-        Badge
-        <input className="ad-input" value={a?.badge ?? ''} onChange={(e) => set('badge', e.target.value)} placeholder="e.g. NEW" />
-      </label>
-
-      <div className="ad-row">
-        <label className="ad-btn ad-btn-ghost ad-btn-sm">
-          {a?.image ? 'Change image' : '＋ Upload image'}
+        {/* The dashed zone is the upload control — click to pick or replace. */}
+        <label className="sp-drop">
+          {a?.image ? (
+            <img src={a.image} alt="Broadcast" />
+          ) : (
+            <>
+              <span className="sp-arrow" aria-hidden="true">↑</span>
+              <b>Upload broadcast image</b>
+              <span className="ad-muted">New product flyer, offer or notice · PNG or JPG</span>
+            </>
+          )}
           <input type="file" accept="image/*" hidden onChange={(e) => pick(e.target.files?.[0])} />
         </label>
-        {a?.image && (
-          <button className="ad-btn ad-btn-ghost ad-btn-sm ad-danger" disabled={busy} onClick={() => save({ image: null })}>
-            Remove image
-          </button>
-        )}
-        <button className={`ad-btn ad-btn-sm ${a?.active ? 'ad-btn-pri' : 'ad-btn-ghost'}`} disabled={busy} onClick={() => save({ active: !a?.active })}>
-          {a?.active ? 'ON — reps see it' : 'OFF'}
-        </button>
-      </div>
 
-      <div className="ad-actions">
-        {saved && <span className="ad-hint" style={{ alignSelf: 'center' }}>Saved ✓</span>}
-        <button className="ad-btn ad-btn-pri" disabled={busy} onClick={() => save()}>
-          {busy ? 'Saving…' : 'Save & push message'}
-        </button>
-      </div>
-    </section>
+        <p className="ad-muted" style={{ fontSize: 12.5, lineHeight: 1.6, margin: '12px 0 12px', maxWidth: 500 }}>
+          Each rep sees this <strong>once a day</strong> when they open their CRM — they can dismiss it and carry on.
+          Use <strong>Save &amp; push message</strong> below after changing it to send it out. Last pushed: —.
+        </p>
+
+        <div className="ad-row">
+          <button className="ad-btn ad-btn-pri ad-btn-sm" disabled={!hasContent} onClick={() => setPreview(true)}>
+            👁 Preview what reps see
+          </button>
+          {a?.image && (
+            <button className="ad-btn ad-btn-ghost ad-btn-sm ad-danger" disabled={busy} onClick={() => save({ image: null })}>
+              Remove image
+            </button>
+          )}
+        </div>
+      </section>
+
+      <section className="ad-card ad-card-pad" style={{ maxWidth: 560 }}>
+        <h3 className="ad-sechead-h">Message to reps</h3>
+        <p className="ad-muted" style={{ fontSize: 12.5, margin: '2px 0 14px', maxWidth: 500 }}>
+          Shown as a styled card in the rep pop-up. Use this on its own, or together with an image above.
+        </p>
+
+        <div className="ad-field-v">
+          <label className="ad-label" htmlFor="rb-headline">Headline</label>
+          <input
+            id="rb-headline"
+            className="ad-input"
+            value={a?.title ?? ''}
+            onChange={(e) => set('title', e.target.value)}
+            placeholder="New Laser Engraved products added"
+          />
+        </div>
+        <div className="ad-field-v">
+          <label className="ad-label" htmlFor="rb-message">Message</label>
+          <textarea
+            id="rb-message"
+            className="ad-input"
+            rows={3}
+            value={a?.message ?? ''}
+            onChange={(e) => set('message', e.target.value)}
+            placeholder="Please offer these to your customers this month."
+          />
+        </div>
+        <div className="ad-field-v">
+          <label className="ad-label" htmlFor="rb-badge">Highlight badge (optional)</label>
+          <input
+            id="rb-badge"
+            className="ad-input"
+            value={a?.badge ?? ''}
+            onChange={(e) => set('badge', e.target.value)}
+            placeholder="Special extra 2% commission this month"
+          />
+        </div>
+
+        <div className="ad-row" style={{ marginTop: 4 }}>
+          <button className="ad-btn ad-btn-acc" disabled={busy} onClick={() => save()}>
+            {busy ? 'Saving…' : 'Save & push message'}
+          </button>
+          {saved && <span className="ad-hint">Saved ✓</span>}
+        </div>
+      </section>
+
+      {preview && (
+        <div className="ad-modal-backdrop" onClick={() => setPreview(false)}>
+          <div className="rb-preview" onClick={(e) => e.stopPropagation()}>
+            {a?.image && <img src={a.image} alt="Broadcast" />}
+            {(a?.title || a?.message || a?.badge) && (
+              <div className="rb-card">
+                {a?.badge && <span className="rb-badge">{a.badge}</span>}
+                {a?.title && <h3>{a.title}</h3>}
+                {a?.message && <p>{a.message}</p>}
+              </div>
+            )}
+            <button className="ad-btn ad-btn-ghost ad-btn-sm" style={{ margin: '0 20px 16px' }} onClick={() => setPreview(false)}>
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

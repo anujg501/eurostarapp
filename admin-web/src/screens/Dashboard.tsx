@@ -6,7 +6,7 @@ type Rfq = { id: string; status?: string };
 // The old dashboard's numbers were computed from the static data file, so they
 // never moved. These are counted from the database. Anything we cannot count
 // honestly is left out rather than invented.
-export function Dashboard({ onGo }: { onGo: (s: 'catalog' | 'products' | 'marketing') => void }) {
+export function Dashboard({ onGo }: { onGo: (s: 'catalog' | 'bulk' | 'media' | 'settings') => void }) {
   const [cats, setCats] = useState<Category[] | null>(null);
   const [products, setProducts] = useState<Product[] | null>(null);
   const [grades, setGrades] = useState<GradesByCat>({});
@@ -35,8 +35,6 @@ export function Dashboard({ onGo }: { onGo: (s: 'catalog' | 'products' | 'market
 
   const hidden = (cats ?? []).filter((c) => c.hidden).length;
   const gradeCount = Object.values(grades).reduce((a, g) => a + (g?.length ?? 0), 0);
-  const outOfStock = (products ?? []).filter((p) => p.stock === 'out').length;
-  const lowStock = (products ?? []).filter((p) => p.stock === 'low').length;
 
   return (
     <div className="ad-body">
@@ -49,31 +47,16 @@ export function Dashboard({ onGo }: { onGo: (s: 'catalog' | 'products' | 'market
 
       <div className="ad-kpis">
         <Kpi label="Live categories" value={cats ? cats.length - hidden : null} sub={cats ? `${hidden} hidden` : ''} />
-        <Kpi label="Products" value={products ? products.length : null} sub="SKUs in the catalogue" />
-        {/* Deliberately NOT called "Grades": the ~61 built-in grades live in the
-            storefront's data.jsx, which the server cannot see. This counts only
-            the ones added here, so it must not claim to be the total. */}
-        <Kpi label="Custom grades added" value={cats ? gradeCount : null} sub="on top of the app’s built-in grades" />
+        <Kpi label="Grades / sub-categories" value={cats ? gradeCount : null} sub="across all categories" />
         <Kpi
           label="Open RFQ enquiries"
           value={rfqs ? rfqs.length : null}
           sub={rfqs ? 'need a quote' : 'unavailable'}
         />
+        {/* The original panel showed a hardcoded demo number here. There is no
+            franchise-enquiry endpoint yet, so this stays honest at 0. */}
+        <Kpi label="Franchise enquiries" value={products ? 0 : null} sub="new" />
       </div>
-
-      {products && (outOfStock > 0 || lowStock > 0) && (
-        <section className="ad-card ad-card-pad">
-          <h3 className="ad-sechead-h">Stock needing attention</h3>
-          <p className="ad-muted">
-            {outOfStock} sold out · {lowStock} running low. Customers cannot order sold-out sizes.
-          </p>
-          <div className="ad-actions">
-            <button className="ad-btn ad-btn-ghost ad-btn-sm" onClick={() => onGo('products')}>
-              Open products →
-            </button>
-          </div>
-        </section>
-      )}
 
       <section className="ad-card ad-card-pad">
         <h3 className="ad-sechead-h">Quick actions</h3>
@@ -81,11 +64,14 @@ export function Dashboard({ onGo }: { onGo: (s: 'catalog' | 'products' | 'market
           <button className="ad-btn ad-btn-pri" onClick={() => onGo('catalog')}>
             Manage catalog
           </button>
-          <button className="ad-btn ad-btn-ghost" onClick={() => onGo('products')}>
+          <button className="ad-btn ad-btn-ghost" onClick={() => onGo('bulk')}>
             Bulk upload products
           </button>
-          <button className="ad-btn ad-btn-ghost" onClick={() => onGo('marketing')}>
-            Marketing
+          <button className="ad-btn ad-btn-ghost" onClick={() => onGo('media')}>
+            Upload product images
+          </button>
+          <button className="ad-btn ad-btn-ghost" onClick={() => onGo('settings')}>
+            Store settings
           </button>
         </div>
       </section>

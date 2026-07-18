@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { adminApi, type Category, type NewCategory, type Unit } from '../lib/api';
+import { adminApi, type Category, type GradesByCat, type NewCategory, type Unit } from '../lib/api';
 import { CategoryDetail } from './CategoryDetail';
 
 const UNITS: { id: Unit; label: string }[] = [
@@ -11,10 +11,20 @@ const UNITS: { id: Unit; label: string }[] = [
 
 const unitLabel = (u: string) => UNITS.find((x) => x.id === u)?.label ?? u;
 
-export function Catalog() {
+// The card pills say "per packet", matching the original panel.
+const UNIT_LONG: Record<string, string> = { pc: 'per piece', ct: 'per carat', pkt: 'per packet', strip: 'per strip' };
+
+function Toggle({ on, disabled, onClick }: { on: boolean; disabled?: boolean; onClick: () => void }) {
+  return <button type="button" className={`ad-toggle ${on ? 'on' : ''}`} disabled={disabled} onClick={onClick} aria-label="toggle" />;
+}
+
+// startCreating opens the create dialog immediately — the sidebar's
+// "＋ Add category" entry. onCreatedGo jumps back to the catalogue afterwards.
+export function Catalog({ startCreating = false, onCreatedGo }: { startCreating?: boolean; onCreatedGo?: () => void } = {}) {
   const [cats, setCats] = useState<Category[] | null>(null);
+  const [grades, setGrades] = useState<GradesByCat>({});
   const [error, setError] = useState('');
-  const [adding, setAdding] = useState(false);
+  const [adding, setAdding] = useState(startCreating);
   const [open, setOpen] = useState<Category | null>(null);
   const [busyKey, setBusyKey] = useState('');
 
@@ -24,6 +34,13 @@ export function Catalog() {
       setCats(await adminApi.categories());
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load the catalogue.');
+    }
+    // Grade counts are decoration on the cards — if this call fails the
+    // catalogue must still render.
+    try {
+      setGrades((await adminApi.grades()) ?? {});
+    } catch {
+      setGrades({});
     }
   };
 
@@ -44,22 +61,17 @@ export function Catalog() {
     }
   };
 
-  const remove = async (c: Category) => {
-    if (!confirm(`Delete "${c.name}"? This removes it from the catalogue for everyone.`)) return;
-    setBusyKey(c.key);
-    setError('');
-    try {
-      await adminApi.deleteCategory(c.key);
-      setCats((xs) => (xs ?? []).filter((x) => x.key !== c.key));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not delete the category.');
-    } finally {
-      setBusyKey('');
-    }
-  };
-
   if (open) {
-    return <CategoryDetail cat={open} onBack={() => setOpen(null)} />;
+    return (
+      <CategoryDetail
+        cat={open}
+        onBack={() => setOpen(null)}
+        onDeleted={() => {
+          setCats((xs) => (xs ?? []).filter((x) => x.key !== open.key));
+          setOpen(null);
+        }}
+      />
+    );
   }
 
   return (
@@ -68,10 +80,10 @@ export function Catalog() {
         <div>
           <h2>Catalog</h2>
           <p className="ad-muted">
-            {cats ? `${cats.length} categories · live in the storefront` : 'Loading…'}
+            {cats ? `${cats.length} categories · click to manage grades, colours, shapes & pricing` : 'Loading…'}
           </p>
         </div>
-        <button className="ad-btn ad-btn-pri" onClick={() => setAdding(true)}>
+        <button className="ad-btn ad-btn-acc" onClick={() => setAdding(true)}>
           ＋ Create new category
         </button>
       </div>
@@ -82,6 +94,7 @@ export function Catalog() {
           onCreated={(c) => {
             setCats((xs) => [...(xs ?? []), c]);
             setAdding(false);
+            onCreatedGo?.();
           }}
         />
       )}
@@ -99,16 +112,12 @@ export function Catalog() {
               <div className="nm">{c.name}</div>
               <div className="bl">{c.blurb || 'No description yet.'}</div>
               <div className="ft">
-                <span className="ad-tag">{c.unit.toUpperCase()} · {unitLabel(c.unit)}</span>
-                <span className="ct">{c.count} SKUs</span>
+                <span className={`ad-tag ${c.unit}`}>{c.unit.toUpperCase()} · {UNIT_LONG[c.unit] ?? unitLabel(c.unit)}</span>
+                <span className="ct">{(grades[c.key] ?? []).length} grades</span>
               </div>
-              <div className="ad-cat-actions" onClick={(e) => e.stopPropagation()}>
-                <button className="ad-btn ad-btn-ghost ad-btn-sm" disabled={busyKey === c.key} onClick={() => toggleHidden(c)}>
-                  {c.hidden ? 'Hidden from app' : 'Live on app'}
-                </button>
-                <button className="ad-btn ad-btn-ghost ad-btn-sm ad-danger" disabled={busyKey === c.key} onClick={() => remove(c)}>
-                  Delete
-                </button>
+              <div className="ft" onClick={(e) => e.stopPropagation()}>
+                <Toggle on={!c.hidden} disabled={busyKey === c.key} onClick={() => toggleHidden(c)} />
+                <span className="ad-muted" style={{ fontSize: 12 }}>{c.hidden ? 'Hidden from app' : 'Live on app'}</span>
               </div>
             </div>
           ))}

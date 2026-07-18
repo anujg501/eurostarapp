@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { adminApi, fileToDataUrl, type Announcement } from '../lib/api';
+import { adminApi, uploadImage, type Announcement } from '../lib/api';
 
 // Two things the storefront shows: the pop-up customers see on entering the
 // Sales app, and the banner reps see. Both had working endpoints already — the
@@ -66,7 +66,7 @@ function Splash() {
   const pick = async (file: File | undefined) => {
     if (!file) return;
     try {
-      await save({ image: await fileToDataUrl(file) });
+      await save({ image: await uploadImage(file, 'marketing') });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not read that image.');
     }
@@ -172,7 +172,7 @@ function Broadcast() {
   const pick = async (file: File | undefined) => {
     if (!file) return;
     try {
-      await save({ image: await fileToDataUrl(file) });
+      await save({ image: await uploadImage(file, 'marketing') });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not read that image.');
     }

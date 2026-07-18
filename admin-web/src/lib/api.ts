@@ -282,6 +282,51 @@ export const adminApi = {
 };
 
 /** Read a picked file as a data URL, which is how images are stored. */
+/**
+ * Store an image and return the string to save.
+ *
+ * Uploads to object storage and returns its URL, so the image bytes never enter
+ * the database or the catalogue payload. Falls back to an inline data URL when
+ * storage is not configured, which is exactly what this app did before — so
+ * uploads keep working before the bucket exists, and existing data URLs already
+ * saved keep rendering either way.
+ */
+export async function uploadImage(file: File, folder = 'misc'): Promise<string> {
+  const form = new FormData();
+  form.append('file', file);
+
+  const token = getToken();
+  try {
+    const resp = await fetch(`/admin/upload?folder=${encodeURIComponent(folder)}`, {
+      method: 'POST',
+      headers: token ? { authorization: `Bearer ${token}` } : {},
+      body: form, // no content-type header — the browser sets the multipart boundary
+    });
+
+    if (resp.ok) {
+      const data = (await resp.json()) as { url?: string };
+      if (data.url) return data.url;
+    }
+
+    // 503 means the bucket is not set up yet: fall back rather than fail.
+    if (resp.status !== 503) {
+      const msg = await resp.text();
+      let parsed = '';
+      try {
+        parsed = (JSON.parse(msg) as { error?: string }).error ?? '';
+      } catch {
+        /* not json */
+      }
+      throw new ApiError(parsed || `Upload failed (${resp.status})`, resp.status);
+    }
+  } catch (e) {
+    if (e instanceof ApiError) throw e; // a real rejection (too large, wrong type)
+    // network error — fall through to the inline copy
+  }
+
+  return fileToDataUrl(file);
+}
+
 export function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const r = new FileReader();

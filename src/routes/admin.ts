@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import multer from 'multer';
 import { prisma } from '../db';
+import { config } from '../config';
+import { ALLOWED_IMAGE_MIME, putImage } from '../services/storage';
 import { asyncHandler, ok, fail, failValidation } from '../util/http';
 import { authenticate, requireRole } from '../auth/middleware';
 import { getSetting, setSetting, KEYS } from '../services/settings';
@@ -366,4 +369,51 @@ adminRouter.post(
     const after = await prisma.product.count();
     return ok(res, { received: rows.length, created: after - before, updated: rows.length - (after - before) });
   })
+);
+
+// ---------------------------------------------------------------------------
+// Image upload -> object storage.
+//
+// The Admin app posts the file here and stores only the returned URL, so image
+// bytes never sit in the database or travel through the catalogue API.
+// ---------------------------------------------------------------------------
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 8 * 1024 * 1024, files: 1 },
+  fileFilter: (_req, file, cb) => {
+    if (ALLOWED_IMAGE_MIME.includes(file.mimetype)) return cb(null, true);
+    cb(new Error(`Unsupported image type "${file.mimetype}". Use JPG, PNG, WebP, GIF, SVG or AVIF.`));
+  },
+});
+
+adminRouter.post(
+  '/upload',
+  ...officeOnly,
+  (req, res, next) =>
+    upload.single('file')(req, res, (err: unknown) => {
+      // Multer rejects on size/type; answer with the reason instead of a 500.
+      if (err) {
+        const msg = err instanceof Error ? err.message : 'Upload failed';
+        return fail(res, 400, msg.includes('File too large') ? 'That image is larger than 8 MB.' : msg);
+      }
+      next();
+    }),
+  asyncHandler(async (req, res) => {
+    if (!config.spaces.configured) {
+      return fail(res, 503, 'Object storage is not configured yet — set SPACES_KEY / SPACES_SECRET / SPACES_BUCKET.');
+    }
+    const file = (req as typeof req & { file?: Express.Multer.File }).file;
+    if (!file) return fail(res, 400, 'No file was uploaded.');
+
+    const folder = typeof req.query.folder === 'string' ? req.query.folder : 'misc';
+    const out = await putImage(file.buffer, file.mimetype, folder);
+    return ok(res, out);
+  })
+);
+
+// Lets the Admin app know whether to upload or fall back to inline data URLs.
+adminRouter.get(
+  '/upload/status',
+  ...officeOnly,
+  asyncHandler(async (_req, res) => ok(res, { configured: config.spaces.configured }))
 );

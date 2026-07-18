@@ -36,6 +36,29 @@ export const config = {
     fixedCode: process.env.OTP_FIXED_CODE ?? '',
   },
 
+  // DigitalOcean Spaces (S3-compatible) for uploaded images.
+  //
+  // Without this, admin images are stored as base64 data URLs inside the
+  // Setting rows — every catalogue sync then drags the full image bytes through
+  // the API and the database grows with each upload. With it, the bytes live in
+  // object storage and only a URL is stored.
+  //
+  // Falls back to the old data-URL behaviour when unset, so nothing breaks
+  // before the bucket exists.
+  spaces: {
+    key: process.env.SPACES_KEY ?? '',
+    secret: process.env.SPACES_SECRET ?? '',
+    bucket: process.env.SPACES_BUCKET ?? '',
+    region: process.env.SPACES_REGION ?? 'blr1',
+    // Public base for reading objects back. Set this to the CDN hostname to
+    // serve through DO's CDN instead of the origin.
+    publicBase: process.env.SPACES_PUBLIC_BASE ?? '',
+    prefix: process.env.SPACES_PREFIX ?? 'eurostar',
+    get configured() {
+      return !!(process.env.SPACES_KEY && process.env.SPACES_SECRET && process.env.SPACES_BUCKET);
+    },
+  },
+
   // Generic Indian HTTP SMS gateway (Text2 / TEXTOO and the many clones of it).
   // Tried before Twilio when configured.
   //

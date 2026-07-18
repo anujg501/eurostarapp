@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   adminApi,
-  fileToDataUrl,
+  uploadImage,
   productImageKey,
   type Category,
   type Colour,
@@ -142,7 +142,7 @@ function Thumbs() {
   const pick = async (file: File | undefined, save: (dataUrl: string) => Promise<void>) => {
     if (!file) return;
     try {
-      await save(await fileToDataUrl(file));
+      await save(await uploadImage(file, 'thumbs'));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not read that image.');
     }
@@ -258,7 +258,7 @@ function ProductPhotos({ standalone = false }: { standalone?: boolean } = {}) {
   const pick = async (key: string, file: File | undefined) => {
     if (!file) return;
     try {
-      await save(key, await fileToDataUrl(file));
+      await save(key, await uploadImage(file, 'product-images'));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not read that image.');
     }

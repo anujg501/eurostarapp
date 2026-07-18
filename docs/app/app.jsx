@@ -792,7 +792,14 @@ function RfqStub({ setRoute }) {
 }
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<App />);
+
+// Wait for catalog-sync.jsx to pull the live catalogue before the first render,
+// so the shop paints with the real categories/prices rather than the built-in
+// copy and then flickering. The promise never rejects — if the API is down it
+// resolves anyway and we render with the built-in data.
+(window.EUROSTAR_CATALOG_READY || Promise.resolve()).then(function () {
+  root.render(<App />);
+});
 
 // Pre-populated cart so the user can immediately see a populated cart
 function sampleCart() {

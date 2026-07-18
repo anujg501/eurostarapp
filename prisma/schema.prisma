@@ -410,3 +410,50 @@ model Setting {
   value     String // JSON-encoded
   updatedAt DateTime @updatedAt
 }
+
+// The storefront catalogue. Was a static file (src/data/catalog.ts), which is
+// why the Admin app's "create category" had nowhere to save. Seeded from that
+// same file, so the original 28 categories are preserved verbatim.
+// The SKUs behind the catalogue. Was a static file (src/data/products.ts), so
+// the Admin app's "Save pricing" and "Commit N products" had nowhere to write.
+// Seeded from that file, so the original 18 SKUs are preserved verbatim.
+model Product {
+  id         String  @id // e.g. "EUR-MOI-0107"
+  name       String
+  cat        String // Category.key — not a FK: a SKU may outlive a category rename
+  tone       String  @default("")
+  shape      String  @default("")
+  size       String  @default("")
+  clarity    String  @default("")
+  price      Int // wholesale rate in whole rupees
+  unit       String  @default("per pc") // per pc | per ct | per strip | per set…
+  moq        Int     @default(1)
+  stock      String  @default("in") // in | low | out
+  stockCount Int     @default(0)
+  badge      String?
+  desc       String?
+  hidden     Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([cat])
+}
+
+model Category {
+  key       String  @id // url-safe slug, e.g. "moissanite"
+  name      String
+  short     String
+  blurb     String  @default("")
+  unit      String // pc | ct | pkt | strip — unit of sale
+  origin    String  @default("")
+  skipGrade Boolean @default(false)
+  count     Int     @default(0) // SKU count shown on the category card
+  sortOrder Int     @default(0)
+  hidden    Boolean @default(false) // "Hidden from app" toggle in Admin
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sortOrder])
+}

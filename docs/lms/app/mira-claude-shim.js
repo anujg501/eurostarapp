@@ -8,8 +8,7 @@
 (function () {
   if (window.claude && typeof window.claude.complete === 'function') return; // preview already provides it
 
-  var isLocal = /^(localhost|127\.|0\.0\.0\.0)/.test(location.hostname);
-  var API = isLocal ? location.origin : 'https://eurostar-api.onrender.com';
+  var API = location.origin;
 
   // Which app is this (for per-app chat logs)?
   var app = 'sales';

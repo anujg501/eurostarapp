@@ -33,7 +33,16 @@ app.use(
     credentials: true,
   })
 );
-app.use(express.json({ limit: '2mb' }));
+app.use(
+  express.json({
+    limit: '2mb',
+    // Keep the untouched bytes so webhook handlers can verify the provider's
+    // HMAC signature, which is computed over the exact payload as sent.
+    verify: (req, _res, buf) => {
+      (req as express.Request & { rawBody?: Buffer }).rawBody = buf;
+    },
+  })
+);
 app.use(morgan('dev'));
 
 // Health check
@@ -54,6 +63,13 @@ app.use('/reps', repsRouter);
 app.use('/announcements', announcementsRouter);
 app.use('/candidates', candidatesRouter);
 app.use('/modules', modulesRouter);
+// The Admin UI and the Admin API share the /admin prefix. The UI routes are
+// declared first and match only the exact page + its build assets; everything
+// else under /admin falls through to the API router below.
+const adminUiDir = path.join(process.cwd(), 'docs', 'admin-react');
+app.get(['/admin', '/admin/'], (_req, res) => res.sendFile(path.join(adminUiDir, 'index.html')));
+app.use('/admin/assets', express.static(path.join(adminUiDir, 'assets')));
+
 app.use('/admin', adminRouter);
 app.use('/users', usersRouter);
 

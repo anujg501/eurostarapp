@@ -47,3 +47,8 @@ export function requireRole(...roles: Role[]) {
 
 // Staff = rep or office (they share the "pick a customer at checkout" flow).
 export const requireStaff = requireRole('rep', 'office');
+
+// Everyone who works for Eurostar. Use this to gate the CRM's back-office reads
+// (order stream, payments, customer master, rep list) — the CRM signs staff in
+// as rep, office OR admin, so admin must be included or admins get locked out.
+export const requireInternal = requireRole('rep', 'office', 'admin');

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db';
 import { asyncHandler, ok, failValidation } from '../util/http';
-import { authenticate, requireStaff } from '../auth/middleware';
+import { authenticate, requireInternal } from '../auth/middleware';
 
 export const announcementsRouter = Router();
 
@@ -45,7 +45,9 @@ const putSchema = z.object({
 announcementsRouter.put(
   '/',
   authenticate,
-  requireStaff,
+  // The Admin app is the producer of rep broadcasts and signs in as role 'admin',
+  // which requireStaff (rep|office) excludes — so admins got a 403 here.
+  requireInternal,
   asyncHandler(async (req, res) => {
     const parsed = putSchema.safeParse(req.body);
     if (!parsed.success) return failValidation(res, parsed.error);

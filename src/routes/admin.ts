@@ -1,15 +1,19 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { asyncHandler, ok, failValidation } from '../util/http';
-import { authenticate, requireRole, optionalAuth } from '../auth/middleware';
+import { prisma } from '../db';
+import { asyncHandler, ok, fail, failValidation } from '../util/http';
+import { authenticate, requireRole } from '../auth/middleware';
 import { getSetting, setSetting, KEYS } from '../services/settings';
 
 // Admin (Sales App Admin) content endpoints. These are the producer side of the
 // catalog overlays, thumbnails, splash and rep-broadcast art the Sales app reads.
 export const adminRouter = Router();
 
-// Preview: the Admin app writes without a session for now (locked down in Phase 6).
-const officeOnly = [optionalAuth];
+// Writes here change what every customer sees in the Sales app — catalog overlays,
+// product images, the splash banner. Reads stay public (the storefront needs them
+// to render); writes require a signed-in staff user. The Admin app signs in as
+// role 'admin', so that role must be allowed alongside office.
+const officeOnly = [authenticate, requireRole('office', 'admin')];
 
 // Helper: a GET (public read) + PUT (office write) pair backed by a setting key.
 function kv(router: Router, path: string, key: string, schema: z.ZodTypeAny, fallback: unknown) {
@@ -86,3 +90,274 @@ kv(
   []
 );
 kv(adminRouter, '/mira/enabled', KEYS.miraEnabled, z.record(z.boolean()), { salesApp: true });
+
+// ---------------------------------------------------------------------------
+// Categories — the real create/edit/delete behind the Admin app's wizard.
+// Backed by the Category table, so a category created here appears in GET
+// /catalog and therefore in the storefront. (Before this existed the wizard had
+// nowhere to save and silently discarded everything the user typed.)
+// ---------------------------------------------------------------------------
+
+// Slugify a display name into a url-safe key: "Sunny Cate" -> "sunny-cate".
+function slugify(s: string): string {
+  return s
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40);
+}
+
+const categoryCreateSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  short: z.string().optional(),
+  blurb: z.string().optional(),
+  unit: z.enum(['pc', 'ct', 'pkt', 'strip']).default('pc'),
+  origin: z.string().optional(),
+  skipGrade: z.boolean().optional(),
+  count: z.number().int().min(0).optional(),
+  sortOrder: z.number().int().optional(),
+  hidden: z.boolean().optional(),
+});
+
+// GET /admin/catalog/categories — full list including hidden ones (staff view).
+adminRouter.get(
+  '/catalog/categories',
+  ...officeOnly,
+  asyncHandler(async (_req, res) =>
+    ok(
+      res,
+      await prisma.category.findMany({ orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] })
+    )
+  )
+);
+
+// POST /admin/catalog/categories — create.
+adminRouter.post(
+  '/catalog/categories',
+  ...officeOnly,
+  asyncHandler(async (req, res) => {
+    const parsed = categoryCreateSchema.safeParse(req.body);
+    if (!parsed.success) return failValidation(res, parsed.error);
+    const d = parsed.data;
+
+    const key = slugify(d.name);
+    if (!key) return fail(res, 400, 'Please give the category a name using letters or numbers');
+
+    const clash = await prisma.category.findUnique({ where: { key } });
+    if (clash) return fail(res, 409, `A category called "${clash.name}" already exists`);
+
+    // New categories go last unless told otherwise.
+    const last = await prisma.category.findFirst({ orderBy: { sortOrder: 'desc' } });
+    const created = await prisma.category.create({
+      data: {
+        key,
+        name: d.name.trim(),
+        short: (d.short || d.name).trim(),
+        blurb: d.blurb ?? '',
+        unit: d.unit,
+        origin: d.origin ?? '',
+        skipGrade: d.skipGrade ?? false,
+        count: d.count ?? 0,
+        sortOrder: d.sortOrder ?? (last ? last.sortOrder + 1 : 1),
+        hidden: d.hidden ?? false,
+      },
+    });
+    return res.status(201).json(created);
+  })
+);
+
+// PUT /admin/catalog/categories/:key — edit, incl. the show/hide toggle.
+adminRouter.put(
+  '/catalog/categories/:key',
+  ...officeOnly,
+  asyncHandler(async (req, res) => {
+    const parsed = categoryCreateSchema.partial().safeParse(req.body);
+    if (!parsed.success) return failValidation(res, parsed.error);
+
+    const existing = await prisma.category.findUnique({ where: { key: req.params.key } });
+    if (!existing) return fail(res, 404, 'No such category');
+
+    const d = parsed.data;
+    const updated = await prisma.category.update({
+      where: { key: req.params.key },
+      data: {
+        ...(d.name !== undefined ? { name: d.name.trim() } : {}),
+        ...(d.short !== undefined ? { short: d.short } : {}),
+        ...(d.blurb !== undefined ? { blurb: d.blurb } : {}),
+        ...(d.unit !== undefined ? { unit: d.unit } : {}),
+        ...(d.origin !== undefined ? { origin: d.origin } : {}),
+        ...(d.skipGrade !== undefined ? { skipGrade: d.skipGrade } : {}),
+        ...(d.count !== undefined ? { count: d.count } : {}),
+        ...(d.sortOrder !== undefined ? { sortOrder: d.sortOrder } : {}),
+        ...(d.hidden !== undefined ? { hidden: d.hidden } : {}),
+      },
+    });
+    return ok(res, updated);
+  })
+);
+
+// DELETE /admin/catalog/categories/:key
+adminRouter.delete(
+  '/catalog/categories/:key',
+  ...officeOnly,
+  asyncHandler(async (req, res) => {
+    const existing = await prisma.category.findUnique({ where: { key: req.params.key } });
+    if (!existing) return fail(res, 404, 'No such category');
+    await prisma.category.delete({ where: { key: req.params.key } });
+    return ok(res, { deleted: req.params.key });
+  })
+);
+
+// ---------------------------------------------------------------------------
+// Store rules — the Admin "Settings" screen. Its inputs previously saved
+// nowhere; these are the real trading rules the storefront applies. Reads are
+// public because the Sales app needs them to price a cart.
+// ---------------------------------------------------------------------------
+kv(
+  adminRouter,
+  '/settings/rules',
+  KEYS.storeRules,
+  z.object({
+    gstRate: z.number().min(0).max(1).optional(),
+    courierFlat: z.number().int().min(0).optional(),
+    courierFreeOver: z.number().int().min(0).optional(),
+    minOrderValue: z.number().int().min(0).optional(),
+    dispatchWorkingDays: z.number().int().min(0).max(60).optional(),
+    exportDispatchDays: z.number().int().min(0).max(60).optional(),
+    rfqMinValue: z.number().int().min(0).optional(),
+  }),
+  {}
+);
+
+// Site content — the Admin "Content" screen (hero, footer, testimonials).
+kv(
+  adminRouter,
+  '/content',
+  KEYS.siteContent,
+  z.object({
+    heroTitle: z.string().optional(),
+    heroSub: z.string().optional(),
+    footerNote: z.string().optional(),
+    testimonials: z
+      .array(z.object({ id: z.string(), name: z.string(), text: z.string(), city: z.string().optional() }))
+      .optional(),
+  }),
+  {}
+);
+
+// ---------------------------------------------------------------------------
+// Products — the real save behind "Save pricing", the product grid and bulk
+// upload. Backed by the Product table. Reads are public (the storefront and
+// mobile app price carts from them); writes are staff-only.
+// ---------------------------------------------------------------------------
+
+const productSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  cat: z.string().min(1),
+  tone: z.string().optional(),
+  shape: z.string().optional(),
+  size: z.string().optional(),
+  clarity: z.string().optional(),
+  price: z.number().int().min(0),
+  unit: z.string().optional(),
+  moq: z.number().int().min(1).optional(),
+  stock: z.enum(['in', 'low', 'out']).optional(),
+  stockCount: z.number().int().min(0).optional(),
+  badge: z.string().nullable().optional(),
+  desc: z.string().nullable().optional(),
+  hidden: z.boolean().optional(),
+});
+
+// GET /admin/products?cat= — staff list, including hidden SKUs.
+adminRouter.get(
+  '/products',
+  ...officeOnly,
+  asyncHandler(async (req, res) => {
+    const cat = typeof req.query.cat === 'string' ? req.query.cat : undefined;
+    return ok(
+      res,
+      await prisma.product.findMany({
+        where: cat ? { cat } : {},
+        orderBy: [{ cat: 'asc' }, { name: 'asc' }],
+      })
+    );
+  })
+);
+
+adminRouter.post(
+  '/products',
+  ...officeOnly,
+  asyncHandler(async (req, res) => {
+    const parsed = productSchema.safeParse(req.body);
+    if (!parsed.success) return failValidation(res, parsed.error);
+    const d = parsed.data;
+    if (await prisma.product.findUnique({ where: { id: d.id } })) {
+      return fail(res, 409, `SKU ${d.id} already exists`);
+    }
+    const created = await prisma.product.create({ data: { ...d, badge: d.badge ?? null, desc: d.desc ?? null } });
+    return res.status(201).json(created);
+  })
+);
+
+adminRouter.put(
+  '/products/:id',
+  ...officeOnly,
+  asyncHandler(async (req, res) => {
+    const parsed = productSchema.partial().omit({ id: true }).safeParse(req.body);
+    if (!parsed.success) return failValidation(res, parsed.error);
+    if (!(await prisma.product.findUnique({ where: { id: req.params.id } }))) {
+      return fail(res, 404, 'No such SKU');
+    }
+    return ok(res, await prisma.product.update({ where: { id: req.params.id }, data: parsed.data }));
+  })
+);
+
+adminRouter.delete(
+  '/products/:id',
+  ...officeOnly,
+  asyncHandler(async (req, res) => {
+    if (!(await prisma.product.findUnique({ where: { id: req.params.id } }))) {
+      return fail(res, 404, 'No such SKU');
+    }
+    await prisma.product.delete({ where: { id: req.params.id } });
+    return ok(res, { deleted: req.params.id });
+  })
+);
+
+// POST /admin/products/bulk — the real "Commit N products".
+// The prototype counted the rows, said "N products committed to the catalogue"
+// and discarded them. This upserts every row in one transaction: either the
+// whole file lands or none of it does, so a half-imported catalogue is not a
+// state the operator can end up in.
+adminRouter.post(
+  '/products/bulk',
+  ...officeOnly,
+  asyncHandler(async (req, res) => {
+    const parsed = z.object({ products: z.array(productSchema).min(1).max(5000) }).safeParse(req.body);
+    if (!parsed.success) return failValidation(res, parsed.error);
+    const rows = parsed.data.products;
+
+    // Reject unknown categories up front — a typo'd category would otherwise
+    // create SKUs that never appear anywhere.
+    const known = new Set((await prisma.category.findMany({ select: { key: true } })).map((c) => c.key));
+    const bad = [...new Set(rows.filter((r) => !known.has(r.cat)).map((r) => r.cat))];
+    if (bad.length) {
+      return fail(res, 400, `Unknown categor${bad.length > 1 ? 'ies' : 'y'}: ${bad.join(', ')}`);
+    }
+
+    const before = await prisma.product.count();
+    await prisma.$transaction(
+      rows.map((d) =>
+        prisma.product.upsert({
+          where: { id: d.id },
+          create: { ...d, badge: d.badge ?? null, desc: d.desc ?? null },
+          update: { ...d, badge: d.badge ?? null, desc: d.desc ?? null },
+        })
+      )
+    );
+    const after = await prisma.product.count();
+    return ok(res, { received: rows.length, created: after - before, updated: rows.length - (after - before) });
+  })
+);

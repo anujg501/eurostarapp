@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db';
 import { asyncHandler, fail, ok, failValidation } from '../util/http';
-import { authenticate, requireStaff, optionalAuth } from '../auth/middleware';
+import { authenticate, requireStaff, requireInternal, optionalAuth } from '../auth/middleware';
 import { config } from '../config';
 
 export const repsRouter = Router();
@@ -39,7 +39,8 @@ function serialiseRep(r: any) {
 // GET /reps — the CRM's rep list (ingested from LMS hires).
 repsRouter.get(
   '/',
-  optionalAuth, // CRM reads this without a session for now (locked down in Phase 6)
+  authenticate,
+  requireInternal, // staff directory — not public
   asyncHandler(async (_req, res) => {
     const reps = await prisma.rep.findMany({ orderBy: { createdAt: 'desc' }, take: 500 });
     return ok(res, reps.map(serialiseRep));
@@ -60,7 +61,8 @@ const createSchema = z.object({
 
 repsRouter.post(
   '/',
-  optionalAuth, // LMS "Onboard to CRM" posts here without a session for now (locked in Phase 6)
+  authenticate,
+  requireInternal, // LMS "Onboard to CRM" writes here — staff only, or anyone could inject reps
   asyncHandler(async (req, res) => {
     const parsed = createSchema.safeParse(req.body);
     if (!parsed.success) return failValidation(res, parsed.error);

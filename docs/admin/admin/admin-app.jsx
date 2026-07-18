@@ -980,7 +980,7 @@ const ROLE_META = {
   rep:    { label:'Sales Rep',   hint:'Quotations · treated as cash customer' },
 };
 // Users & access is backed by the real /users API (hashed passwords server-side).
-function usersApiBase(){ return window.EUROSTAR_API || (/^(localhost|127\.|0\.0\.0\.0)/.test(location.hostname) ? location.origin : 'https://eurostar-api.onrender.com'); }
+function usersApiBase(){ return window.EUROSTAR_API || location.origin; }
 function usersAuthToken(){ try { return localStorage.getItem('eurostar-admin-token') || ''; } catch(e){ return ''; } }
 function usersApi(path, opts){
   opts = opts || {};

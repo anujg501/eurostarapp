@@ -17,7 +17,9 @@ function generateCode(): string {
  * production, plug a real SMS provider (Twilio, MSG91, etc.) into `sendSms`.
  */
 export async function requestOtp(phone: string): Promise<{ devCode?: string }> {
-  const code = generateCode();
+  // A fixed demo code still travels the normal path: hashed, stored, expiring,
+  // attempt-limited. Only its value is predictable — verifyOtp is unchanged.
+  const code = config.otp.fixedCode || generateCode();
   const codeHash = await bcrypt.hash(code, 10);
   const expiresAt = new Date(Date.now() + config.otp.ttlSeconds * 1000);
 
@@ -33,6 +35,14 @@ export async function requestOtp(phone: string): Promise<{ devCode?: string }> {
     // eslint-disable-next-line no-console
     console.log(`[OTP] ${phone} -> ${code} (dev mode, not sent by SMS)`);
     return { devCode: code };
+  }
+
+  if (config.otp.fixedCode) {
+    // Demo mode: no SMS to send, and we deliberately do NOT return the code —
+    // the caller is expected to already know it.
+    // eslint-disable-next-line no-console
+    console.log(`[OTP] ${phone} -> fixed demo code issued (no SMS provider connected yet)`);
+    return {};
   }
 
   const message = `Your Eurostar login code is ${code}. It expires in 5 minutes.`;

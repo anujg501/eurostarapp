@@ -230,7 +230,7 @@ function CandStatus({ go, stage, cand }) {
   const [meetLink, setMeetLink] = cUseState('');
   React.useEffect(() => {
     if (!c.candId) return;
-    const API = window.EUROSTAR_API || (/^(localhost|127\.|0\.0\.0\.0)/.test(location.hostname) ? location.origin : 'https://eurostar-api.onrender.com');
+    const API = window.EUROSTAR_API || location.origin;
     fetch(API + '/admin/lms/meeting-links').then(r => r.ok ? r.json() : {}).then(mp => { if (mp && mp[c.candId]) setMeetLink(mp[c.candId]); }).catch(() => {});
   }, [c.candId]);
   const w = window.lmsWindow(c);

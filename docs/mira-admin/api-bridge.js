@@ -8,8 +8,7 @@
 // It POLLS the keys for changes (the app re-defines setItem, so wrapping is not
 // reliable) and pushes the full config whenever something changes.
 (function () {
-  var isLocal = /^(localhost|127\.|0\.0\.0\.0)/.test(location.hostname);
-  var API = isLocal ? location.origin : 'https://eurostar-api.onrender.com';
+  var API = location.origin;
   window.EUROSTAR_API = API;
 
   var K = {
@@ -23,8 +22,15 @@
   var WATCH = [K.inst, K.rules, K.know, K.ex, K.enabled, K.images];
 
   function parse(key, fb) { try { var v = JSON.parse(localStorage.getItem(key)); return v == null ? fb : v; } catch (e) { return fb; } }
+  // Saving Mira settings requires a staff session (token stored by the login screen).
+  function token() {
+    try { return localStorage.getItem('eurostar-admin-token') || ''; } catch (e) { return ''; }
+  }
+
   function put(path, body) {
-    try { return fetch(API + path, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), keepalive: true }).catch(function () {}); }
+    var t = token();
+    if (!t) return Promise.resolve(); // not signed in — nothing to save yet
+    try { return fetch(API + path, { method: 'PUT', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + t }, body: JSON.stringify(body), keepalive: true }).catch(function () {}); }
     catch (e) { return Promise.resolve(); }
   }
   function getJson(path) { return fetch(API + path, { headers: { accept: 'application/json' } }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); }

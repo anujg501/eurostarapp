@@ -97,7 +97,7 @@
       document.documentElement.style.overflow = 'hidden'; document.body.style.overflow = 'hidden';
       try { var savedUser = localStorage.getItem(AUTH_KEY); if (savedUser) userEl.value = savedUser; } catch (e) {}
       function unlock() { gate.style.display = 'none'; document.documentElement.style.overflow = ''; document.body.style.overflow = ''; }
-      var API = window.EUROSTAR_API || (/^(localhost|127\.|0\.0\.0\.0)/.test(location.hostname) ? location.origin : 'https://eurostar-api.onrender.com');
+      var API = window.EUROSTAR_API || location.origin;
       var btn = form.querySelector('.lgbtn') || form.querySelector('button[type=submit]');
       form.addEventListener('submit', function (e) {
         e.preventDefault();

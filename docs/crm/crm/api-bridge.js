@@ -9,13 +9,29 @@
 // the CRM renders with live data. After that it refreshes in the background so
 // new orders show up as you navigate.
 (function () {
-  var isLocal = /^(localhost|127\.|0\.0\.0\.0)/.test(location.hostname);
-  var API = isLocal ? location.origin : 'https://eurostar-api.onrender.com';
+  var API = location.origin;
   window.EUROSTAR_API = API;
 
+  // The back room now requires a staff session for these reads. The CRM login
+  // screen stores the token under 'eurostar-admin-token'.
+  function token() {
+    try { return localStorage.getItem('eurostar-admin-token') || ''; } catch (e) { return ''; }
+  }
+
   function getJson(path) {
-    return fetch(API + path, { headers: { accept: 'application/json' } })
-      .then(function (r) { return r.ok ? r.json() : null; })
+    var t = token();
+    if (!t) return Promise.resolve(null); // not signed in yet — nothing to hydrate
+    return fetch(API + path, {
+      headers: { accept: 'application/json', authorization: 'Bearer ' + t }
+    })
+      .then(function (r) {
+        if (r.status === 401 || r.status === 403) {
+          // Session expired or revoked: drop it so the login screen comes back.
+          try { localStorage.removeItem('eurostar-admin-token'); } catch (e) {}
+          return null;
+        }
+        return r.ok ? r.json() : null;
+      })
       .catch(function () { return null; });
   }
 
@@ -47,17 +63,25 @@
     });
   }
 
-  if (!sessionStorage.getItem('crm-hydrated')) {
-    // First visit this session: load live data, then reload so the CRM renders it.
-    hydrate().then(function () {
-      sessionStorage.setItem('crm-hydrated', '1');
-      location.reload();
-    });
-  } else {
-    // Already hydrated once: keep data fresh for subsequent navigation.
-    hydrate();
-    setInterval(hydrate, 20000);
+  function boot() {
+    // Hydrating needs a staff session. Before sign-in there is nothing to fetch,
+    // so wait for the login screen to store a token rather than marking this
+    // session "hydrated" with empty data.
+    if (!token()) { setTimeout(boot, 1000); return; }
+
+    if (!sessionStorage.getItem('crm-hydrated')) {
+      // First visit this session: load live data, then reload so the CRM renders it.
+      hydrate().then(function () {
+        sessionStorage.setItem('crm-hydrated', '1');
+        location.reload();
+      });
+    } else {
+      // Already hydrated once: keep data fresh for subsequent navigation.
+      hydrate();
+      setInterval(hydrate, 20000);
+    }
   }
+  boot();
 
   // eslint-disable-next-line no-console
   console.log('[Eurostar] CRM API bridge active →', API);

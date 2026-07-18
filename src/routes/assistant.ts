@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../db';
 import { config } from '../config';
 import { asyncHandler, ok, failValidation } from '../util/http';
-import { AuthedRequest, authenticate, requireRole, optionalAuth } from '../auth/middleware';
+import { AuthedRequest, authenticate, requireRole, requireInternal, optionalAuth } from '../auth/middleware';
 
 export const assistantRouter = Router();
 
@@ -55,7 +55,10 @@ const cfgSchema = z.object({
 
 assistantRouter.put(
   '/config',
-  optionalAuth, // Mira Admin writes without a session for now (locked down in Phase 6)
+  authenticate,
+  // This rewrites the instructions/rules/knowledge Mira answers customers with.
+  // Left open, a stranger could put words in the assistant's mouth. Staff only.
+  requireInternal,
   asyncHandler(async (req, res) => {
     const parsed = cfgSchema.safeParse(req.body);
     if (!parsed.success) return failValidation(res, parsed.error);

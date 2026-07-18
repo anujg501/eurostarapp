@@ -5,18 +5,25 @@
 // those writes to the live back room (POST /reps) so the new rep shows up in the
 // CRM's "Reps & commission" — LMS → CRM, live — with no change to the LMS UI.
 (function () {
-  var isLocal = /^(localhost|127\.|0\.0\.0\.0)/.test(location.hostname);
-  var API = isLocal ? location.origin : 'https://eurostar-api.onrender.com';
+  var API = location.origin;
   window.EUROSTAR_API = API;
 
   var HIRES_KEY = 'eurostar-crm-new-hires';
   var synced = {};
 
+  // Onboarding a hire into the CRM requires a staff session (token stored by the
+  // LMS login screen).
+  function token() {
+    try { return localStorage.getItem('eurostar-admin-token') || ''; } catch (e) { return ''; }
+  }
+
   function post(path, body) {
+    var t = token();
+    if (!t) return Promise.resolve(); // not signed in — nothing to push yet
     try {
       return fetch(API + path, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', authorization: 'Bearer ' + t },
         body: JSON.stringify(body),
         keepalive: true,
       }).catch(function () {});

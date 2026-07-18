@@ -130,6 +130,9 @@
   <script type="text/babel" src="tweaks-panel.jsx"></script>
   <script src="assets/logo-data.js"></script>
   <script type="text/babel" src="app/data.jsx"></script>
+  <!-- Replaces the built-in catalogue above with the live one from the API.
+       Must run after data.jsx (it mutates those arrays) and before app.jsx. -->
+  <script type="text/babel" src="app/catalog-sync.jsx"></script>
   <script type="text/babel" src="app/i18n-strings.jsx"></script>
   <script type="text/babel" src="app/product-images.jsx"></script>
   <script type="text/babel" src="app/icons.jsx"></script>

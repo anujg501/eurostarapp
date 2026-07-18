@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db';
 import { asyncHandler, ok, failValidation } from '../util/http';
-import { AuthedRequest, authenticate, requireStaff, optionalAuth } from '../auth/middleware';
+import { AuthedRequest, authenticate, requireStaff, requireInternal, optionalAuth } from '../auth/middleware';
 import { nextCustomerCode } from '../services/ids';
 
 export const customersRouter = Router();
@@ -19,7 +19,8 @@ function normGst(gstin?: string | null): string | null {
 // Reps see their own customers; office can pass ?rep= or see all.
 customersRouter.get(
   '/',
-  optionalAuth, // CRM reads the full master without a session for now (locked in Phase 6)
+  authenticate,
+  requireInternal, // customer master = names, phones, GSTINs, credit terms — staff only
   asyncHandler(async (req: AuthedRequest, res) => {
     const me = req.user;
     let repUserId: string | undefined;

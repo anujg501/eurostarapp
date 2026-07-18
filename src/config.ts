@@ -28,6 +28,12 @@ export const config = {
     devMode: (process.env.OTP_DEV_MODE ?? 'true') === 'true',
     ttlSeconds: parseInt(process.env.OTP_TTL_SECONDS ?? '300', 10),
     length: parseInt(process.env.OTP_LENGTH ?? '6', 10),
+    // Demo stand-in until the SMS provider is connected: when set, every login
+    // accepts this one code instead of a texted random one. Unlike OTP_DEV_MODE
+    // the code is NOT returned by the API — you have to already know it.
+    // Anyone who learns it can sign in as any customer, so this must be cleared
+    // the moment real SMS credentials exist.
+    fixedCode: process.env.OTP_FIXED_CODE ?? '',
   },
 
   // Twilio SMS + WhatsApp (real OTP delivery). Set these in Render to send real codes.
@@ -55,6 +61,9 @@ export const config = {
   razorpay: {
     keyId: process.env.RAZORPAY_KEY_ID ?? '',
     keySecret: process.env.RAZORPAY_KEY_SECRET ?? '',
+    // Set in the Razorpay dashboard when you add the webhook. Without it the
+    // webhook cannot be trusted, so /payments/webhook refuses every request.
+    webhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET ?? '',
     get configured() {
       return !!(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET);
     },
@@ -82,3 +91,43 @@ export const config = {
     rfqMinValue: 10000, // ₹10,000 minimum order value for RFQ
   },
 };
+
+// ---------------------------------------------------------------------------
+// Production safety net
+// ---------------------------------------------------------------------------
+// Several defaults above are deliberately permissive so `npm run dev` works with
+// no setup. Those same defaults are dangerous once the server is reachable from
+// the internet: the dev JWT secret is published in this repo, and OTP dev mode
+// hands the login code back in the API response. A missing env var on the server
+// would otherwise fail *open* and silently. Refuse to boot instead.
+if (process.env.NODE_ENV === 'production') {
+  const problems: string[] = [];
+
+  if (config.otp.devMode) {
+    problems.push('OTP_DEV_MODE must be "false" — otherwise the login code is returned by the API and anyone can sign in as any customer.');
+  }
+  if (config.jwt.accessSecret === 'dev-access-secret') {
+    problems.push('JWT_ACCESS_SECRET must be set to a long random string — the fallback is public in this repo, so anyone could forge a login.');
+  }
+  if (config.jwt.refreshSecret === 'dev-refresh-secret') {
+    problems.push('JWT_REFRESH_SECRET must be set to a long random string — same reason.');
+  }
+  if (config.corsOrigins.some((o) => o.startsWith('http://localhost'))) {
+    problems.push('CORS_ORIGINS still allows localhost — set it to your real site origin(s).');
+  }
+
+  if (problems.length) {
+    throw new Error(
+      'Refusing to start in production with an unsafe configuration:\n  - ' + problems.join('\n  - ')
+    );
+  }
+
+  if (config.otp.fixedCode) {
+    // Deliberate, but it must never be forgotten: say so on every boot.
+    // eslint-disable-next-line no-console
+    console.warn(
+      '\n*** OTP_FIXED_CODE is set — every customer login accepts one fixed code. ***\n' +
+        '*** This is a demo stand-in. Clear it and set the SMS provider before real customers use this. ***\n'
+    );
+  }
+}

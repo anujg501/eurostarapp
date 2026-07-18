@@ -237,7 +237,9 @@ ordersRouter.post(
 // GET /orders?scope=…&status=…
 ordersRouter.get(
   '/',
-  optionalAuth, // CRM reads this without a session for now (locked down in Phase 6)
+  // Any signed-in user; the handler below scopes the result to what they may
+  // see (customers -> their own orders, reps -> their own unless scope=all).
+  authenticate,
   asyncHandler(async (req: AuthedRequest, res) => {
     const me = req.user;
     const status = typeof req.query.status === 'string' ? req.query.status : undefined;

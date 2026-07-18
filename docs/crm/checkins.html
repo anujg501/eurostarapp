@@ -48,7 +48,7 @@
 
   <script>
   (function () {
-    var API = /^(localhost|127\.|0\.0\.0\.0)/.test(location.hostname) ? location.origin : 'https://eurostar-api.onrender.com';
+    var API = location.origin;
     var token = '';
     try { token = localStorage.getItem('eurostar-admin-token') || ''; } catch (e) {}
     var content = document.getElementById('content');

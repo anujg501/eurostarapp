@@ -12,8 +12,7 @@
 // Real user login/OTP is wired later (Phase 6); until then the app supplies the
 // customer/rep details in each record, which the API accepts.
 (function () {
-  var isLocal = /^(localhost|127\.|0\.0\.0\.0)/.test(location.hostname);
-  var API = isLocal ? location.origin : 'https://eurostar-api.onrender.com';
+  var API = location.origin;
   window.EUROSTAR_API = API;
 
   var ORDERS_KEY = 'eurostar-crm-incoming-orders';

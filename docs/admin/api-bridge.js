@@ -8,16 +8,38 @@
 // It POLLS the relevant keys for changes (rather than wrapping setItem, which
 // the app itself re-defines) and pushes any change to the API.
 (function () {
-  var isLocal = /^(localhost|127\.|0\.0\.0\.0)/.test(location.hostname);
-  var API = isLocal ? location.origin : 'https://eurostar-api.onrender.com';
+  var API = location.origin;
   window.EUROSTAR_API = API;
 
   function parse(key, fb) { try { var v = JSON.parse(localStorage.getItem(key)); return v == null ? fb : v; } catch (e) { return fb; } }
-  function put(path, body) {
-    try { return fetch(API + path, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), keepalive: true }).catch(function () {}); }
-    catch (e) { return Promise.resolve(); }
+
+  // Saving admin content requires a staff session. The Admin login screen stores
+  // the token under 'eurostar-admin-token'.
+  function token() {
+    try { return localStorage.getItem('eurostar-admin-token') || ''; } catch (e) { return ''; }
   }
-  function getJson(path) { return fetch(API + path, { headers: { accept: 'application/json' } }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); }
+
+  function put(path, body) {
+    var t = token();
+    if (!t) return Promise.resolve(); // not signed in — nothing to save yet
+    try {
+      return fetch(API + path, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json', authorization: 'Bearer ' + t },
+        body: JSON.stringify(body),
+        keepalive: true
+      }).then(function (r) {
+        if (!r.ok) console.warn('[Eurostar] admin save failed', path, r.status);
+        return r;
+      }).catch(function () {});
+    } catch (e) { return Promise.resolve(); }
+  }
+  function getJson(path) {
+    var t = token();
+    var headers = { accept: 'application/json' };
+    if (t) headers.authorization = 'Bearer ' + t;
+    return fetch(API + path, { headers: headers }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
+  }
   function set(key, val) { try { localStorage.setItem(key, typeof val === 'string' ? val : JSON.stringify(val)); } catch (e) {} }
 
   // Which keys to watch, and how to push each change.

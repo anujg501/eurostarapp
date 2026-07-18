@@ -678,19 +678,32 @@ function CrmOnboardModal({ cand, onClose, onConfirm }) {
 // Interview link (Google Meet, Zoom, etc.) the admin sets for a candidate.
 // Stored in the back room (keyed by candidate id) so the candidate sees it too.
 function MeetLinkField({ candId }) {
-  const API = window.EUROSTAR_API || (/^(localhost|127\.|0\.0\.0\.0)/.test(location.hostname) ? location.origin : 'https://eurostar-api.onrender.com');
+  const API = window.EUROSTAR_API || location.origin;
   const [link, setLink] = aUseState('');
   const [busy, setBusy] = aUseState(false);
   const [saved, setSaved] = aUseState(false);
+  const [failed, setFailed] = aUseState(false);
   React.useEffect(() => {
     fetch(API + '/admin/lms/meeting-links').then(r => r.ok ? r.json() : {}).then(m => { if (m && m[candId]) setLink(m[candId]); }).catch(() => {});
   }, [candId]);
   const save = () => {
     setBusy(true);
+    // Saving requires the staff session stored by the LMS login screen.
+    const token = (() => { try { return localStorage.getItem('eurostar-admin-token') || ''; } catch (e) { return ''; } })();
     fetch(API + '/admin/lms/meeting-links').then(r => r.ok ? r.json() : {}).then(m => {
       m = m || {}; const v = link.trim(); if (v) m[candId] = v; else delete m[candId];
-      return fetch(API + '/admin/lms/meeting-links', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(m) });
-    }).then(() => { setSaved(true); setTimeout(() => setSaved(false), 1600); }).catch(() => {}).finally(() => setBusy(false));
+      return fetch(API + '/admin/lms/meeting-links', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token },
+        body: JSON.stringify(m)
+      });
+    }).then(r => {
+      // fetch only rejects on network errors, so a 401/403 would otherwise show
+      // "Saved!" while saving nothing. Report the truth instead.
+      if (!r || !r.ok) { setFailed(true); setTimeout(() => setFailed(false), 2600); return; }
+      setSaved(true); setTimeout(() => setSaved(false), 1600);
+    }).catch(() => { setFailed(true); setTimeout(() => setFailed(false), 2600); })
+      .finally(() => setBusy(false));
   };
   return (
     <div style={{ marginTop: 14, borderTop: '1px solid var(--lms-divider)', paddingTop: 12 }}>
@@ -698,8 +711,9 @@ function MeetLinkField({ candId }) {
       <div style={{ display: 'flex', gap: 8 }}>
         <input style={{ flex: 1, padding: '10px 12px', border: '1px solid var(--lms-border)', borderRadius: 9, fontFamily: 'inherit', fontSize: 13.5, background: '#fff', color: 'var(--lms-ink)' }}
           placeholder="Paste a Meet link (meet.google.com/…)" value={link} onChange={e => setLink(e.target.value)} />
-        <button className="lms-btn lms-btn-pri lms-btn-sm" onClick={save} disabled={busy}>{saved ? 'Saved ✓' : busy ? '…' : 'Save'}</button>
+        <button className="lms-btn lms-btn-pri lms-btn-sm" onClick={save} disabled={busy}>{saved ? 'Saved ✓' : failed ? 'Not saved ✕' : busy ? '…' : 'Save'}</button>
       </div>
+      {failed ? <div style={{ fontSize: 11.5, marginTop: 6, color: 'var(--ruby, #b3261e)' }}>Could not save — please sign in again.</div> : null}
       {link ? <a href={link} target="_blank" rel="noopener noreferrer" className="lms-muted" style={{ fontSize: 12, display: 'inline-block', marginTop: 6 }}>Open link →</a> : null}
       <div className="lms-muted" style={{ fontSize: 11.5, marginTop: 6 }}>The candidate sees a “Join interview” button on their status screen.</div>
     </div>

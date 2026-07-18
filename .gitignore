@@ -23,3 +23,7 @@ npm-debug.log*
 .DS_Store
 .idea/
 .vscode/
+
+# React Admin app
+admin-web/node_modules
+admin-web/dist

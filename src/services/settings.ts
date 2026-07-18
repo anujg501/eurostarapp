@@ -38,4 +38,10 @@ export const KEYS = {
   miraEnabled: 'eurostar-mira-enabled',
   lang: 'eurostar-lang',
   lmsMeetingLinks: 'eurostar-lms-meeting-links-v1',
+  // Admin "Settings" screen — the trading rules the storefront applies. These
+  // were previously hardcoded in config.rules and the Settings inputs saved
+  // nowhere; the API now reads overrides from here.
+  storeRules: 'eurostar-store-rules-v1',
+  // Admin "Content" screen — hero copy, footer and testimonials.
+  siteContent: 'eurostar-site-content-v1',
 } as const;

@@ -1,10 +1,10 @@
-import { Router } from 'express';
+import { Router, type Request } from 'express';
 import { z } from 'zod';
 import crypto from 'crypto';
 import { prisma } from '../db';
 import { config } from '../config';
 import { asyncHandler, fail, ok, failValidation } from '../util/http';
-import { AuthedRequest, authenticate, optionalAuth } from '../auth/middleware';
+import { AuthedRequest, authenticate, requireInternal, optionalAuth } from '../auth/middleware';
 import { dispatchInfo } from '../services/totals';
 
 export const paymentsRouter = Router();
@@ -106,7 +106,8 @@ paymentsRouter.post(
 // GET /payments?orderId=…&customer=…
 paymentsRouter.get(
   '/',
-  optionalAuth, // CRM reads this without a session for now (locked down in Phase 6)
+  authenticate,
+  requireInternal, // no per-user scoping below: this is the whole payment ledger
   asyncHandler(async (req, res) => {
     const { orderId, customer } = req.query;
     const payments = await prisma.payment.findMany({
@@ -150,7 +151,12 @@ paymentsRouter.get(
 );
 
 // POST /payments/webhook — a PSP confirms receipt and we flip the order.
-// NOTE: in production, verify the provider's signature before trusting this.
+//
+// This endpoint moves money-state: it marks an order paid. It is therefore only
+// ever trusted when the caller proves it is the payment provider, by signing the
+// exact request body with the shared webhook secret (Razorpay sends this as the
+// `x-razorpay-signature` header). No secret configured => no way to verify =>
+// the endpoint refuses everything rather than taking a stranger's word for it.
 const webhookSchema = z.object({
   orderId: z.string(),
   utr: z.string().optional(),
@@ -159,9 +165,30 @@ const webhookSchema = z.object({
   mode: z.enum(['upi', 'card', 'netbanking', 'neft', 'qr']).default('upi'),
 });
 
+function webhookSignatureValid(req: Request): boolean {
+  const secret = config.razorpay.webhookSecret;
+  if (!secret) return false;
+
+  const sent = req.get('x-razorpay-signature') ?? '';
+  const raw = (req as Request & { rawBody?: Buffer }).rawBody;
+  if (!sent || !raw) return false;
+
+  const expected = crypto.createHmac('sha256', secret).update(raw).digest('hex');
+  const a = Buffer.from(expected);
+  const b = Buffer.from(sent);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
 paymentsRouter.post(
   '/webhook',
   asyncHandler(async (req, res) => {
+    if (!config.razorpay.webhookSecret) {
+      // eslint-disable-next-line no-console
+      console.warn('[payments] /webhook called but RAZORPAY_WEBHOOK_SECRET is not set — rejecting.');
+      return fail(res, 503, 'Webhook is not configured');
+    }
+    if (!webhookSignatureValid(req)) return fail(res, 401, 'Invalid webhook signature');
+
     const parsed = webhookSchema.safeParse(req.body);
     if (!parsed.success) return failValidation(res, parsed.error);
     const d = parsed.data;

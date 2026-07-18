@@ -1,14 +1,73 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
+import { CATEGORIES } from '../src/data/catalog';
+import { PRODUCTS } from '../src/data/products';
 
 dotenv.config();
 const prisma = new PrismaClient();
 
-// The real catalogue (28 categories, shapes, tones, prices) lives in the
-// frontend app/data.jsx and is served by the API from src/data/catalog.ts.
-// The seed only needs to create login accounts and a few sample customers so
-// you can test the ordering, payment and CRM flows end-to-end.
+// Creates the login accounts and sample customers, and lifts the original 28
+// categories out of the static file (src/data/catalog.ts) into the Category
+// table — the file stays the source of the *initial* data, the table is the
+// source of truth from then on, so the Admin app can actually add to it.
+
+// Only fills the table when it is empty, and never overwrites an existing row:
+// re-running the seed must not undo a category the admin edited or added.
+async function seedCategories() {
+  let added = 0;
+  for (const c of CATEGORIES) {
+    const existing = await prisma.category.findUnique({ where: { key: c.key } });
+    if (existing) continue;
+    await prisma.category.create({
+      data: {
+        key: c.key,
+        name: c.name,
+        short: c.short,
+        blurb: c.blurb,
+        unit: c.unit,
+        origin: c.origin,
+        skipGrade: c.skipGrade,
+        count: c.count,
+        sortOrder: c.sortOrder,
+      },
+    });
+    added++;
+  }
+  const total = await prisma.category.count();
+  console.log(`  Categories    -> ${added} added, ${total} in the catalogue`);
+}
+
+// Same contract as the categories above: fill from the static file only where a
+// SKU is missing, so re-seeding never overwrites a price the admin has edited.
+async function seedProducts() {
+  let added = 0;
+  for (const p of PRODUCTS) {
+    const existing = await prisma.product.findUnique({ where: { id: p.id } });
+    if (existing) continue;
+    await prisma.product.create({
+      data: {
+        id: p.id,
+        name: p.name,
+        cat: p.cat,
+        tone: p.tone,
+        shape: p.shape,
+        size: p.size,
+        clarity: p.clarity,
+        price: p.price,
+        unit: p.unit,
+        moq: p.moq,
+        stock: p.stock,
+        stockCount: p.stockCount,
+        badge: p.badge ?? null,
+        desc: p.desc ?? null,
+      },
+    });
+    added++;
+  }
+  const total = await prisma.product.count();
+  console.log(`  Products      -> ${added} added, ${total} SKUs`);
+}
 
 async function main() {
   const adminUser = process.env.SEED_ADMIN_USER ?? 'admin';
@@ -86,6 +145,9 @@ async function main() {
   console.log(`  Admin login   -> id: ${adminUser}  password: ${adminPass}`);
   console.log(`  Office login  -> id: ${officeUser}  password: ${officePass}`);
   console.log(`  Rep login     -> id: ${repIdVal}  password: ${repPass}`);
+
+  await seedCategories();
+  await seedProducts();
 }
 
 main()

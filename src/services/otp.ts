@@ -45,6 +45,13 @@ export async function requestOtp(phone: string): Promise<{ devCode?: string }> {
     return {};
   }
 
+  // The Indian gateway is tried first: its text is fixed by the DLT template it
+  // is registered against, so it sends the code itself rather than our wording.
+  if (config.smsHttp.configured) {
+    await sendSmsHttpGateway(phone, code);
+    return {};
+  }
+
   const message = `Your Eurostar login code is ${code}. It expires in 5 minutes.`;
   // Prefer WhatsApp when configured (best delivery in India); otherwise SMS.
   if (config.twilio.whatsappFrom) await sendWhatsApp(phone, message);
@@ -98,11 +105,69 @@ async function twilioSend(params: URLSearchParams, channel: string): Promise<voi
   }
 }
 
+// This gateway wants a bare 10-digit Indian number, not E.164 — passing "+91…"
+// is silently rejected by most of these endpoints.
+function toLocal10(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  return digits.length > 10 ? digits.slice(-10) : digits;
+}
+
+/**
+ * Indian HTTP SMS gateway (Text2 / TEXTOO style): a plain GET with the key and
+ * message as query parameters.
+ *
+ * These endpoints answer 200 on failure as often as not, with the reason in the
+ * body ("invalid key", "template mismatch"), so the body is inspected rather
+ * than trusting the status code.
+ */
+async function sendSmsHttpGateway(phone: string, code: string): Promise<void> {
+  const g = config.smsHttp;
+  const message = g.template.replace(/\{otp\}/gi, code);
+
+  const url = new URL(g.url);
+  url.searchParams.set('authentic-key', g.key);
+  url.searchParams.set('senderid', g.senderId);
+  url.searchParams.set('route', g.route);
+  url.searchParams.set('number', toLocal10(phone));
+  url.searchParams.set('message', message);
+  if (g.templateId) url.searchParams.set('templateid', g.templateId);
+
+  let resp: Response;
+  try {
+    resp = await fetch(url.toString(), { method: 'GET', signal: AbortSignal.timeout(15000) });
+  } catch (e) {
+    throw new Error(`SMS gateway unreachable: ${e instanceof Error ? e.message : 'network error'}`);
+  }
+
+  const body = (await resp.text()).trim();
+
+  // Never log the full URL — it carries the API key.
+  if (!resp.ok) throw new Error(`SMS gateway HTTP ${resp.status}: ${body.slice(0, 200)}`);
+
+  // This gateway answers 200 even when it rejects the message — a bad key comes
+  // back as {"Status":"Failed","Code":"003"}. So the body decides, not the code.
+  let ok: boolean;
+  try {
+    const j = JSON.parse(body) as { Status?: string; Description?: string };
+    ok = String(j.Status ?? '').toLowerCase() === 'success';
+  } catch {
+    // Some clones return bare text rather than JSON.
+    ok = !/invalid|error|fail|denied|not\s*match|insufficient|balance/i.test(body);
+  }
+  if (!ok) throw new Error(`SMS gateway rejected the message: ${body.slice(0, 200)}`);
+
+  // Caveat worth knowing: the gateway also returns Success for a message that
+  // does not match its DLT template — the operator drops it silently further
+  // down. A "sent" log line here is therefore not proof of delivery.
+  // eslint-disable-next-line no-console
+  console.log(`[OTP] sent via SMS gateway to ****${toLocal10(phone).slice(-4)}`);
+}
+
 async function sendSms(phone: string, message: string): Promise<void> {
   const { accountSid, authToken, from } = config.twilio;
   if (!accountSid || !authToken || !from) {
     throw new Error(
-      'No SMS provider configured. Set OTP_DEV_MODE=true for testing, or set TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM.'
+      'No SMS provider configured. Set SMS_HTTP_URL / SMS_HTTP_KEY / SMS_SENDER_ID, or TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM, or OTP_DEV_MODE=true for testing.'
     );
   }
 

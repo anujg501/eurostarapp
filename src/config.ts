@@ -36,6 +36,25 @@ export const config = {
     fixedCode: process.env.OTP_FIXED_CODE ?? '',
   },
 
+  // Generic Indian HTTP SMS gateway (Text2 / TEXTOO and the many clones of it).
+  // Tried before Twilio when configured.
+  //
+  // Indian SMS is DLT-regulated: the delivered text must match the template
+  // registered against `templateId`, word for word, or the operator drops it.
+  // So the wording lives here as config rather than in code — {otp} is the only
+  // substitution, and the default matches the template the client registered.
+  smsHttp: {
+    url: process.env.SMS_HTTP_URL ?? '',
+    key: process.env.SMS_HTTP_KEY ?? '',
+    senderId: process.env.SMS_SENDER_ID ?? '',
+    route: process.env.SMS_ROUTE ?? '1',
+    templateId: process.env.SMS_TEMPLATE_ID ?? '',
+    template: process.env.SMS_TEMPLATE ?? 'Dear Customer Your Login otp is {otp} Text2',
+    get configured() {
+      return !!(process.env.SMS_HTTP_URL && process.env.SMS_HTTP_KEY && process.env.SMS_SENDER_ID);
+    },
+  },
+
   // Twilio SMS + WhatsApp (real OTP delivery). Set these in Render to send real codes.
   twilio: {
     accountSid: process.env.TWILIO_ACCOUNT_SID ?? '',

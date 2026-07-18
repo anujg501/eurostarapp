@@ -3,10 +3,10 @@ import { adminApi, type Category, type NewCategory, type Unit } from '../lib/api
 import { CategoryDetail } from './CategoryDetail';
 
 const UNITS: { id: Unit; label: string }[] = [
-  { id: 'pc', label: 'Piece' },
-  { id: 'ct', label: 'Carat' },
-  { id: 'pkt', label: 'Packet' },
-  { id: 'strip', label: 'Strip' },
+  { id: 'pc', label: 'by piece' },
+  { id: 'ct', label: 'by carat' },
+  { id: 'pkt', label: 'by packet' },
+  { id: 'strip', label: 'by strip' },
 ];
 
 const unitLabel = (u: string) => UNITS.find((x) => x.id === u)?.label ?? u;
@@ -58,18 +58,6 @@ export function Catalog() {
     }
   };
 
-  if (adding) {
-    return (
-      <CreateCategory
-        onCancel={() => setAdding(false)}
-        onCreated={(c) => {
-          setCats((xs) => [...(xs ?? []), c]);
-          setAdding(false);
-        }}
-      />
-    );
-  }
-
   if (open) {
     return <CategoryDetail cat={open} onBack={() => setOpen(null)} />;
   }
@@ -87,6 +75,16 @@ export function Catalog() {
           ＋ Create new category
         </button>
       </div>
+
+      {adding && (
+        <CreateCategory
+          onCancel={() => setAdding(false)}
+          onCreated={(c) => {
+            setCats((xs) => [...(xs ?? []), c]);
+            setAdding(false);
+          }}
+        />
+      )}
 
       {error && <div className="ad-error">{error}</div>}
 
@@ -121,15 +119,7 @@ export function Catalog() {
 }
 
 function CreateCategory({ onCancel, onCreated }: { onCancel: () => void; onCreated: (c: Category) => void }) {
-  const [f, setF] = useState<NewCategory>({
-    name: '',
-    short: '',
-    blurb: '',
-    unit: 'pc',
-    origin: '',
-    skipGrade: false,
-    count: 0,
-  });
+  const [f, setF] = useState<NewCategory>({ name: '', short: '', blurb: '', unit: 'pc' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -137,14 +127,16 @@ function CreateCategory({ onCancel, onCreated }: { onCancel: () => void; onCreat
 
   const submit = async () => {
     if (!f.name.trim()) {
-      setError('Give the category a name.');
+      setError('Category name is required.');
       return;
     }
     setBusy(true);
     setError('');
     try {
-      // The old wizard showed a success tick here and threw the form away.
-      // This waits for the server and only reports success if it saved.
+      // The prototype showed a success tick here and threw the form away. This
+      // waits for the server and only reports success if it actually saved.
+      // Fields the client dropped (origin, SKU count, skipGrade) are omitted;
+      // the API defaults them and they stay editable via the API if needed.
       const created = await adminApi.createCategory({ ...f, name: f.name.trim() });
       onCreated(created);
     } catch (e) {
@@ -154,73 +146,75 @@ function CreateCategory({ onCancel, onCreated }: { onCancel: () => void; onCreat
     }
   };
 
+  // Escape closes, matching normal dialog behaviour.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !busy) onCancel(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [busy, onCancel]);
+
   return (
-    <div className="ad-body">
-      <div className="ad-pagehead">
-        <h2>Create a new category</h2>
-        <p className="ad-muted">This defines how the category behaves in the Sales App.</p>
-      </div>
-
-      <div className="ad-card ad-card-pad">
-        <label className="ad-label">
-          Name
-          <input className="ad-input" value={f.name} onChange={(e) => set('name', e.target.value)} placeholder="e.g. Moissanite Diamonds" />
-        </label>
-
-        <label className="ad-label">
-          Short name
-          <input className="ad-input" value={f.short} onChange={(e) => set('short', e.target.value)} placeholder="Shown on the category card" />
-        </label>
-
-        <label className="ad-label">
-          Short description
-          <textarea className="ad-input" rows={3} value={f.blurb} onChange={(e) => set('blurb', e.target.value)} placeholder="One line customers read under the name" />
-        </label>
-
-        <div className="ad-label">
-          Sold by
-          <div className="ad-chips">
-            {UNITS.map((u) => (
-              <button
-                key={u.id}
-                type="button"
-                className={`ad-chip ${f.unit === u.id ? 'sel' : ''}`}
-                onClick={() => set('unit', u.id)}
-              >
-                {u.label}
-              </button>
-            ))}
-          </div>
+    <div className="ad-modal-backdrop" onClick={() => !busy && onCancel()}>
+      <div className="ad-modal" role="dialog" aria-modal="true" aria-label="Create new category" onClick={(e) => e.stopPropagation()}>
+        <div className="ad-modal-head">
+          <h2>Create new category</h2>
         </div>
 
-        <label className="ad-label">
-          Origin
-          <input className="ad-input" value={f.origin} onChange={(e) => set('origin', e.target.value)} placeholder="e.g. Synthetic / Natural" />
-        </label>
+        <div className="ad-modal-body">
+          <div className="ad-field-v">
+            <label className="ad-label" htmlFor="cc-name">Category name *</label>
+            <input
+              id="cc-name"
+              className="ad-input"
+              value={f.name}
+              onChange={(e) => set('name', e.target.value)}
+              placeholder="e.g. Lab Grown Diamonds"
+              autoFocus
+            />
+          </div>
 
-        <label className="ad-label">
-          SKU count shown on the card
-          <input
-            className="ad-input"
-            type="number"
-            min={0}
-            value={f.count ?? 0}
-            onChange={(e) => set('count', Number(e.target.value) || 0)}
-          />
-        </label>
+          <div className="ad-field-v">
+            <label className="ad-label" htmlFor="cc-short">Short name</label>
+            <input
+              id="cc-short"
+              className="ad-input"
+              value={f.short}
+              onChange={(e) => set('short', e.target.value)}
+              placeholder="e.g. Lab Diamonds"
+            />
+          </div>
 
-        <label className="ad-check">
-          <input type="checkbox" checked={!!f.skipGrade} onChange={(e) => set('skipGrade', e.target.checked)} />
-          <span>This category has no grades</span>
-        </label>
+          <div className="ad-field-v">
+            <label className="ad-label" htmlFor="cc-unit">Unit of sale</label>
+            <select id="cc-unit" className="ad-input" value={f.unit} onChange={(e) => set('unit', e.target.value as Unit)}>
+              {UNITS.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.id.toUpperCase()} — {u.label}
+                </option>
+              ))}
+            </select>
+          </div>
 
-        {error && <div className="ad-error">{error}</div>}
+          <div className="ad-field-v">
+            <label className="ad-label" htmlFor="cc-blurb">Short description</label>
+            <textarea
+              id="cc-blurb"
+              className="ad-input"
+              rows={3}
+              value={f.blurb}
+              onChange={(e) => set('blurb', e.target.value)}
+              placeholder="Shown on the category card"
+            />
+          </div>
 
-        <div className="ad-actions">
+          {error && <div className="ad-error" style={{ marginBottom: 0 }}>{error}</div>}
+        </div>
+
+        <div className="ad-modal-foot">
           <button className="ad-btn ad-btn-ghost" onClick={onCancel} disabled={busy}>
             Cancel
           </button>
-          <button className="ad-btn ad-btn-pri" onClick={submit} disabled={busy}>
+          <button className="ad-btn ad-btn-danger" onClick={submit} disabled={busy}>
             {busy ? 'Creating…' : 'Create category'}
           </button>
         </div>

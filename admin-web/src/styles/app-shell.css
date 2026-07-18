@@ -232,3 +232,49 @@
 /* Page head with a right-hand action (the original .ad-pagehead is text-only). */
 .ad-head-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .ad-sechead-h { font-family: var(--font-serif); font-weight: 500; font-size: 18px; margin: 0 0 2px; }
+
+/* ===== Modal (the client's "Create new category" dialog) ===== */
+.ad-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(21, 19, 15, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.ad-modal {
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.ad-modal-head {
+  padding: 22px 26px;
+  border-bottom: 1px solid var(--divider);
+}
+.ad-modal-head h2 {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: 25px;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+.ad-modal-body { padding: 22px 26px; overflow-y: auto; }
+.ad-modal-body .ad-field-v:last-of-type { margin-bottom: 0; }
+.ad-modal-foot {
+  padding: 16px 26px;
+  border-top: 1px solid var(--divider);
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+/* Primary action on the client's dialog is ruby, not ink. */
+.ad-btn-danger { background: var(--ruby); color: #fff; border-color: var(--ruby); }
+.ad-btn-danger:hover:not(:disabled) { background: #6f1725; }

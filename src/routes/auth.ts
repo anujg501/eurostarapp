@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db';
 import { asyncHandler, fail, ok, failValidation } from '../util/http';
-import { requestOtp, verifyOtp } from '../services/otp';
+import { requestOtp, verifyOtp, consumeOtp } from '../services/otp';
 import {
   signAccessToken,
   signRefreshToken,
@@ -72,13 +72,18 @@ authRouter.post(
     if (!parsed.success) return failValidation(res, parsed.error);
     const { phone, otp, name, gstin, remember } = parsed.data;
 
-    const valid = await verifyOtp(phone, otp);
+    // Check the code without spending it. A first-time sign-up is answered with
+    // a 422 asking for name + GSTIN, and the customer resubmits with the SAME
+    // code — consuming it here left them unable to sign up at all, because the
+    // second attempt came back "incorrect or expired".
+    const valid = await verifyOtp(phone, otp, { consume: false });
     if (!valid) return fail(res, 401, 'Incorrect or expired code');
 
     let user = await prisma.user.findUnique({ where: { phone } });
 
     if (!user) {
-      // First-time sign-up: name + GSTIN are required.
+      // First-time sign-up: name + GSTIN are required. The code stays valid so
+      // the details can be supplied without waiting for a fresh SMS.
       if (!name || !gstin) {
         return fail(res, 422, 'New customer: please provide your name and GSTIN', { signupRequired: true });
       }
@@ -91,6 +96,9 @@ authRouter.post(
     } else if (gstin && !user.gstin && GSTIN_RE.test(gstin.toUpperCase())) {
       user = await prisma.user.update({ where: { id: user.id }, data: { gstin: gstin.toUpperCase() } });
     }
+
+    // Sign-in is now certain to succeed, so retire the code — one login each.
+    await consumeOtp(phone);
 
     return ok(res, await issueSession(user, remember ?? false));
   })

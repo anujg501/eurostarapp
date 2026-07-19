@@ -3183,6 +3183,23 @@ img[src*="assets/products/"] {
             <div class="lg-otp" id="cust-otp">
               <input inputmode="numeric" maxlength="1"><input inputmode="numeric" maxlength="1"><input inputmode="numeric" maxlength="1"><input inputmode="numeric" maxlength="1"><input inputmode="numeric" maxlength="1"><input inputmode="numeric" maxlength="1">
             </div>
+            <!-- Shown only when the server says this number is new. The code
+                 already entered stays valid, so the details are collected here
+                 rather than sending the customer back to the start. -->
+            <div class="hidden" id="cust-newfields" style="margin-top:18px; text-align:left">
+              <div class="lg-hint" style="margin-bottom:12px">Almost there — we just need your business details to finish setting up your account.</div>
+              <div class="lg-field">
+                <label class="lg-label">Business name</label>
+                <input type="text" class="lg-input" id="cust-name2" maxlength="80" placeholder="e.g. Kiran Jewellers" autocomplete="organization">
+                <div class="lg-err" id="cust-name2-err">Enter your business name.</div>
+              </div>
+              <div class="lg-field">
+                <label class="lg-label">GST number (GSTIN)</label>
+                <input type="text" class="lg-input" id="cust-gst2" maxlength="15" placeholder="e.g. 27ABCDE1234F1Z5" style="text-transform:uppercase" autocomplete="off">
+                <div class="lg-err" id="cust-gst2-err">Enter a valid 15-character GSTIN.</div>
+              </div>
+            </div>
+
             <button class="lg-btn" id="cust-verify" style="margin-top:20px">Verify &amp; enter</button>
             <p class="lg-resend" id="cust-resend">Resend code in <b>0:30</b></p>
           </div>
@@ -3463,13 +3480,33 @@ img[src*="assets/products/"] {
 
       var phone = document.getElementById('cust-phone').value.trim();
       var body = { phone: phone, otp: v, remember: document.getElementById('cust-remember').checked };
-      // First-time sign-up needs the business name + GSTIN alongside the code.
+
+      // First-time sign-up needs a business name + GSTIN alongside the code.
+      // Prefer what was typed on the signup form, then the inline panel the 422
+      // reply reveals, then anything remembered from an earlier attempt.
+      var nm = '', gst = '';
       try {
-        var savedName = localStorage.getItem('eurostar_cust_name');
-        var savedGst = localStorage.getItem('eurostar_cust_gstin');
-        if (savedName) body.name = savedName;
-        if (savedGst) body.gstin = savedGst;
+        var f1 = document.getElementById('cust-name'), f2 = document.getElementById('cust-name2');
+        var g1 = document.getElementById('cust-gst'), g2 = document.getElementById('cust-gst2');
+        nm = (f2 && f2.value.trim()) || (f1 && f1.value.trim()) || localStorage.getItem('eurostar_cust_name') || '';
+        gst = (g2 && g2.value.trim()) || (g1 && g1.value.trim()) || localStorage.getItem('eurostar_cust_gstin') || '';
       } catch (e) {}
+
+      // If the inline panel is open the details are required — validate before
+      // spending the code on a request the server will only reject.
+      var panel = document.getElementById('cust-newfields');
+      if (panel && !panel.classList.contains('hidden')) {
+        var okN2 = nm.length > 1, okG2 = validGST(gst);
+        setErr('cust-name2-err', 'cust-name2', !okN2);
+        setErr('cust-gst2-err', 'cust-gst2', !okG2);
+        if (!okN2 || !okG2) return;
+        try {
+          localStorage.setItem('eurostar_cust_name', nm);
+          localStorage.setItem('eurostar_cust_gstin', gst.toUpperCase());
+        } catch (e) {}
+      }
+      if (nm) body.name = nm;
+      if (gst) body.gstin = gst.toUpperCase();
 
       busy(btn, true, 'Verifying…');
       apiPost('/auth/otp/verify', body).then(function (r) {
@@ -3480,11 +3517,25 @@ img[src*="assets/products/"] {
           setTimeout(enterApp, 400);
           return;
         }
-        // 422 = the server knows this number and wants name + GSTIN to finish.
+        // 422 = new number, the server wants a business name + GSTIN. The code
+        // just entered is still valid for a few minutes, so collect the details
+        // right here and resubmit with the same code — sending the customer back
+        // to the start would mean a fresh SMS and an obvious dead end.
         if (r.status === 422) {
-          toast('Please add your business name and GSTIN to finish signing up.');
-          setCustMode('signup');
-          resetSteps('customer');
+          var box = document.getElementById('cust-newfields');
+          if (box.classList.contains('hidden')) {
+            box.classList.remove('hidden');
+            document.getElementById('cust-verify').textContent = 'Complete signup';
+            var n2 = document.getElementById('cust-name2');
+            try {
+              n2.value = localStorage.getItem('eurostar_cust_name') || '';
+              document.getElementById('cust-gst2').value = localStorage.getItem('eurostar_cust_gstin') || '';
+            } catch (e) {}
+            n2.focus();
+            toast('New here — add your business details to finish.');
+          } else {
+            toast('Please fill in your business name and GSTIN.');
+          }
           return;
         }
         toast((r.data && r.data.error) || 'That code was not accepted. Please try again.');

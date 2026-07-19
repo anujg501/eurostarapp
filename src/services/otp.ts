@@ -62,7 +62,18 @@ export async function requestOtp(phone: string): Promise<{ devCode?: string }> {
 /**
  * Verify a submitted OTP. Returns true if it matches an unexpired code.
  */
-export async function verifyOtp(phone: string, code: string): Promise<boolean> {
+export async function verifyOtp(
+  phone: string,
+  code: string,
+  opts: { consume?: boolean } = {}
+): Promise<boolean> {
+  // `consume: false` checks the code without spending it. First-time sign-up
+  // needs this: the code verifies, the server then asks for a business name and
+  // GSTIN, and the customer resubmits with the SAME code. Consuming on the first
+  // pass burned it and the second attempt failed as "incorrect or expired",
+  // which made signing up impossible.
+  const consume = opts.consume ?? true;
+
   const record = await prisma.otpCode.findFirst({
     where: { phone, consumed: false, expiresAt: { gt: new Date() } },
     orderBy: { createdAt: 'desc' },
@@ -71,9 +82,15 @@ export async function verifyOtp(phone: string, code: string): Promise<boolean> {
   if (record.attempts >= 5) return false;
 
   const match = await bcrypt.compare(code, record.codeHash);
+
+  // A wrong guess always counts against the attempt limit, so leaving the code
+  // unconsumed cannot be used to brute-force it.
   await prisma.otpCode.update({
     where: { id: record.id },
-    data: { attempts: { increment: 1 }, consumed: match ? true : undefined },
+    data: {
+      attempts: { increment: 1 },
+      consumed: match && consume ? true : undefined,
+    },
   });
   return match;
 }
@@ -195,4 +212,18 @@ export async function sendWhatsApp(phone: string, message: string): Promise<void
     Body: message,
   });
   await twilioSend(body, 'WhatsApp');
+}
+
+/**
+ * Retire the outstanding code for a phone number.
+ *
+ * Called once the login has definitely succeeded, so a code cannot be replayed.
+ * Kept separate from verifyOtp because sign-up verifies the code before the
+ * account exists and must be able to present it again to finish.
+ */
+export async function consumeOtp(phone: string): Promise<void> {
+  await prisma.otpCode.updateMany({
+    where: { phone, consumed: false },
+    data: { consumed: true },
+  });
 }

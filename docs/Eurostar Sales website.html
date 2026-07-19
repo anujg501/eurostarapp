@@ -5,25 +5,52 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Eurostar Gemstones — Wholesale Portal</title>
   <script>
-    /* Auth gate — if not signed in, bounce to the login screen and remember
-       where to return. Runs before anything renders to avoid a flash. */
+    /* Auth gate. Runs before anything renders to avoid a flash of content.
+     *
+     * This used to trust a one-time sessionStorage flag the login page set, so
+     * anyone who set that flag in devtools could browse without signing in. The
+     * flag now only decides whether to paint immediately; the session itself is
+     * confirmed against the server, and a token the server rejects is cleared
+     * and bounced to the login screen.
+     *
+     * The API is the real boundary either way — it refuses unauthenticated
+     * requests regardless — but the shop should not appear to open for someone
+     * who never signed in.
+     */
     (function () {
-      try {
-        // Always return to the login screen on a fresh load / refresh. The
-        // login sets a one-time 'eurostar_enter' flag right before redirecting
-        // here; we consume it once so this load proceeds, then clear it so the
-        // next refresh goes back to login.
-        // A ?enter=1 URL flag (used by the mobile preview frame) bypasses the
-        // gate so the app opens directly without the login round-trip.
-        var qs = new URLSearchParams(location.search);
-        if (qs.get('enter') === '1') {
-          // proceed directly
-        } else if (sessionStorage.getItem('eurostar_enter') === '1') {
+      var LOGIN = 'Eurostar Login.html';
+      function toLogin() {
+        try {
+          localStorage.removeItem('eurostar_token');
+          localStorage.removeItem('eurostar_authed');
+          localStorage.removeItem('eurostar_user');
           sessionStorage.removeItem('eurostar_enter');
-        } else {
-          var here = (location.pathname.split('/').pop()) || 'Eurostar Sales website.html';
-          location.replace('Eurostar Login.html?next=' + encodeURIComponent(here));
-        }
+        } catch (e) {}
+        location.replace(LOGIN);
+      }
+
+      try {
+        // ?enter=1 is used by the mobile preview frame to skip the round-trip.
+        if (new URLSearchParams(location.search).get('enter') === '1') return;
+
+        var token = localStorage.getItem('eurostar_token');
+        if (!token) return toLogin();
+
+        // Consume the one-time pass so a later refresh re-validates rather than
+        // riding on a stale flag.
+        try { sessionStorage.removeItem('eurostar_enter'); } catch (e) {}
+
+        // Validate for real. Rendering is not blocked on the round trip — if the
+        // token turns out to be bad we bounce a moment later.
+        fetch((window.EUROSTAR_API || location.origin) + '/auth/me', {
+          headers: { authorization: 'Bearer ' + token },
+        })
+          .then(function (r) {
+            if (r.status === 401 || r.status === 403) toLogin();
+          })
+          .catch(function () {
+            /* offline: keep the app usable — the API still guards every write */
+          });
       } catch (e) {}
     })();
   </script>

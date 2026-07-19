@@ -3156,6 +3156,13 @@ img[src*="assets/products/"] {
               <div class="lg-err" id="cust-phone-err">Enter a valid 10-digit mobile number.</div>
             </div>
 
+            <div class="lg-field hidden" id="cust-name-field">
+              <label class="lg-label">Business name</label>
+              <input type="text" class="lg-input" id="cust-name" maxlength="80" placeholder="e.g. Kiran Jewellers" autocomplete="organization">
+              <div class="lg-hint">Appears on your orders and invoices.</div>
+              <div class="lg-err" id="cust-name-err">Enter your business name.</div>
+            </div>
+
             <div class="lg-field hidden" id="cust-gst-field">
               <label class="lg-label">GST number (GSTIN)</label>
               <input type="text" class="lg-input" id="cust-gst" maxlength="15" placeholder="e.g. 27ABCDE1234F1Z5" style="text-transform:uppercase" autocomplete="off">
@@ -3354,12 +3361,44 @@ img[src*="assets/products/"] {
       var first = pane.querySelector('[data-step="2"] .lg-otp input'); if (first) first.focus();
     }
 
+    // --- real authentication -------------------------------------------------
+    // This page used to let anyone in: any six digits, any password. It now talks
+    // to the back room and only calls enterApp() once the server has issued a
+    // token, which is what every authenticated request afterwards carries.
+    var API = window.EUROSTAR_API || location.origin;
+
+    function apiPost(path, body) {
+      return fetch(API + path, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      }).then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (d) {
+          return { ok: r.ok, status: r.status, data: d };
+        });
+      });
+    }
+
+    function saveSession(token, who) {
+      try {
+        localStorage.setItem('eurostar_token', token);
+        localStorage.setItem('eurostar_authed', '1');
+        if (who) localStorage.setItem('eurostar_user', JSON.stringify(who));
+      } catch (e) {}
+    }
+
     function enterApp() {
       try {
-        localStorage.setItem('eurostar_authed', '1');
         sessionStorage.setItem('eurostar_enter', '1'); // one-time pass the app's gate consumes
       } catch (e) {}
       window.location.href = CATALOG;
+    }
+
+    function busy(btn, on, label) {
+      if (!btn) return;
+      btn.disabled = !!on;
+      if (on) { btn.dataset.prev = btn.textContent; btn.textContent = label || 'Please wait…'; }
+      else if (btn.dataset.prev) { btn.textContent = btn.dataset.prev; }
     }
 
     // ===== CUSTOMER =====
@@ -3388,25 +3427,71 @@ img[src*="assets/products/"] {
     });
 
     document.getElementById('cust-send').addEventListener('click', function () {
+      var btn = this;
       var phone = document.getElementById('cust-phone').value;
       var okP = validPhone(phone);
       setErr('cust-phone-err', 'cust-phone-grp', !okP);
-      var okG = true;
+      var okG = true, okN = true;
       if (custMode === 'signup') {
         var gst = document.getElementById('cust-gst').value;
         okG = validGST(gst);
         setErr('cust-gst-err', 'cust-gst', !okG);
+        var nm = document.getElementById('cust-name').value.trim();
+        okN = nm.length > 1;
+        setErr('cust-name-err', 'cust-name', !okN);
         if (okG) { try { localStorage.setItem('eurostar_cust_gstin', gst.trim().toUpperCase()); } catch (e) {} }
+        if (okN) { try { localStorage.setItem('eurostar_cust_name', nm); } catch (e) {} }
       }
-      if (!okP || !okG) return;
+      if (!okP || !okG || !okN) return;
       try { localStorage.setItem('eurostar_remember_cust', document.getElementById('cust-remember').checked ? '1' : '0'); } catch (e) {}
-      toast('OTP sent to +91 ' + phone.trim());
-      goToOtp('customer', '+91 ' + phone.trim());
+
+      busy(btn, true, 'Sending…');
+      apiPost('/auth/otp/request', { phone: phone.trim() }).then(function (r) {
+        busy(btn, false);
+        if (!r.ok) { toast((r.data && r.data.error) || 'Could not send the code. Please try again.'); return; }
+        toast('OTP sent to +91 ' + phone.trim());
+        goToOtp('customer', '+91 ' + phone.trim());
+      }).catch(function () {
+        busy(btn, false);
+        toast('Could not reach the server. Check your connection.');
+      });
     });
     document.getElementById('cust-verify').addEventListener('click', function () {
+      var btn = this;
       var v = otpValue(document.getElementById('cust-otp'));
       if (v.length < 6) { toast('Enter the 6-digit code'); return; }
-      toast('Verified — welcome'); setTimeout(enterApp, 500);
+
+      var phone = document.getElementById('cust-phone').value.trim();
+      var body = { phone: phone, otp: v, remember: document.getElementById('cust-remember').checked };
+      // First-time sign-up needs the business name + GSTIN alongside the code.
+      try {
+        var savedName = localStorage.getItem('eurostar_cust_name');
+        var savedGst = localStorage.getItem('eurostar_cust_gstin');
+        if (savedName) body.name = savedName;
+        if (savedGst) body.gstin = savedGst;
+      } catch (e) {}
+
+      busy(btn, true, 'Verifying…');
+      apiPost('/auth/otp/verify', body).then(function (r) {
+        busy(btn, false);
+        if (r.ok && r.data && r.data.accessToken) {
+          saveSession(r.data.accessToken, { role: 'customer', name: r.data.name, phone: phone });
+          toast('Verified — welcome');
+          setTimeout(enterApp, 400);
+          return;
+        }
+        // 422 = the server knows this number and wants name + GSTIN to finish.
+        if (r.status === 422) {
+          toast('Please add your business name and GSTIN to finish signing up.');
+          setCustMode('signup');
+          resetSteps('customer');
+          return;
+        }
+        toast((r.data && r.data.error) || 'That code was not accepted. Please try again.');
+      }).catch(function () {
+        busy(btn, false);
+        toast('Could not reach the server. Check your connection.');
+      });
     });
 
     // ===== SALES REP (ID + password, no OTP) =====
@@ -3421,7 +3506,26 @@ img[src*="assets/products/"] {
         localStorage.setItem('eurostar_login_mode', 'rep-cash');
         localStorage.setItem('eurostar_remember_rep', document.getElementById('rep-remember').checked ? '1' : '0');
       } catch (e) {}
-      toast('Signed in as rep'); setTimeout(enterApp, 500);
+      var btn = this;
+      busy(btn, true, 'Signing in…');
+      apiPost('/auth/login', {
+        role: 'rep',
+        username: id,
+        password: p,
+        remember: document.getElementById('rep-remember').checked,
+      }).then(function (r) {
+        busy(btn, false);
+        if (r.ok && r.data && r.data.accessToken) {
+          saveSession(r.data.accessToken, { role: 'rep', name: r.data.name, username: id });
+          toast('Signed in as rep');
+          setTimeout(enterApp, 400);
+          return;
+        }
+        toast((r.data && r.data.error) || 'Wrong ID or password.');
+      }).catch(function () {
+        busy(btn, false);
+        toast('Could not reach the server. Check your connection.');
+      });
     });
     document.getElementById('rep-forgot').addEventListener('click', function () { toast('Contact your branch admin to reset access'); });
 

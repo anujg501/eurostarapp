@@ -514,7 +514,18 @@ function ProfileScreen({ persona, setRoute }) {
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}><button className="btn btn-accent">Update password</button></div>
         <div style={{ marginTop: 24, paddingTop: 18, borderTop: '1px solid var(--divider)' }}>
-          <button className="btn btn-secondary" onClick={() => setRoute({ name: 'home' })}>Sign out</button>
+          <button className="btn btn-secondary" onClick={() => {
+            // Used to just navigate home, leaving the session intact — so
+            // "Sign out" signed nobody out. Clear the token and the gate's
+            // one-time pass, then return to the login screen.
+            try {
+              localStorage.removeItem('eurostar_token');
+              localStorage.removeItem('eurostar_authed');
+              localStorage.removeItem('eurostar_user');
+              sessionStorage.removeItem('eurostar_enter');
+            } catch (e) {}
+            window.location.href = 'Eurostar Login.html';
+          }}>Sign out</button>
         </div>
       </div>}
     </div>

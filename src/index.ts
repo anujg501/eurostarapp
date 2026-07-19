@@ -93,6 +93,37 @@ app.get('/login', (_req, res) => res.sendFile(path.join(webDir, 'Eurostar Login.
 app.get('/site', (_req, res) => res.sendFile(path.join(webDir, 'Eurostar Sales website.html')));
 app.get('/mobile', (_req, res) => res.sendFile(path.join(webDir, 'Eurostar Sales website (Mobile).html')));
 
+// The pages are files with spaces in their names ("Eurostar Sales website.html"),
+// and several in-app links still point at those filenames — a leftover from when
+// each app was opened straight from a folder. They work, but "%20" in the address
+// bar of a client-facing site reads as unfinished, so send them to the clean
+// route instead. 301 rather than 302: these filenames are not coming back.
+// Middleware rather than app.get(): the incoming path is percent-encoded
+// ("/Eurostar%20Sales%20website.html") and Express will not match a route
+// pattern containing literal spaces against it, so it silently fell through to
+// the static handler. Decoding here and comparing is what actually works.
+const LEGACY_PAGES: Record<string, string> = {
+  '/eurostar sales website.html': '/',
+  '/eurostar sales website (mobile).html': '/mobile',
+  '/eurostar login.html': '/login',
+  '/crm/eurostar crm.html': '/crm/',
+  '/lms/eurostar lms.html': '/lms/',
+  '/admin/eurostar admin.html': '/admin',
+  '/mira-admin/eurostar mira admin.html': '/mira-admin/',
+};
+app.use((req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(req.path).toLowerCase();
+  } catch {
+    return next(); // malformed escape — let the normal 404 handle it
+  }
+  const target = LEGACY_PAGES[decoded];
+  // 301 rather than 302: these filenames are not coming back.
+  return target ? res.redirect(301, target) : next();
+});
+
 // Clean, memorable paths for each app (e.g. eurostargems.com/shop).
 // The Sales page is a single file, so serve it directly. /mira points at the
 // mira-admin folder (different name). /crm, /lms and /admin need no route here:

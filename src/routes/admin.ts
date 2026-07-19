@@ -6,7 +6,7 @@ import { config } from '../config';
 import { ALLOWED_IMAGE_MIME, putImage } from '../services/storage';
 import { asyncHandler, ok, fail, failValidation } from '../util/http';
 import { authenticate, requireRole } from '../auth/middleware';
-import { getSetting, setSetting, KEYS } from '../services/settings';
+import { getSetting, setSetting, invalidateStoreRules, KEYS } from '../services/settings';
 
 // Admin (Sales App Admin) content endpoints. These are the producer side of the
 // catalog overlays, thumbnails, splash and rep-broadcast art the Sales app reads.
@@ -31,6 +31,9 @@ function kv(router: Router, path: string, key: string, schema: z.ZodTypeAny, fal
       const parsed = schema.safeParse(req.body);
       if (!parsed.success) return failValidation(res, parsed.error);
       await setSetting(key, parsed.data);
+      // Trading rules are cached for pricing; drop the cache so a change in the
+      // Settings screen applies to the very next order rather than up to 15s later.
+      if (key === KEYS.storeRules) invalidateStoreRules();
       return ok(res, parsed.data);
     })
   );

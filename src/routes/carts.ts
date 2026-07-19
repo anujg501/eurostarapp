@@ -4,6 +4,7 @@ import { prisma } from '../db';
 import { asyncHandler, fail, ok, failValidation } from '../util/http';
 import { AuthedRequest, authenticate } from '../auth/middleware';
 import { computeTotals } from '../services/totals';
+import { getStoreRules, type StoreRules } from '../services/settings';
 
 export const cartsRouter = Router();
 
@@ -26,7 +27,7 @@ const cartSchema = z.object({
   lines: z.array(lineSchema).default([]),
 });
 
-function serialiseCart(cart: any) {
+function serialiseCart(cart: any, rules: StoreRules) {
   const lines = cart.lines.map((l: any) => ({
     id: l.id,
     skuId: l.skuId,
@@ -41,7 +42,7 @@ function serialiseCart(cart: any) {
     lineTotal: l.lineTotal,
   }));
   const subtotal = lines.reduce((s: number, l: any) => s + (l.lineTotal ?? 0), 0);
-  const totals = computeTotals([{ unitPrice: subtotal, qty: 1 }]);
+  const totals = computeTotals([{ unitPrice: subtotal, qty: 1 }], false, rules);
   return {
     id: cart.id,
     customerId: cart.customerId,
@@ -68,7 +69,9 @@ cartsRouter.get(
       include: { lines: true },
       orderBy: { updatedAt: 'desc' },
     });
-    return ok(res, carts.map(serialiseCart));
+    // Load the rules once for the whole list rather than per cart.
+    const rules = await getStoreRules();
+    return ok(res, carts.map((c) => serialiseCart(c, rules)));
   })
 );
 
@@ -104,7 +107,7 @@ cartsRouter.post(
       },
       include: { lines: true },
     });
-    return ok(res, serialiseCart(cart), 201);
+    return ok(res, serialiseCart(cart, await getStoreRules()), 201);
   })
 );
 
@@ -153,7 +156,7 @@ cartsRouter.put(
       });
     });
 
-    return ok(res, serialiseCart(cart));
+    return ok(res, serialiseCart(cart, await getStoreRules()));
   })
 );
 

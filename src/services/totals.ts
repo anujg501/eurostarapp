@@ -32,10 +32,16 @@ export function lineTotal(line: LineInput): number {
  *   insurance = 0
  *   grand     = subtotal + tax + shipping + insurance
  */
-export function computeTotals(lines: LineInput[], isExport = false): Totals {
+// `rules` comes from getStoreRules() so the Admin Settings screen actually
+// applies. Defaults to config.rules for callers that have none to hand.
+export function computeTotals(
+  lines: LineInput[],
+  isExport = false,
+  rules: typeof config.rules = config.rules
+): Totals {
   const subtotal = lines.reduce((sum, l) => sum + lineTotal(l), 0);
-  const tax = isExport ? 0 : Math.round(subtotal * config.rules.gstRate);
-  const shipping = subtotal > config.rules.courierFreeOver ? 0 : config.rules.courierFlat;
+  const tax = isExport ? 0 : Math.round(subtotal * rules.gstRate);
+  const shipping = subtotal > rules.courierFreeOver ? 0 : rules.courierFlat;
   const insurance = 0;
   const grand = subtotal + tax + shipping + insurance;
   return { subtotal, tax, shipping, insurance, grand };
@@ -55,8 +61,12 @@ export function isExportCity(city?: string | null): boolean {
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-export function dispatchInfo(isExport = false, from: Date = new Date()): { date: Date; label: string } {
-  const days = isExport ? config.rules.exportDispatchDays : config.rules.dispatchWorkingDays;
+export function dispatchInfo(
+  isExport = false,
+  from: Date = new Date(),
+  rules: typeof config.rules = config.rules
+): { date: Date; label: string } {
+  const days = isExport ? rules.exportDispatchDays : rules.dispatchWorkingDays;
   const date = new Date(from);
   date.setDate(date.getDate() + days);
   // Format like the client: "Wed, 17 Jul".

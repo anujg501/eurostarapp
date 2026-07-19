@@ -4,6 +4,7 @@ import { prisma } from '../db';
 import { asyncHandler, fail, ok, failValidation } from '../util/http';
 import { AuthedRequest, authenticate, optionalAuth } from '../auth/middleware';
 import { computeTotals, dispatchInfo, isExportCity } from '../services/totals';
+import { getStoreRules } from '../services/settings';
 import { nextOrderId } from '../services/ids';
 import { sendWhatsApp } from '../services/otp';
 import { config } from '../config';
@@ -152,6 +153,7 @@ ordersRouter.post(
 
     const city = customer?.city ?? d.city ?? null;
     const isExport = d.isExport ?? isExportCity(city);
+    const rules = await getStoreRules(); // Admin Settings overrides, not the defaults
 
     // Build lines and the authoritative subtotal (when line items are provided).
     const items = d.items ?? d.lines ?? [];
@@ -195,7 +197,7 @@ ordersRouter.post(
     let subtotal: number, tax: number, shipping: number, insurance: number, grand: number;
     if (items.length) {
       subtotal = lines.reduce((s, l) => s + l.lineTotal, 0);
-      const totals = computeTotals([{ unitPrice: subtotal, qty: 1 }], isExport);
+      const totals = computeTotals([{ unitPrice: subtotal, qty: 1 }], isExport, rules);
       tax = totals.tax;
       shipping = totals.shipping;
       insurance = totals.insurance;
@@ -208,7 +210,7 @@ ordersRouter.post(
       insurance = 0;
     }
 
-    const dispatch = dispatchInfo(isExport);
+    const dispatch = dispatchInfo(isExport, new Date(), rules);
     const dispatchLabel = d.dispatchBy ?? dispatch.label;
 
     const id = d.id ?? (await nextOrderId());

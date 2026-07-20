@@ -17,6 +17,15 @@ const TWEAKS_DEFAULTS = /*EDITMODE-BEGIN*/{
   "simOffline": false
 }/*EDITMODE-END*/;
 
+// ---- Browser history integration -------------------------------------------
+// This app navigates through React state (route/setRoute), not a router lib,
+// and it lives on a single static page whose API shares the same path prefixes
+// (/orders, /catalog, /rfq). So instead of putting the page in the URL (which
+// would need a "#" or would collide with the API), every navigation pushes a
+// history entry that keeps the URL clean and stores the full route object in
+// history.state. Back/Forward then restore the exact page — tabs, filters and
+// order data included — with no hash and no server round-trip.
+
 function App() {
   const tweaks = useTweaks(TWEAKS_DEFAULTS);
   // The demo persona is only the fallback shell. When someone is actually
@@ -128,10 +137,40 @@ function App() {
   }, []);
   React.useEffect(() => { if (isOnline && queued > 0) syncQueue(); }, [isOnline]);
 
-  const navigate = (next) => {
+  // navigate() is the single entry point every screen uses. It pushes a real
+  // browser history entry so Back/Forward work, then updates the route state.
+  // Pass { replace: true } to swap the current entry instead of adding one
+  // (e.g. checkout → payment → confirmed, so Back skips the payment step).
+  // The clean URL for this page: the absolute address with any "#..." removed.
+  // Using the absolute href (not a relative path) is what reliably strips an
+  // existing fragment in Chromium.
+  const cleanUrl = function () { return window.location.href.split('#')[0]; };
+
+  const navigate = (next, opts) => {
+    try {
+      // Keep the URL clean (no hash, no path change) — the page is carried in
+      // history.state, not the address bar. pushState still adds a real
+      // history entry even with an unchanged URL, so Back/Forward work.
+      if (opts && opts.replace) window.history.replaceState(next, '', cleanUrl());
+      else window.history.pushState(next, '', cleanUrl());
+    } catch (e) {}
     setRoute(next);
     window.scrollTo({ top: 0, behavior: 'instant' });
   };
+
+  // Seed the first history entry with the initial route AND strip any stray
+  // "#/" a previous (hash-routing) build left in the URL, then restore the
+  // route from history.state on Back/Forward.
+  React.useEffect(() => {
+    try { window.history.replaceState(route, '', cleanUrl()); } catch (e) {}
+    const onPop = function (e) {
+      var r = (e && e.state && e.state.name) ? e.state : { name: 'home' };
+      setRoute(r);
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    };
+    window.addEventListener('popstate', onPop);
+    return function () { window.removeEventListener('popstate', onPop); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const addToCart = (line) => {
     setCart(c => [...c, { ...line, addedAt: Date.now() + Math.random() }]);
@@ -183,17 +222,19 @@ function App() {
                       try { const q = JSON.parse(localStorage.getItem('eurostar-offline-orders') || '[]') || []; q.push(o); localStorage.setItem('eurostar-offline-orders', JSON.stringify(q)); } catch (e) {}
                       setQueued((n) => n + 1);
                       setCart([]);
-                      navigate({ name: 'confirmed', order: { id, ...details, lines, queuedOffline: true } });
+                      // replace: the order is placed, so Back should not return
+                      // to the checkout form for an already-submitted cart.
+                      navigate({ name: 'confirmed', order: { id, ...details, lines, queuedOffline: true } }, { replace: true });
                       return;
                     }
                     setCart([]);
-                    if (isCredit) navigate({ name: 'confirmed', order: { id, ...details, lines } });
+                    if (isCredit) navigate({ name: 'confirmed', order: { id, ...details, lines } }, { replace: true });
                     else navigate({ name: 'payment', order: { id, ...details, lines } });
                   }} />;
       break;
     case 'payment':
       screen = <PaymentScreen order={route.order || { id: 'SO-24900', grand: 0 }} persona={persona}
-                  onPaid={() => navigate({ name: 'confirmed', order: { ...(route.order || {}), paid: true } })}
+                  onPaid={() => navigate({ name: 'confirmed', order: { ...(route.order || {}), paid: true } }, { replace: true })}
                   onBack={() => navigate({ name: 'checkout' })} />;
       break;
     case 'confirmed':

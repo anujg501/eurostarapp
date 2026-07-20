@@ -3413,7 +3413,9 @@ img[src*="assets/products/"] {
       try {
         sessionStorage.setItem('eurostar_enter', '1'); // one-time pass the app's gate consumes
       } catch (e) {}
-      window.location.href = CATALOG;
+      // replace(), not href: this drops the login page from browser history so
+      // a signed-in user pressing Back never lands back on the login screen.
+      window.location.replace(CATALOG);
     }
 
     function busy(btn, on, label) {

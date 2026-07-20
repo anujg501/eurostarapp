@@ -680,10 +680,18 @@ function ProfileScreen({ persona, setRoute }) {
         <div style={{ marginTop: 24, paddingTop: 18, borderTop: '1px solid var(--divider)' }}>
           <button className="btn btn-secondary" onClick={() => {
             // Used to just navigate home, leaving the session intact — so
-            // "Sign out" signed nobody out. Clear the token and the gate's
-            // one-time pass, then return to the login screen.
+            // "Sign out" signed nobody out. Revoke the remember-me token on
+            // the server, clear the session, then return to the login screen.
             try {
+              var rt = localStorage.getItem('eurostar_refresh');
+              if (rt) {
+                fetch((window.EUROSTAR_API || location.origin) + '/auth/logout', {
+                  method: 'POST', headers: { 'content-type': 'application/json' },
+                  body: JSON.stringify({ refreshToken: rt }), keepalive: true,
+                }).catch(function () {});
+              }
               localStorage.removeItem('eurostar_token');
+              localStorage.removeItem('eurostar_refresh');
               localStorage.removeItem('eurostar_authed');
               localStorage.removeItem('eurostar_user');
               sessionStorage.removeItem('eurostar_enter');

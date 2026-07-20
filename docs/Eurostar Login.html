@@ -3396,11 +3396,16 @@ img[src*="assets/products/"] {
       });
     }
 
-    function saveSession(token, who) {
+    function saveSession(token, who, refreshToken) {
       try {
         localStorage.setItem('eurostar_token', token);
         localStorage.setItem('eurostar_authed', '1');
         if (who) localStorage.setItem('eurostar_user', JSON.stringify(who));
+        // The access token lives 15 minutes; the refresh token is what keeps
+        // the session alive across refreshes/returns. Without storing it the
+        // shop logged everyone out a quarter-hour after signing in.
+        if (refreshToken) localStorage.setItem('eurostar_refresh', refreshToken);
+        else localStorage.removeItem('eurostar_refresh');
       } catch (e) {}
     }
 
@@ -3512,7 +3517,7 @@ img[src*="assets/products/"] {
       apiPost('/auth/otp/verify', body).then(function (r) {
         busy(btn, false);
         if (r.ok && r.data && r.data.accessToken) {
-          saveSession(r.data.accessToken, { role: 'customer', name: r.data.name, phone: phone });
+          saveSession(r.data.accessToken, { role: 'customer', name: r.data.name, phone: phone }, r.data.refreshToken);
           toast('Verified — welcome');
           setTimeout(enterApp, 400);
           return;
@@ -3567,7 +3572,7 @@ img[src*="assets/products/"] {
       }).then(function (r) {
         busy(btn, false);
         if (r.ok && r.data && r.data.accessToken) {
-          saveSession(r.data.accessToken, { role: 'rep', name: r.data.name, username: id });
+          saveSession(r.data.accessToken, { role: 'rep', name: r.data.name, username: id }, r.data.refreshToken);
           toast('Signed in as rep');
           setTimeout(enterApp, 400);
           return;
@@ -3605,7 +3610,7 @@ img[src*="assets/products/"] {
       }).then(function (r) {
         busy(btn, false);
         if (r.ok && r.data && r.data.accessToken) {
-          saveSession(r.data.accessToken, { role: 'office', name: r.data.name, username: u });
+          saveSession(r.data.accessToken, { role: 'office', name: r.data.name, username: u }, r.data.refreshToken);
           toast('Signed in — back office');
           setTimeout(enterApp, 400);
           return;

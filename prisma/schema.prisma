@@ -73,9 +73,13 @@ model Customer {
   id        String   @id @default(cuid())
   code      String   @unique // human-friendly code, e.g. "CUST-1042"
   name      String // company or contact name
-  phone     String?
-  city      String?
-  gstin     String?
+  contact     String? // contact person, e.g. "Kiran Mehta"
+  email       String?
+  phone       String?
+  city        String?
+  gstin       String?
+  shipAddress String? // delivery address (profile "Addresses" tab)
+  billAddress String? // billing address; null = same as shipping
   gstinNorm String? // normalised GSTIN for dedupe (CRM customer master)
   terms     String   @default("cash") // "cash" | "15" | "30" | "45" | "60"
   repUserId String? // which rep owns this customer

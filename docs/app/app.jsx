@@ -458,6 +458,141 @@ function ProfileScreen({ persona, setRoute }) {
   const lbl = (t) => <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--fg-meta)', marginBottom: 6 }}>{t}</div>;
   const inp = { width: '100%', padding: '10px 12px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', fontSize: 14, fontFamily: 'inherit', color: 'var(--fg)', outline: 'none' };
   const isCredit = ['15','30','45','60'].includes(String(persona.terms));
+
+  // ----- Business details: real save --------------------------------------
+  // The prototype's inputs were defaultValue-only and the button had no
+  // handler; typing + Save changed nothing anywhere. This holds the form in
+  // state, resolves the customer's master record on the server by phone, and
+  // PUTs the edit back.
+  const [f, setF] = React.useState({
+    name: persona.company || '', contact: persona.contact || '', email: persona.email || '',
+    phone: persona.phone || '', city: persona.location || '', gstin: persona.gst || '',
+  });
+  const [custId, setCustId] = React.useState(null); // server record id, once resolved
+  const [saving, setSaving] = React.useState(false);
+  const [notice, setNotice] = React.useState(null); // {kind:'ok'|'err', text}
+  const [fieldErr, setFieldErr] = React.useState({});
+  const setField = (k) => (e) => { setF((x) => ({ ...x, [k]: e.target.value })); setFieldErr((x) => ({ ...x, [k]: null })); };
+  const authHeaders = () => {
+    var h = { 'content-type': 'application/json' };
+    try { var t = localStorage.getItem('eurostar_token'); if (t) h.authorization = 'Bearer ' + t; } catch (e) {}
+    return h;
+  };
+
+  // Hydrate from the server record if one matches this account's phone.
+  React.useEffect(() => {
+    var alive = true;
+    fetch((window.EUROSTAR_API || location.origin) + '/customers/by-phone/' + encodeURIComponent(persona.phone || ''), { headers: authHeaders() })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((c) => {
+        if (!alive || !c) return;
+        setCustId(c.id);
+        setF({
+          name: c.name || persona.company || '', contact: c.contact || persona.contact || '',
+          email: c.email || persona.email || '', phone: c.phone || persona.phone || '',
+          city: c.city || persona.location || '', gstin: c.gstin || persona.gst || '',
+        });
+        setAddr({
+          ship: c.shipAddress || persona.location || '',
+          bill: c.billAddress || '',
+          same: !c.billAddress,
+        });
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  const validate = () => {
+    var errs = {};
+    if (!f.name.trim()) errs.name = 'Company name is required.';
+    if (f.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)) errs.email = 'Not a valid email address.';
+    if (f.phone && f.phone.replace(/\D+/g, '').length < 10) errs.phone = 'Enter a 10-digit mobile number.';
+    setFieldErr(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const saveDetails = () => {
+    if (saving) return; // no duplicate submissions
+    setNotice(null);
+    if (!validate()) return;
+    if (!custId) { setNotice({ kind: 'err', text: 'No server record found for this account yet — ask your rep to add you to the customer master.' }); return; }
+    setSaving(true);
+    fetch((window.EUROSTAR_API || location.origin) + '/customers/' + custId, {
+      method: 'PUT', headers: authHeaders(),
+      body: JSON.stringify({ name: f.name.trim(), contact: f.contact, email: f.email, phone: f.phone, city: f.city, gstin: f.gstin }),
+    })
+      .then((r) => r.json().then((d) => ({ ok: r.ok, d })))
+      .then(({ ok, d }) => {
+        if (!ok) { setNotice({ kind: 'err', text: (d && d.error) || 'Could not save — please try again.' }); return; }
+        // Keep the rest of the session in step (header, orders, checkout all
+        // read the shared persona object).
+        persona.company = d.name; persona.contact = d.contact || ''; persona.email = d.email || '';
+        persona.phone = d.phone || ''; persona.location = d.city || ''; persona.gst = d.gstin || '';
+        setNotice({ kind: 'ok', text: 'Profile updated successfully.' });
+        setTimeout(() => setNotice(null), 3000);
+      })
+      .catch(() => setNotice({ kind: 'err', text: 'Network error — nothing was saved.' }))
+      .finally(() => setSaving(false));
+  };
+  const errTxt = (k) => fieldErr[k] ? <div style={{ fontSize: 12, color: 'var(--ruby, #8b1e2e)', marginTop: 4 }}>{fieldErr[k]}</div> : null;
+  const noticeBox = (n) => n && (
+    <div style={{ marginBottom: 14, padding: '10px 14px', borderRadius: 'var(--r-md)', fontSize: 13.5, fontWeight: 600,
+      background: n.kind === 'ok' ? 'var(--emerald-soft, #D9E8E0)' : 'var(--ruby-soft, #F2DEDE)',
+      color: n.kind === 'ok' ? 'var(--emerald-ink, #0A3F33)' : 'var(--ruby, #8b1e2e)' }}>
+      {n.text}
+    </div>
+  );
+
+  // ----- Addresses tab ------------------------------------------------------
+  const [addr, setAddr] = React.useState({ ship: persona.location || '', bill: '', same: true });
+  const [addrSaving, setAddrSaving] = React.useState(false);
+  const [addrNotice, setAddrNotice] = React.useState(null);
+  const saveAddresses = () => {
+    if (addrSaving) return;
+    setAddrNotice(null);
+    if (!addr.ship.trim()) { setAddrNotice({ kind: 'err', text: 'Shipping address cannot be empty.' }); return; }
+    if (!addr.same && !addr.bill.trim()) { setAddrNotice({ kind: 'err', text: 'Enter a billing address or tick "Same as shipping".' }); return; }
+    if (!custId) { setAddrNotice({ kind: 'err', text: 'No server record found for this account yet — ask your rep to add you to the customer master.' }); return; }
+    setAddrSaving(true);
+    fetch((window.EUROSTAR_API || location.origin) + '/customers/' + custId, {
+      method: 'PUT', headers: authHeaders(),
+      body: JSON.stringify({ shipAddress: addr.ship.trim(), billAddress: addr.same ? null : addr.bill.trim() }),
+    })
+      .then((r) => r.json().then((d) => ({ ok: r.ok, d })))
+      .then(({ ok, d }) => {
+        if (!ok) { setAddrNotice({ kind: 'err', text: (d && d.error) || 'Could not save — please try again.' }); return; }
+        setAddrNotice({ kind: 'ok', text: 'Addresses saved.' });
+        setTimeout(() => setAddrNotice(null), 3000);
+      })
+      .catch(() => setAddrNotice({ kind: 'err', text: 'Network error — nothing was saved.' }))
+      .finally(() => setAddrSaving(false));
+  };
+
+  // ----- Security tab -------------------------------------------------------
+  const [pw, setPw] = React.useState({ cur: '', next: '', confirm: '' });
+  const [pwSaving, setPwSaving] = React.useState(false);
+  const [pwNotice, setPwNotice] = React.useState(null);
+  const changePassword = () => {
+    if (pwSaving) return;
+    setPwNotice(null);
+    if (!pw.cur) { setPwNotice({ kind: 'err', text: 'Enter your current password.' }); return; }
+    if (pw.next.length < 8) { setPwNotice({ kind: 'err', text: 'New password must be at least 8 characters.' }); return; }
+    if (pw.next !== pw.confirm) { setPwNotice({ kind: 'err', text: 'New passwords do not match.' }); return; }
+    setPwSaving(true);
+    fetch((window.EUROSTAR_API || location.origin) + '/auth/change-password', {
+      method: 'POST', headers: authHeaders(),
+      body: JSON.stringify({ oldPassword: pw.cur, newPassword: pw.next }),
+    })
+      .then((r) => r.json().then((d) => ({ ok: r.ok, d })))
+      .then(({ ok, d }) => {
+        if (!ok) { setPwNotice({ kind: 'err', text: (d && d.error) || 'Could not change the password.' }); return; }
+        setPw({ cur: '', next: '', confirm: '' });
+        setPwNotice({ kind: 'ok', text: 'Password changed. Use the new one next time you sign in.' });
+        setTimeout(() => setPwNotice(null), 4000);
+      })
+      .catch(() => setPwNotice({ kind: 'err', text: 'Network error — password unchanged.' }))
+      .finally(() => setPwSaving(false));
+  };
   return (
     <div className="page" style={{ maxWidth: 880 }}>
       <div className="page-head">
@@ -477,42 +612,71 @@ function ProfileScreen({ persona, setRoute }) {
 
       {tab === 'details' &&
       <div className="card card-pad">
+        {notice &&
+        <div style={{ marginBottom: 14, padding: '10px 14px', borderRadius: 'var(--r-md)', fontSize: 13.5, fontWeight: 600,
+          background: notice.kind === 'ok' ? 'var(--emerald-soft, #D9E8E0)' : 'var(--ruby-soft, #F2DEDE)',
+          color: notice.kind === 'ok' ? 'var(--emerald-ink, #0A3F33)' : 'var(--ruby, #8b1e2e)' }}>
+          {notice.text}
+        </div>}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
-          <label>{lbl('Firm / company')}<input style={inp} defaultValue={persona.company} /></label>
+          <label>{lbl('Firm / company')}<input style={inp} value={f.name} onChange={setField('name')} />{errTxt('name')}</label>
           <label>{lbl('Customer code')}<input style={{ ...inp, background: 'var(--paper-2)', color: 'var(--fg-meta)' }} value={persona.code} readOnly /></label>
-          <label>{lbl('Contact person')}<input style={inp} defaultValue={persona.contact} /></label>
-          <label>{lbl('Mobile')}<input style={inp} defaultValue={persona.phone} /></label>
-          <label>{lbl('Email')}<input style={inp} defaultValue={persona.email} /></label>
-          <label>{lbl('City')}<input style={inp} defaultValue={persona.location} /></label>
-          <label>{lbl('GST / PAN')}<input style={inp} defaultValue={persona.gst || ''} placeholder="GSTIN / PAN" /></label>
+          <label>{lbl('Contact person')}<input style={inp} value={f.contact} onChange={setField('contact')} /></label>
+          <label>{lbl('Mobile')}<input style={inp} value={f.phone} onChange={setField('phone')} />{errTxt('phone')}</label>
+          <label>{lbl('Email')}<input style={inp} value={f.email} onChange={setField('email')} />{errTxt('email')}</label>
+          <label>{lbl('City')}<input style={inp} value={f.city} onChange={setField('city')} /></label>
+          <label>{lbl('GST / PAN')}<input style={inp} value={f.gstin} onChange={setField('gstin')} placeholder="GSTIN / PAN" /></label>
           <label>{lbl('Payment terms')}<input style={{ ...inp, background: 'var(--paper-2)', color: 'var(--fg-meta)' }} value={isCredit ? persona.terms + ' days credit' : 'Cash'} readOnly /></label>
         </div>
         <div style={{ fontSize: 12, color: 'var(--fg-meta)', marginTop: 14 }}>Payment terms are set by Eurostar. Contact your rep to request credit terms.</div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}><button className="btn btn-accent">Save changes</button></div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}>
+          <button className="btn btn-accent" disabled={saving} onClick={saveDetails}>
+            {saving ? 'Saving…' : 'Save changes'}
+          </button>
+        </div>
       </div>}
 
       {tab === 'address' &&
       <div className="card card-pad">
+        {noticeBox(addrNotice)}
         <h3 className="od-section" style={{ marginTop: 0 }}>Delivery address</h3>
-        <label style={{ display: 'block', marginBottom: 14 }}>{lbl('Shipping address')}<textarea rows="3" style={{ ...inp, resize: 'vertical' }} defaultValue={persona.location} /></label>
+        <label style={{ display: 'block', marginBottom: 14 }}>{lbl('Shipping address')}
+          <textarea rows="3" style={{ ...inp, resize: 'vertical' }} value={addr.ship}
+            onChange={(e) => setAddr((a) => ({ ...a, ship: e.target.value }))} />
+        </label>
         <h3 className="od-section">Billing address</h3>
         <label style={{ display: 'block', marginBottom: 6 }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--fg-muted)' }}>
-            <input type="checkbox" defaultChecked style={{ accentColor: 'var(--emerald)' }} /> Same as shipping address
+            <input type="checkbox" checked={addr.same} style={{ accentColor: 'var(--emerald)' }}
+              onChange={(e) => setAddr((a) => ({ ...a, same: e.target.checked }))} /> Same as shipping address
           </span>
         </label>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}><button className="btn btn-accent">Save addresses</button></div>
+        {!addr.same &&
+        <label style={{ display: 'block', margin: '10px 0 6px' }}>{lbl('Billing address')}
+          <textarea rows="3" style={{ ...inp, resize: 'vertical' }} value={addr.bill}
+            onChange={(e) => setAddr((a) => ({ ...a, bill: e.target.value }))} placeholder="Billing address for invoices" />
+        </label>}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}>
+          <button className="btn btn-accent" disabled={addrSaving} onClick={saveAddresses}>
+            {addrSaving ? 'Saving…' : 'Save addresses'}
+          </button>
+        </div>
       </div>}
 
       {tab === 'security' &&
       <div className="card card-pad">
         <h3 className="od-section" style={{ marginTop: 0 }}>Change password</h3>
+        {noticeBox(pwNotice)}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 14, maxWidth: 380 }}>
-          <label>{lbl('Current password')}<input type="password" style={inp} placeholder="••••••••" /></label>
-          <label>{lbl('New password')}<input type="password" style={inp} placeholder="At least 8 characters" /></label>
-          <label>{lbl('Confirm new password')}<input type="password" style={inp} placeholder="Re-enter new password" /></label>
+          <label>{lbl('Current password')}<input type="password" style={inp} placeholder="••••••••" value={pw.cur} onChange={(e) => setPw((x) => ({ ...x, cur: e.target.value }))} /></label>
+          <label>{lbl('New password')}<input type="password" style={inp} placeholder="At least 8 characters" value={pw.next} onChange={(e) => setPw((x) => ({ ...x, next: e.target.value }))} /></label>
+          <label>{lbl('Confirm new password')}<input type="password" style={inp} placeholder="Re-enter new password" value={pw.confirm} onChange={(e) => setPw((x) => ({ ...x, confirm: e.target.value }))} /></label>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}><button className="btn btn-accent">Update password</button></div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}>
+          <button className="btn btn-accent" disabled={pwSaving} onClick={changePassword}>
+            {pwSaving ? 'Updating…' : 'Update password'}
+          </button>
+        </div>
         <div style={{ marginTop: 24, paddingTop: 18, borderTop: '1px solid var(--divider)' }}>
           <button className="btn btn-secondary" onClick={() => {
             // Used to just navigate home, leaving the session intact — so

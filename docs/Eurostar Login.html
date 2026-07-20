@@ -3238,12 +3238,12 @@ img[src*="assets/products/"] {
 
           <div class="lg-field">
             <label class="lg-label">Staff ID / Username</label>
-            <input type="text" class="lg-input" id="off-user" placeholder="e.g. mumbai.desk3" autocomplete="username" value="mumbai.desk3">
+            <input type="text" class="lg-input" id="off-user" placeholder="e.g. office" autocomplete="username">
             <div class="lg-err" id="off-user-err">Enter your staff ID.</div>
           </div>
           <div class="lg-field">
             <label class="lg-label">Password</label>
-            <input type="password" class="lg-input" id="off-pass" placeholder="••••••••" autocomplete="current-password" value="eurostar123">
+            <input type="password" class="lg-input" id="off-pass" placeholder="••••••••" autocomplete="current-password">
             <div class="lg-err" id="off-pass-err">Enter your password.</div>
           </div>
           <div class="lg-inline-row">
@@ -3588,11 +3588,33 @@ img[src*="assets/products/"] {
       setErr('off-user-err', 'off-user', !okU);
       setErr('off-pass-err', 'off-pass', !okP);
       if (!okU || !okP) return;
+      // This used to set a flag and walk straight in without asking the
+      // server — the app's real gate then bounced back here, so Back Office
+      // could never sign in. Authenticate exactly like the rep pane does.
       try {
         localStorage.setItem('eurostar_login_mode', 'office');
         localStorage.setItem('eurostar_remember_office', document.getElementById('off-remember').checked ? '1' : '0');
       } catch (e) {}
-      toast('Signed in — back office'); setTimeout(enterApp, 500);
+      var btn = this;
+      busy(btn, true, 'Signing in…');
+      apiPost('/auth/login', {
+        role: 'office',
+        username: u,
+        password: p,
+        remember: document.getElementById('off-remember').checked,
+      }).then(function (r) {
+        busy(btn, false);
+        if (r.ok && r.data && r.data.accessToken) {
+          saveSession(r.data.accessToken, { role: 'office', name: r.data.name, username: u });
+          toast('Signed in — back office');
+          setTimeout(enterApp, 400);
+          return;
+        }
+        toast((r.data && r.data.error) || 'Wrong ID or password.');
+      }).catch(function () {
+        busy(btn, false);
+        toast('Could not reach the server. Check your connection.');
+      });
     });
     document.getElementById('off-forgot').addEventListener('click', function () { toast('Contact your branch admin to reset access'); });
     document.getElementById('cust-gst').addEventListener('input', function () { this.value = this.value.toUpperCase(); });

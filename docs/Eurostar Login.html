@@ -3430,6 +3430,10 @@ img[src*="assets/products/"] {
     function setCustMode(m) {
       custMode = m;
       var signup = m === 'signup';
+      // Both first-time fields are revealed together in signup: the handler
+      // requires the business name, so hiding it (while still requiring it)
+      // silently blocked "Create account & send OTP".
+      document.getElementById('cust-name-field').classList.toggle('hidden', !signup);
       document.getElementById('cust-gst-field').classList.toggle('hidden', !signup);
       document.getElementById('cust-h').textContent = signup ? 'Create your account' : 'Welcome back';
       document.getElementById('cust-sub').textContent = signup
@@ -3468,9 +3472,17 @@ img[src*="assets/products/"] {
       try { localStorage.setItem('eurostar_remember_cust', document.getElementById('cust-remember').checked ? '1' : '0'); } catch (e) {}
 
       busy(btn, true, 'Sending…');
-      apiPost('/auth/otp/request', { phone: phone.trim() }).then(function (r) {
+      apiPost('/auth/otp/request', { phone: phone.trim(), mode: custMode === 'signup' ? 'signup' : 'login' }).then(function (r) {
         busy(btn, false);
-        if (!r.ok) { toast((r.data && r.data.error) || 'Could not send the code. Please try again.'); return; }
+        if (!r.ok) {
+          // The server gates the two flows: sign-in refuses unknown numbers,
+          // create-account refuses registered ones. Flip to the right pane so
+          // the person lands where they can actually continue.
+          if (r.data && r.data.details && r.data.details.signupRequired) setCustMode('signup');
+          if (r.data && r.data.details && r.data.details.alreadyRegistered) setCustMode('signin');
+          toast((r.data && r.data.error) || 'Could not send the code. Please try again.');
+          return;
+        }
         toast('OTP sent to +91 ' + phone.trim());
         goToOtp('customer', '+91 ' + phone.trim());
       }).catch(function () {
@@ -3517,6 +3529,10 @@ img[src*="assets/products/"] {
       apiPost('/auth/otp/verify', body).then(function (r) {
         busy(btn, false);
         if (r.ok && r.data && r.data.accessToken) {
+          // Reset the mode: a stale 'rep-cash'/'office' from an earlier staff
+          // login on this browser made checkout show the customer picker to a
+          // plain customer.
+          try { localStorage.setItem('eurostar_login_mode', 'customer'); } catch (e) {}
           saveSession(r.data.accessToken, { role: 'customer', name: r.data.name, phone: phone }, r.data.refreshToken);
           toast('Verified — welcome');
           setTimeout(enterApp, 400);

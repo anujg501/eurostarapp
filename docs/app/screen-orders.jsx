@@ -166,8 +166,16 @@ function KpiCard({ label, value, sub, tone = 'neutral' }) {
 
 // ---------- The CART view ----------
 // Orders placed from this app, stored per account by the confirmation screen.
-// Shown ahead of the built-in demo orders.
-function myOrdersKey(persona) { return 'eurostar-my-orders-' + (persona.id || persona.code || 'guest'); }
+// Shown ahead of the built-in demo orders. Keyed by the signed-in identity
+// (phone for customers, username for staff) so two people sharing a browser
+// never see each other's history; the demo persona id is only the fallback.
+function myOrdersKey(persona) {
+  try {
+    var who = JSON.parse(localStorage.getItem('eurostar_user') || 'null');
+    if (who && (who.phone || who.username)) return 'eurostar-my-orders-' + (who.phone || who.username);
+  } catch (e) {}
+  return 'eurostar-my-orders-' + (persona.id || persona.code || 'guest');
+}
 function loadMyOrders(persona) { try { return JSON.parse(localStorage.getItem(myOrdersKey(persona)) || '[]') || []; } catch (e) { return []; } }
 Object.assign(window, { myOrdersKey, loadMyOrders });
 

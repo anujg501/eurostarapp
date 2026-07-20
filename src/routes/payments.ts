@@ -86,9 +86,19 @@ paymentsRouter.post(
       // eslint-disable-next-line no-console
       console.warn(`[payments] unverified "confirmed" for order ${d.orderId ?? '?'} recorded as pending`);
     }
+    // customerId is a real foreign key; the client's custId is whatever it
+    // knows (often '' or a display code from the demo data). Link only when it
+    // matches an actual Customer row — otherwise store the payment unlinked
+    // and keep custCode/custName as plain text. An unknown id must not 500.
+    let customerId: string | null = d.custId || null;
+    if (customerId) {
+      const exists = await prisma.customer.findUnique({ where: { id: customerId } });
+      if (!exists) customerId = null;
+    }
+
     const data = {
       orderId: d.orderId,
-      customerId: d.custId,
+      customerId,
       custId: d.custId,
       custCode: d.custCode,
       custName: d.custName,

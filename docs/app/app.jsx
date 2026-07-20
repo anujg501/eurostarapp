@@ -19,7 +19,42 @@ const TWEAKS_DEFAULTS = /*EDITMODE-BEGIN*/{
 
 function App() {
   const tweaks = useTweaks(TWEAKS_DEFAULTS);
-  const persona = PERSONAS[tweaks.persona] || PERSONAS.kiran;
+  // The demo persona is only the fallback shell. When someone is actually
+  // signed in, their identity is hydrated from the server: a customer's
+  // master record (name, code, city, terms…) replaces the hardcoded
+  // "Kiran Jewellers" everywhere — header chip, My account, orders, checkout.
+  const basePersona = PERSONAS[tweaks.persona] || PERSONAS.kiran;
+  const [personaLive, setPersonaLive] = React.useState(null);
+  const persona = personaLive || basePersona;
+  React.useEffect(() => {
+    var who = null;
+    try { who = JSON.parse(localStorage.getItem('eurostar_user') || 'null'); } catch (e) {}
+    if (!who || who.role !== 'customer') return; // staff keep their role chip
+    var headers = {};
+    try { var t = localStorage.getItem('eurostar_token'); if (t) headers.authorization = 'Bearer ' + t; } catch (e) {}
+    var ph = who.phone || '';
+    if (!ph) return;
+    fetch((window.EUROSTAR_API || location.origin) + '/customers/by-phone/' + encodeURIComponent(ph), { headers: headers })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (c) {
+        var name = (c && c.name) || who.name || basePersona.company;
+        var initials = String(name).split(/\s+/).map(function (w) { return w[0]; }).filter(Boolean).slice(0, 2).join('').toUpperCase();
+        setPersonaLive({
+          ...basePersona,
+          company: name,
+          code: (c && c.code) || '',
+          contact: (c && c.contact) || who.name || name,
+          phone: (c && c.phone) || ph,
+          email: (c && c.email) || '',
+          location: (c && c.city) || basePersona.location,
+          gst: (c && c.gstin) || '',
+          terms: (c && c.terms) || 'cash',
+          tier: c && c.terms && c.terms !== 'cash' ? 'NET ' + c.terms + ' account' : 'Cash account',
+          initials: initials || basePersona.initials,
+        });
+      })
+      .catch(function () {});
+  }, []);
   React.useEffect(() => {
     const r = document.documentElement;
     r.setAttribute('data-accent', tweaks.accent || 'emerald');
@@ -41,19 +76,30 @@ function App() {
     } catch (e) {}
     return { name: 'home' };
   });
-  // The cart survives refreshes: whatever the user last had (including an
-  // emptied cart) is restored from localStorage. The sample cart only seeds
-  // the very first visit, before any cart has ever been saved.
+  // The cart is per account and survives refreshes. Keyed by the signed-in
+  // identity so one person's cart never bleeds into another's — a brand-new
+  // customer starts EMPTY, not with a leftover cart or the demo sample. The
+  // sample cart is only for the anonymous preview (no one signed in).
+  const cartKey = React.useCallback(() => {
+    try {
+      var who = JSON.parse(localStorage.getItem('eurostar_user') || 'null');
+      if (who && (who.phone || who.username)) return 'eurostar-cart-' + (who.phone || who.username);
+    } catch (e) {}
+    return 'eurostar-cart-guest';
+  }, []);
   const [cart, setCart] = React.useState(() => {
     try {
-      const raw = localStorage.getItem('eurostar-cart');
+      var raw = localStorage.getItem(cartKey());
       if (raw !== null) return JSON.parse(raw) || [];
     } catch (e) {}
+    // Signed-in account with no saved cart → empty. Only the anonymous
+    // preview gets the demo sample cart.
+    try { if (JSON.parse(localStorage.getItem('eurostar_user') || 'null')) return []; } catch (e) {}
     return sampleCart();
   });
   React.useEffect(() => {
-    try { localStorage.setItem('eurostar-cart', JSON.stringify(cart)); } catch (e) {}
-  }, [cart]);
+    try { localStorage.setItem(cartKey(), JSON.stringify(cart)); } catch (e) {}
+  }, [cart, cartKey]);
   const [wishlist, setWishlist] = React.useState(new Set());
   const [toast, setToast] = React.useState(null);
 
@@ -479,10 +525,19 @@ function ProfileScreen({ persona, setRoute }) {
     return h;
   };
 
+  // Always resolve by the AUTHENTICATED phone, never the demo persona's — the
+  // persona can still be the "Kiran Jewellers" fallback for a beat while boot
+  // hydration is in flight, and requesting someone else's record 403s.
+  const authedPhone = (() => {
+    try { var who = JSON.parse(localStorage.getItem('eurostar_user') || 'null'); if (who && who.phone) return who.phone; } catch (e) {}
+    return persona.phone || '';
+  })();
+
   // Hydrate from the server record if one matches this account's phone.
   React.useEffect(() => {
     var alive = true;
-    fetch((window.EUROSTAR_API || location.origin) + '/customers/by-phone/' + encodeURIComponent(persona.phone || ''), { headers: authHeaders() })
+    if (!authedPhone) return;
+    fetch((window.EUROSTAR_API || location.origin) + '/customers/by-phone/' + encodeURIComponent(authedPhone), { headers: authHeaders() })
       .then((r) => (r.ok ? r.json() : null))
       .then((c) => {
         if (!alive || !c) return;

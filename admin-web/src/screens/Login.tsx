@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { adminApi, setToken } from '../lib/api';
+import { adminApi, setToken, setRefreshToken } from '../lib/api';
 
 // Ported from the original "Eurostar Admin.html" login so the panel looks like
 // the design that was signed off. Only the submit is different: it awaits the
@@ -22,6 +22,9 @@ export function Login({ onDone }: { onDone: () => void }) {
     try {
       const r = await adminApi.login(username.trim(), password, remember);
       setToken(r.accessToken);
+      // Keep the refresh token so an expired 15-minute access token renews
+      // itself instead of bouncing the operator back here on the next refresh.
+      setRefreshToken(r.refreshToken || '');
       onDone();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not sign in.');

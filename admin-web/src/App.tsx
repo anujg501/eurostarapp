@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getToken, setToken } from './lib/api';
+import { getToken, setToken, setRefreshToken } from './lib/api';
 import { Login } from './screens/Login';
 import { Dashboard } from './screens/Dashboard';
 import { Catalog } from './screens/Catalog';
@@ -56,7 +56,36 @@ const TITLES: Record<ScreenId, string> = {
 
 export function App() {
   const [signedIn, setSignedIn] = useState(() => !!getToken());
-  const [screen, setScreen] = useState<ScreenId>('dashboard');
+  const [screen, setScreenState] = useState<ScreenId>('dashboard');
+
+  // Browser Back/Forward. This panel navigates through React state, and it is
+  // served as a single page whose path (/admin) must stay put — so the page is
+  // carried in history.state and the URL is left clean (no "#"). pushState
+  // still creates a real history entry even with an unchanged URL.
+  const cleanUrl = () => window.location.href.split('#')[0];
+  const setScreen = useCallback((next: ScreenId) => {
+    try {
+      window.history.pushState({ adminScreen: next }, '', cleanUrl());
+    } catch {
+      /* history unavailable — navigation still works, just without Back */
+    }
+    setScreenState(next);
+  }, []);
+
+  useEffect(() => {
+    // Seed the first entry (and strip any stray "#" a previous build left).
+    try {
+      window.history.replaceState({ adminScreen: 'dashboard' }, '', cleanUrl());
+    } catch {
+      /* ignore */
+    }
+    const onPop = (e: PopStateEvent) => {
+      const s = (e.state as { adminScreen?: ScreenId } | null)?.adminScreen;
+      setScreenState(s && s in TITLES ? s : 'dashboard');
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
 
   // api.ts clears the token and fires this on a 401/403, so an expired session
   // returns to the login gate instead of leaving a blank screen.
@@ -70,6 +99,7 @@ export function App() {
 
   const signOut = () => {
     setToken('');
+    setRefreshToken(''); // otherwise the next request would silently renew the session
     setSignedIn(false);
   };
 

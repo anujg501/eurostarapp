@@ -9,6 +9,7 @@
 // screen cannot report success unless the server actually accepted the write.
 
 const TOKEN_KEY = 'eurostar-admin-token';
+const REFRESH_KEY = 'eurostar-admin-refresh';
 
 export function getToken(): string {
   try {
@@ -27,6 +28,48 @@ export function setToken(token: string): void {
   }
 }
 
+// The access token lives ~15 minutes. The server already issues a long-lived
+// refresh token at login ("remember"), but this app used to throw it away — so
+// the first request after 15 minutes (a refresh of the page, most often) 401'd
+// and dumped the operator back at the login gate mid-task. Keep it and renew.
+export function getRefreshToken(): string {
+  try {
+    return localStorage.getItem(REFRESH_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
+export function setRefreshToken(token: string): void {
+  try {
+    if (token) localStorage.setItem(REFRESH_KEY, token);
+    else localStorage.removeItem(REFRESH_KEY);
+  } catch {
+    /* storage disabled */
+  }
+}
+
+/** Exchange the refresh token for a fresh access token. Returns false when the
+ *  session is genuinely over and the operator must sign in again. */
+async function renewAccessToken(): Promise<boolean> {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return false;
+  try {
+    const resp = await fetch('/auth/refresh', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    });
+    if (!resp.ok) return false;
+    const data = (await resp.json()) as { accessToken?: string };
+    if (!data.accessToken) return false;
+    setToken(data.accessToken);
+    return true;
+  } catch {
+    return false; // offline: keep the session and let the caller surface the error
+  }
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -42,7 +85,7 @@ export function isAuthError(e: unknown): boolean {
   return e instanceof ApiError && (e.status === 401 || e.status === 403);
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+async function request<T>(method: string, path: string, body?: unknown, isRetry = false): Promise<T> {
   const headers: Record<string, string> = { accept: 'application/json' };
   const token = getToken();
   if (token) headers.authorization = `Bearer ${token}`;
@@ -59,6 +102,13 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     throw new ApiError('Could not reach the server. Check your connection.', 0);
   }
 
+  // An expired access token is not the end of the session: renew it once with
+  // the refresh token and replay the request. Only a refresh that fails means
+  // the operator really has to sign in again.
+  if (resp.status === 401 && !isRetry && getRefreshToken()) {
+    if (await renewAccessToken()) return request<T>(method, path, body, true);
+  }
+
   const text = await resp.text();
   let data: any = null;
   try {
@@ -69,8 +119,9 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
   if (!resp.ok) {
     if (resp.status === 401 || resp.status === 403) {
-      // Stale session: drop the dead token and let the shell show the login gate.
+      // Stale session: drop both tokens and let the shell show the login gate.
       setToken('');
+      setRefreshToken('');
       window.dispatchEvent(new Event('eurostar-auth-lost'));
     }
     const msg =
@@ -220,7 +271,7 @@ export interface Announcement {
 
 export const adminApi = {
   login: (username: string, password: string, remember: boolean) =>
-    api.post<{ accessToken: string; name?: string }>('/auth/login', {
+    api.post<{ accessToken: string; refreshToken?: string; name?: string }>('/auth/login', {
       role: 'admin',
       username,
       password,

@@ -13,7 +13,7 @@ function OrderDetailScreen({ route, setRoute, persona, addToCart }) {
       headers: { authorization: 'Bearer ' + token },
     })
       .then(function (r) { return r.ok ? r.json() : []; })
-      .then(function (rows) { setRemote(Array.isArray(rows) ? rows : []); })
+      .then(function (rows) { setRemote(Array.isArray(rows) ? rows.map(normaliseOrder) : []); })
       .catch(function () { setRemote([]); });
   }, [route.oid]);
 

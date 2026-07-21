@@ -43,7 +43,7 @@ function OrdersScreen({ persona, setRoute, cart, setCart, initialTab, editCart, 
       headers: { authorization: 'Bearer ' + token },
     })
       .then(function (r) { return r.ok ? r.json() : []; })
-      .then(function (rows) { setServerOrders(Array.isArray(rows) ? rows : []); })
+      .then(function (rows) { setServerOrders(Array.isArray(rows) ? rows.map(normaliseOrder) : []); })
       .catch(function () { setServerOrders([]); }); // offline: fall back to local only
   }, []);
 

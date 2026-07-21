@@ -1507,6 +1507,31 @@ const orderTotal = (order) =>
 const orderQty = (order) =>
   order.lines.reduce((s, l) => s + l.qty, 0);
 
+// The API serialises an order's lines under "items", and sends none of the demo
+// book's "date" / "ship" fields (see serialiseOrder in src/routes/orders.ts).
+// Orders saved locally already carry the shape the screens read, so server rows
+// are normalised to that one rather than teaching every screen to speak both.
+// Without this, o.lines is undefined and the Orders screen throws on render —
+// which only ever showed up for Back Office, because office sees every order
+// while a new customer has none and quietly lands on the empty state.
+const normaliseOrder = (order) => {
+  if (!order || Array.isArray(order.lines)) return order;
+  const items = Array.isArray(order.items) ? order.items : [];
+  return Object.assign({}, order, {
+    lines: items.map((l) => Object.assign({}, l, { pid: l.pid, qty: l.qty || 0 })),
+    date: order.date || order.createdAt || (order.ts ? new Date(order.ts).toISOString() : ''),
+    // The charged total, so the invoice never drifts from list-price maths.
+    placedTotal: typeof order.placedTotal === 'number' ? order.placedTotal
+               : typeof order.grand === 'number' ? order.grand : undefined,
+    ship: order.ship || '',
+    // Staff order lists read custName; the API calls it "customer". Without
+    // this the list falls back to the demo customer book and labels real
+    // orders with invented names.
+    custName: order.custName || order.customer || '',
+    custPhone: order.custPhone || '',
+  });
+};
+
 // Per-size derivations
 const pcsPerCt = (size) => PCS_PER_CT[size] || 4;
 const sizeUnitPrice = (product, size) => {
@@ -1735,7 +1760,7 @@ Object.assign(window, {
   WEIGHT_CATEGORIES, catShowWeight, PACKET_PRICED, catPacketPriced,
   PEARL_SHAPES_BY_GRADE, NAVRATNA_SHAPES_BY_GRADE, OPAQUE_COLORS_BY_GRADE, PEARL_COLORS_BY_GRADE, CORUNDUM_COLORS_BY_GRADE, LABGROWN_COLORS_BY_GRADE, CZ_COLORS_BY_GRADE, RAJKOT_COLORS_BY_GRADE, SIZES_BY_CATEGORY, POLKI_SERIES_DESIGNS,
   findProduct, findTone, findShape, findCategory,
-  formatINR, orderTotal, orderQty, priceForQty,
+  formatINR, orderTotal, orderQty, normaliseOrder, priceForQty,
   pcsPerCt, sizeUnitPrice, sizePerCtPrice,
   MOISS_CHART, MOISS_PIECE_FROM, moissSizes, moissCtEach, moissPcsPerCt, moissSizeIndex, moissIsPiece,
 });

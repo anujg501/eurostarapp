@@ -394,10 +394,83 @@ function CartView({ cart, setCart, persona, setRoute }) {
     setTimeout(() => { w.focus(); w.print(); }, 350);
   };
 
-  const shareWhatsApp = () => {
+  // Build the caption used both as the WhatsApp text and as the share sheet body.
+  const whatsAppCaption = () => {
     const lines = cart.map((l) => `• ${l.name}${l.color ? ' ('+l.color+')' : ''} ${l.size || ''} × ${(l.qty||0).toLocaleString('en-IN')} = ${formatINR(l.lineTotal||0)}`).join('\n');
-    const msg = `*Eurostar — Proforma ${proformaNo}*\n${persona.company || ''}${persona.account ? ' · '+persona.account : ''}\n\n${lines}\n\n*Total payable: ${formatINR(grand)}*\n(${termsShort})\n\nGenerate the PDF proforma from the Eurostar portal to attach it here.`;
+    return `*Eurostar — Proforma ${proformaNo}*\n${persona.company || ''}${persona.account ? ' · '+persona.account : ''}\n\n${lines}\n\n*Total payable: ${formatINR(grand)}*\n(${termsShort})`;
+  };
+
+  // Text-only fallback (unchanged old behaviour) — used when we can't produce or
+  // share a real file (e.g. desktop, blocked pop-up, or the PDF request fails).
+  const shareWhatsAppText = () => {
+    const msg = whatsAppCaption() + `\n\nGenerate the PDF proforma from the Eurostar portal to attach it here.`;
     window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
+  };
+
+  // Ask the backend to render the cart as a real PDF and return it as a File.
+  const buildProformaFile = async () => {
+    const payload = {
+      proformaNo,
+      date: todayStr,
+      billTo: {
+        company: persona.company || '',
+        account: persona.account || '',
+        location: persona.location || '',
+        gst: persona.gst || '',
+      },
+      rows: cart.map((l) => ({
+        product: `${l.name || ''}${l.color ? ' · ' + l.color : ''}${l.quality ? ' · ' + l.quality : ''}`,
+        shape: (findShape(l.shape) || {}).name || l.shape || '',
+        size: l.size || '',
+        qty: l.qty || 0,
+        rate: l.perCtPrice || l.unitPrice || 0,
+        amount: l.lineTotal || 0,
+      })),
+      totals: { subtotal, tax, shipping, grand },
+      terms: termsShort,
+    };
+    const base = window.EUROSTAR_API || location.origin;
+    const res = await fetch(base + '/proforma', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error('proforma ' + res.status);
+    const blob = await res.blob();
+    return new File([blob], `Proforma-${proformaNo}.pdf`, { type: 'application/pdf' });
+  };
+
+  const shareWhatsApp = async () => {
+    let file;
+    try {
+      file = await buildProformaFile();
+    } catch (e) {
+      // Couldn't make the PDF — fall back to the old text-only share.
+      shareWhatsAppText();
+      return;
+    }
+    // Best path (mobile): native share sheet attaches the actual PDF file, so the
+    // user can pick WhatsApp and the proforma rides along as a document.
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: `Proforma ${proformaNo}`, text: whatsAppCaption() });
+        return;
+      } catch (e) {
+        if (e && e.name === 'AbortError') return; // user dismissed the sheet
+        // otherwise fall through to the desktop fallback below
+      }
+    }
+    // Desktop / unsupported: download the PDF so it's ready to attach, then open
+    // the WhatsApp chat with the summary text for the user to drop the file into.
+    const url = URL.createObjectURL(file);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = file.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    window.open('https://wa.me/?text=' + encodeURIComponent(whatsAppCaption() + `\n\n(PDF proforma downloaded — attach it here.)`), '_blank');
   };
 
   return (

@@ -133,7 +133,18 @@ app.use((req, res, next) => {
 app.get(['/shop', '/sales'], (_req, res) => res.sendFile(path.join(webDir, 'Eurostar Sales website.html')));
 app.get('/mira', (_req, res) => res.redirect(301, '/mira-admin/'));
 
-app.use(express.static(webDir)); // serves the portal, Sales, and /crm/ (each has an index.html)
+// Serves the portal, Sales, and /crm/ (each has an index.html). The app has no
+// build step — its screens are .jsx files compiled in the browser by Babel — so
+// a deploy just changes those files in place. Tell the browser to revalidate
+// HTML/JS/JSX every load (304 when unchanged, fresh when the file changed);
+// otherwise a cached app.jsx keeps running old code until a hard refresh.
+app.use(
+  express.static(webDir, {
+    setHeaders(res, filePath) {
+      if (/\.(jsx|js|html)$/i.test(filePath)) res.setHeader('Cache-Control', 'no-cache');
+    },
+  })
+);
 
 // 404 — JSON for API paths, otherwise fall back to the login page.
 app.use((req, res) => {

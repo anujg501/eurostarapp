@@ -22,11 +22,36 @@
       function toLogin() {
         try {
           localStorage.removeItem('eurostar_token');
+          localStorage.removeItem('eurostar_refresh');
           localStorage.removeItem('eurostar_authed');
           localStorage.removeItem('eurostar_user');
           sessionStorage.removeItem('eurostar_enter');
         } catch (e) {}
         location.replace(LOGIN);
+      }
+
+      // The access token lives 15 minutes. An expired one is not the end of
+      // the session — "keep me signed in" stored a 30-day refresh token, so a
+      // page refresh renews the access token silently. Only when the refresh
+      // token itself is missing/expired/revoked does the gate sign out.
+      function tryRefresh() {
+        var rt = null;
+        try { rt = localStorage.getItem('eurostar_refresh'); } catch (e) {}
+        if (!rt) return toLogin();
+        fetch((window.EUROSTAR_API || location.origin) + '/auth/refresh', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ refreshToken: rt }),
+        })
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+          .then(function (res) {
+            if (res.ok && res.d && res.d.accessToken) {
+              try { localStorage.setItem('eurostar_token', res.d.accessToken); } catch (e) {}
+            } else {
+              toLogin();
+            }
+          })
+          .catch(function () { /* offline: keep the app usable */ });
       }
 
       try {
@@ -41,12 +66,12 @@
         try { sessionStorage.removeItem('eurostar_enter'); } catch (e) {}
 
         // Validate for real. Rendering is not blocked on the round trip — if the
-        // token turns out to be bad we bounce a moment later.
+        // token is expired we renew it; only an unrenewable session bounces.
         fetch((window.EUROSTAR_API || location.origin) + '/auth/me', {
           headers: { authorization: 'Bearer ' + token },
         })
           .then(function (r) {
-            if (r.status === 401 || r.status === 403) toLogin();
+            if (r.status === 401 || r.status === 403) tryRefresh();
           })
           .catch(function () {
             /* offline: keep the app usable — the API still guards every write */

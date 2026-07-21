@@ -11,24 +11,16 @@ function isStaffOrder() {
   return m === 'rep-cash' || m === 'office';
 }
 
-// Demo customer book (mirrors the CRM's customers). In production this comes
-// from the API — reps see only customers mapped to them; office sees all.
-const CHECKOUT_CUSTOMERS = [
-  { id: 'EUR-10482', name: 'Tanvi Gold Cast',        city: 'Rajkot',    phone: '+91 98240 10482', rep: 'REP-204' },
-  { id: 'EUR-10663', name: 'Mehta Jewel Works',      city: 'Surat',     phone: '+91 98250 10663', rep: 'REP-204' },
-  { id: 'EUR-10744', name: 'Shree Ganesh Jewellers', city: 'Rajkot',    phone: '+91 98240 10744', rep: 'REP-204' },
-  { id: 'EUR-10517', name: 'Malabar Gold (vendor)',  city: 'Kozhikode', phone: '+91 98470 10517', rep: 'REP-077' },
-  { id: 'EUR-10701', name: 'Crescent Ornaments',     city: 'Hyderabad', phone: '+91 98660 10701', rep: 'REP-077' },
-  { id: 'EUR-10788', name: 'Pearl Palace',           city: 'Mumbai',    phone: '+91 98200 10788', rep: 'REP-118' },
-  { id: 'EUR-10812', name: 'Royal Casting Co.',      city: 'Pune',      phone: '+91 98220 10812', rep: 'REP-118' },
-];
-function customersForStaff() {
-  // Rep → only their mapped customers; office → the whole book.
-  if (checkoutLoginMode() === 'office') return CHECKOUT_CUSTOMERS;
-  let repId = 'REP-204';
-  try { repId = localStorage.getItem('eurostar-rep-id') || 'REP-204'; } catch (e) {}
-  const mine = CHECKOUT_CUSTOMERS.filter((c) => c.rep === repId);
-  return mine.length ? mine : CHECKOUT_CUSTOMERS;
+// The customer book comes from the API: reps see only customers mapped to
+// them, office sees all (the server enforces that scoping). The old hardcoded
+// demo book is gone — staff pick from the real customer master.
+function checkoutAuthHeaders() {
+  var h = { 'content-type': 'application/json' };
+  try { var t = localStorage.getItem('eurostar_token'); if (t) h.authorization = 'Bearer ' + t; } catch (e) {}
+  return h;
+}
+function checkoutLoggedInUser() {
+  try { return JSON.parse(localStorage.getItem('eurostar_user') || 'null'); } catch (e) { return null; }
 }
 
 function cartTotals(cart, persona) {
@@ -44,22 +36,89 @@ function cartTotals(cart, persona) {
 function CheckoutScreen({ cart, persona, onBack, onPlace, isOnline }) {
   const t = cartTotals(cart, persona);
   const [addr, setAddr] = React.useState(persona.location || '');
+  const addrTouched = React.useRef(false); // don't overwrite what the operator typed
   const [contact, setContact] = React.useState(persona.contact || '');
   const [phone, setPhone] = React.useState(persona.phone || '');
   const [notes, setNotes] = React.useState('');
   // Staff-only: who is this order for?
   const staff = isStaffOrder();
-  const bookCustomers = React.useMemo(() => customersForStaff(), []);
+  const [bookCustomers, setBookCustomers] = React.useState([]);
+  const [bookLoading, setBookLoading] = React.useState(staff);
   const [custMode, setCustMode] = React.useState('existing'); // 'existing' | 'new'
-  const [custId, setCustId] = React.useState(bookCustomers[0] ? bookCustomers[0].id : '');
+  const [custId, setCustId] = React.useState('');
   const [newName, setNewName] = React.useState('');
   const [newPhone, setNewPhone] = React.useState('');
+  const [placing, setPlacing] = React.useState(false);
+
+  // Staff: load the real customer book (server scopes rep vs office).
+  React.useEffect(() => {
+    if (!staff) return;
+    fetch((window.EUROSTAR_API || location.origin) + '/customers', { headers: checkoutAuthHeaders() })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((list) => {
+        if (Array.isArray(list)) {
+          const mapped = list.map((c) => ({ id: c.id, code: c.code, name: c.name, city: c.city || '', phone: c.phone || '' }));
+          setBookCustomers(mapped);
+          setCustId((prev) => (mapped.some((m) => m.id === prev) ? prev : (mapped[0] ? mapped[0].id : '')));
+        }
+        setBookLoading(false);
+      })
+      .catch(function () { setBookLoading(false); });
+  }, []);
+
+  // Customer login: the order belongs to whoever actually signed in — resolve
+  // their master record so the order/payment carry the real customer id.
+  const who = checkoutLoggedInUser();
+  const [selfCust, setSelfCust] = React.useState(null);
+  React.useEffect(() => {
+    if (staff) return;
+    const ph = (who && who.phone) || persona.phone || '';
+    if (!ph) return;
+    fetch((window.EUROSTAR_API || location.origin) + '/customers/by-phone/' + encodeURIComponent(ph), { headers: checkoutAuthHeaders() })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((c) => {
+        if (!c || !c.id) return;
+        setSelfCust(c);
+        // Default Ship-to to the customer's saved delivery address (Addresses
+        // tab), falling back to their city — instead of always the city.
+        if (!addrTouched.current) setAddr(c.shipAddress || c.city || persona.location || '');
+      })
+      .catch(function () {});
+  }, []);
+
   const selectedCust = bookCustomers.find((c) => c.id === custId) || null;
   // The customer attached to this order (for the summary + order payload).
-  const orderCustomer = !staff ? { name: persona.company, phone: persona.phone, code: persona.code || '', id: '' }
+  const orderCustomer = !staff
+    ? {
+        name: (selfCust && selfCust.name) || (who && who.role === 'customer' && who.name) || persona.company,
+        phone: (selfCust && selfCust.phone) || (who && who.phone) || persona.phone,
+        code: (selfCust && selfCust.code) || persona.code || '',
+        id: (selfCust && selfCust.id) || '',
+      }
     : custMode === 'new' ? { name: newName.trim(), phone: newPhone.trim(), code: '', id: '', isNew: true }
-    : { name: selectedCust ? selectedCust.name : '', phone: selectedCust ? selectedCust.phone : '', code: selectedCust ? selectedCust.id : '', id: selectedCust ? selectedCust.id : '' };
+    : { name: selectedCust ? selectedCust.name : '', phone: selectedCust ? selectedCust.phone : '', code: selectedCust ? selectedCust.code : '', id: selectedCust ? selectedCust.id : '' };
   const staffCustReady = !staff || (custMode === 'existing' ? !!selectedCust : newName.trim().length >= 2 && newPhone.trim().length >= 6);
+
+  // A staff "New customer" is created in the real customer master before the
+  // order is placed, so it lands in the CRM book with a proper code and the
+  // rep mapping — instead of existing only as free text on one order.
+  const placeOrder = async () => {
+    if (placing) return;
+    let customer = orderCustomer;
+    if (staff && custMode === 'new') {
+      setPlacing(true);
+      try {
+        const r = await fetch((window.EUROSTAR_API || location.origin) + '/customers', {
+          method: 'POST', headers: checkoutAuthHeaders(),
+          body: JSON.stringify({ name: newName.trim(), phone: newPhone.trim() }),
+        });
+        const d = await r.json();
+        if (r.ok && d && d.id) customer = { name: d.name, phone: d.phone || newPhone.trim(), code: d.code || '', id: d.id, isNew: true };
+      } catch (e) { /* offline — place with the typed details */ }
+      setPlacing(false);
+    }
+    onPlace({ addr, contact, phone, notes, dispatchBy, customer, ...t });
+  };
   const totalPcs = cart.reduce((s, l) => s + (l.qty || 0), 0);
   const dispatchBy = (() => { const d = new Date(); d.setDate(d.getDate() + (t.isExport ? 5 : 3)); return d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }); })();
 
@@ -99,7 +158,9 @@ function CheckoutScreen({ cart, persona, onBack, onPlace, isOnline }) {
             {custMode === 'existing' ? (
               <label style={{ display: 'block' }}>{lbl('Select a customer')}
                 <select style={{ ...inp, cursor: 'pointer' }} value={custId} onChange={(e) => setCustId(e.target.value)}>
-                  {bookCustomers.map((c) => <option key={c.id} value={c.id}>{c.name} · {c.city} ({c.id})</option>)}
+                  {bookLoading && <option value="">Loading customers…</option>}
+                  {!bookLoading && bookCustomers.length === 0 && <option value="">No customers yet — use “New customer”</option>}
+                  {bookCustomers.map((c) => <option key={c.id} value={c.id}>{c.name}{c.city ? ' · ' + c.city : ''} ({c.code})</option>)}
                 </select>
                 {selectedCust && <div style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 8 }}>{selectedCust.phone}</div>}
               </label>
@@ -114,7 +175,7 @@ function CheckoutScreen({ cart, persona, onBack, onPlace, isOnline }) {
           <div className="card card-pad" style={{ marginBottom: 16 }}>
             <h3 className="od-section" style={{ marginTop: 0 }}>Delivery address</h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-              <label style={{ gridColumn: '1 / -1' }}>{lbl('Ship to')}<textarea rows="2" style={{ ...inp, resize: 'vertical' }} value={addr} onChange={(e) => setAddr(e.target.value)} /></label>
+              <label style={{ gridColumn: '1 / -1' }}>{lbl('Ship to')}<textarea rows="2" style={{ ...inp, resize: 'vertical' }} value={addr} onChange={(e) => { addrTouched.current = true; setAddr(e.target.value); }} /></label>
               <label>{lbl('Contact person')}<input style={inp} value={contact} onChange={(e) => setContact(e.target.value)} /></label>
               <label>{lbl('Phone')}<input style={inp} value={phone} onChange={(e) => setPhone(e.target.value)} /></label>
             </div>
@@ -154,8 +215,8 @@ function CheckoutScreen({ cart, persona, onBack, onPlace, isOnline }) {
             {staff && (
               <div className="summary-row label"><span>Customer</span><span style={{ fontWeight: 600, color: 'var(--fg)' }}>{orderCustomer.name || '—'}</span></div>
             )}
-            <button className="btn btn-accent btn-lg btn-block" disabled={!staffCustReady} onClick={() => onPlace({ addr, contact, phone, notes, dispatchBy, customer: orderCustomer, ...t })}>
-              <IconCheck size={16} /> {isOnline === false ? 'Save order offline' : (['15','30','45','60'].includes(String(persona.terms)) ? 'Place order' : 'Proceed to payment')} — {formatINR(t.grand)}
+            <button className="btn btn-accent btn-lg btn-block" disabled={!staffCustReady || placing} onClick={placeOrder}>
+              <IconCheck size={16} /> {placing ? 'Saving customer…' : (isOnline === false ? 'Save order offline' : (['15','30','45','60'].includes(String(persona.terms)) ? 'Place order' : 'Proceed to payment'))} — {formatINR(t.grand)}
             </button>
             {staff && !staffCustReady && <div style={{ fontSize: 12, color: 'var(--ruby, #8B1E2E)', textAlign: 'center', marginTop: 8, fontWeight: 600 }}>{custMode === 'new' ? 'Enter customer name and phone to continue.' : 'Select a customer to continue.'}</div>}
             {isOnline === false && <div style={{ fontSize: 12, color: 'var(--amber-ink, #8a6d1f)', textAlign: 'center', marginTop: 8, fontWeight: 600 }}>You're offline — this order will be saved and sent automatically when you reconnect.</div>}
@@ -182,7 +243,7 @@ function PaymentScreen({ order, persona, onPaid, onBack }) {
       const k = 'eurostar-crm-incoming-payments';
       const arr = JSON.parse(localStorage.getItem(k) || '[]') || [];
       if (!arr.some((p) => p.orderId === order.id)) {
-        arr.unshift({ id: 'PAY-APP-' + order.id, orderId: order.id, custId: '', custCode: persona.code || '', custName: persona.company || '', mode: method, amount: order.grand || 0, utr: 'ONLINE-' + Date.now().toString().slice(-8), date: new Date().toISOString().slice(0, 10), by: '', contact: '', img: null, status: 'confirmed', source: 'Sales App', loggedAt: new Date().toISOString() });
+        arr.unshift({ id: 'PAY-APP-' + order.id, orderId: order.id, custId: (order.customer && order.customer.id) || '', custCode: (order.customer && order.customer.code) || persona.code || '', custName: (order.customer && order.customer.name) || persona.company || '', mode: method, amount: order.grand || 0, utr: 'ONLINE-' + Date.now().toString().slice(-8), date: new Date().toISOString().slice(0, 10), by: '', contact: '', img: null, status: 'confirmed', source: 'Sales App', loggedAt: new Date().toISOString() });
         localStorage.setItem(k, JSON.stringify(arr));
       }
     } catch (e) {}
@@ -309,7 +370,9 @@ function ConfirmationScreen({ order, persona, setRoute }) {
   // too: the customer placed it either way.
   React.useEffect(() => {
     try {
-      const mk = 'eurostar-my-orders-' + (persona.id || persona.code || 'guest');
+      // Same key the orders screen reads — the signed-in identity, not the
+      // demo persona (see myOrdersKey in screen-orders.jsx).
+      const mk = window.myOrdersKey ? myOrdersKey(persona) : 'eurostar-my-orders-' + (persona.id || persona.code || 'guest');
       const mine = JSON.parse(localStorage.getItem(mk) || '[]') || [];
       if (!mine.some((o) => o.id === order.id)) {
         const isCredit = ['15', '30', '45', '60'].includes(String(persona.terms));

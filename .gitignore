@@ -27,3 +27,4 @@ npm-debug.log*
 # React Admin app
 admin-web/node_modules
 admin-web/dist
+test-products.csv

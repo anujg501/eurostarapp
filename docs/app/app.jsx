@@ -17,9 +17,53 @@ const TWEAKS_DEFAULTS = /*EDITMODE-BEGIN*/{
   "simOffline": false
 }/*EDITMODE-END*/;
 
+// ---- Browser history integration -------------------------------------------
+// This app navigates through React state (route/setRoute), not a router lib,
+// and it lives on a single static page whose API shares the same path prefixes
+// (/orders, /catalog, /rfq). So instead of putting the page in the URL (which
+// would need a "#" or would collide with the API), every navigation pushes a
+// history entry that keeps the URL clean and stores the full route object in
+// history.state. Back/Forward then restore the exact page — tabs, filters and
+// order data included — with no hash and no server round-trip.
+
 function App() {
   const tweaks = useTweaks(TWEAKS_DEFAULTS);
-  const persona = PERSONAS[tweaks.persona] || PERSONAS.kiran;
+  // The demo persona is only the fallback shell. When someone is actually
+  // signed in, their identity is hydrated from the server: a customer's
+  // master record (name, code, city, terms…) replaces the hardcoded
+  // "Kiran Jewellers" everywhere — header chip, My account, orders, checkout.
+  const basePersona = PERSONAS[tweaks.persona] || PERSONAS.kiran;
+  const [personaLive, setPersonaLive] = React.useState(null);
+  const persona = personaLive || basePersona;
+  React.useEffect(() => {
+    var who = null;
+    try { who = JSON.parse(localStorage.getItem('eurostar_user') || 'null'); } catch (e) {}
+    if (!who || who.role !== 'customer') return; // staff keep their role chip
+    var headers = {};
+    try { var t = localStorage.getItem('eurostar_token'); if (t) headers.authorization = 'Bearer ' + t; } catch (e) {}
+    var ph = who.phone || '';
+    if (!ph) return;
+    fetch((window.EUROSTAR_API || location.origin) + '/customers/by-phone/' + encodeURIComponent(ph), { headers: headers })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (c) {
+        var name = (c && c.name) || who.name || basePersona.company;
+        var initials = String(name).split(/\s+/).map(function (w) { return w[0]; }).filter(Boolean).slice(0, 2).join('').toUpperCase();
+        setPersonaLive({
+          ...basePersona,
+          company: name,
+          code: (c && c.code) || '',
+          contact: (c && c.contact) || who.name || name,
+          phone: (c && c.phone) || ph,
+          email: (c && c.email) || '',
+          location: (c && c.city) || basePersona.location,
+          gst: (c && c.gstin) || '',
+          terms: (c && c.terms) || 'cash',
+          tier: c && c.terms && c.terms !== 'cash' ? 'NET ' + c.terms + ' account' : 'Cash account',
+          initials: initials || basePersona.initials,
+        });
+      })
+      .catch(function () {});
+  }, []);
   React.useEffect(() => {
     const r = document.documentElement;
     r.setAttribute('data-accent', tweaks.accent || 'emerald');
@@ -41,19 +85,30 @@ function App() {
     } catch (e) {}
     return { name: 'home' };
   });
-  // The cart survives refreshes: whatever the user last had (including an
-  // emptied cart) is restored from localStorage. The sample cart only seeds
-  // the very first visit, before any cart has ever been saved.
+  // The cart is per account and survives refreshes. Keyed by the signed-in
+  // identity so one person's cart never bleeds into another's — a brand-new
+  // customer starts EMPTY, not with a leftover cart or the demo sample. The
+  // sample cart is only for the anonymous preview (no one signed in).
+  const cartKey = React.useCallback(() => {
+    try {
+      var who = JSON.parse(localStorage.getItem('eurostar_user') || 'null');
+      if (who && (who.phone || who.username)) return 'eurostar-cart-' + (who.phone || who.username);
+    } catch (e) {}
+    return 'eurostar-cart-guest';
+  }, []);
   const [cart, setCart] = React.useState(() => {
     try {
-      const raw = localStorage.getItem('eurostar-cart');
+      var raw = localStorage.getItem(cartKey());
       if (raw !== null) return JSON.parse(raw) || [];
     } catch (e) {}
+    // Signed-in account with no saved cart → empty. Only the anonymous
+    // preview gets the demo sample cart.
+    try { if (JSON.parse(localStorage.getItem('eurostar_user') || 'null')) return []; } catch (e) {}
     return sampleCart();
   });
   React.useEffect(() => {
-    try { localStorage.setItem('eurostar-cart', JSON.stringify(cart)); } catch (e) {}
-  }, [cart]);
+    try { localStorage.setItem(cartKey(), JSON.stringify(cart)); } catch (e) {}
+  }, [cart, cartKey]);
   const [wishlist, setWishlist] = React.useState(new Set());
   const [toast, setToast] = React.useState(null);
 
@@ -82,10 +137,40 @@ function App() {
   }, []);
   React.useEffect(() => { if (isOnline && queued > 0) syncQueue(); }, [isOnline]);
 
-  const navigate = (next) => {
+  // navigate() is the single entry point every screen uses. It pushes a real
+  // browser history entry so Back/Forward work, then updates the route state.
+  // Pass { replace: true } to swap the current entry instead of adding one
+  // (e.g. checkout → payment → confirmed, so Back skips the payment step).
+  // The clean URL for this page: the absolute address with any "#..." removed.
+  // Using the absolute href (not a relative path) is what reliably strips an
+  // existing fragment in Chromium.
+  const cleanUrl = function () { return window.location.href.split('#')[0]; };
+
+  const navigate = (next, opts) => {
+    try {
+      // Keep the URL clean (no hash, no path change) — the page is carried in
+      // history.state, not the address bar. pushState still adds a real
+      // history entry even with an unchanged URL, so Back/Forward work.
+      if (opts && opts.replace) window.history.replaceState(next, '', cleanUrl());
+      else window.history.pushState(next, '', cleanUrl());
+    } catch (e) {}
     setRoute(next);
     window.scrollTo({ top: 0, behavior: 'instant' });
   };
+
+  // Seed the first history entry with the initial route AND strip any stray
+  // "#/" a previous (hash-routing) build left in the URL, then restore the
+  // route from history.state on Back/Forward.
+  React.useEffect(() => {
+    try { window.history.replaceState(route, '', cleanUrl()); } catch (e) {}
+    const onPop = function (e) {
+      var r = (e && e.state && e.state.name) ? e.state : { name: 'home' };
+      setRoute(r);
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    };
+    window.addEventListener('popstate', onPop);
+    return function () { window.removeEventListener('popstate', onPop); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const addToCart = (line) => {
     setCart(c => [...c, { ...line, addedAt: Date.now() + Math.random() }]);
@@ -137,17 +222,19 @@ function App() {
                       try { const q = JSON.parse(localStorage.getItem('eurostar-offline-orders') || '[]') || []; q.push(o); localStorage.setItem('eurostar-offline-orders', JSON.stringify(q)); } catch (e) {}
                       setQueued((n) => n + 1);
                       setCart([]);
-                      navigate({ name: 'confirmed', order: { id, ...details, lines, queuedOffline: true } });
+                      // replace: the order is placed, so Back should not return
+                      // to the checkout form for an already-submitted cart.
+                      navigate({ name: 'confirmed', order: { id, ...details, lines, queuedOffline: true } }, { replace: true });
                       return;
                     }
                     setCart([]);
-                    if (isCredit) navigate({ name: 'confirmed', order: { id, ...details, lines } });
+                    if (isCredit) navigate({ name: 'confirmed', order: { id, ...details, lines } }, { replace: true });
                     else navigate({ name: 'payment', order: { id, ...details, lines } });
                   }} />;
       break;
     case 'payment':
       screen = <PaymentScreen order={route.order || { id: 'SO-24900', grand: 0 }} persona={persona}
-                  onPaid={() => navigate({ name: 'confirmed', order: { ...(route.order || {}), paid: true } })}
+                  onPaid={() => navigate({ name: 'confirmed', order: { ...(route.order || {}), paid: true } }, { replace: true })}
                   onBack={() => navigate({ name: 'checkout' })} />;
       break;
     case 'confirmed':
@@ -458,6 +545,150 @@ function ProfileScreen({ persona, setRoute }) {
   const lbl = (t) => <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--fg-meta)', marginBottom: 6 }}>{t}</div>;
   const inp = { width: '100%', padding: '10px 12px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', fontSize: 14, fontFamily: 'inherit', color: 'var(--fg)', outline: 'none' };
   const isCredit = ['15','30','45','60'].includes(String(persona.terms));
+
+  // ----- Business details: real save --------------------------------------
+  // The prototype's inputs were defaultValue-only and the button had no
+  // handler; typing + Save changed nothing anywhere. This holds the form in
+  // state, resolves the customer's master record on the server by phone, and
+  // PUTs the edit back.
+  const [f, setF] = React.useState({
+    name: persona.company || '', contact: persona.contact || '', email: persona.email || '',
+    phone: persona.phone || '', city: persona.location || '', gstin: persona.gst || '',
+  });
+  const [custId, setCustId] = React.useState(null); // server record id, once resolved
+  const [saving, setSaving] = React.useState(false);
+  const [notice, setNotice] = React.useState(null); // {kind:'ok'|'err', text}
+  const [fieldErr, setFieldErr] = React.useState({});
+  const setField = (k) => (e) => { setF((x) => ({ ...x, [k]: e.target.value })); setFieldErr((x) => ({ ...x, [k]: null })); };
+  const authHeaders = () => {
+    var h = { 'content-type': 'application/json' };
+    try { var t = localStorage.getItem('eurostar_token'); if (t) h.authorization = 'Bearer ' + t; } catch (e) {}
+    return h;
+  };
+
+  // Always resolve by the AUTHENTICATED phone, never the demo persona's — the
+  // persona can still be the "Kiran Jewellers" fallback for a beat while boot
+  // hydration is in flight, and requesting someone else's record 403s.
+  const authedPhone = (() => {
+    try { var who = JSON.parse(localStorage.getItem('eurostar_user') || 'null'); if (who && who.phone) return who.phone; } catch (e) {}
+    return persona.phone || '';
+  })();
+
+  // Hydrate from the server record if one matches this account's phone.
+  React.useEffect(() => {
+    var alive = true;
+    if (!authedPhone) return;
+    fetch((window.EUROSTAR_API || location.origin) + '/customers/by-phone/' + encodeURIComponent(authedPhone), { headers: authHeaders() })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((c) => {
+        if (!alive || !c) return;
+        setCustId(c.id);
+        setF({
+          name: c.name || persona.company || '', contact: c.contact || persona.contact || '',
+          email: c.email || persona.email || '', phone: c.phone || persona.phone || '',
+          city: c.city || persona.location || '', gstin: c.gstin || persona.gst || '',
+        });
+        setAddr({
+          ship: c.shipAddress || persona.location || '',
+          bill: c.billAddress || '',
+          same: !c.billAddress,
+        });
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  const validate = () => {
+    var errs = {};
+    if (!f.name.trim()) errs.name = 'Company name is required.';
+    if (f.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)) errs.email = 'Not a valid email address.';
+    if (f.phone && f.phone.replace(/\D+/g, '').length < 10) errs.phone = 'Enter a 10-digit mobile number.';
+    setFieldErr(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const saveDetails = () => {
+    if (saving) return; // no duplicate submissions
+    setNotice(null);
+    if (!validate()) return;
+    if (!custId) { setNotice({ kind: 'err', text: 'No server record found for this account yet — ask your rep to add you to the customer master.' }); return; }
+    setSaving(true);
+    fetch((window.EUROSTAR_API || location.origin) + '/customers/' + custId, {
+      method: 'PUT', headers: authHeaders(),
+      body: JSON.stringify({ name: f.name.trim(), contact: f.contact, email: f.email, phone: f.phone, city: f.city, gstin: f.gstin }),
+    })
+      .then((r) => r.json().then((d) => ({ ok: r.ok, d })))
+      .then(({ ok, d }) => {
+        if (!ok) { setNotice({ kind: 'err', text: (d && d.error) || 'Could not save — please try again.' }); return; }
+        // Keep the rest of the session in step (header, orders, checkout all
+        // read the shared persona object).
+        persona.company = d.name; persona.contact = d.contact || ''; persona.email = d.email || '';
+        persona.phone = d.phone || ''; persona.location = d.city || ''; persona.gst = d.gstin || '';
+        setNotice({ kind: 'ok', text: 'Profile updated successfully.' });
+        setTimeout(() => setNotice(null), 3000);
+      })
+      .catch(() => setNotice({ kind: 'err', text: 'Network error — nothing was saved.' }))
+      .finally(() => setSaving(false));
+  };
+  const errTxt = (k) => fieldErr[k] ? <div style={{ fontSize: 12, color: 'var(--ruby, #8b1e2e)', marginTop: 4 }}>{fieldErr[k]}</div> : null;
+  const noticeBox = (n) => n && (
+    <div style={{ marginBottom: 14, padding: '10px 14px', borderRadius: 'var(--r-md)', fontSize: 13.5, fontWeight: 600,
+      background: n.kind === 'ok' ? 'var(--emerald-soft, #D9E8E0)' : 'var(--ruby-soft, #F2DEDE)',
+      color: n.kind === 'ok' ? 'var(--emerald-ink, #0A3F33)' : 'var(--ruby, #8b1e2e)' }}>
+      {n.text}
+    </div>
+  );
+
+  // ----- Addresses tab ------------------------------------------------------
+  const [addr, setAddr] = React.useState({ ship: persona.location || '', bill: '', same: true });
+  const [addrSaving, setAddrSaving] = React.useState(false);
+  const [addrNotice, setAddrNotice] = React.useState(null);
+  const saveAddresses = () => {
+    if (addrSaving) return;
+    setAddrNotice(null);
+    if (!addr.ship.trim()) { setAddrNotice({ kind: 'err', text: 'Shipping address cannot be empty.' }); return; }
+    if (!addr.same && !addr.bill.trim()) { setAddrNotice({ kind: 'err', text: 'Enter a billing address or tick "Same as shipping".' }); return; }
+    if (!custId) { setAddrNotice({ kind: 'err', text: 'No server record found for this account yet — ask your rep to add you to the customer master.' }); return; }
+    setAddrSaving(true);
+    fetch((window.EUROSTAR_API || location.origin) + '/customers/' + custId, {
+      method: 'PUT', headers: authHeaders(),
+      body: JSON.stringify({ shipAddress: addr.ship.trim(), billAddress: addr.same ? null : addr.bill.trim() }),
+    })
+      .then((r) => r.json().then((d) => ({ ok: r.ok, d })))
+      .then(({ ok, d }) => {
+        if (!ok) { setAddrNotice({ kind: 'err', text: (d && d.error) || 'Could not save — please try again.' }); return; }
+        setAddrNotice({ kind: 'ok', text: 'Addresses saved.' });
+        setTimeout(() => setAddrNotice(null), 3000);
+      })
+      .catch(() => setAddrNotice({ kind: 'err', text: 'Network error — nothing was saved.' }))
+      .finally(() => setAddrSaving(false));
+  };
+
+  // ----- Security tab -------------------------------------------------------
+  const [pw, setPw] = React.useState({ cur: '', next: '', confirm: '' });
+  const [pwSaving, setPwSaving] = React.useState(false);
+  const [pwNotice, setPwNotice] = React.useState(null);
+  const changePassword = () => {
+    if (pwSaving) return;
+    setPwNotice(null);
+    if (!pw.cur) { setPwNotice({ kind: 'err', text: 'Enter your current password.' }); return; }
+    if (pw.next.length < 8) { setPwNotice({ kind: 'err', text: 'New password must be at least 8 characters.' }); return; }
+    if (pw.next !== pw.confirm) { setPwNotice({ kind: 'err', text: 'New passwords do not match.' }); return; }
+    setPwSaving(true);
+    fetch((window.EUROSTAR_API || location.origin) + '/auth/change-password', {
+      method: 'POST', headers: authHeaders(),
+      body: JSON.stringify({ oldPassword: pw.cur, newPassword: pw.next }),
+    })
+      .then((r) => r.json().then((d) => ({ ok: r.ok, d })))
+      .then(({ ok, d }) => {
+        if (!ok) { setPwNotice({ kind: 'err', text: (d && d.error) || 'Could not change the password.' }); return; }
+        setPw({ cur: '', next: '', confirm: '' });
+        setPwNotice({ kind: 'ok', text: 'Password changed. Use the new one next time you sign in.' });
+        setTimeout(() => setPwNotice(null), 4000);
+      })
+      .catch(() => setPwNotice({ kind: 'err', text: 'Network error — password unchanged.' }))
+      .finally(() => setPwSaving(false));
+  };
   return (
     <div className="page" style={{ maxWidth: 880 }}>
       <div className="page-head">
@@ -477,49 +708,86 @@ function ProfileScreen({ persona, setRoute }) {
 
       {tab === 'details' &&
       <div className="card card-pad">
+        {notice &&
+        <div style={{ marginBottom: 14, padding: '10px 14px', borderRadius: 'var(--r-md)', fontSize: 13.5, fontWeight: 600,
+          background: notice.kind === 'ok' ? 'var(--emerald-soft, #D9E8E0)' : 'var(--ruby-soft, #F2DEDE)',
+          color: notice.kind === 'ok' ? 'var(--emerald-ink, #0A3F33)' : 'var(--ruby, #8b1e2e)' }}>
+          {notice.text}
+        </div>}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
-          <label>{lbl('Firm / company')}<input style={inp} defaultValue={persona.company} /></label>
+          <label>{lbl('Firm / company')}<input style={inp} value={f.name} onChange={setField('name')} />{errTxt('name')}</label>
           <label>{lbl('Customer code')}<input style={{ ...inp, background: 'var(--paper-2)', color: 'var(--fg-meta)' }} value={persona.code} readOnly /></label>
-          <label>{lbl('Contact person')}<input style={inp} defaultValue={persona.contact} /></label>
-          <label>{lbl('Mobile')}<input style={inp} defaultValue={persona.phone} /></label>
-          <label>{lbl('Email')}<input style={inp} defaultValue={persona.email} /></label>
-          <label>{lbl('City')}<input style={inp} defaultValue={persona.location} /></label>
-          <label>{lbl('GST / PAN')}<input style={inp} defaultValue={persona.gst || ''} placeholder="GSTIN / PAN" /></label>
+          <label>{lbl('Contact person')}<input style={inp} value={f.contact} onChange={setField('contact')} /></label>
+          <label>{lbl('Mobile')}<input style={inp} value={f.phone} onChange={setField('phone')} />{errTxt('phone')}</label>
+          <label>{lbl('Email')}<input style={inp} value={f.email} onChange={setField('email')} />{errTxt('email')}</label>
+          <label>{lbl('City')}<input style={inp} value={f.city} onChange={setField('city')} /></label>
+          <label>{lbl('GST / PAN')}<input style={inp} value={f.gstin} onChange={setField('gstin')} placeholder="GSTIN / PAN" /></label>
           <label>{lbl('Payment terms')}<input style={{ ...inp, background: 'var(--paper-2)', color: 'var(--fg-meta)' }} value={isCredit ? persona.terms + ' days credit' : 'Cash'} readOnly /></label>
         </div>
         <div style={{ fontSize: 12, color: 'var(--fg-meta)', marginTop: 14 }}>Payment terms are set by Eurostar. Contact your rep to request credit terms.</div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}><button className="btn btn-accent">Save changes</button></div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}>
+          <button className="btn btn-accent" disabled={saving} onClick={saveDetails}>
+            {saving ? 'Saving…' : 'Save changes'}
+          </button>
+        </div>
       </div>}
 
       {tab === 'address' &&
       <div className="card card-pad">
+        {noticeBox(addrNotice)}
         <h3 className="od-section" style={{ marginTop: 0 }}>Delivery address</h3>
-        <label style={{ display: 'block', marginBottom: 14 }}>{lbl('Shipping address')}<textarea rows="3" style={{ ...inp, resize: 'vertical' }} defaultValue={persona.location} /></label>
+        <label style={{ display: 'block', marginBottom: 14 }}>{lbl('Shipping address')}
+          <textarea rows="3" style={{ ...inp, resize: 'vertical' }} value={addr.ship}
+            onChange={(e) => setAddr((a) => ({ ...a, ship: e.target.value }))} />
+        </label>
         <h3 className="od-section">Billing address</h3>
         <label style={{ display: 'block', marginBottom: 6 }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--fg-muted)' }}>
-            <input type="checkbox" defaultChecked style={{ accentColor: 'var(--emerald)' }} /> Same as shipping address
+            <input type="checkbox" checked={addr.same} style={{ accentColor: 'var(--emerald)' }}
+              onChange={(e) => setAddr((a) => ({ ...a, same: e.target.checked }))} /> Same as shipping address
           </span>
         </label>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}><button className="btn btn-accent">Save addresses</button></div>
+        {!addr.same &&
+        <label style={{ display: 'block', margin: '10px 0 6px' }}>{lbl('Billing address')}
+          <textarea rows="3" style={{ ...inp, resize: 'vertical' }} value={addr.bill}
+            onChange={(e) => setAddr((a) => ({ ...a, bill: e.target.value }))} placeholder="Billing address for invoices" />
+        </label>}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}>
+          <button className="btn btn-accent" disabled={addrSaving} onClick={saveAddresses}>
+            {addrSaving ? 'Saving…' : 'Save addresses'}
+          </button>
+        </div>
       </div>}
 
       {tab === 'security' &&
       <div className="card card-pad">
         <h3 className="od-section" style={{ marginTop: 0 }}>Change password</h3>
+        {noticeBox(pwNotice)}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 14, maxWidth: 380 }}>
-          <label>{lbl('Current password')}<input type="password" style={inp} placeholder="••••••••" /></label>
-          <label>{lbl('New password')}<input type="password" style={inp} placeholder="At least 8 characters" /></label>
-          <label>{lbl('Confirm new password')}<input type="password" style={inp} placeholder="Re-enter new password" /></label>
+          <label>{lbl('Current password')}<input type="password" style={inp} placeholder="••••••••" value={pw.cur} onChange={(e) => setPw((x) => ({ ...x, cur: e.target.value }))} /></label>
+          <label>{lbl('New password')}<input type="password" style={inp} placeholder="At least 8 characters" value={pw.next} onChange={(e) => setPw((x) => ({ ...x, next: e.target.value }))} /></label>
+          <label>{lbl('Confirm new password')}<input type="password" style={inp} placeholder="Re-enter new password" value={pw.confirm} onChange={(e) => setPw((x) => ({ ...x, confirm: e.target.value }))} /></label>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}><button className="btn btn-accent">Update password</button></div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}>
+          <button className="btn btn-accent" disabled={pwSaving} onClick={changePassword}>
+            {pwSaving ? 'Updating…' : 'Update password'}
+          </button>
+        </div>
         <div style={{ marginTop: 24, paddingTop: 18, borderTop: '1px solid var(--divider)' }}>
           <button className="btn btn-secondary" onClick={() => {
             // Used to just navigate home, leaving the session intact — so
-            // "Sign out" signed nobody out. Clear the token and the gate's
-            // one-time pass, then return to the login screen.
+            // "Sign out" signed nobody out. Revoke the remember-me token on
+            // the server, clear the session, then return to the login screen.
             try {
+              var rt = localStorage.getItem('eurostar_refresh');
+              if (rt) {
+                fetch((window.EUROSTAR_API || location.origin) + '/auth/logout', {
+                  method: 'POST', headers: { 'content-type': 'application/json' },
+                  body: JSON.stringify({ refreshToken: rt }), keepalive: true,
+                }).catch(function () {});
+              }
               localStorage.removeItem('eurostar_token');
+              localStorage.removeItem('eurostar_refresh');
               localStorage.removeItem('eurostar_authed');
               localStorage.removeItem('eurostar_user');
               sessionStorage.removeItem('eurostar_enter');

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../db';
 import { asyncHandler, fail, ok, failValidation } from '../util/http';
 import { requestOtp, verifyOtp, consumeOtp } from '../services/otp';
+import { customerMasterForPhone, createCustomerMaster, normGst, phoneDigits } from '../services/customerMaster';
 import {
   signAccessToken,
   signRefreshToken,
@@ -31,8 +32,14 @@ async function issueSession(user: { id: string; role: string; name: string; repI
   let refreshToken: string | undefined;
   if (remember) {
     refreshToken = signRefreshToken(user.id);
-    await prisma.refreshToken.create({
-      data: { userId: user.id, tokenHash: hashToken(refreshToken), expiresAt: refreshExpiryDate() },
+    // Upsert, not create: two sign-ins in the same second mint an identical
+    // JWT (same claims, same iat), and a duplicate tokenHash crashed the
+    // second one — e.g. a double-click on "Verify & enter".
+    const tokenHash = hashToken(refreshToken);
+    await prisma.refreshToken.upsert({
+      where: { tokenHash },
+      create: { userId: user.id, tokenHash, expiresAt: refreshExpiryDate() },
+      update: { expiresAt: refreshExpiryDate(), revoked: false },
     });
   }
 
@@ -44,14 +51,37 @@ async function issueSession(user: { id: string; role: string; name: string; repI
 }
 
 // --- Customer OTP request ---------------------------------------------------
-const otpRequestSchema = z.object({ phone: z.string().min(6) });
+const otpRequestSchema = z.object({
+  phone: z.string().min(6),
+  // 'login' = sign-in pane (registered numbers only), 'signup' = the create-
+  // account flow (new numbers only). Omitted = legacy behaviour, no gate.
+  mode: z.enum(['login', 'signup']).optional(),
+});
 
 authRouter.post(
   '/otp/request',
   asyncHandler(async (req, res) => {
     const parsed = otpRequestSchema.safeParse(req.body);
     if (!parsed.success) return failValidation(res, parsed.error);
-    const { devCode } = await requestOtp(parsed.data.phone);
+    const { phone, mode } = parsed.data;
+
+    // The sign-in pane is for registered numbers only; account creation is
+    // its own explicit flow. Gate before any SMS is sent:
+    //  - login: unknown number → no code, point them at "Create your account"
+    //  - signup: number already registered → no code, point them at sign-in
+    // "Registered" includes customers the CRM created who never logged in.
+    if (mode === 'login' || mode === 'signup') {
+      const user = await prisma.user.findUnique({ where: { phone } });
+      const registered = !!user || !!(await customerMasterForPhone(phone));
+      if (mode === 'login' && !registered) {
+        return fail(res, 404, 'No account with this number yet — please create your account first.', { signupRequired: true });
+      }
+      if (mode === 'signup' && registered) {
+        return fail(res, 409, 'This number is already registered — just sign in.', { alreadyRegistered: true });
+      }
+    }
+
+    const { devCode } = await requestOtp(phone);
     return ok(res, { sent: true, ...(devCode ? { devCode } : {}) });
   })
 );
@@ -82,17 +112,44 @@ authRouter.post(
     let user = await prisma.user.findUnique({ where: { phone } });
 
     if (!user) {
-      // First-time sign-up: name + GSTIN are required. The code stays valid so
-      // the details can be supplied without waiting for a fresh SMS.
-      if (!name || !gstin) {
-        return fail(res, 422, 'New customer: please provide your name and GSTIN', { signupRequired: true });
+      // "Already registered" includes customers the CRM created (a rep added
+      // them, they just never logged in): if the customer master knows this
+      // phone, sign them in from that record — asking them to register again
+      // would be wrong and would fork their identity.
+      const master = await customerMasterForPhone(phone);
+      if (master) {
+        user = await prisma.user.create({
+          data: { role: 'customer', name: master.name, phone, gstin: master.gstin },
+        });
+      } else {
+        // Genuinely new customer: name + GSTIN are required. The code stays
+        // valid so the details can be supplied without a fresh SMS.
+        if (!name || !gstin) {
+          return fail(res, 422, 'New customer: please provide your name and GSTIN', { signupRequired: true });
+        }
+        if (!GSTIN_RE.test(gstin.toUpperCase())) {
+          return fail(res, 422, 'That GSTIN does not look valid');
+        }
+        // A GSTIN identifies one firm — it must not register twice. If the
+        // customer master already holds this GSTIN under a *different* phone,
+        // that firm has an account; refuse rather than fork it. (A record the
+        // CRM pre-created for this same firm has no phone yet, so it is not a
+        // conflict — createCustomerMaster claims it below.)
+        const gnorm = normGst(gstin);
+        if (gnorm) {
+          const owner = await prisma.customer.findFirst({ where: { gstinNorm: gnorm } });
+          if (owner && owner.phone && phoneDigits(owner.phone) !== phoneDigits(phone)) {
+            return fail(res, 409, 'This GSTIN is already registered to another account.', { gstinTaken: true });
+          }
+        }
+        user = await prisma.user.create({
+          data: { role: 'customer', name, phone, gstin: gstin.toUpperCase() },
+        });
+        // …and their master record, so the profile page, checkout and
+        // payments resolve this customer immediately — previously only the
+        // login user was created and the rest of the app found nobody.
+        await createCustomerMaster(name, phone, gstin.toUpperCase());
       }
-      if (!GSTIN_RE.test(gstin.toUpperCase())) {
-        return fail(res, 422, 'That GSTIN does not look valid');
-      }
-      user = await prisma.user.create({
-        data: { role: 'customer', name, phone, gstin: gstin.toUpperCase() },
-      });
     } else if (gstin && !user.gstin && GSTIN_RE.test(gstin.toUpperCase())) {
       user = await prisma.user.update({ where: { id: user.id }, data: { gstin: gstin.toUpperCase() } });
     }

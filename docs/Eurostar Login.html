@@ -3238,12 +3238,12 @@ img[src*="assets/products/"] {
 
           <div class="lg-field">
             <label class="lg-label">Staff ID / Username</label>
-            <input type="text" class="lg-input" id="off-user" placeholder="e.g. mumbai.desk3" autocomplete="username" value="mumbai.desk3">
+            <input type="text" class="lg-input" id="off-user" placeholder="e.g. office" autocomplete="username">
             <div class="lg-err" id="off-user-err">Enter your staff ID.</div>
           </div>
           <div class="lg-field">
             <label class="lg-label">Password</label>
-            <input type="password" class="lg-input" id="off-pass" placeholder="••••••••" autocomplete="current-password" value="eurostar123">
+            <input type="password" class="lg-input" id="off-pass" placeholder="••••••••" autocomplete="current-password">
             <div class="lg-err" id="off-pass-err">Enter your password.</div>
           </div>
           <div class="lg-inline-row">
@@ -3396,11 +3396,16 @@ img[src*="assets/products/"] {
       });
     }
 
-    function saveSession(token, who) {
+    function saveSession(token, who, refreshToken) {
       try {
         localStorage.setItem('eurostar_token', token);
         localStorage.setItem('eurostar_authed', '1');
         if (who) localStorage.setItem('eurostar_user', JSON.stringify(who));
+        // The access token lives 15 minutes; the refresh token is what keeps
+        // the session alive across refreshes/returns. Without storing it the
+        // shop logged everyone out a quarter-hour after signing in.
+        if (refreshToken) localStorage.setItem('eurostar_refresh', refreshToken);
+        else localStorage.removeItem('eurostar_refresh');
       } catch (e) {}
     }
 
@@ -3408,7 +3413,9 @@ img[src*="assets/products/"] {
       try {
         sessionStorage.setItem('eurostar_enter', '1'); // one-time pass the app's gate consumes
       } catch (e) {}
-      window.location.href = CATALOG;
+      // replace(), not href: this drops the login page from browser history so
+      // a signed-in user pressing Back never lands back on the login screen.
+      window.location.replace(CATALOG);
     }
 
     function busy(btn, on, label) {
@@ -3425,6 +3432,10 @@ img[src*="assets/products/"] {
     function setCustMode(m) {
       custMode = m;
       var signup = m === 'signup';
+      // Both first-time fields are revealed together in signup: the handler
+      // requires the business name, so hiding it (while still requiring it)
+      // silently blocked "Create account & send OTP".
+      document.getElementById('cust-name-field').classList.toggle('hidden', !signup);
       document.getElementById('cust-gst-field').classList.toggle('hidden', !signup);
       document.getElementById('cust-h').textContent = signup ? 'Create your account' : 'Welcome back';
       document.getElementById('cust-sub').textContent = signup
@@ -3463,9 +3474,17 @@ img[src*="assets/products/"] {
       try { localStorage.setItem('eurostar_remember_cust', document.getElementById('cust-remember').checked ? '1' : '0'); } catch (e) {}
 
       busy(btn, true, 'Sending…');
-      apiPost('/auth/otp/request', { phone: phone.trim() }).then(function (r) {
+      apiPost('/auth/otp/request', { phone: phone.trim(), mode: custMode === 'signup' ? 'signup' : 'login' }).then(function (r) {
         busy(btn, false);
-        if (!r.ok) { toast((r.data && r.data.error) || 'Could not send the code. Please try again.'); return; }
+        if (!r.ok) {
+          // The server gates the two flows: sign-in refuses unknown numbers,
+          // create-account refuses registered ones. Flip to the right pane so
+          // the person lands where they can actually continue.
+          if (r.data && r.data.details && r.data.details.signupRequired) setCustMode('signup');
+          if (r.data && r.data.details && r.data.details.alreadyRegistered) setCustMode('signin');
+          toast((r.data && r.data.error) || 'Could not send the code. Please try again.');
+          return;
+        }
         toast('OTP sent to +91 ' + phone.trim());
         goToOtp('customer', '+91 ' + phone.trim());
       }).catch(function () {
@@ -3512,7 +3531,11 @@ img[src*="assets/products/"] {
       apiPost('/auth/otp/verify', body).then(function (r) {
         busy(btn, false);
         if (r.ok && r.data && r.data.accessToken) {
-          saveSession(r.data.accessToken, { role: 'customer', name: r.data.name, phone: phone });
+          // Reset the mode: a stale 'rep-cash'/'office' from an earlier staff
+          // login on this browser made checkout show the customer picker to a
+          // plain customer.
+          try { localStorage.setItem('eurostar_login_mode', 'customer'); } catch (e) {}
+          saveSession(r.data.accessToken, { role: 'customer', name: r.data.name, phone: phone }, r.data.refreshToken);
           toast('Verified — welcome');
           setTimeout(enterApp, 400);
           return;
@@ -3567,7 +3590,7 @@ img[src*="assets/products/"] {
       }).then(function (r) {
         busy(btn, false);
         if (r.ok && r.data && r.data.accessToken) {
-          saveSession(r.data.accessToken, { role: 'rep', name: r.data.name, username: id });
+          saveSession(r.data.accessToken, { role: 'rep', name: r.data.name, username: id }, r.data.refreshToken);
           toast('Signed in as rep');
           setTimeout(enterApp, 400);
           return;
@@ -3588,11 +3611,33 @@ img[src*="assets/products/"] {
       setErr('off-user-err', 'off-user', !okU);
       setErr('off-pass-err', 'off-pass', !okP);
       if (!okU || !okP) return;
+      // This used to set a flag and walk straight in without asking the
+      // server — the app's real gate then bounced back here, so Back Office
+      // could never sign in. Authenticate exactly like the rep pane does.
       try {
         localStorage.setItem('eurostar_login_mode', 'office');
         localStorage.setItem('eurostar_remember_office', document.getElementById('off-remember').checked ? '1' : '0');
       } catch (e) {}
-      toast('Signed in — back office'); setTimeout(enterApp, 500);
+      var btn = this;
+      busy(btn, true, 'Signing in…');
+      apiPost('/auth/login', {
+        role: 'office',
+        username: u,
+        password: p,
+        remember: document.getElementById('off-remember').checked,
+      }).then(function (r) {
+        busy(btn, false);
+        if (r.ok && r.data && r.data.accessToken) {
+          saveSession(r.data.accessToken, { role: 'office', name: r.data.name, username: u }, r.data.refreshToken);
+          toast('Signed in — back office');
+          setTimeout(enterApp, 400);
+          return;
+        }
+        toast((r.data && r.data.error) || 'Wrong ID or password.');
+      }).catch(function () {
+        busy(btn, false);
+        toast('Could not reach the server. Check your connection.');
+      });
     });
     document.getElementById('off-forgot').addEventListener('click', function () { toast('Contact your branch admin to reset access'); });
     document.getElementById('cust-gst').addEventListener('input', function () { this.value = this.value.toUpperCase(); });

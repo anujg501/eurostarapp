@@ -893,8 +893,16 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   // Moissanite: optional ₹80/pc certificate, offered from the same per-shape size.
   const [certOff, setCertOff] = React.useState({});
   const certEligible = (size) => (category.id === 'moissanite' || (category.id === 'labgrown' && grade.id === 'labgrown')) && moissIsPiece(shape, size);
-  // Moissanite per-carat rate (flat across sizes — pending the price sheet).
-  const moissPerCt = product.price;
+  // Moissanite per-carat rate — per size, per grade, from the uploaded price
+  // sheet (window.moissRate). Falls back to the grade's flat basePrice when a
+  // size/grade isn't in the sheet (and for Lab Grown, which has no sheet).
+  const moissPerCt = (size) => {
+    if (category.id === 'moissanite') {
+      const r = window.moissRate ? window.moissRate(shape, size, grade.id) : null;
+      if (r != null) return r;
+    }
+    return product.price;
+  };
   const moissCt = (size) => moissCtEach(shape, size);
   const billedCt = (size, q) => pieceInput(size) ? q * moissCt(size) : q;
   const hex = color.hex;
@@ -1009,7 +1017,7 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   };
   const piecePrice = (size) => { const s = skuPriced(size); return s ? s.price : sizeUnitPrice(product, size); }; // per-piece rate
   // Amount for the stones on a row (excludes certificate).
-  const stoneAmount = (size, q) => mixedMoiss ? Math.round(billedCt(size, q) * moissPerCt) : q * rate(size);
+  const stoneAmount = (size, q) => mixedMoiss ? Math.round(billedCt(size, q) * moissPerCt(size)) : q * rate(size);
   // Pieces represented by a row's quantity.
   const rowPcs = (size, q) => stringMode ? q :
   lotMode ? q :
@@ -1054,8 +1062,8 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
         qty: navMode ? q : rowPcs(size, q),
         ct: billedCt(size, q),
         unitMode: navMode ? 'pkt' : mixedMoiss ? 'ct' : stringMode ? 'string' : lotMode ? 'pkt' : ctLotMode ? 'pkt' : rowUnit(size),
-        unitPrice: navMode ? sizeUnitPrice(product, size) : mixedMoiss ? moissPerCt : rate(size),
-        perCtPrice: navMode ? sizeUnitPrice(product, size) : mixedMoiss ? moissPerCt : rate(size),
+        unitPrice: navMode ? sizeUnitPrice(product, size) : mixedMoiss ? moissPerCt(size) : rate(size),
+        perCtPrice: navMode ? sizeUnitPrice(product, size) : mixedMoiss ? moissPerCt(size) : rate(size),
         certFee: certForLine(size, q),
         foilFee: foilForLine(size, q),
         lineTotal: navMode ? q * sizeUnitPrice(product, size) + foilForLine(size, q) : stoneAmount(size, q) + certForLine(size, q) + foilForLine(size, q),
@@ -1372,7 +1380,7 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
               <div className="size-pad-pcs">{mixedMoiss ?
                 pieceInput(s) ? `${moissCt(s)} ct/pc` : `${moissPcsPerCt(shape, s).toLocaleString('en-IN')} /ct` :
                 unit === 'pc' ? '1' : each.toLocaleString('en-IN')}</div>}
-              <div className="size-pad-price">{formatINR(navMode ? navUnitPrice : mixedMoiss ? moissPerCt : unit === 'pkt' ? packetPriced ? r : piecePrice(s) : r)}{mixedMoiss && <span className="size-pad-unit-sfx"> /ct</span>}</div>
+              <div className="size-pad-price">{formatINR(navMode ? navUnitPrice : mixedMoiss ? moissPerCt(s) : unit === 'pkt' ? packetPriced ? r : piecePrice(s) : r)}{mixedMoiss && <span className="size-pad-unit-sfx"> /ct</span>}</div>
               {showWt &&
               <div className="size-pad-wt">
                   <span className="size-pad-wt-g">{gPer1000 >= 100 ? Math.round(gPer1000) : gPer1000.toFixed(1)} g</span>

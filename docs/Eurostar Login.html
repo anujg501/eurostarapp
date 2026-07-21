@@ -3151,7 +3151,10 @@ img[src*="assets/products/"] {
               <label class="lg-label">Mobile number</label>
               <div class="lg-inputgrp" id="cust-phone-grp">
                 <span class="pre">+91</span>
-                <input type="tel" id="cust-phone" inputmode="numeric" maxlength="10" placeholder="10-digit mobile" autocomplete="tel" value="9820000000">
+                <!-- No value: the field starts empty and shows its placeholder. It
+                     used to carry a demo number, which read as a real sign-in.
+                     autocomplete is off so the browser does not put one back. -->
+                <input type="tel" id="cust-phone" inputmode="numeric" maxlength="10" placeholder="10-digit mobile" autocomplete="off" value="">
               </div>
               <div class="lg-err" id="cust-phone-err">Enter a valid 10-digit mobile number.</div>
             </div>
@@ -3216,12 +3219,14 @@ img[src*="assets/products/"] {
 
           <div class="lg-field">
             <label class="lg-label">Rep ID</label>
-            <input type="text" class="lg-input" id="rep-id" placeholder="e.g. ESR-2041" style="text-transform:uppercase" autocomplete="username" value="ESR-2041">
+            <input type="text" class="lg-input" id="rep-id" placeholder="e.g. ESR-2041" style="text-transform:uppercase" autocomplete="username" value="">
             <div class="lg-err" id="rep-id-err">Enter your Rep ID.</div>
           </div>
           <div class="lg-field">
             <label class="lg-label">Password</label>
-            <input type="password" class="lg-input" id="rep-pass" placeholder="••••••••" autocomplete="current-password" value="eurostar123">
+            <!-- Never ship a value here: this file is served to every visitor,
+                 so a prefilled password is a published one. -->
+            <input type="password" class="lg-input" id="rep-pass" placeholder="••••••••" autocomplete="current-password" value="">
             <div class="lg-err" id="rep-pass-err">Enter your password.</div>
           </div>
           <div class="lg-inline-row">

@@ -107,16 +107,16 @@ const LASER_TABLES = {
 
 const laserRows = (shape) => LASER_TABLES[shape] || [];
 
-// Discount fraction off the list ₹/pc. All 6 laser colours are whiteDisc:true,
-// so every colour takes the SAME (white) tiered discount — identical price
-// across colours. (The colour branch below is unused for laser but kept intact.)
+// Discount fraction off the list ₹/pc. The SAME for every colour (isWhite is
+// ignored) so all 6 colours price identically.
+//   Round 1.00–1.65 mm → 40% · Round 1.70–2.05 mm → 35%
+//   Everything else (round <1.00 or ≥2.10 mm, and all fancy shapes) → 21%
 function laserDiscount(shape, mm, isWhite) {
-  if (!isWhite) return 0.20;            // colour: flat 20%
-  if (shape !== 'round') return 0.18;   // all fancy shapes: 18%
-  if (mm < 1.00) return 0.21;           // 0.60–0.95 mm
-  if (mm < 1.70) return 0.40;           // 1.00–1.65 mm
-  if (mm < 2.10) return 0.30;           // 1.70–2.05 mm
-  return 0.18;                          // 2.10 mm and up
+  if (shape !== 'round') return 0.21;   // all fancy shapes: 21%
+  if (mm < 1.00) return 0.21;           // round 0.60–0.95 mm: 21%
+  if (mm < 1.70) return 0.40;           // round 1.00–1.65 mm: 40%
+  if (mm < 2.10) return 0.35;           // round 1.70–2.05 mm: 35%
+  return 0.21;                          // round 2.10 mm and up: 21%
 }
 
 function LaserOrderPad({ grade, color, shape, category, qtyBySize, setQtyBySize, onBack, onChangeColor, addToCart, setRoute }) {

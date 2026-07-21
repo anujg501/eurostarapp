@@ -457,7 +457,7 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
             // shape card reads a flat "1 sizes".
             const skuSizesForCard = (window.uploadedSizesFor ? uploadedSizesFor(category.id, s, grade) : []);
             const sizes = skuSizesForCard.length ? skuSizesForCard : category.id === 'mop' ? window.MOP_PRICES[s] || [] : FULL_SIZES[s] || ['4.00 mm'];
-            const shapeImg = getStoredProductImage(category.id, color.id, s) || productPhoto(color.id);
+            const shapeImg = productImageFor(category.id, color.id, s);
             return (
               <button key={s} className="shape-pick-card" onClick={() => needsSubShape ? pickShapeSub(s) : pickShape(s)}>
                   <div className="shape-pick-art" style={{ background: lightenTone(color.hex),
@@ -561,6 +561,10 @@ const GEM_PHOTOS = {
 const productPhoto = (colorId) =>
   /^op\d/.test(colorId) ? `assets/products/opal-${colorId}.png` :
   GEM_PHOTOS[colorId] ? `assets/products/gem-${GEM_PHOTOS[colorId]}.png` : null;
+
+// Shared so productImageFor() (product-images.jsx) resolves the stock photo the
+// same way everywhere, instead of each screen reimplementing the fallback.
+window.productPhoto = productPhoto;
 
 // Pearls: custom header title + subtitle per (grade | drilling). Keyed "gradeId|shape".
 const PEARL_HEADERS = {
@@ -906,7 +910,9 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   const moissCt = (size) => moissCtEach(shape, size);
   const billedCt = (size, q) => pieceInput(size) ? q * moissCt(size) : q;
   const hex = color.hex;
-  const photo = productPhoto(color.id);
+  // Full resolution (uploaded image first), so the hero, the line added to the
+  // cart and every later screen all show the same picture.
+  const photo = productImageFor(category.id, color.id, shape);
   const soldOutMap = (window.loadSoldOut ? window.loadSoldOut() : {});
   // Sold out either because the Admin marked this exact combination, or
   // because the uploaded SKU itself says the stock is out.
@@ -1057,6 +1063,12 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
         // deducted from stock. Each size is its own uploaded SKU with its own
         // count, which is exactly what skuFor(size) returns.
         pid: (skuFor(size) || product).id, name: product.name,
+        // Resolve the image once, here, and carry it on the line. The cart,
+        // checkout and order screens have no category on a line, so they cannot
+        // rebuild the cat|colour|shape key an uploaded image is stored under —
+        // which is why they fell back to the stock photo and showed something
+        // different from the pad the line was added from.
+        imageUrl: photo || null,
         shape, size, quality: grade.name,
         color: color.name, colorHex: hex,
         qty: navMode ? q : rowPcs(size, q),

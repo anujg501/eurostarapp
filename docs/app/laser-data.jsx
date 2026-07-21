@@ -125,6 +125,9 @@ function LaserOrderPad({ grade, color, shape, category, qtyBySize, setQtyBySize,
   const isWhite = color.id === 'white' || !!color.whiteDisc;
   const hex = color.hex || '#F2EFE8';
   const tint = window.lightenTone ? window.lightenTone(hex) : 'var(--paper-2)';
+  // The one resolver the shape cards use, so this page shows the same picture
+  // the customer just clicked instead of falling back to a drawn icon.
+  const heroImg = window.productImageFor ? window.productImageFor(category.id, color.id, shape) : null;
   const rows = laserRows(shape);
 
   const setQty = (s, v) => setQtyBySize((p) => ({ ...p, [s]: Math.max(0, parseInt(v, 10) || 0) }));
@@ -144,6 +147,9 @@ function LaserOrderPad({ grade, color, shape, category, qtyBySize, setQtyBySize,
       addToCart({
         pid: 'laser-' + color.id + '-' + shape + '-' + s.replace(/\s/g, ''),
         name: color.name + ' Laser ' + shapeMeta.name,
+        // Carried on the line so the cart, checkout and order screens show this
+        // picture too — they hold no category and cannot resolve it themselves.
+        imageUrl: heroImg || null,
         shape, size: s, quality: 'Laser · ' + color.name,
         color: color.name, colorHex: hex,
         // ct carries the quantity in this line's own unit — packets here, so
@@ -166,8 +172,17 @@ function LaserOrderPad({ grade, color, shape, category, qtyBySize, setQtyBySize,
   return (
     <div className="browse-step">
       <div className="pad-header">
-        <div className="pad-header-art" style={{ background: tint, width: 132, height: 132, flex: '0 0 132px' }}>
-          {window.ShapeIcon ? <window.ShapeIcon shape={shape} size={48} color={hex} /> : null}
+        {/* Same slot the generic size pad fills with ProductHero. It only ever
+            drew the shape icon, so a category routed to this pad never showed
+            the image the admin uploaded — the shape cards one step earlier did,
+            which is what made the picture look like it was lost on navigation. */}
+        <div className="pad-header-art" style={{ background: tint, width: 132, height: 132, flex: '0 0 132px',
+          overflow: 'hidden', padding: heroImg ? 0 : undefined }}>
+          {heroImg
+            ? <img src={heroImg} alt={`${color.name} ${shapeMeta.name}`} loading="lazy"
+                   onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                   style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : window.ShapeIcon ? <window.ShapeIcon shape={shape} size={48} color={hex} /> : null}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="crumb">Eurostar Laser · {color.name} · {shapeMeta.name}</div>

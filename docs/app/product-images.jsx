@@ -10,6 +10,21 @@ function pimgLoadAll() {
 }
 function pimgKey(catId, colorId, shape) { return catId + '|' + colorId + '|' + shape; }
 
+/** The one image resolution rule for the whole app: an image the admin uploaded
+ *  for this exact category + colour + shape wins, otherwise the built-in stock
+ *  photo for the colour, otherwise nothing (callers draw their placeholder).
+ *
+ *  Every render site used to decide this for itself, and they disagreed — the
+ *  shape cards and the size-pad hero consulted the uploaded store while the
+ *  cart looked only at the stock photo, so one product showed two different
+ *  images depending on the page. */
+function productImageFor(catId, colorId, shape) {
+  return (
+    getStoredProductImage(catId, colorId, shape) ||
+    (typeof window.productPhoto === 'function' ? window.productPhoto(colorId) : null)
+  );
+}
+
 function getStoredProductImage(catId, colorId, shape) {
   return pimgLoadAll()[pimgKey(catId, colorId, shape)] || null;
 }
@@ -178,4 +193,5 @@ function DocUploadCard({ catId, gradeId, docId, label, caption }) {
 
 Object.assign(window, {
   getStoredProductImage, setStoredProductImage, fileToCompressedDataUrl, ProductHero, DocUploadCard,
+  productImageFor,
 });

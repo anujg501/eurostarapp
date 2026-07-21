@@ -185,6 +185,10 @@ function MopOrderPad({ grade, shape, category, qtyBySize, setQtyBySize, onBack, 
   const colorId = grade.id;
   const hex = (MOP_COLORS.find((c) => c.id === colorId) || {}).hex || '#EFE9DD';
   const tint = window.lightenTone ? window.lightenTone(hex) : 'var(--paper-2)';
+  // Same resolver the shape cards use — see laser-data.jsx. This pad has no
+  // colour prop; its colour identity is the grade, which is what the upload
+  // key is built from for this category.
+  const heroImg = window.productImageFor ? window.productImageFor(category.id, colorId, shape) : null;
   const rows = mopRows(shape);
 
   const setQty = (size, v) => setQtyBySize((p) => ({ ...p, [size]: Math.max(0, parseInt(v, 10) || 0) }));
@@ -224,8 +228,13 @@ function MopOrderPad({ grade, shape, category, qtyBySize, setQtyBySize, onBack, 
   return (
     <div className="browse-step">
       <div className="pad-header">
-        <div className="pad-header-art" style={{ background: tint, width: 132, height: 132, flex: '0 0 132px' }}>
-          {window.ShapeIcon ? <window.ShapeIcon shape={shape} size={48} color={hex} /> : null}
+        <div className="pad-header-art" style={{ background: tint, width: 132, height: 132, flex: '0 0 132px',
+          overflow: 'hidden', padding: heroImg ? 0 : undefined }}>
+          {heroImg
+            ? <img src={heroImg} alt={`${shapeMeta.name}`} loading="lazy"
+                   onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                   style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : window.ShapeIcon ? <window.ShapeIcon shape={shape} size={48} color={hex} /> : null}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="crumb">{category.short} · {grade.name} · {shapeMeta.name}</div>

@@ -64,6 +64,8 @@ function IceCutOrderPad({ grade, color, shape, category, qtyBySize, setQtyBySize
   const col = TIER_COL[color.id] || 'w';
   const hex = color.hex || '#EFE9DD';
   const tint = window.lightenTone ? window.lightenTone(hex) : 'var(--paper-2)';
+  // Same resolver the shape cards use — see laser-data.jsx.
+  const heroImg = window.productImageFor ? window.productImageFor(category.id, color.id, shape) : null;
   const rows = icecutRows(shape);
   const ppp = (r) => (r && r.ppp ? r.ppp : 1);
 
@@ -84,6 +86,8 @@ function IceCutOrderPad({ grade, color, shape, category, qtyBySize, setQtyBySize
       addToCart({
         pid: 'icecut-' + color.id + '-' + shape + '-' + size.replace(/\s/g, ''),
         name: color.name + ' Ice Cut ' + shapeMeta.name,
+        // See laser-data.jsx — later screens cannot resolve the image alone.
+        imageUrl: heroImg || null,
         shape, size, quality: 'Ice Cut · ' + color.name,
         color: color.name, colorHex: hex,
         // ct = packets actually selected; perCtPrice = price per packet, so
@@ -99,8 +103,16 @@ function IceCutOrderPad({ grade, color, shape, category, qtyBySize, setQtyBySize
   return (
     <div className="browse-step">
       <div className="pad-header">
-        <div className="pad-header-art" style={{ background: tint, width: 132, height: 132, flex: '0 0 132px' }}>
-          {window.ShapeIcon ? <window.ShapeIcon shape={shape} size={48} color={hex} /> : null}
+        {/* See laser-data.jsx: this slot showed only the drawn icon, never the
+            uploaded image, so the picture appeared to vanish after choosing a
+            shape. */}
+        <div className="pad-header-art" style={{ background: tint, width: 132, height: 132, flex: '0 0 132px',
+          overflow: 'hidden', padding: heroImg ? 0 : undefined }}>
+          {heroImg
+            ? <img src={heroImg} alt={`${color.name} ${shape}`} loading="lazy"
+                   onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                   style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : window.ShapeIcon ? <window.ShapeIcon shape={shape} size={48} color={hex} /> : null}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="crumb">Ice Cut · {color.name} · {shapeMeta.name}</div>

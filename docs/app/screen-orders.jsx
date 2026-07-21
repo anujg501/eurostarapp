@@ -563,10 +563,21 @@ function CartView({ cart, setCart, persona, setRoute }) {
             <div key={g.key} className="cart-group">
               <div className="cart-group-head">
                 <div className="cart-group-art" style={{ background: lightenTone(colorHex), overflow: 'hidden', padding: 0 }}>
-                  {(typeof productPhoto === 'function' && productPhoto(g.lines[0]?.tone))
-                    ? <img src={productPhoto(g.lines[0].tone)} alt={name}
-                           style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    : <ShapeIcon shape={g.shape} size={36} color={colorHex} />}
+                  {/* The image the line was added with — an admin upload
+                      included. This used to call productPhoto(tone) directly,
+                      which knows nothing about uploaded images, so the cart
+                      showed a different picture from the pad the line came
+                      from. The tone lookup stays as a fallback for lines that
+                      were already in a cart before imageUrl was recorded. */}
+                  {(() => {
+                    const src = g.lines[0]?.imageUrl ||
+                      (typeof productPhoto === 'function' ? productPhoto(g.lines[0]?.tone) : null);
+                    return src
+                      ? <img src={src} alt={name} loading="lazy"
+                             onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                             style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      : <ShapeIcon shape={g.shape} size={36} color={colorHex} />;
+                  })()}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: 'var(--font-serif)', fontWeight: 500, fontSize: 19,

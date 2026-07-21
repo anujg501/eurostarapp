@@ -84,10 +84,23 @@ function OrderDetailScreen({ route, setRoute, persona, addToCart }) {
               const p = findProduct(l.pid);
               if (!p) return null;
               const tone = findTone(p.tone);
+              // The picture this line was ordered with. Server-fetched orders
+              // carry no imageUrl (line items store no picture), so fall back to
+              // resolving it from the SKU's own category/colour/shape.
+              const lineImg = l.imageUrl ||
+                (typeof productImageFor === 'function' ? productImageFor(p.cat, p.tone, p.shape) : null);
               return (
                 <div key={i} className="line-item">
-                  <div className="line-item-art" style={{ background: lightenTone(tone?.color || '#E5E0D5') }}>
-                    <ShapeIcon shape={p.shape} size={36} color={tone?.color || 'var(--ink)'} />
+                  {/* The drawn shape icon used to be the only thing here, so an
+                      order never showed the product image the customer had been
+                      looking at when they bought it. */}
+                  <div className="line-item-art" style={{ background: lightenTone(tone?.color || '#E5E0D5'),
+                                                          overflow: 'hidden', padding: lineImg ? 0 : undefined }}>
+                    {lineImg
+                      ? <img src={lineImg} alt={p.name} loading="lazy"
+                             onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                             style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      : <ShapeIcon shape={p.shape} size={36} color={tone?.color || 'var(--ink)'} />}
                   </div>
                   <div>
                     <div className="line-item-name"

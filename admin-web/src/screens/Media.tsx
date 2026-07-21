@@ -7,6 +7,7 @@ import {
   type Colour,
   type ProductImages,
 } from '../lib/api';
+import { useImageCropper } from './ImageCropper';
 
 // Home thumbnails and product photos. The prototype's thumbnail cells were
 // wired (via a synced localStorage key); its product-image "＋ Upload" buttons
@@ -84,6 +85,7 @@ function Thumbs() {
   const [shapeMap, setShapeMap] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
   const [busyKey, setBusyKey] = useState('');
+  const { cropNode, requestCrop } = useImageCropper();
 
   useEffect(() => {
     (async () => {
@@ -141,8 +143,10 @@ function Thumbs() {
 
   const pick = async (file: File | undefined, save: (dataUrl: string) => Promise<void>) => {
     if (!file) return;
+    const cropped = await requestCrop(file);
+    if (!cropped) return; // operator cancelled the crop
     try {
-      await save(await uploadImage(file, 'thumbs'));
+      await save(await uploadImage(cropped, 'thumbs'));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not read that image.');
     }
@@ -152,6 +156,7 @@ function Thumbs() {
 
   return (
     <>
+      {cropNode}
       {error && <div className="ad-error">{error}</div>}
 
       <section className="ad-card ad-card-pad" style={{ marginBottom: 16 }}>
@@ -210,6 +215,7 @@ function ProductPhotos({ standalone = false }: { standalone?: boolean } = {}) {
   const [error, setError] = useState('');
   const [busyKey, setBusyKey] = useState('');
   const [loading, setLoading] = useState(true);
+  const { cropNode, requestCrop } = useImageCropper();
 
   useEffect(() => {
     (async () => {
@@ -257,8 +263,10 @@ function ProductPhotos({ standalone = false }: { standalone?: boolean } = {}) {
 
   const pick = async (key: string, file: File | undefined) => {
     if (!file) return;
+    const cropped = await requestCrop(file);
+    if (!cropped) return; // operator cancelled the crop
     try {
-      await save(key, await uploadImage(file, 'product-images'));
+      await save(key, await uploadImage(cropped, 'product-images'));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not read that image.');
     }
@@ -268,6 +276,7 @@ function ProductPhotos({ standalone = false }: { standalone?: boolean } = {}) {
 
   return (
     <section className="ad-card ad-card-pad">
+      {cropNode}
       {!standalone && (
         <>
           <h3 className="ad-sechead-h">Product images</h3>

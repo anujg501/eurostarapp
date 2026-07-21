@@ -3412,6 +3412,11 @@ img[src*="assets/products/"] {
     function enterApp() {
       try {
         sessionStorage.setItem('eurostar_enter', '1'); // one-time pass the app's gate consumes
+        // The pop-up is meant to greet a customer right after sign-in, but it
+        // is suppressed once per browser session — so anyone who touched the
+        // storefront before logging in (the gate bounces guests here) had it
+        // marked "seen" and never saw it. Signing in starts a fresh view.
+        sessionStorage.removeItem('eurostar-splash-seen');
       } catch (e) {}
       // replace(), not href: this drops the login page from browser history so
       // a signed-in user pressing Back never lands back on the login screen.

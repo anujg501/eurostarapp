@@ -69,8 +69,13 @@ function LaserOrderPad({ grade, color, shape, category, qtyBySize, setQtyBySize,
         name: color.name + ' Laser ' + shapeMeta.name,
         shape, size: s, quality: 'Laser · ' + color.name,
         color: color.name, colorHex: hex,
-        qty: pieces, ct: 0, unitMode: 'pkt',
-        unitPrice: n, perCtPrice: n, certFee: 0,
+        // ct carries the quantity in this line's own unit — packets here, so
+        // the cart shows the packets that were actually selected. perCtPrice
+        // must be the price for ONE of those units (per packet), because the
+        // cart recomputes lineTotal as ct * perCtPrice when the quantity is
+        // edited. pcsPerUnit lets it convert back to pieces exactly.
+        qty: pieces, ct: q, unitMode: 'pkt', pcsPerUnit: r.pk,
+        unitPrice: n, perCtPrice: n * r.pk, certFee: 0,
         lineTotal: pieces * n, tone: 'def-white', toneHex: hex,
       });
     });

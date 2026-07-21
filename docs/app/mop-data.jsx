@@ -211,8 +211,10 @@ function MopOrderPad({ grade, shape, category, qtyBySize, setQtyBySize, onBack, 
         name: grade.name + ' ' + shapeMeta.name,
         shape, size, quality: grade.name,
         color: grade.name, colorHex: hex,
-        qty: pieces, ct: 0, unitMode: 'pkt',
-        unitPrice: price, perCtPrice: price, certFee: 0,
+        // ct = packets actually selected; perCtPrice = price per packet, so
+        // the cart's ct * perCtPrice recomputation stays correct on edit.
+        qty: pieces, ct: q, unitMode: 'pkt', pcsPerUnit: ppp(r),
+        unitPrice: price, perCtPrice: price * ppp(r), certFee: 0,
         lineTotal: pieces * price, tone: 'def-white', toneHex: hex,
       });
     });

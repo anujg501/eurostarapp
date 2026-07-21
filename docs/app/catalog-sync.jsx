@@ -53,6 +53,7 @@
     getJson('/admin/product-images'),
     getJson('/admin/catalog/colours'),
     getJson('/admin/catalog/shapes'),
+    getJson('/admin/splash'),
   ])
     .then(function (res) {
       var cat = res[0];
@@ -63,12 +64,25 @@
       var productImages = res[5];
       var extraColours = res[6];
       var extraShapes = res[7];
+      var splash = res[8];
 
       mirrorToLocal('eurostar-cat-thumbs-v1', catThumbs);
       mirrorToLocal('eurostar-shape-thumbs-v1', shapeThumbs);
       mirrorToLocal('eurostar-product-images-v1', productImages);
       mirrorToLocal('eurostar-extra-colors-v1', extraColours);
       mirrorToLocal('eurostar-extra-shapes-v1', extraShapes);
+
+      // The pop-up is stored as two plain strings (not JSON like the maps
+      // above), so it is mirrored separately. Without this the image an
+      // operator uploads in Admin never reached a customer's browser: the
+      // splash only ever read localStorage, which the server never wrote.
+      if (splash && typeof splash === 'object') {
+        try {
+          if (splash.image) localStorage.setItem('eurostar-splash-image', splash.image);
+          else localStorage.removeItem('eurostar-splash-image');
+          localStorage.setItem('eurostar-splash-active', splash.active ? '1' : '0');
+        } catch (e) { /* quota — keep whatever is cached */ }
+      }
 
       // data.jsx merged the colour/shape overlays from localStorage before this
       // sync ran, so merge the server copies into the live tables here too.

@@ -448,7 +448,11 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
           <div className="shape-pick-grid">
             {(needsSubShape ? shapeSubs : shapeIds).map((s) => {
             const meta = findShape(s);
-            const sizes = category.id === 'mop' ? window.MOP_PRICES[s] || [] : FULL_SIZES[s] || ['4.00 mm'];
+            // Count the sizes actually uploaded for this shape; only fall back
+            // to the built-in chart when nothing was uploaded, otherwise every
+            // shape card reads a flat "1 sizes".
+            const skuSizesForCard = (window.uploadedSizesFor ? uploadedSizesFor(category.id, s, grade) : []);
+            const sizes = skuSizesForCard.length ? skuSizesForCard : category.id === 'mop' ? window.MOP_PRICES[s] || [] : FULL_SIZES[s] || ['4.00 mm'];
             const shapeImg = getStoredProductImage(category.id, color.id, s) || productPhoto(color.id);
             return (
               <button key={s} className="shape-pick-card" onClick={() => needsSubShape ? pickShapeSub(s) : pickShape(s)}>
@@ -459,8 +463,12 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> :
                   <ShapeIcon shape={s} size={56} color={color.hex} />}
                   </div>
-                  <div className="shape-pick-name">{meta?.name}</div>
-                  <div className="shape-pick-meta">{sizes.length} sizes · {meta?.note}</div>
+                  <div className="shape-pick-name">{meta?.name || s}</div>
+                  {/* Only join the note with a separator when there is one —
+                      a custom shape has no note and used to render "2 sizes ·". */}
+                  <div className="shape-pick-meta">
+                    {sizes.length} {sizes.length === 1 ? 'size' : 'sizes'}{meta?.note ? ' · ' + meta.note : ''}
+                  </div>
                 </button>);
 
           })}
@@ -577,7 +585,9 @@ function BraceletOrderPad({ grade, colors, imgPrefix, category, qtyBySize, setQt
         name: grade.name + ' Bracelet — ' + c.name,
         shape: 'round', size: c.name, quality: grade.name,
         color: c.name, colorHex: c.hex,
-        qty: n, ct: 0, unitMode: 'pc',
+        // ct carries the quantity in this line's unit — pieces here — so the
+        // cart shows what was actually selected instead of a hardcoded 0.
+        qty: n, ct: n, unitMode: 'pc', pcsPerUnit: 1,
         unitPrice: price, perCtPrice: price, certFee: 0,
         lineTotal: n * price, tone: 'def-white', toneHex: c.hex,
         imageUrl: img(cid)
@@ -866,7 +876,12 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   // at/above → entered in PIECES but billed by carat.
   const pieceInput = (size) => mixedMoiss && moissIsPiece(shape, size);
   const rowUnit = (size) => pieceInput(size) ? 'pc' : unit;
-  const sizeMoq = (size) => pieceInput(size) ? 1 : moqUnits;
+  // An uploaded SKU carries its own MOQ from the CSV.
+  const sizeMoq = (size) => {
+    if (pieceInput(size)) return 1;
+    const s = window.uploadedSkuFor ? uploadedSkuFor(category.id, shape, size, grade) : null;
+    return s && Number(s.moq) > 0 ? Number(s.moq) : moqUnits;
+  };
   const stepUnits = category.id === 'beads' ? 100 : 1;
   // Moissanite: optional ₹80/pc certificate, offered from the same per-shape size.
   const [certOff, setCertOff] = React.useState({});
@@ -878,7 +893,13 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   const hex = color.hex;
   const photo = productPhoto(color.id);
   const soldOutMap = (window.loadSoldOut ? window.loadSoldOut() : {});
-  const sizeSoldOut = (s) => !!soldOutMap[window.soldOutKey(category.id, grade.id, color.id, shape, s)];
+  // Sold out either because the Admin marked this exact combination, or
+  // because the uploaded SKU itself says the stock is out.
+  const sizeSoldOut = (s) => {
+    if (soldOutMap[window.soldOutKey(category.id, grade.id, color.id, shape, s)]) return true;
+    const sku = window.uploadedSkuFor ? uploadedSkuFor(category.id, shape, s, grade) : null;
+    return !!(sku && sku.stock === 'out');
+  };
   const showWt = catShowWeight(category.id);
   const navMode = category.id === 'navratna'; // sold by packet, one flat price per packet, no pcs/packet
   // Natural Pearl Cabs: show a weight-per-piece (grams) column.
@@ -896,7 +917,11 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   const ctLotMode = category.id === 'opaque';
   const OP_LOT_CT = 100,OP_RATE_CT = product.price,OP_PRICE = OP_LOT_CT * OP_RATE_CT;
   const ourosaMode = category.id === 'ourosa';
-  let sizes = (SIZES_BY_CATEGORY && SIZES_BY_CATEGORY[category.id]) ? SIZES_BY_CATEGORY[category.id].slice() : ourosaMode ? OUROSA_SIZES.map((x) => x[0]) : mixedMoiss ? moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm'] : byStrip ? FULL_SIZES[shape] || ['4.00 mm'] : FULL_SIZES[shape] || ['4.00 mm'];
+  // Sizes actually uploaded for this category + shape win over the built-in
+  // charts: a bulk-uploaded category has no chart entry, which is why every
+  // shape used to show a single hardcoded "4.00 mm" row.
+  const skuSizes = (window.uploadedSizesFor ? uploadedSizesFor(category.id, shape, grade) : []);
+  let sizes = skuSizes.length ? skuSizes.slice() : (SIZES_BY_CATEGORY && SIZES_BY_CATEGORY[category.id]) ? SIZES_BY_CATEGORY[category.id].slice() : ourosaMode ? OUROSA_SIZES.map((x) => x[0]) : mixedMoiss ? moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm'] : byStrip ? FULL_SIZES[shape] || ['4.00 mm'] : FULL_SIZES[shape] || ['4.00 mm'];
   // A colour may cap its size range (e.g. Alpanite Yellow / 162/2 → 1.00–2.00 mm only).
   if (color && color.sizeMax) {sizes = sizes.filter((s) => (parseFloat(s) || 0) <= color.sizeMax + 0.001);}
   // A colour may set a minimum size. Fancy NxN sizes (e.g. "3x4") are kept as-is
@@ -927,13 +952,25 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   };
   const fillRow = (size) => bumpQty(size, sizeMoq(size));
   // Natural Multi Sapphires: priced per CARAT, billed by the strip's carat weight.
-  const rate = (size) => stringMode ? pearlStringPrice(size) :
-  lotMode ? LOT_PRICE :
-  ctLotMode ? OP_PRICE :
-  natStrip ? stripCarats(size) * product.price :
-  byStrip ? product.price :
-  unitRate(product, size, rowUnit(size), category.id);
-  const piecePrice = (size) => sizeUnitPrice(product, size); // per-piece rate
+  // An uploaded SKU prices its own row: the CSV's price is the real per-piece
+  // rate for that exact size, so it must beat the grade × size-multiplier
+  // estimate the built-in charts produce.
+  const skuFor = (size) => (window.uploadedSkuFor ? uploadedSkuFor(category.id, shape, size, grade) : null);
+  const skuPriced = (size) => {
+    const s = skuFor(size);
+    return s && typeof s.price === 'number' && s.price > 0 ? s : null;
+  };
+  const rate = (size) => {
+    const s = skuPriced(size);
+    if (s) return rowUnit(size) === 'ct' ? Math.round(s.price * pcsPerCt(size)) : rowUnit(size) === 'pkt' ? s.price * packetPcs(category.id, size) : s.price;
+    return stringMode ? pearlStringPrice(size) :
+    lotMode ? LOT_PRICE :
+    ctLotMode ? OP_PRICE :
+    natStrip ? stripCarats(size) * product.price :
+    byStrip ? product.price :
+    unitRate(product, size, rowUnit(size), category.id);
+  };
+  const piecePrice = (size) => { const s = skuPriced(size); return s ? s.price : sizeUnitPrice(product, size); }; // per-piece rate
   // Amount for the stones on a row (excludes certificate).
   const stoneAmount = (size, q) => mixedMoiss ? Math.round(billedCt(size, q) * moissPerCt) : q * rate(size);
   // Pieces represented by a row's quantity.

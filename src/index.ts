@@ -36,7 +36,12 @@ app.use(
 );
 app.use(
   express.json({
-    limit: '2mb',
+    // Image uploads fall back to an inline base64 data URL whenever object
+    // storage is not configured, and base64 inflates the bytes by about a
+    // third. The upload route already accepts files up to 8 MB, so a 2 MB
+    // JSON limit rejected images the app had just told the operator were
+    // fine. Keep the two limits consistent (8 MB file ≈ 11 MB encoded).
+    limit: '12mb',
     // Keep the untouched bytes so webhook handlers can verify the provider's
     // HMAC signature, which is computed over the exact payload as sent.
     verify: (req, _res, buf) => {

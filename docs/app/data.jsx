@@ -1487,7 +1487,16 @@ const TIMELINE_STAGES = ['placed', 'confirmed', 'packed', 'shipped', 'delivered'
 // Helpers
 const findProduct = (id) => PRODUCTS.find(p => p.id === id);
 const findTone = (id) => TONES.find(t => t.id === id);
-const findShape = (id) => SHAPES.find(s => s.id === id);
+// Shapes added in Admin (or arriving with a bulk upload) are not in the
+// built-in SHAPES table, and every screen reads the name from here — so an
+// unknown shape rendered as a blank card title. Fall back to a readable name
+// derived from the id ("tapered-baguette" -> "Tapered Baguette"). The
+// synthesised entry deliberately has no subShapes/note, so callers that check
+// those keep behaving exactly as before.
+const shapeNameFromId = (id) =>
+  String(id || '').replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim()
+    .replace(/\b[a-z]/g, (c) => c.toUpperCase());
+const findShape = (id) => SHAPES.find(s => s.id === id) || (id ? { id, name: shapeNameFromId(id) } : undefined);
 const findCategory = (id) => CATEGORIES.find(c => c.id === id);
 
 const formatINR = (n) => '₹' + n.toLocaleString('en-IN');
@@ -1506,6 +1515,49 @@ const sizeUnitPrice = (product, size) => {
 };
 // Price per carat for a given size = price/piece × pieces/ct
 const sizePerCtPrice = (product, size) => Math.round(sizeUnitPrice(product, size) * pcsPerCt(size));
+
+// ---- Uploaded SKUs -> real sizes -------------------------------------------
+// The size pads used to read their rows out of the built-in size charts
+// (FULL_SIZES / SIZES_BY_CATEGORY), falling back to a single hardcoded
+// "4.00 mm" row. A category created in Admin and filled by bulk upload has no
+// entry in those charts, so every shape showed exactly one 4.00 mm row no
+// matter how many sizes were uploaded. These read the real SKUs instead.
+
+const sameShape = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+
+/** Uploaded SKUs for a category + shape. When the upload carries a grade in
+ *  its clarity/tone column and it matches the chosen grade, narrow to those —
+ *  but never narrow to nothing, so a CSV without grade info still lists. */
+function uploadedSkusFor(catId, shape, grade) {
+  const all = (typeof PRODUCTS !== 'undefined' ? PRODUCTS : []) || [];
+  const list = all.filter((p) => p && p.cat === catId && sameShape(p.shape, shape));
+  if (!list.length || !grade) return list;
+  const want = [grade.id, grade.name].filter(Boolean).map((x) => String(x).trim().toLowerCase());
+  const narrowed = list.filter((p) => {
+    const c = String(p.clarity || '').trim().toLowerCase();
+    const t = String(p.tone || '').trim().toLowerCase();
+    return want.some((w) => w === c || w === t);
+  });
+  return narrowed.length ? narrowed : list;
+}
+
+/** Distinct sizes actually uploaded for a category + shape, in upload order. */
+function uploadedSizesFor(catId, shape, grade) {
+  const seen = {};
+  const out = [];
+  uploadedSkusFor(catId, shape, grade).forEach((p) => {
+    const s = p.size;
+    if (s && !seen[s]) { seen[s] = 1; out.push(s); }
+  });
+  return out;
+}
+
+/** The uploaded SKU behind one row, so its price/MOQ/stock drive that row. */
+function uploadedSkuFor(catId, shape, size, grade) {
+  return uploadedSkusFor(catId, shape, grade).find((p) => String(p.size) === String(size)) || null;
+}
+
+Object.assign(window, { uploadedSkusFor, uploadedSizesFor, uploadedSkuFor });
 
 // ===========================================================================
 // MOISSANITE weight chart (actual Eurostar reference chart).

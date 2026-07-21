@@ -291,9 +291,57 @@ export const adminApi = {
  * uploads keep working before the bucket exists, and existing data URLs already
  * saved keep rendering either way.
  */
+/**
+ * Shrink an oversized photo before it is uploaded. A phone photo is often
+ * 3–8 MB at 4000 px, while these images are displayed at ~1080 px at most —
+ * and when object storage is not configured the bytes travel as a base64 data
+ * URL, which inflates them by a third and blew past the request size limit.
+ * Resizing keeps the stored copy (and the storefront payload) small.
+ *
+ * PNGs are re-encoded as PNG so transparency survives; anything else becomes
+ * JPEG. SVG and GIF are passed through untouched (vector / animation).
+ */
+const NO_RECOMPRESS = ['image/svg+xml', 'image/gif'];
+
+async function shrinkImage(file: File, maxDim = 1600, quality = 0.85): Promise<File> {
+  if (NO_RECOMPRESS.includes(file.type) || !file.type.startsWith('image/')) return file;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
+    // Already small in both dimensions and bytes — leave it alone.
+    if (scale === 1 && file.size <= 1_000_000) {
+      bitmap.close?.();
+      return file;
+    }
+    const w = Math.round(bitmap.width * scale);
+    const h = Math.round(bitmap.height * scale);
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      bitmap.close?.();
+      return file;
+    }
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close?.();
+    const outType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+    const blob = await new Promise<Blob | null>((res) =>
+      canvas.toBlob(res, outType, outType === 'image/jpeg' ? quality : undefined)
+    );
+    // Never make it bigger than it started.
+    if (!blob || blob.size >= file.size) return file;
+    const ext = outType === 'image/png' ? '.png' : '.jpg';
+    return new File([blob], file.name.replace(/\.[^.]+$/, '') + ext, { type: outType });
+  } catch {
+    return file; // any failure: upload the original rather than blocking the user
+  }
+}
+
 export async function uploadImage(file: File, folder = 'misc'): Promise<string> {
+  const source = await shrinkImage(file);
   const form = new FormData();
-  form.append('file', file);
+  form.append('file', source);
 
   const token = getToken();
   try {
@@ -324,7 +372,7 @@ export async function uploadImage(file: File, folder = 'misc'): Promise<string> 
     // network error — fall through to the inline copy
   }
 
-  return fileToDataUrl(file);
+  return fileToDataUrl(source);
 }
 
 export function fileToDataUrl(file: File): Promise<string> {

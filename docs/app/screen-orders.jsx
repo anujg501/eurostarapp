@@ -313,7 +313,10 @@ function CartView({ cart, setCart, persona, setRoute }) {
     return {
       ...l,
       ct,
-      qty: unitToPcs(u, l.size, ct),
+      // Lines added from an order pad carry their own pieces-per-unit (a
+      // packet size can differ from the generic table), so trust that when
+      // present and only fall back to the shared lookup.
+      qty: l.pcsPerUnit ? Math.round(ct * l.pcsPerUnit) : unitToPcs(u, l.size, ct),
       lineTotal: ct * l.perCtPrice,
     };
   }));

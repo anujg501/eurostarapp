@@ -62,45 +62,87 @@ export function App() {
   // served as a single page whose path (/admin) must stay put — so the page is
   // carried in history.state and the URL is left clean (no "#"). pushState
   // still creates a real history entry even with an unchanged URL.
+  //
+  // Entries also carry adminAuth, which marks them as created while signed in.
+  // Without it Back cannot tell a panel screen from the login gate that was
+  // rendered at this same URL before sign-in, and walking back far enough drops
+  // the operator onto a login page mid-session (the storefront solves the same
+  // problem by replacing the login entry outright — the panel cannot, because
+  // its gate and its screens share one URL).
+  type HistState = { adminScreen?: ScreenId; adminAuth?: boolean } | null;
   const cleanUrl = () => window.location.href.split('#')[0];
-  const setScreen = useCallback((next: ScreenId) => {
+  const stamp = useCallback((next: ScreenId, mode: 'push' | 'replace') => {
     try {
-      window.history.pushState({ adminScreen: next }, '', cleanUrl());
+      const state = { adminScreen: next, adminAuth: !!getToken() };
+      window.history[mode === 'push' ? 'pushState' : 'replaceState'](state, '', cleanUrl());
     } catch {
       /* history unavailable — navigation still works, just without Back */
     }
-    setScreenState(next);
   }, []);
+
+  const setScreen = useCallback(
+    (next: ScreenId) => {
+      stamp(next, 'push');
+      setScreenState(next);
+    },
+    [stamp]
+  );
 
   useEffect(() => {
     // Seed the first entry (and strip any stray "#" a previous build left).
-    try {
-      window.history.replaceState({ adminScreen: 'dashboard' }, '', cleanUrl());
-    } catch {
-      /* ignore */
-    }
+    stamp('dashboard', 'replace');
+
     const onPop = (e: PopStateEvent) => {
-      const s = (e.state as { adminScreen?: ScreenId } | null)?.adminScreen;
-      setScreenState(s && s in TITLES ? s : 'dashboard');
+      const st = e.state as HistState;
+      // getToken(), not the signedIn state: this listener is registered once and
+      // would otherwise close over the value from first render.
+      if (getToken() && !st?.adminAuth) {
+        // Popped onto an entry from before sign-in. Signing in did not navigate,
+        // so that entry still renders the login gate — push the panel back on
+        // top instead of letting a live session land there.
+        stamp('dashboard', 'push');
+        setScreenState('dashboard');
+        return;
+      }
+      setScreenState(st?.adminScreen && st.adminScreen in TITLES ? st.adminScreen : 'dashboard');
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
-  }, []);
+  }, [stamp]);
 
   // api.ts clears the token and fires this on a 401/403, so an expired session
   // returns to the login gate instead of leaving a blank screen.
-  const onAuthLost = useCallback(() => setSignedIn(false), []);
+  const onAuthLost = useCallback(() => {
+    setSignedIn(false);
+    stamp('dashboard', 'replace'); // token already cleared, so this drops adminAuth
+  }, [stamp]);
   useEffect(() => {
     window.addEventListener('eurostar-auth-lost', onAuthLost);
     return () => window.removeEventListener('eurostar-auth-lost', onAuthLost);
   }, [onAuthLost]);
 
-  if (!signedIn) return <Login onDone={() => setSignedIn(true)} />;
+  if (!signedIn) {
+    return (
+      <Login
+        onDone={() => {
+          setSignedIn(true);
+          setScreenState('dashboard');
+          // Re-stamp the entry the gate was rendered on: it now holds the
+          // dashboard, so Back from it is a pop out of a live session and the
+          // popstate guard above turns it back.
+          stamp('dashboard', 'replace');
+        }}
+      />
+    );
+  }
 
   const signOut = () => {
     setToken('');
     setRefreshToken(''); // otherwise the next request would silently renew the session
     setSignedIn(false);
+    // Token is gone, so this clears adminAuth — Back leaves the panel normally
+    // again instead of being held by the guard.
+    stamp('dashboard', 'replace');
   };
 
   return (

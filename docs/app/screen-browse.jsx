@@ -967,7 +967,8 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   // Moissanite is fully chart + price-sheet driven: always use the full size
   // chart, and never let a stray uploaded/sample SKU (which would otherwise
   // collapse the pad to just its 1-2 sizes at the flat price) take over.
-  let sizes = category.id === 'moissanite' ? (moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm']) : skuSizes.length ? skuSizes.slice() : (SIZES_BY_CATEGORY && SIZES_BY_CATEGORY[category.id]) ? SIZES_BY_CATEGORY[category.id].slice() : ourosaMode ? OUROSA_SIZES.map((x) => x[0]) : mixedMoiss ? moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm'] : byStrip ? FULL_SIZES[shape] || ['4.00 mm'] : FULL_SIZES[shape] || ['4.00 mm'];
+  const alpGreen = category.id === 'alpanite' && color && color.id === 'green' && window.alpGreenSizes && window.alpGreenSizes(shape).length ? window.alpGreenSizes(shape) : null;
+  let sizes = category.id === 'moissanite' ? (moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm']) : alpGreen ? alpGreen : skuSizes.length ? skuSizes.slice() : (SIZES_BY_CATEGORY && SIZES_BY_CATEGORY[category.id]) ? SIZES_BY_CATEGORY[category.id].slice() : ourosaMode ? OUROSA_SIZES.map((x) => x[0]) : mixedMoiss ? moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm'] : byStrip ? FULL_SIZES[shape] || ['4.00 mm'] : FULL_SIZES[shape] || ['4.00 mm'];
   // A colour may cap its size range (e.g. Alpanite Yellow / 162/2 → 1.00–2.00 mm only).
   if (color && color.sizeMax) {sizes = sizes.filter((s) => (parseFloat(s) || 0) <= color.sizeMax + 0.001);}
   // A colour may set a minimum size. Fancy NxN sizes (e.g. "3x4") are kept as-is
@@ -1001,7 +1002,15 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   // An uploaded SKU prices its own row: the CSV's price is the real per-piece
   // rate for that exact size, so it must beat the grade × size-multiplier
   // estimate the built-in charts produce.
-  const skuFor = (size) => (window.uploadedSkuFor ? uploadedSkuFor(category.id, shape, size, grade) : null);
+  const skuFor = (size) => {
+    // Euro Alp Green: synthesise a per-size SKU from the uploaded price sheet
+    // (final ₹/piece + pcs per box) so the packet pad prices it directly.
+    if (category.id === 'alpanite' && color && color.id === 'green' && window.alpGreenSku) {
+      const a = window.alpGreenSku(shape, size);
+      if (a) return a;
+    }
+    return window.uploadedSkuFor ? uploadedSkuFor(category.id, shape, size, grade) : null;
+  };
   const skuPriced = (size) => {
     const s = skuFor(size);
     return s && typeof s.price === 'number' && s.price > 0 ? s : null;
@@ -1374,13 +1383,13 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
           const ru = rowUnit(s);
           const ruWord = unitLabel(ru);
           const r = rate(s);
-          const each = unitPcsEach(ru, s, category.id);
+          const each = ru === 'pkt' ? rowPacketPcs(s) : unitPcsEach(ru, s, category.id);
           const ctPer1000 = 1000 / pcsPerCt(s); // carats per 1000 pcs
           const gPer1000 = ctPer1000 * 0.2; // 1 ct = 0.2 g
           const q = qtyBySize[s] || 0;
           const navUnitPrice = sizeUnitPrice(product, s);
           const lineTotal = navMode ? q * navUnitPrice + foilForLine(s, q) : mixedMoiss ? stoneAmount(s, q) + certForLine(s, q) + foilForLine(s, q) : q * r + certForLine(s, q) + foilForLine(s, q);
-          const linePcs = mixedMoiss ? rowPcs(s, q) : unitToPcs(ru, s, q, category.id);
+          const linePcs = (mixedMoiss || ru === 'pkt') ? rowPcs(s, q) : unitToPcs(ru, s, q, category.id);
           const isFilled = q > 0;
           const belowMoq = q > 0 && q < sizeMoq(s);
           const so = sizeSoldOut(s);

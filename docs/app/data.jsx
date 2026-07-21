@@ -688,7 +688,7 @@ const SHAPES_BY_CATEGORY = {
   ourosa:     ['round'],
   beads:      ['plain-beads','faceted-beads','oval-maniya','drops'],
   laser:      ['round','marquise','oval','pear','square','invisible-square','heart','curved-trillion','cushion','oblong-cushion','asscher','radiant','baguette-prince','baguette-step','tapered-baguette','triangle','octagon','leaf'],
-  alpanite:   ['round','oval','cushion','emerald','pear','baguette','tapered'],
+  alpanite:   ['round','oval','pear','princess','cushion','asscher','trillion','triangle','marquise','heart','baguette-step','octagon-step','octagon-princess'],
   multisapphire: ['round','oval','pear','cushion','emerald','heart','baguette','tapered'],
   cabochon:   ['round','oval','pear','marquise','pearoval','square'],
   highdensity:['round'],
@@ -1749,6 +1749,72 @@ function moissRate(shape, size, gradeId) {
   return (typeof v === 'number' && v > 0) ? v : null;
 }
 window.moissRate = moissRate;
+
+// Euro Alp Green (Alpanite) price sheet — box-sold. Each row: [size, pcs per
+// box, final ₹ per piece]. Same price for every colour is NOT assumed — this
+// applies ONLY to the 'green' (Euro Alp Green) colour. Oval & Pear share one
+// table; Trillion/Triangle/Cushion/Asscher share another.
+const ALP_OVALPEAR = [
+  ['3×2 mm',500,5.60],['2.5×3 mm',500,6.44],['3×4 mm',200,7.56],['3×5 mm',200,8.96],['4×5 mm',200,11.20],
+  ['4×6 mm',200,12.60],['5×7 mm',200,18.20],['6×8 mm',100,25.20],['7×9 mm',100,36.40],['8×10 mm',100,50.40],
+  ['11×9 mm',100,56.00],['9×6 mm',100,27.25],['12×8 mm',50,70.00],['14×10 mm',25,154.00],['12×10 mm',25,84.00],
+];
+const ALP_TTCA = [
+  ['3×3 mm',500,7.00],['3.5×3.5 mm',500,7.84],['4×4 mm',200,9.80],['5×5 mm',200,14.00],['6×6 mm',200,21.00],
+  ['7×7 mm',100,26.60],['8×8 mm',100,36.40],['9×9 mm',100,51.80],['10×10 mm',50,70.00],
+];
+const ALP_GREEN = {
+  round: [
+    ['0.80 mm',1000,0.42],['0.90 mm',1000,0.34],['1.00 mm',1000,0.31],['1.10 mm',1000,0.34],['1.20 mm',1000,0.39],
+    ['1.25 mm',1000,0.42],['1.30 mm',1000,0.50],['1.40 mm',1000,0.59],['1.50 mm',1000,0.67],['1.60 mm',1000,0.78],
+    ['1.70 mm',1000,0.90],['1.75 mm',1000,0.95],['1.80 mm',1000,1.01],['1.90 mm',1000,1.06],['2.00 mm',1000,1.12],
+    ['2.10 mm',500,1.26],['2.25 mm',500,1.68],['2.50 mm',500,2.10],['2.75 mm',500,2.66],['2.80 mm',500,2.80],
+    ['3.00 mm',500,3.22],['3.25 mm',200,3.64],['3.50 mm',200,4.48],['3.75 mm',200,5.60],['4.00 mm',200,6.72],
+    ['4.25 mm',200,8.40],['4.50 mm',200,9.80],['4.75 mm',200,12.60],['5.00 mm',200,14.00],['6.50 mm',100,18.20],
+    ['6.75 mm',100,28.00],['7.00 mm',50,29.40],['7.50 mm',50,36.40],['8.00 mm',50,42.00],
+  ],
+  'baguette-step': [
+    ['3×1.5 mm',500,3.22],['4×2 mm',500,4.20],['5×2.5 mm',500,5.60],['6×3 mm',200,7.56],['7×3.5 mm',200,11.76],
+    ['8×4 mm',200,15.68],['10×5 mm',200,26.60],['12×9 mm',100,37.80],
+  ],
+  oval: ALP_OVALPEAR,
+  pear: ALP_OVALPEAR,
+  marquise: [
+    ['3×1.5 mm',500,4.62],['4×2 mm',500,5.88],['5×2.5 mm',500,7.84],['6×3 mm',200,10.08],['7×3.5 mm',200,14.00],
+    ['8×4 mm',100,19.60],['10×5 mm',100,28.00],['12×6 mm',100,44.80],
+  ],
+  'octagon-step': [
+    ['4×3 mm',500,8.96],['5×3 mm',200,9.24],['5×4 mm',200,12.04],['6×4 mm',200,12.88],['7×5 mm',100,18.20],
+    ['8×6 mm',100,26.60],['9×7 mm',100,42.00],['10×8 mm',50,56.00],['11×9 mm',50,190.40],['12×10 mm',50,218.40],
+    ['14×10 mm',50,266.00],['16×12 mm',50,336.00],
+  ],
+  trillion: ALP_TTCA,
+  triangle: ALP_TTCA,
+  cushion: ALP_TTCA,
+  asscher: ALP_TTCA,
+  princess: [
+    ['1.5 mm',500,2.80],['1.75×1.75 mm',500,3.08],['2×2 mm',500,3.36],['2.25×2.25 mm',500,3.64],['2.5×2.5 mm',500,3.78],
+    ['2.75×2.75 mm',500,4.20],['3×3 mm',500,4.48],['3.5×3.5 mm',500,5.60],['4×4 mm',500,7.00],['4.5×4.5 mm',200,9.24],
+    ['5×5 mm',200,12.32],['5.5×5.5 mm',200,15.40],['6×6 mm',200,18.20],['6.5×6.5 mm',100,19.60],['7×7 mm',100,26.60],
+    ['7.5×7.5 mm',100,32.20],['8×8 mm',100,36.40],['9×9 mm',100,56.00],['10×10 mm',100,70.00],
+  ],
+  'octagon-princess': [
+    ['4×3 mm',500,7.00],['5×3 mm',500,8.96],['5×4 mm',200,11.76],['6×4 mm',200,12.60],['7×5 mm',100,16.80],
+    ['8×6 mm',100,25.20],['9×7 mm',100,36.40],['10×8 mm',100,50.40],['11×9 mm',100,78.40],
+  ],
+  heart: [
+    ['3×3 mm',500,7.56],['4×4 mm',200,9.80],['5×5 mm',100,14.00],['6×6 mm',100,21.00],['7×7 mm',100,26.60],
+    ['8×8 mm',100,36.40],['9×9 mm',50,56.00],
+  ],
+};
+function alpGreenSizes(shape) { return (ALP_GREEN[shape] || []).map((r) => r[0]); }
+function alpGreenSku(shape, size) {
+  const row = (ALP_GREEN[shape] || []).find((r) => r[0] === size);
+  if (!row) return null;
+  return { id: 'alp-green-' + shape + '-' + String(size).replace(/\s/g, ''), price: row[2], pcsPerPacket: row[1], moq: row[1], size, stock: 'in', stockCount: 0 };
+}
+window.alpGreenSizes = alpGreenSizes;
+window.alpGreenSku = alpGreenSku;
 
 // Bracelet: colours differ per style. Cartier = full 21-colour chart; Rolex = 6 metallic finishes.
 const BRACELET_BY_GRADE = {

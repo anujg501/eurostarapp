@@ -223,9 +223,31 @@ export interface Product {
   moq: number;
   stock: 'in' | 'low' | 'out';
   stockCount: number;
+  /** Packet-sold categories: pieces in one packet of this size. Null = use the
+   *  category's chart default. */
+  pcsPerPacket: number | null;
   badge: string | null;
   desc: string | null;
   hidden: boolean;
+}
+
+export interface PricingRow {
+  size: string;
+  /** Null until this size has been saved and materialised into a real SKU. */
+  skuId: string | null;
+  name: string | null;
+  rate: number;
+  pcsPerPacket: number;
+  /** false = the chart's "base × size multiplier" suggestion, not stored data. */
+  saved: boolean;
+}
+
+export interface PricingMatrix {
+  cat: string;
+  shape: string;
+  shapes: string[];
+  unit: string;
+  rows: PricingRow[];
 }
 
 export interface BulkResult {
@@ -323,6 +345,15 @@ export const adminApi = {
   products: (cat?: string) => api.get<Product[]>(`/admin/products${cat ? `?cat=${encodeURIComponent(cat)}` : ''}`),
   updateProduct: (id: string, patch: Partial<Product>) =>
     api.put<Product>(`/admin/products/${encodeURIComponent(id)}`, patch),
+
+  // Pricing matrix: one row per size in the shape's calibrated chart. Rows with
+  // saved: false are the chart's suggestion and become real SKUs when saved.
+  pricing: (cat: string, shape?: string) =>
+    api.get<PricingMatrix>(
+      `/admin/pricing?cat=${encodeURIComponent(cat)}${shape ? `&shape=${encodeURIComponent(shape)}` : ''}`
+    ),
+  savePricingRow: (row: { cat: string; shape: string; size: string; rate: number; pcsPerPacket?: number | null }) =>
+    api.put<{ row: Product; created: boolean }>('/admin/pricing/row', row),
   createProduct: (p: Partial<Product> & { id: string; name: string; cat: string; price: number }) =>
     api.post<Product>('/admin/products', p),
   deleteProduct: (id: string) => api.del<{ deleted: string }>(`/admin/products/${encodeURIComponent(id)}`),

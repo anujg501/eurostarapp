@@ -380,7 +380,11 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
           <button key={c.id} className="color-pick-card" onClick={() => pickColor(c.id)}>
                 {productPhoto(c.id) ?
             <img className="color-pick-swatch" src={productPhoto(c.id)} alt={c.name}
-            style={{ objectFit: 'cover' }} /> :
+            loading="lazy"
+            /* A missing file must leave the plain colour swatch behind, not a
+               broken-image icon. */
+            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+            style={{ objectFit: 'cover', background: c.hex }} /> :
             <div className="color-pick-swatch" style={{ background: c.hex }} />}
                 <div className="color-pick-name">{c.name}</div>
                 {c.subShades && category.id !== 'icecut' && <div className="color-pick-meta">{c.subShades.length} shades</div>}
@@ -459,7 +463,10 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
                   <div className="shape-pick-art" style={{ background: lightenTone(color.hex),
                   padding: shapeImg ? 0 : undefined, overflow: 'hidden' }}>
                     {shapeImg ?
-                  <img src={shapeImg} alt={`${color.name} ${meta?.name}`}
+                  <img src={shapeImg} alt={`${color.name} ${meta?.name}`} loading="lazy"
+                  /* Hide a failed image so the drawn shape icon behind it shows
+                     through, instead of a broken-image icon on the card. */
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> :
                   <ShapeIcon shape={s} size={56} color={color.hex} />}
                   </div>
@@ -900,6 +907,28 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
     const sku = window.uploadedSkuFor ? uploadedSkuFor(category.id, shape, s, grade) : null;
     return !!(sku && sku.stock === 'out');
   };
+  // On-hand pieces for a row, from the uploaded SKU's stockCount. The pad used
+  // to read only stock === 'out', so a row with 110 in stock happily accepted
+  // 126 pieces. Infinity means "no known limit" — leave those rows unclamped
+  // rather than blocking an order on missing data.
+  //
+  // Only rows entered in PIECES are capped: stockCount is a piece count, and a
+  // carat or packet row would be clamping against a different unit.
+  const sizeStock = (s) => {
+    // Sold out is a hard zero. Routing it through the cap means the quantity
+    // box, the steppers and the "Add" button are all limited to 0 in every row
+    // variant, instead of a sold-out row accepting input that is silently
+    // dropped when the cart is built.
+    if (sizeSoldOut(s)) return 0;
+    const sku = window.uploadedSkuFor ? uploadedSkuFor(category.id, shape, s, grade) : null;
+    const n = sku ? Number(sku.stockCount) : NaN;
+    // 0 is the schema default and means "not tracked", not "none left" — a
+    // genuinely exhausted SKU is flagged stock === 'out' and handled by
+    // sizeSoldOut above. Capping on 0 here would block every untracked SKU.
+    if (!isFinite(n) || n <= 0) return Infinity;
+    return rowUnit(s) === 'pc' ? n : Infinity;
+  };
+  const capQty = (s, v) => Math.min(v, sizeStock(s));
   const showWt = catShowWeight(category.id);
   const navMode = category.id === 'navratna'; // sold by packet, one flat price per packet, no pcs/packet
   // Natural Pearl Cabs: show a weight-per-piece (grams) column.
@@ -929,7 +958,7 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   if (color && color.sizeMin) {sizes = sizes.filter((s) => /x/i.test(s) || (parseFloat(s) || 0) >= color.sizeMin - 0.001);}
 
   const updateQty = (size, value) => {
-    const v = Math.max(0, parseFloat(value) || 0);
+    const v = capQty(size, Math.max(0, parseFloat(value) || 0));
     setQtyBySize((prev) => ({ ...prev, [size]: v }));
   };
   // Beads (stepUnits>1) must be ordered in whole multiples of the step (100 ct) — snap on blur.
@@ -939,15 +968,15 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
       const cur = prev[size] || 0;
       if (cur <= 0) return prev;
       const snapped = Math.max(stepUnits, Math.round(cur / stepUnits) * stepUnits);
-      return { ...prev, [size]: snapped };
+      return { ...prev, [size]: capQty(size, snapped) };
     });
   };
   const bumpQty = (size, delta) => {
     setQtyBySize((prev) => {
       const current = prev[size] || 0;
       const next = Math.max(0, current + delta);
-      if (current === 0 && delta > 0) return { ...prev, [size]: Math.max(sizeMoq(size), next) };
-      return { ...prev, [size]: next };
+      if (current === 0 && delta > 0) return { ...prev, [size]: capQty(size, Math.max(sizeMoq(size), next)) };
+      return { ...prev, [size]: capQty(size, next) };
     });
   };
   const fillRow = (size) => bumpQty(size, sizeMoq(size));
@@ -960,9 +989,17 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
     const s = skuFor(size);
     return s && typeof s.price === 'number' && s.price > 0 ? s : null;
   };
+  // Pieces in one packet of this size. A saved SKU carries its own count, set
+  // in Admin > Pricing; it must beat the built-in chart or an edit made in the
+  // panel would never reach the customer.
+  const rowPacketPcs = (size) => {
+    const s = skuFor(size);
+    const n = s ? Number(s.pcsPerPacket) : NaN;
+    return isFinite(n) && n > 0 ? n : packetPcs(category.id, size);
+  };
   const rate = (size) => {
     const s = skuPriced(size);
-    if (s) return rowUnit(size) === 'ct' ? Math.round(s.price * pcsPerCt(size)) : rowUnit(size) === 'pkt' ? s.price * packetPcs(category.id, size) : s.price;
+    if (s) return rowUnit(size) === 'ct' ? Math.round(s.price * pcsPerCt(size)) : rowUnit(size) === 'pkt' ? s.price * rowPacketPcs(size) : s.price;
     return stringMode ? pearlStringPrice(size) :
     lotMode ? LOT_PRICE :
     ctLotMode ? OP_PRICE :
@@ -979,6 +1016,8 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   ctLotMode ? q :
   mixedMoiss ?
   pieceInput(size) ? q : Math.round(q * moissPcsPerCt(shape, size)) :
+  // Packet rows use the SKU's own pieces-per-packet when it has one.
+  rowUnit(size) === 'pkt' ? q * rowPacketPcs(size) :
   unitToPcs(rowUnit(size), size, q, category.id);
 
   const lines = Object.entries(qtyBySize).filter(([size, q]) => q > 0 && !sizeSoldOut(size));
@@ -1003,7 +1042,13 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
     if (lines.length === 0) return;
     lines.forEach(([size, q]) => {
       addToCart({
-        pid: product.id, name: product.name,
+        // The real SKU behind THIS row, not the synthesised browse product.
+        // makeBrowseProduct mints an id per category+grade+colour+shape that
+        // exists in no table, and every size on the pad shared it — so the
+        // server could not match a line to a product and nothing was ever
+        // deducted from stock. Each size is its own uploaded SKU with its own
+        // count, which is exactly what skuFor(size) returns.
+        pid: (skuFor(size) || product).id, name: product.name,
         shape, size, quality: grade.name,
         color: color.name, colorHex: hex,
         qty: navMode ? q : rowPcs(size, q),
@@ -1130,7 +1175,7 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
                 <input type="number" value={q || ''} placeholder="0" min={0} step={stepUnits}
                   onChange={(e) => updateQty(s, e.target.value)}
                   onFocus={(e) => e.target.select()} onBlur={() => snapRow(s)} />
-                <button onClick={() => bumpQty(s, stepUnits)} aria-label="increase">
+                <button onClick={() => bumpQty(s, stepUnits)} disabled={q >= sizeStock(s)} aria-label="increase">
                   <IconPlus size={12} />
                 </button>
               </div>
@@ -1178,7 +1223,7 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
                 <input type="number" value={q || ''} placeholder="0" min={0} step={stepUnits}
                   onChange={(e) => updateQty(s, e.target.value)}
                   onFocus={(e) => e.target.select()} onBlur={() => snapRow(s)} />
-                <button onClick={() => bumpQty(s, stepUnits)} aria-label="increase">
+                <button onClick={() => bumpQty(s, stepUnits)} disabled={q >= sizeStock(s)} aria-label="increase">
                   <IconPlus size={12} />
                 </button>
               </div>
@@ -1223,7 +1268,7 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
                 <input type="number" value={q || ''} placeholder="0" min={0} step={stepUnits}
                   onChange={(e) => updateQty(s, e.target.value)}
                   onFocus={(e) => e.target.select()} onBlur={() => snapRow(s)} />
-                <button onClick={() => bumpQty(s, stepUnits)} aria-label="increase">
+                <button onClick={() => bumpQty(s, stepUnits)} disabled={q >= sizeStock(s)} aria-label="increase">
                   <IconPlus size={12} />
                 </button>
               </div>
@@ -1271,7 +1316,7 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
                 <input type="number" value={q || ''} placeholder="0" min={0} step={stepUnits}
                   onChange={(e) => updateQty(s, e.target.value)}
                   onFocus={(e) => e.target.select()} onBlur={() => snapRow(s)} />
-                <button onClick={() => bumpQty(s, stepUnits)} aria-label="increase">
+                <button onClick={() => bumpQty(s, stepUnits)} disabled={q >= sizeStock(s)} aria-label="increase">
                   <IconPlus size={12} />
                 </button>
               </div>
@@ -1347,7 +1392,7 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
                   <input type="number" value={q || ''} placeholder="0" min={0} step={stepUnits}
                   onChange={(e) => updateQty(s, e.target.value)}
                   onFocus={(e) => e.target.select()} onBlur={() => snapRow(s)} />
-                  <button onClick={() => bumpQty(s, stepUnits)} aria-label="increase">
+                  <button onClick={() => bumpQty(s, stepUnits)} disabled={q >= sizeStock(s)} aria-label="increase">
                     <IconPlus size={12} />
                   </button>
                 </div>

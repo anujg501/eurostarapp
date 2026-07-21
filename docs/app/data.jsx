@@ -1584,6 +1584,43 @@ function uploadedSkuFor(catId, shape, size, grade) {
 
 Object.assign(window, { uploadedSkusFor, uploadedSizesFor, uploadedSkuFor });
 
+// ===== Live stock validation =====
+// The cart holds lines that were priced and sized minutes ago; another customer
+// may have taken the stock since. These ask the server what is actually left.
+// The server's atomic decrement at order time remains the authority — a pass
+// here is advisory, because the last pieces can go between this call and that.
+
+/** Ask the server what is available for these lines. Returns [] when offline or
+ *  when nothing is trackable, so a failed check never blocks an order on its own. */
+function checkStock(lines) {
+  const payload = (lines || [])
+    .map((l) => ({ pid: l.pid, qty: l.qty || 0 }))
+    .filter((l) => l.pid && l.qty > 0);
+  if (!payload.length) return Promise.resolve([]);
+  return fetch((window.EUROSTAR_API || location.origin) + '/catalog/stock-check', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ lines: payload }),
+  })
+    .then((r) => (r.ok ? r.json() : { items: [] }))
+    .then((d) => (Array.isArray(d.items) ? d.items : []))
+    .catch(() => []); // offline: let the server decide at placement
+}
+
+/** Only the lines that cannot be fulfilled at their current quantity. */
+const stockShortfalls = (items) => (items || []).filter((i) => !i.ok);
+
+/** Customer-facing wording for one shortfall. */
+function stockMessage(item) {
+  if (!item) return '';
+  const what = item.name || item.pid;
+  if (item.available <= 0) return `${what} is out of stock.`;
+  const unit = item.available === 1 ? 'unit' : 'units';
+  return `Only ${item.available} ${unit} of ${what} ${item.available === 1 ? 'is' : 'are'} available.`;
+}
+
+Object.assign(window, { checkStock, stockShortfalls, stockMessage });
+
 // ===========================================================================
 // MOISSANITE weight chart (actual Eurostar reference chart).
 // Per shape, per size: ctEach = carat weight of ONE stone.

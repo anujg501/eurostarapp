@@ -232,6 +232,36 @@ function DraftList({ drafts, onRestore, onDelete }) {
 
 function CartView({ cart, setCart, persona, setRoute }) {
   const [drafts, setDrafts] = React.useState(() => loadDrafts(persona));
+
+  // Revalidate against live inventory whenever the cart is opened or its
+  // quantities change. A line that has been in the cart a while may now exceed
+  // what is left, and the customer should find that out here rather than at
+  // payment. Quantities are clamped down to what is actually available, never
+  // raised, and the customer is told what moved.
+  const [stockNote, setStockNote] = React.useState('');
+  const cartSig = cart.map((l) => `${l.pid}:${l.qty}`).join('|');
+  React.useEffect(() => {
+    let cancelled = false;
+    if (!cart.length) { setStockNote(''); return; }
+    checkStock(cart).then((items) => {
+      if (cancelled) return;
+      const short = stockShortfalls(items);
+      if (!short.length) { setStockNote(''); return; }
+      const byPid = {};
+      short.forEach((i) => { byPid[i.pid] = i; });
+      setCart((prev) =>
+        prev
+          .map((l) => (byPid[l.pid] ? { ...l, qty: byPid[l.pid].available } : l))
+          // A line with nothing left cannot stay in the cart.
+          .filter((l) => (l.qty || 0) > 0)
+      );
+      setStockNote(
+        'Stock changed while you were shopping. ' + short.map(stockMessage).join(' ')
+      );
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cartSig]);
   const saveDraft = () => {
     if (cart.length === 0) return;
     const name = prompt('Name this draft (e.g. "June reorder"):', new Date().toLocaleDateString('en-IN'));
@@ -477,6 +507,15 @@ function CartView({ cart, setCart, persona, setRoute }) {
     <div className="cart-layout">
       {/* LEFT: line items grouped by SKU */}
       <div>
+        {stockNote &&
+        <div className="card" style={{ background: 'var(--amber-soft)', borderColor: '#E6CC7F',
+                                       padding: '12px 16px', marginBottom: 14, display: 'flex',
+                                       alignItems: 'flex-start', gap: 10 }}>
+          <span style={{ fontSize: 18, lineHeight: 1 }}>⚠️</span>
+          <div style={{ fontSize: 13.5, color: '#7A5214' }}>
+            {stockNote} <strong>Please review your cart.</strong>
+          </div>
+        </div>}
         <div className="cart-banner">
           {ordersIsStaff() ? (
           <div>

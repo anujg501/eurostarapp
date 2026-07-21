@@ -1162,7 +1162,7 @@ img[src*="assets/products/"] {
 .size-pad-row.below {
   background: var(--amber-soft);
 }
-/* Sold-out item: greyed, can't be ordered, shows a "Sold out" label */
+/* Sold-out item: greyed, can't be ordered, shows an "Out of stock" label */
 .size-pad-row.soldout { opacity: 0.6; }
 .size-pad-row.soldout:hover { background: transparent; }
 .size-pad-row.soldout .size-pad-stepper,
@@ -1171,7 +1171,7 @@ img[src*="assets/products/"] {
 .size-pad-row.soldout .size-pad-cert-opt,
 .size-pad-row.soldout .size-pad-cert-note { display: none !important; }
 .size-pad-row.soldout .size-pad-input-wrap::before {
-  content: 'Sold out';
+  content: 'Out of stock';
   display: inline-block;
   font-size: 12px;
   font-weight: 700;

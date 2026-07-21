@@ -44,6 +44,22 @@
     try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* quota — keep the cached copy */ }
   }
 
+  // Re-pull just the SKUs. The catalogue is synced once at boot, so stock shown
+  // after an order was whatever it had been at page load — a SKU bought down to
+  // zero still looked available until a manual refresh. Called after an order is
+  // placed so the pads and listings reflect what is actually left.
+  window.refreshCatalogProducts = function () {
+    return getJson('/catalog/products')
+      .then(function (prod) {
+        if (prod && Array.isArray(prod.products) && prod.products.length) {
+          Array.prototype.splice.apply(PRODUCTS, [0, PRODUCTS.length].concat(prod.products));
+          try { window.dispatchEvent(new CustomEvent('eurostar-catalog-refreshed')); } catch (e) {}
+        }
+        return prod;
+      })
+      .catch(function () { /* offline — keep the cached SKUs */ });
+  };
+
   window.EUROSTAR_CATALOG_READY = Promise.all([
     getJson('/catalog'),
     getJson('/catalog/products'),

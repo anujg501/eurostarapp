@@ -49,6 +49,7 @@ function CheckoutScreen({ cart, persona, onBack, onPlace, isOnline }) {
   const [newName, setNewName] = React.useState('');
   const [newPhone, setNewPhone] = React.useState('');
   const [placing, setPlacing] = React.useState(false);
+  const [stockError, setStockError] = React.useState('');
 
   // Staff: load the real customer book (server scopes rep vs office).
   React.useEffect(() => {
@@ -104,6 +105,22 @@ function CheckoutScreen({ cart, persona, onBack, onPlace, isOnline }) {
   // rep mapping — instead of existing only as free text on one order.
   const placeOrder = async () => {
     if (placing) return;
+
+    // Last check before the order leaves the app: another customer may have
+    // taken the stock while this one was filling in the form. Offline, this
+    // returns nothing and the order goes to the queue as before — the server's
+    // atomic decrement is still what actually decides.
+    if (isOnline !== false) {
+      setPlacing(true);
+      const short = stockShortfalls(await checkStock(cart));
+      setPlacing(false);
+      if (short.length) {
+        setStockError(short.map(stockMessage).join(' '));
+        return; // stay on checkout so the quantities can be adjusted
+      }
+      setStockError('');
+    }
+
     let customer = orderCustomer;
     if (staff && custMode === 'new') {
       setPlacing(true);
@@ -215,8 +232,13 @@ function CheckoutScreen({ cart, persona, onBack, onPlace, isOnline }) {
             {staff && (
               <div className="summary-row label"><span>Customer</span><span style={{ fontWeight: 600, color: 'var(--fg)' }}>{orderCustomer.name || '—'}</span></div>
             )}
+            {stockError &&
+            <div style={{ background: 'var(--amber-soft)', border: '1px solid #E6CC7F', borderRadius: 8,
+                          padding: '10px 12px', marginBottom: 12, fontSize: 13, color: '#7A5214' }}>
+              {stockError} <strong>Go back to the cart to adjust the quantity.</strong>
+            </div>}
             <button className="btn btn-accent btn-lg btn-block" disabled={!staffCustReady || placing} onClick={placeOrder}>
-              <IconCheck size={16} /> {placing ? 'Saving customer…' : (isOnline === false ? 'Save order offline' : (['15','30','45','60'].includes(String(persona.terms)) ? 'Place order' : 'Proceed to payment'))} — {formatINR(t.grand)}
+              <IconCheck size={16} /> {placing ? 'Checking stock…' : (isOnline === false ? 'Save order offline' : (['15','30','45','60'].includes(String(persona.terms)) ? 'Place order' : 'Proceed to payment'))} — {formatINR(t.grand)}
             </button>
             {staff && !staffCustReady && <div style={{ fontSize: 12, color: 'var(--ruby, #8B1E2E)', textAlign: 'center', marginTop: 8, fontWeight: 600 }}>{custMode === 'new' ? 'Enter customer name and phone to continue.' : 'Select a customer to continue.'}</div>}
             {isOnline === false && <div style={{ fontSize: 12, color: 'var(--amber-ink, #8a6d1f)', textAlign: 'center', marginTop: 8, fontWeight: 600 }}>You're offline — this order will be saved and sent automatically when you reconnect.</div>}
@@ -412,11 +434,20 @@ function ConfirmationScreen({ order, persona, setRoute }) {
           isExport: !!order.isExport,
           paid: !!order.paid,
           ts: Date.now(),
-          source: 'Sales App'
+          source: 'Sales App',
+          // What was actually bought. Without this the office (and the server's
+          // stock accounting) receive a bare total with no products on it, so
+          // nothing can be taken off inventory.
+          lines: Array.isArray(order.lines) ? order.lines : []
         });
         localStorage.setItem(k, JSON.stringify(arr));
       }
     } catch (e) {}
+    // The SKUs just lost stock to this order. Re-pull them so the pads and
+    // listings show what is actually left instead of the counts this page was
+    // loaded with — a SKU bought down to zero must now read as sold out.
+    // Deferred so the order POST (fired by the storage write above) lands first.
+    if (window.refreshCatalogProducts) setTimeout(function () { window.refreshCatalogProducts(); }, 600);
   }, []);
   return (
     <div className="page" style={{ maxWidth: 720 }}>

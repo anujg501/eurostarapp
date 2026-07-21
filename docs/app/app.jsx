@@ -112,6 +112,21 @@ function App() {
   const [wishlist, setWishlist] = React.useState(new Set());
   const [toast, setToast] = React.useState(null);
 
+  // The server can refuse an order the app already showed as placed — most
+  // often because the last pieces went to someone else between checkout and
+  // submission. api-bridge announces that instead of swallowing the response.
+  React.useEffect(() => {
+    const onRejected = (e) => {
+      const err = (e.detail && e.detail.error) || {};
+      setToast({
+        kind: 'rejected',
+        message: err.error || 'The office could not accept this order. Please check your cart and try again.',
+      });
+    };
+    window.addEventListener('eurostar-order-rejected', onRejected);
+    return () => window.removeEventListener('eurostar-order-rejected', onRejected);
+  }, []);
+
   // ----- Offline order queueing -----
   const [netOnline, setNetOnline] = React.useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
   const isOnline = netOnline && !tweaks.simOffline;
@@ -218,7 +233,7 @@ function App() {
                     // confirmation screen stores them in "Your orders".
                     const lines = cart.map((l) => ({ pid: l.pid, qty: l.qty || 0 }));
                     if (!isOnline) {
-                      const o = { id, customer: persona.company, code: persona.code || '', city: (persona.location || '').split(',')[0].trim(), rep: localStorage.getItem('eurostar-rep-name') || 'Rohit Shah', repId: localStorage.getItem('eurostar-rep-id') || 'REP-204', value: details.grand || 0, dispatchBy: details.dispatchBy || '', isExport: !!details.isExport, paid: false, ts: Date.now(), source: 'Sales App', queuedOffline: true };
+                      const o = { id, customer: persona.company, code: persona.code || '', city: (persona.location || '').split(',')[0].trim(), rep: localStorage.getItem('eurostar-rep-name') || 'Rohit Shah', repId: localStorage.getItem('eurostar-rep-id') || 'REP-204', value: details.grand || 0, dispatchBy: details.dispatchBy || '', isExport: !!details.isExport, paid: false, ts: Date.now(), source: 'Sales App', queuedOffline: true, lines };
                       try { const q = JSON.parse(localStorage.getItem('eurostar-offline-orders') || '[]') || []; q.push(o); localStorage.setItem('eurostar-offline-orders', JSON.stringify(q)); } catch (e) {}
                       setQueued((n) => n + 1);
                       setCart([]);
@@ -227,14 +242,25 @@ function App() {
                       navigate({ name: 'confirmed', order: { id, ...details, lines, queuedOffline: true } }, { replace: true });
                       return;
                     }
-                    setCart([]);
-                    if (isCredit) navigate({ name: 'confirmed', order: { id, ...details, lines } }, { replace: true });
-                    else navigate({ name: 'payment', order: { id, ...details, lines } });
+                    // The cart empties when the order is actually placed, not
+                    // when checkout is submitted. On credit terms that is now —
+                    // this goes straight to the confirmation. On a paid order it
+                    // is only after payment succeeds (see onPaid below), so
+                    // leaving the payment screen by Back still has the cart.
+                    if (isCredit) {
+                      setCart([]);
+                      navigate({ name: 'confirmed', order: { id, ...details, lines } }, { replace: true });
+                    } else {
+                      navigate({ name: 'payment', order: { id, ...details, lines } });
+                    }
                   }} />;
       break;
     case 'payment':
       screen = <PaymentScreen order={route.order || { id: 'SO-24900', grand: 0 }} persona={persona}
-                  onPaid={() => navigate({ name: 'confirmed', order: { ...(route.order || {}), paid: true } }, { replace: true })}
+                  onPaid={() => {
+                    setCart([]); // payment went through — this is the placement
+                    navigate({ name: 'confirmed', order: { ...(route.order || {}), paid: true } }, { replace: true });
+                  }}
                   onBack={() => navigate({ name: 'checkout' })} />;
       break;
     case 'confirmed':
@@ -462,14 +488,19 @@ function Toast({ toast, onDismiss, onView }) {
         <IconCheck size={20} strokeWidth={2.5} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 600 }}>{toast.kind === 'sync' ? 'Back online — synced' : 'Added to order'}</div>
+        <div style={{ fontSize: 13, fontWeight: 600 }}>
+          {toast.kind === 'sync' ? 'Back online — synced'
+            : toast.kind === 'rejected' ? 'Order could not be placed'
+            : 'Added to order'}
+        </div>
         <div style={{ fontSize: 12, color: 'rgba(253, 250, 242, 0.7)' }}>
           {toast.kind === 'sync'
             ? `${toast.count} queued order${toast.count > 1 ? 's' : ''} sent to the office`
+            : toast.kind === 'rejected' ? toast.message
             : `${(toast.qty || 0).toLocaleString('en-IN')} × ${toast.name}`}
         </div>
       </div>
-      {toast.kind !== 'sync' &&
+      {toast.kind !== 'sync' && toast.kind !== 'rejected' &&
       <button onClick={onView}
               style={{
                 background: 'transparent', border: '1px solid rgba(253, 250, 242, 0.3)',

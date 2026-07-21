@@ -7,6 +7,7 @@ import { ALLOWED_IMAGE_MIME, putImage } from '../services/storage';
 import { asyncHandler, ok, fail, failValidation } from '../util/http';
 import { authenticate, requireRole } from '../auth/middleware';
 import { getSetting, setSetting, invalidateStoreRules, KEYS } from '../services/settings';
+import { sizesFor, suggestedRate, chartPacketPcs, unitFor } from '../services/sizeCharts';
 
 // Admin (Sales App Admin) content endpoints. These are the producer side of the
 // catalog overlays, thumbnails, splash and rep-broadcast art the Sales app reads.
@@ -277,6 +278,7 @@ const productSchema = z.object({
   moq: z.number().int().min(1).optional(),
   stock: z.enum(['in', 'low', 'out']).optional(),
   stockCount: z.number().int().min(0).optional(),
+  pcsPerPacket: z.number().int().min(1).nullable().optional(),
   badge: z.string().nullable().optional(),
   desc: z.string().nullable().optional(),
   hidden: z.boolean().optional(),
@@ -295,6 +297,135 @@ adminRouter.get(
         orderBy: [{ cat: 'asc' }, { name: 'asc' }],
       })
     );
+  })
+);
+
+// ---------------------------------------------------------------------------
+// Pricing matrix — the Admin "Pricing" tab.
+//
+// One row per size in a shape's calibrated chart. A size that already has a SKU
+// shows that SKU's real rate and packet count; a size that does not yet shows
+// the storefront's own "base × size multiplier" suggestion and materialises
+// into a real SKU the first time it is saved. The chart itself is lifted from
+// docs/app/data.jsx so the Admin and the storefront cannot drift apart.
+
+// A stable, readable SKU id for a row created from the matrix. Deterministic so
+// saving the same row twice updates rather than duplicates.
+function matrixSkuId(categoryKey: string, shape: string, size: string): string {
+  const slug = (s: string) => String(s).trim().toUpperCase().replace(/[^A-Z0-9]+/g, '-').replace(/^-|-$/g, '');
+  return `EUR-${slug(categoryKey)}-${slug(shape)}-${slug(size)}`;
+}
+
+// GET /admin/pricing?cat=&shape= — the rows behind the pricing table.
+adminRouter.get(
+  '/pricing',
+  ...officeOnly,
+  asyncHandler(async (req, res) => {
+    const cat = String(req.query.cat ?? '');
+    const shape = String(req.query.shape ?? '');
+    if (!cat) return fail(res, 400, 'cat is required');
+
+    const unit = unitFor(cat);
+    const products = await prisma.product.findMany({ where: { cat }, orderBy: { name: 'asc' } });
+
+    // The category's configured shapes come first — a category can be priced
+    // before it has a single SKU, and deriving the list from existing SKUs
+    // alone left a fresh category with no shape to price against. SKU shapes
+    // are unioned in so a bulk-uploaded shape is never missing from the tab.
+    const configured = (await getSetting<Record<string, string[]>>(KEYS.extraShapes, {})) ?? {};
+    const shapes = [
+      ...new Set([...(configured[cat] ?? []), ...products.map((p) => p.shape).filter(Boolean)]),
+    ];
+    const active = shape || shapes[0] || '';
+    if (!active) return ok(res, { cat, shape: '', shapes: [], unit, rows: [] });
+
+    // The base rate the suggestion scales from: the cheapest real SKU on this
+    // shape, falling back to the category, so a fresh shape still shows sane
+    // numbers instead of zeros.
+    const onShape = products.filter((p) => p.shape === active);
+    const basePool = onShape.length ? onShape : products;
+    const basePrice = basePool.length ? Math.min(...basePool.map((p) => p.price)) : 0;
+
+    // Same precedence the storefront uses (see screen-browse.jsx): the sizes a
+    // category actually has win over the built-in chart. Showing the chart on
+    // top of them buried three real sizes under a full generic list, and listed
+    // "7.50 mm" from the chart beside the SKU's own "7.5 mm" — the same size
+    // twice, where editing the chart row would have created a duplicate SKU.
+    // The chart is only a starting point for a shape with nothing priced yet.
+    const norm = (s: string) => {
+      const t = String(s).trim().toLowerCase().replace(/×/g, 'x').replace(/\s+/g, '');
+      // 7.50 and 7.5 are one size; compare on the numbers, not the text.
+      return t.replace(/(\d+(?:\.\d*?[1-9])?)\.?0*(?=\D|$)/g, '$1');
+    };
+    const own = onShape.map((p) => String(p.size)).filter(Boolean);
+    const seen = new Set(own.map(norm));
+    const sizes = own.length
+      ? own
+      : sizesFor(cat, active).filter((s) => !seen.has(norm(s)));
+    const bySize = new Map(onShape.map((p) => [norm(String(p.size)), p] as const));
+
+    const rows = sizes.map((size) => {
+      const sku = bySize.get(norm(size));
+      return {
+        size,
+        skuId: sku?.id ?? null,
+        name: sku?.name ?? null,
+        rate: sku ? sku.price : suggestedRate(basePrice, size),
+        pcsPerPacket: sku?.pcsPerPacket ?? chartPacketPcs(cat, size),
+        // false = these numbers are the chart's suggestion, not saved data.
+        saved: !!sku,
+      };
+    });
+
+    return ok(res, { cat, shape: active, shapes, unit, rows });
+  })
+);
+
+// PUT /admin/pricing/row — save one row, creating the SKU if this size has none.
+const pricingRowSchema = z.object({
+  cat: z.string().min(1),
+  shape: z.string().min(1),
+  size: z.string().min(1),
+  rate: z.number().int().min(0),
+  pcsPerPacket: z.number().int().min(1).nullable().optional(),
+});
+
+adminRouter.put(
+  '/pricing/row',
+  ...officeOnly,
+  asyncHandler(async (req, res) => {
+    const parsed = pricingRowSchema.safeParse(req.body);
+    if (!parsed.success) return failValidation(res, parsed.error);
+    const { cat, shape, size, rate, pcsPerPacket } = parsed.data;
+
+    // Prefer the SKU already on this category+shape+size over the generated id,
+    // so editing a bulk-uploaded row updates it instead of creating a twin.
+    const existing =
+      (await prisma.product.findFirst({ where: { cat, shape, size } })) ??
+      (await prisma.product.findUnique({ where: { id: matrixSkuId(cat, shape, size) } }));
+
+    if (existing) {
+      const updated = await prisma.product.update({
+        where: { id: existing.id },
+        data: { price: rate, ...(pcsPerPacket !== undefined ? { pcsPerPacket } : {}) },
+      });
+      return ok(res, { row: updated, created: false });
+    }
+
+    const category = await prisma.category.findUnique({ where: { key: cat } });
+    const created = await prisma.product.create({
+      data: {
+        id: matrixSkuId(cat, shape, size),
+        name: `${category?.name ?? cat} ${shape} ${size}`.trim(),
+        cat,
+        shape,
+        size,
+        price: rate,
+        unit: `per ${unitFor(cat)}`,
+        ...(pcsPerPacket !== undefined ? { pcsPerPacket } : {}),
+      },
+    });
+    return ok(res, { row: created, created: true }, 201);
   })
 );
 
@@ -319,10 +450,31 @@ adminRouter.put(
   asyncHandler(async (req, res) => {
     const parsed = productSchema.partial().omit({ id: true }).safeParse(req.body);
     if (!parsed.success) return failValidation(res, parsed.error);
-    if (!(await prisma.product.findUnique({ where: { id: req.params.id } }))) {
-      return fail(res, 404, 'No such SKU');
+    const current = await prisma.product.findUnique({ where: { id: req.params.id } });
+    if (!current) return fail(res, 404, 'No such SKU');
+
+    // Keep the count and the in/low/out flag consistent with each other.
+    //
+    // They are separate columns, and the Admin form only sends the fields that
+    // were actually edited — so restocking by typing a new count left an older
+    // "out" flag in place. The SKU then held stock but the storefront, which
+    // reads the flag, still refused it: a restock that looked like it did
+    // nothing. Orders also mark a SKU "out" automatically on reaching zero,
+    // which is exactly how that stale flag arises.
+    //
+    // A count of 0 with an "in" flag is worse than cosmetic: the order path
+    // reads 0 as "not tracked" and would let it be bought without limit.
+    const data = { ...parsed.data };
+    if (data.stockCount !== undefined) {
+      const explicitStock = data.stock !== undefined;
+      if (data.stockCount === 0) {
+        data.stock = 'out'; // nothing on hand is never purchasable
+      } else if (!explicitStock && current.stock === 'out') {
+        data.stock = 'in'; // restocked, so clear the flag the customer sees
+      }
     }
-    return ok(res, await prisma.product.update({ where: { id: req.params.id }, data: parsed.data }));
+
+    return ok(res, await prisma.product.update({ where: { id: req.params.id }, data }));
   })
 );
 

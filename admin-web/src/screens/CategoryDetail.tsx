@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { adminApi, type Category, type Colour, type Grade, type Product } from '../lib/api';
+import { PricingMatrixEditor } from './PricingMatrix';
 
 // Grades, colours and shapes for one category. In the prototype "＋ Add grade",
 // "Remove" and "Save grades" had no onClick at all, and the colour/shape chips
@@ -164,7 +165,7 @@ export function CategoryDetail({ cat, onBack, onDeleted }: { cat: Category; onBa
         ))}
       {tab === 'colours' && <Colours colours={colours} busy={busy} saved={saved === 'colours'} onSave={saveColours} />}
       {tab === 'shapes' && <Shapes shapes={shapes} busy={busy} saved={saved === 'shapes'} onSave={saveShapes} />}
-      {tab === 'pricing' && <ProductEditor cat={cat} mode="pricing" />}
+      {tab === 'pricing' && <PricingMatrixEditor cat={cat} />}
       {tab === 'availability' && <ProductEditor cat={cat} mode="availability" />}
     </div>
   );

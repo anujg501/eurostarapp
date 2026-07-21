@@ -434,6 +434,9 @@ model Product {
   moq        Int     @default(1)
   stock      String  @default("in") // in | low | out
   stockCount Int     @default(0)
+  // Packet-sold categories only: how many pieces are in one packet of this
+  // size. Null means "use the category default" — the storefront's chart value.
+  pcsPerPacket Int?
   badge      String?
   desc       String?
   hidden     Boolean @default(false)

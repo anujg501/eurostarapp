@@ -84,6 +84,33 @@ function lineRate(l: LineIn): number {
 function lineUnits(l: LineIn): number {
   return l.ct ?? l.qty ?? 0;
 }
+// Pieces a line takes out of inventory. stockCount is a piece count, so only a
+// line that reports pieces can be subtracted from it — one measured in carats
+// or packets is left alone rather than decremented in the wrong unit.
+function linePieces(l: LineIn): number {
+  const unit = String(l.unitMode ?? l.unit ?? '');
+  const pieces = l.qty ?? (/pc/i.test(unit) ? l.ct : undefined);
+  return typeof pieces === 'number' && pieces > 0 ? Math.floor(pieces) : 0;
+}
+
+// Total pieces wanted per SKU across an order's lines (the same SKU can appear
+// on more than one line).
+function piecesBySku(items: LineIn[]): Map<string, number> {
+  const want = new Map<string, number>();
+  for (const l of items) {
+    if (!l.pid) continue;
+    const n = linePieces(l);
+    if (n > 0) want.set(l.pid, (want.get(l.pid) ?? 0) + n);
+  }
+  return want;
+}
+
+class OutOfStock extends Error {
+  constructor(readonly sku: string, readonly available: number, readonly wanted: number) {
+    super(`Only ${available} left of ${sku} — ${wanted} requested`);
+  }
+}
+
 function effectiveLineTotal(l: LineIn, canOverride: boolean): number {
   if (canOverride && l.priceOverride != null) return lineUnits(l) * l.priceOverride;
   return l.lineTotal ?? lineRate(l) * lineUnits(l);
@@ -240,17 +267,61 @@ ordersRouter.post(
       clientTs: d.clientTs != null ? String(d.clientTs) : d.ts != null ? String(d.ts) : null,
     };
 
-    // Upsert by id so an offline order flushed twice does not duplicate
-    // (the client dedups eurostar-crm-incoming-orders by id).
-    const order = await prisma.order.upsert({
-      where: { id },
-      create: { id, ...data, lines: { create: lines } },
-      update: {
-        ...data,
-        lines: items.length ? { deleteMany: {}, create: lines } : undefined,
-      },
-      include: { lines: true },
-    });
+    // Stock comes off at placement, and only for an order id that is new. The
+    // client re-posts eurostar-crm-incoming-orders on every page load, so
+    // decrementing on each POST would drain inventory for one real order.
+    const alreadyPlaced = !!(await prisma.order.findUnique({ where: { id }, select: { id: true } }));
+
+    let order;
+    try {
+      // Upsert by id so an offline order flushed twice does not duplicate
+      // (the client dedups eurostar-crm-incoming-orders by id).
+      order = await prisma.$transaction(async (tx) => {
+        if (!alreadyPlaced) {
+          for (const [pid, wanted] of piecesBySku(items)) {
+            const sku = catalogue.get(pid);
+            if (!sku) continue;
+
+            // stockCount 0 is the schema default and means "not tracked". A SKU
+            // that really has none left is flagged stock === 'out', which is
+            // refused below; otherwise an untracked SKU would be unsellable.
+            if (sku.stock === 'out') throw new OutOfStock(pid, 0, wanted);
+            if (sku.stockCount <= 0) continue;
+
+            // The gte guard makes the check and the write a single atomic step.
+            // Reading the count and then writing it would let two orders for the
+            // same last pieces both pass their check and oversell.
+            const taken = await tx.product.updateMany({
+              where: { id: pid, stockCount: { gte: wanted } },
+              data: { stockCount: { decrement: wanted } },
+            });
+            if (taken.count !== 1) {
+              const now = await tx.product.findUnique({ where: { id: pid }, select: { stockCount: true } });
+              throw new OutOfStock(pid, now?.stockCount ?? 0, wanted);
+            }
+
+            // Exhausted now: mark it so the storefront stops offering it.
+            await tx.product.updateMany({ where: { id: pid, stockCount: { lte: 0 } }, data: { stock: 'out' } });
+          }
+        }
+
+        return tx.order.upsert({
+          where: { id },
+          create: { id, ...data, lines: { create: lines } },
+          update: {
+            ...data,
+            lines: items.length ? { deleteMany: {}, create: lines } : undefined,
+          },
+          include: { lines: true },
+        });
+      });
+    } catch (e) {
+      // The transaction rolled back, so no stock was taken and no order written.
+      if (e instanceof OutOfStock) {
+        return fail(res, 409, e.message, { sku: e.sku, available: e.available, wanted: e.wanted });
+      }
+      throw e;
+    }
 
     return ok(res, serialiseOrder(order), 201);
   })
@@ -350,6 +421,29 @@ ordersRouter.put(
       },
       include: { lines: true },
     });
+
+    // Cancelling releases the pieces the order took at placement. Guarded on
+    // the previous status so cancelling an already-cancelled order cannot
+    // credit the same stock twice.
+    if (status === 'cancelled' && existing.status !== 'cancelled') {
+      // Stored lines key the SKU as skuId; piecesBySku reads the payload's pid.
+      const stored = order.lines.map((l) => ({ pid: l.skuId ?? undefined, qty: l.qty, unit: l.unit }));
+      for (const [pid, pieces] of piecesBySku(stored as LineIn[])) {
+        // Give back only to a SKU that was tracked when the order was placed:
+        // either it still holds a count, or it was flagged out when it hit zero.
+        // A SKU left untracked (count 0, not flagged out) was never decremented,
+        // so crediting it here would invent stock that never existed.
+        await prisma.product.updateMany({
+          where: { id: pid, OR: [{ stockCount: { gt: 0 } }, { stock: 'out' }] },
+          data: { stockCount: { increment: pieces } },
+        });
+        // It was flagged sold out on reaching zero; there is stock again now.
+        await prisma.product.updateMany({
+          where: { id: pid, stock: 'out', stockCount: { gt: 0 } },
+          data: { stock: 'in' },
+        });
+      }
+    }
 
     // On dispatch, notify the customer (the Mira shipment bus).
     const nowShipped = status === 'shipped' && existing.status !== 'shipped';

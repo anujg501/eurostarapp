@@ -27,7 +27,28 @@
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
         keepalive: true,
-      }).catch(function () {});
+      })
+        .then(function (r) {
+          // A refused order used to be swallowed here: the response was never
+          // read, so the server could reject an order for insufficient stock
+          // while the app cheerfully showed "Order placed". Announce it so the
+          // confirmation screen can tell the truth. A network failure stays
+          // silent on purpose — that is the offline queue's job, not an error.
+          if (!r || r.ok) return;
+          return r
+            .json()
+            .catch(function () { return {}; })
+            .then(function (err) {
+              try {
+                window.dispatchEvent(
+                  new CustomEvent('eurostar-order-rejected', {
+                    detail: { path: path, id: body && body.id, status: r.status, error: err },
+                  })
+                );
+              } catch (e) {}
+            });
+        })
+        .catch(function () {});
     } catch (e) {
       return Promise.resolve();
     }

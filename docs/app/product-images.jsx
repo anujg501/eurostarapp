@@ -84,6 +84,12 @@ function ProductHero({ category, color, shape, photo, hex, lightenTone }) {
   };
 
   const shown = img || photo;
+  // An image that fails to load (an upload since deleted from storage, a 404,
+  // a corrupt data URL) must fall back to the drawn placeholder rather than
+  // leaving the browser's broken-image icon in the hero.
+  const [broken, setBroken] = React.useState(false);
+  React.useEffect(() => { setBroken(false); }, [shown]);
+  const showImg = shown && !broken;
   return (
     <div className="pad-header-art" style={{
       background: lightenTone(hex),
@@ -91,8 +97,9 @@ function ProductHero({ category, color, shape, photo, hex, lightenTone }) {
       width: 132, height: 132, flex: '0 0 132px',
       position: 'relative',
     }}>
-      {shown
+      {showImg
         ? <img src={shown} alt={`${color.name} ${(window.findShape ? window.findShape(shape) : {}).name || ''}`}
+               onError={() => setBroken(true)} loading="lazy"
                style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         : <div style={{
             width: '100%', height: '100%',

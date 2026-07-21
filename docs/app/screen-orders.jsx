@@ -89,7 +89,10 @@ function OrdersScreen({ persona, setRoute, cart, setCart, initialTab, editCart, 
         <KpiCard label="Active orders" value={groups.active.length} tone="accent" />
         <KpiCard label="In cart" value={`${cart.length} lines`}
                  sub={cart.length ? `${formatCt(cartCt(cart))} ct` : '—'} />
-        <KpiCard label="Lifetime orders" value={persona.deliveredCount + persona.pendingCount} />
+        {/* Count what this customer actually has. persona.deliveredCount +
+            pendingCount are hardcoded on the demo personas, so every account
+            was shown "22" regardless of its real history. */}
+        <KpiCard label="Lifetime orders" value={serverOrders === null ? '—' : orders.length} />
       </div>
 
       {/* Tabs */}

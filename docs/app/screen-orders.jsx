@@ -779,11 +779,11 @@ function CartView({ cart, setCart, persona, setRoute }) {
             </summary>
             <div className="qr-pay-body">
               <div className="qr-frame" data-om-raster>
-                <img src="assets/eurostar-upi-qr.svg" alt="Eurostar company UPI QR code" width="180" height="180" />
+                <img src="assets/eurostar-upi-qr.png" alt="Eurostar company UPI QR code" width="180" height="180" />
               </div>
               <div className="qr-pay-meta">
                 <div className="qr-pay-pay">Eurostar Technologies Inc.</div>
-                <div className="qr-pay-upi">UPI · eurostar@okhdfcbank</div>
+                <div className="qr-pay-upi">UPI · gjipl@icici</div>
                 <div className="qr-pay-amt">Amount payable <b>{formatINR(grand)}</b></div>
                 <div className="qr-pay-note">Scan with any UPI app (GPay · PhonePe · Paytm). Order ships once payment is received.</div>
               </div>

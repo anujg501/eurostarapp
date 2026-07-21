@@ -3,9 +3,9 @@
 // Net price after discount. White = tiered by size; Colour = flat 20%.
 // Ordered by the packet, priced per piece.
 
-// Per-shape laser price tables. Each row: [size label, pcs per box, ₹ per piece].
-// The ₹/pc is the FINAL price the customer pays — the SAME for all 6 colours
-// (no colour discount). Source: the EURO LM white price list.
+// Per-shape laser price tables. Each row: [size label, pcs per box, list ₹/pc].
+// The ₹/pc is the LIST price from the EURO LM white price list; the customer
+// pays list × (1 − laserDiscount), the SAME for all 6 colours.
 const mk = (rows) => rows.map(([s, pk, price]) => ({ s, mm: parseFloat(s) || 0, pk, price }));
 
 const LASER_TABLES = {
@@ -107,9 +107,17 @@ const LASER_TABLES = {
 
 const laserRows = (shape) => LASER_TABLES[shape] || [];
 
-// Fixed price list: the customer pays the list ₹/pc as-is, identical for every
-// colour. No discount is applied (kept as a function so callers stay unchanged).
-function laserDiscount(shape, mm, isWhite) { return 0; }
+// Discount fraction off the list ₹/pc. All 6 laser colours are whiteDisc:true,
+// so every colour takes the SAME (white) tiered discount — identical price
+// across colours. (The colour branch below is unused for laser but kept intact.)
+function laserDiscount(shape, mm, isWhite) {
+  if (!isWhite) return 0.20;            // colour: flat 20%
+  if (shape !== 'round') return 0.18;   // all fancy shapes: 18%
+  if (mm < 1.00) return 0.21;           // 0.60–0.95 mm
+  if (mm < 1.70) return 0.40;           // 1.00–1.65 mm
+  if (mm < 2.10) return 0.30;           // 1.70–2.05 mm
+  return 0.18;                          // 2.10 mm and up
+}
 
 function LaserOrderPad({ grade, color, shape, category, qtyBySize, setQtyBySize, onBack, onChangeColor, addToCart, setRoute }) {
   const fmt = (n) => (window.formatINR ? window.formatINR(n) : '₹' + Number(n).toLocaleString('en-IN'));

@@ -687,7 +687,7 @@ const SHAPES_BY_CATEGORY = {
   icecut:     ['oval','pear','oblong','radiant','square','round','cushion','marquise'],
   ourosa:     ['round'],
   beads:      ['plain-beads','faceted-beads','oval-maniya','drops'],
-  laser:      ['round','oval','pear','princess','cushion','heart','marquise','emerald','baguette','tapered'],
+  laser:      ['round','marquise','oval','pear','square','invisible-square','heart','curved-trillion','cushion','oblong-cushion','asscher','radiant','baguette-prince','baguette-step','tapered-baguette','triangle','octagon','leaf'],
   alpanite:   ['round','oval','cushion','emerald','pear','baguette','tapered'],
   multisapphire: ['round','oval','pear','cushion','emerald','heart','baguette','tapered'],
   cabochon:   ['round','oval','pear','marquise','pearoval','square'],

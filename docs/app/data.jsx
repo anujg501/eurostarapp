@@ -673,7 +673,7 @@ const GRADES_BY_CATEGORY = {
 
 // Shapes offered per category
 const SHAPES_BY_CATEGORY = {
-  moissanite: ['round','oval','pear','princess','cushion','emerald','marquise','heart','baguette','tapered'],
+  moissanite: ['round','oval','pear','princess','cushion','emerald','marquise','heart','asscher','radiant','trillion','triangle','square-radiant','star','baguette','tapered'],
   rajkot:     ['round'],
   cz:         ['round','oval','pear','princess','cushion','marquise','emerald','baguette','tapered','heart','trillion'],
   whitecz:    ['round'],
@@ -1686,12 +1686,25 @@ const MOISS_CHART = {
     ['3×5 mm',0.17],['3×6 mm',0.22],['3.5×7 mm',0.35],['4×8 mm',0.52],['5×10 mm',1],
     ['6×12 mm',1.88],['7×14 mm',2.72],['8×16 mm',4.03],
   ],
+  // Added from the Moissanite Size & Weight chart (ct = weight of one stone).
+  asscher: [['3×3 mm',0.15],['3.5×3.5 mm',0.24],['4×4 mm',0.34],['4.5×4.5 mm',0.49],['5×5 mm',0.71],['5.5×5.5 mm',0.92],['6×6 mm',1.2],['6.5×6.5 mm',1.46],['7×7 mm',1.18],['7.5×7.5 mm',2.19],['8×8 mm',2.85],['8.5×8.5 mm',3.3],['9×9 mm',3.89],['9.5×9.5 mm',4.65],['10×10 mm',5.12],['11×11 mm',7.08]],
+  radiant: [['3×5 mm',0.28],['4×6 mm',0.57],['5×7 mm',0.98],['6×8 mm',1.59],['7×9 mm',2.45],['8×10 mm',3.5],['9×11 mm',4.88],['10×12 mm',6.4],['10×14 mm',8.48]],
+  trillion: [['3×3 mm',0.11],['3.5×3.5 mm',0.16],['4×4 mm',0.25],['4.5×4.5 mm',0.34],['5×5 mm',0.49],['5.5×5.5 mm',0.64],['6×6 mm',0.74],['6.5×6.5 mm',1.04],['7×7 mm',1.27],['7.5×7.5 mm',1.42],['8×8 mm',1.86],['8.5×8.5 mm',2.05],['9×9 mm',2.67],['10×10 mm',3.42]],
+  triangle: [['3×3 mm',0.09],['3.5×3.5 mm',0.14],['4×4 mm',0.21],['4.5×4.5 mm',0.29],['5×5 mm',0.45],['5.5×5.5 mm',0.46],['6×6 mm',0.7],['6.5×6.5 mm',0.77],['7×7 mm',1.1],['7.5×7.5 mm',1.32],['8×8 mm',1.59],['9×9 mm',2.19],['10×10 mm',3.25]],
+  'square-radiant': [['5 mm',0.76],['6 mm',1.17],['6.5 mm',1.44],['7 mm',1.66],['7.5 mm',2.16],['8 mm',2.72],['8.5 mm',3.17],['9 mm',3.67]],
+  star: [['5 mm',0.41],['6 mm',0.68]],
+  tapered: [['1×1.25×1.5 mm',0.014],['1×1.25×2 mm',0.02],['1×1.5×1.75 mm',0.02],['1×1.5×2 mm',0.025],['1×1.5×2.5 mm',0.031],['1×1.5×3 mm',0.035],['1×1.5×3.5 mm',0.046],['1×2×2.5 mm',0.05],['1×2×3 mm',0.06],['1.5×2×2.5 mm',0.055],['1.5×2×3 mm',0.068],['1.5×2×3.5 mm',0.08],['1.5×2×4 mm',0.08],['1.5×2.5×3 mm',0.08],['2×3×4 mm',0.19],['2×3×5 mm',0.23],['2×4×5 mm',0.35],['2×3×6 mm',0.28],['2.5×3×5 mm',0.27]],
+  baguette: [['1×1.25 mm',0.01],['1×1.3 mm',0.01],['1×1.4 mm',0.01],['1×1.5 mm',0.012],['1×1.75 mm',0.013],['1×2 mm',0.016],['1×2.5 mm',0.021],['1×2.75 mm',0.025],['1.25×1.75 mm',0.018],['1.25×2 mm',0.023],['1.25×2.25 mm',0.025],['1.25×2.5 mm',0.029],['1.5×1.75 mm',0.025],['1.5×2 mm',0.03],['1.5×2.25 mm',0.035],['1.5×2.5 mm',0.037],['1.5×3 mm',0.045],['1.5×3.5 mm',0.058],['1.5×4 mm',0.075],['2×2.5 mm',0.067],['2×2.75 mm',0.071],['2×3 mm',0.079],['2×3.5 mm',0.095],['2×4 mm',0.118],['2×4.5 mm',0.137],['2.5×3 mm',0.116],['2.5×4 mm',0.161],['2.5×5 mm',0.21],['3×4 mm',0.2],['3×5 mm',0.31],['3×6 mm',0.36],['4×6 mm',0.61]],
 };
 // Size at/above which a Moissanite shape switches from carat-input to piece-input
 // (also the size at/above which the optional ₹80/pc certificate is offered).
 const MOISS_PIECE_FROM = {
   round: '6.00 mm', princess: '6×6 mm', cushion: '6×6 mm', heart: '6×6 mm',
   oval: '5×7 mm', pear: '5×7 mm', emerald: '5×7 mm', marquise: '3×6 mm',
+  // New shapes — same treatment (piece-input + optional certificate above these).
+  asscher: '6×6 mm', trillion: '6×6 mm', triangle: '6×6 mm', radiant: '6×8 mm',
+  'square-radiant': '6 mm', star: '6 mm',
+  // tapered & baguette stay carat-input at every size (no certificate) by design.
 };
 const moissSizes    = (shape) => (MOISS_CHART[shape] || []).map((r) => r[0]);
 const moissCtEach   = (shape, size) => {

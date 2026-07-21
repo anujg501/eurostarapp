@@ -26,6 +26,23 @@ function reconcileCatOrder(ids) {
 }
 
 function HomeScreen({ persona, setRoute }) {
+  // Real count for the signed-in customer. This used to read
+  // persona.deliveredCount + persona.pendingCount — numbers hardcoded on the
+  // demo personas — so a brand-new account was greeted with "22 lifetime
+  // orders" it had never placed.
+  const [myOrderCount, setMyOrderCount] = React.useState(null);
+  React.useEffect(() => {
+    var token;
+    try { token = localStorage.getItem('eurostar_token'); } catch (e) {}
+    if (!token) { setMyOrderCount(0); return; }
+    fetch((window.EUROSTAR_API || location.origin) + '/orders', {
+      headers: { authorization: 'Bearer ' + token },
+    })
+      .then(function (r) { return r.ok ? r.json() : []; })
+      .then(function (rows) { setMyOrderCount(Array.isArray(rows) ? rows.length : 0); })
+      .catch(function () { setMyOrderCount(0); });
+  }, []);
+
   const [order, setOrder] = React.useState(() => reconcileCatOrder(loadCatOrder()));
   const [arrange, setArrange] = React.useState(false);
   const [dragId, setDragId] = React.useState(null);
@@ -69,7 +86,7 @@ function HomeScreen({ persona, setRoute }) {
           <div><strong>40</strong>Years in operation</div>
           <div><strong>28,000+</strong>Active SKUs</div>
           <div><strong>12,400</strong>Trade buyers globally</div>
-          <div><strong>{persona.deliveredCount + persona.pendingCount}</strong>Your lifetime orders</div>
+          <div><strong>{myOrderCount === null ? '—' : myOrderCount}</strong>Your lifetime orders</div>
         </div>
       </section>
 

@@ -1,8 +1,29 @@
 // screen-order-detail.jsx — Single order view with timeline + line items + invoice summary
 
 function OrderDetailScreen({ route, setRoute, persona, addToCart }) {
-  // Orders placed from this app live in localStorage; the demo book is static.
-  const order = [...(window.loadMyOrders ? loadMyOrders(persona) : []), ...(ORDERS[persona.id] || [])].find(o => o.id === route.oid);
+  // Look the order up on the server first — the demo ORDERS book belongs to the
+  // sample personas, so reading it here showed a stranger's order to whoever was
+  // signed in. Local copies still cover an order placed moments ago or offline.
+  const [remote, setRemote] = React.useState(null);
+  React.useEffect(() => {
+    var token;
+    try { token = localStorage.getItem('eurostar_token'); } catch (e) {}
+    if (!token) { setRemote([]); return; }
+    fetch((window.EUROSTAR_API || location.origin) + '/orders', {
+      headers: { authorization: 'Bearer ' + token },
+    })
+      .then(function (r) { return r.ok ? r.json() : []; })
+      .then(function (rows) { setRemote(Array.isArray(rows) ? rows : []); })
+      .catch(function () { setRemote([]); });
+  }, [route.oid]);
+
+  const local = window.loadMyOrders ? loadMyOrders(persona) : [];
+  const order = [...(remote || []), ...local].find(o => o.id === route.oid);
+
+  // Still loading the server copy — don't flash "not found" at a real order.
+  if (!order && remote === null) {
+    return <div className="page"><div className="empty"><h3>Loading…</h3></div></div>;
+  }
   if (!order) {
     return (
       <div className="page">

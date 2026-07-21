@@ -30,7 +30,33 @@ function OrdersScreen({ persona, setRoute, cart, setCart, initialTab, editCart, 
   const [tab, setTab] = React.useState(initialTab || (cart.length ? 'cart' : 'active'));
   React.useEffect(() => { if (initialTab) setTab(initialTab); }, [initialTab]);
 
-  const orders = [...loadMyOrders(persona), ...(ORDERS[persona.id] || [])];
+  // Real orders for the signed-in customer. This screen used to show
+  // ORDERS[persona.id] — sample orders hardcoded in data.jsx for the demo
+  // personas — so a brand-new account opened onto someone else's order history.
+  // The API already scopes /orders to the caller, so ask it.
+  const [serverOrders, setServerOrders] = React.useState(null);
+  React.useEffect(() => {
+    var token;
+    try { token = localStorage.getItem('eurostar_token'); } catch (e) {}
+    if (!token) { setServerOrders([]); return; }
+    fetch((window.EUROSTAR_API || location.origin) + '/orders', {
+      headers: { authorization: 'Bearer ' + token },
+    })
+      .then(function (r) { return r.ok ? r.json() : []; })
+      .then(function (rows) { setServerOrders(Array.isArray(rows) ? rows : []); })
+      .catch(function () { setServerOrders([]); }); // offline: fall back to local only
+  }, []);
+
+  // Local copies cover the moment between placing an order and the server
+  // round-trip, and anything queued offline. Dedupe by id so nothing shows twice.
+  const localOrders = loadMyOrders(persona);
+  const seen = {};
+  const orders = [];
+  (serverOrders || []).concat(localOrders).forEach(function (o) {
+    if (!o || !o.id || seen[o.id]) return;
+    seen[o.id] = true;
+    orders.push(o);
+  });
   const groups = {
     active:    orders.filter(o => ['pending', 'confirmed', 'packed', 'shipped'].includes(o.status)),
     delivered: orders.filter(o => o.status === 'delivered'),

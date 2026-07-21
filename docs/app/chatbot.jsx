@@ -46,7 +46,11 @@ function ChatAssistant({ persona, cart, addToCart, navigate, isOnline }) {
 
   // ---- live context Mira can reason over ----
   const cats = (window.CATEGORIES || []).map(c => `${c.short} (${c.id})`).join(', ');
-  const orders = (window.ORDERS && window.ORDERS[persona.id]) || [];
+  // Mira must not read the demo ORDERS book — that is the sample personas' data,
+  // so she would discuss a stranger's orders with whoever is signed in. Only the
+  // orders this browser actually placed are safe context here; the assistant is
+  // not authenticated, so it cannot fetch the customer's real history.
+  const orders = (window.loadMyOrders ? loadMyOrders(persona) : []) || [];
   const findP = (pid) => (window.findProduct ? window.findProduct(pid) : null);
   const findT = (t) => (window.findTone ? window.findTone(t) : null);
   const histText = orders.slice(0, 5).map(o => `${o.id} [${o.date}, ${o.status}]: ` + o.lines.map(l => { const p = findP(l.pid); return (p ? p.name : l.pid) + ' ×' + l.qty; }).join(', ')).join(' | ') || 'no past orders on file';

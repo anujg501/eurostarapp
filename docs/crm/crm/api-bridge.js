@@ -68,13 +68,14 @@
       getJson('/rfq'),
       getJson('/reps/checkins'),
       getJson('/franchise'),
+      getJson('/leads'),
     ]).then(function (res) {
       var orders = res[0], payments = res[1], reps = res[2], customers = res[3];
       if (Array.isArray(res[4])) put('eurostar-crm-sales-by-month', res[4]);
       if (Array.isArray(res[5])) put('eurostar-crm-sales-by-category', res[5]);
       if (Array.isArray(res[6])) put('eurostar-crm-leaderboard', res[6]);
       if (res[7] && typeof res[7] === 'object') put('eurostar-crm-summary', res[7]);
-      var carts = res[8], rfqs = res[9], checkins = res[10], franchise = res[11];
+      var carts = res[8], rfqs = res[9], checkins = res[10], franchise = res[11], leads = res[12];
 
       // --- Live data mapped into the CRM's own shapes ---
       if (Array.isArray(customers)) {
@@ -153,6 +154,9 @@
           };
         }));
       }
+      // Leads already match the CRM lead shape (see the Lead model), so store
+      // them straight through for the "Leads" screen.
+      if (Array.isArray(leads)) put('eurostar-crm-leads', leads);
       if (Array.isArray(orders)) put('eurostar-crm-incoming-orders', orders);
       if (Array.isArray(payments)) put('eurostar-crm-incoming-payments', payments);
       // The Payment log renders CRM_SAMPLE_PAYMENTS. serialisePayment already
@@ -186,10 +190,10 @@
     // Bump this key whenever the hydrate writes new localStorage keys, so a
     // session that already hydrated under an older bridge re-runs once and picks
     // up the new data (otherwise it skips the reload and keeps rendering seed).
-    if (!sessionStorage.getItem('crm-hydrated-v6')) {
+    if (!sessionStorage.getItem('crm-hydrated-v7')) {
       // First visit this session: load live data, then reload so the CRM renders it.
       hydrate().then(function () {
-        sessionStorage.setItem('crm-hydrated-v6', '1');
+        sessionStorage.setItem('crm-hydrated-v7', '1');
         location.reload();
       });
     } else {

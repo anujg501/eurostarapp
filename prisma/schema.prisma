@@ -406,6 +406,30 @@ model Announcement {
   updatedAt   DateTime @updatedAt
 }
 
+// Sales leads (purchased/uploaded lists, single adds). The CRM "Leads" screen
+// uploads, matches against existing customers (flagged), approves/assigns to
+// reps, and works the pipeline stage. Client supplies the id (LD-…), so create
+// is an upsert.
+model Lead {
+  id        String   @id
+  name      String
+  city      String   @default("")
+  mobile    String   @default("")
+  gst       String   @default("")
+  rep       String   @default("") // assigned repId, or "" when unassigned
+  stage     Int      @default(1)
+  followUp  String   @default("")
+  assigned  Boolean  @default(false)
+  note      String   @default("")
+  flagged   Boolean  @default(false) // matched an existing customer, held for review
+  flagName  String   @default("")
+  flagBy    String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([flagged])
+  @@index([rep])
+}
+
 // Franchise enquiries from the Sales App "Join Franchise" form. Read by the CRM
 // "Franchise Requests" screen.
 model Franchise {

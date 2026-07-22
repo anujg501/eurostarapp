@@ -2334,7 +2334,9 @@ function CRM() {
     try {
       const API = window.EUROSTAR_API || location.origin;
       const tok = localStorage.getItem('eurostar-admin-token') || '';
-      fetch(API + path, { method, headers: { 'content-type': 'application/json', authorization: 'Bearer ' + tok }, body: JSON.stringify(body) }).catch(() => {});
+      const opts = { method, headers: { 'content-type': 'application/json', authorization: 'Bearer ' + tok } };
+      if (body !== undefined && body !== null) opts.body = JSON.stringify(body);
+      fetch(API + path, opts).catch(() => {});
     } catch (e) {}
   };
 
@@ -2370,21 +2372,25 @@ function CRM() {
     doCheckin: (id, photo) => setCheckin((m) => ({ ...m, [id]: { photo, time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) } })),
     leads,
     importSummary,
-    setStage: (id, stage) => setLeads((ls) => ls.map((l) => l.id === id ? { ...l, stage } : l)),
-    setFollowUp: (id, followUp) => setLeads((ls) => ls.map((l) => l.id === id ? { ...l, followUp } : l)),
+    setStage: (id, stage) => { setLeads((ls) => ls.map((l) => l.id === id ? { ...l, stage } : l)); crmApi('PUT', '/leads/' + id, { stage }); },
+    setFollowUp: (id, followUp) => { setLeads((ls) => ls.map((l) => l.id === id ? { ...l, followUp } : l)); crmApi('PUT', '/leads/' + id, { followUp }); },
     addLead: (f) => {const flagMatch = masterMatch(f.gst, f.name, f.city, f.mobile);
-      if (flagMatch) {setLeads((ls) => [{ id: 'LD-' + (3100 + ls.length), name: f.name, city: f.city, mobile: f.mobile, gst: f.gst || '', rep: '', stage: 1, followUp: '2026-06-18', assigned: false, note: f.note || '', flagged: true, flagName: flagMatch.name, flagBy: flagMatch._by }, ...ls]);
+      const newId = 'LD-' + Date.now();
+      if (flagMatch) {const lead = { id: newId, name: f.name, city: f.city, mobile: f.mobile, gst: f.gst || '', rep: '', stage: 1, followUp: '2026-06-18', assigned: false, note: f.note || '', flagged: true, flagName: flagMatch.name, flagBy: flagMatch._by };
+        setLeads((ls) => [lead, ...ls]); crmApi('POST', '/leads', lead);
         alert('⚠ This lead matches your existing customer “' + flagMatch.name + '” (by ' + flagMatch._by + '). It has been held in the Flagged queue (Customer Master) for your approval — it was NOT assigned to a rep.');return;}
       const rep = f.rep || (window.CRM_CITY_REP || {})[f.city] || '';const nf = '2026-06-18';
-      setLeads((ls) => [{ id: 'LD-' + (3100 + ls.length), name: f.name, city: f.city, mobile: f.mobile, gst: f.gst || '', rep, stage: 1, followUp: nf, assigned: !!f.rep, note: f.note || '' }, ...ls]);},
+      const lead = { id: newId, name: f.name, city: f.city, mobile: f.mobile, gst: f.gst || '', rep, stage: 1, followUp: nf, assigned: !!f.rep, note: f.note || '', flagged: false, flagName: '', flagBy: '' };
+      setLeads((ls) => [lead, ...ls]); crmApi('POST', '/leads', lead);},
     bulkLeads: (file, noAssign) => {const ext = (file.name.split('.').pop() || '').toLowerCase();
-      const load = (rows) => {const created = [];let flaggedN = 0;rows.forEach((r, i) => {if (i === 0) return;const name = r[0],city = r[1],mobile = r[2];if (!name || !city) return;
+      const load = (rows) => {const created = [];let flaggedN = 0;const base = Date.now();rows.forEach((r, i) => {if (i === 0) return;const name = r[0],city = r[1],mobile = r[2];if (!name || !city) return;
           const gst = String(r[3] || '').trim();const fm = masterMatch(gst, name, city, mobile);
-          if (fm) {flaggedN++;created.push({ id: 'LD-' + (3200 + i), name: String(name).trim(), city: String(city).trim(), mobile: String(mobile || '').trim(), gst, rep: '', stage: 1, followUp: '2026-06-18', assigned: false, note: String(r[6] || '').trim(), flagged: true, flagName: fm.name, flagBy: fm._by });return;}
+          if (fm) {flaggedN++;created.push({ id: 'LD-' + (base + i), name: String(name).trim(), city: String(city).trim(), mobile: String(mobile || '').trim(), gst, rep: '', stage: 1, followUp: '2026-06-18', assigned: false, note: String(r[6] || '').trim(), flagged: true, flagName: fm.name, flagBy: fm._by });return;}
           const repId = noAssign ? '' : (r[5] || '').trim();const rep = repId || (noAssign ? '' : (window.CRM_CITY_REP || {})[String(city).trim()] || '');
-          created.push({ id: 'LD-' + (3200 + i), name: String(name).trim(), city: String(city).trim(), mobile: String(mobile || '').trim(), gst, rep, stage: 1, followUp: '2026-06-18', assigned: !!repId, note: String(r[6] || '').trim() });});
+          created.push({ id: 'LD-' + (base + i), name: String(name).trim(), city: String(city).trim(), mobile: String(mobile || '').trim(), gst, rep, stage: 1, followUp: '2026-06-18', assigned: !!repId, note: String(r[6] || '').trim() });});
         if (created.length === 0) {alert('No valid rows found.');return;}
         setLeads((ls) => [...created, ...ls]);
+        crmApi('POST', '/leads', created); // persist the whole batch
         const clean = created.length - flaggedN;
         setImportSummary({ total: created.length, clean, flagged: flaggedN, ts: Date.now() });
         alert(clean + ' lead(s) imported' + (flaggedN ? ' · ⚠ ' + flaggedN + ' flagged as existing customers (held for your approval in Customer Master → Flagged queue)' : ' and forwarded by city.'));};
@@ -2392,11 +2398,17 @@ function CRM() {
       if (ext === 'csv') {reader.onload = () => {const rows = reader.result.split(/\r?\n/).map((ln) => ln.split(','));load(rows);};reader.readAsText(file);} else
       {if (!window.XLSX) {const s = document.createElement('script');s.src = 'https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js';s.onload = () => readX();document.head.appendChild(s);} else readX();
         function readX() {reader.onload = () => {const wb = window.XLSX.read(new Uint8Array(reader.result), { type: 'array' });const sh = wb.Sheets[wb.SheetNames[wb.SheetNames.length - 1]];const rows = window.XLSX.utils.sheet_to_json(sh, { header: 1 });load(rows);};reader.readAsArrayBuffer(file);}}},
-    autoForwardLeads: () => setLeads((ls) => ls.map((l) => l.rep || l.flagged ? l : { ...l, rep: (window.CRM_CITY_REP || {})[l.city] || '' })),
+    autoForwardLeads: () => setLeads((ls) => ls.map((l) => {
+      if (l.rep || l.flagged) return l;
+      const rep = (window.CRM_CITY_REP || {})[l.city] || '';
+      if (rep) crmApi('PUT', '/leads/' + l.id, { rep, assigned: false });
+      return { ...l, rep };
+    })),
     approveFlaggedLead: (id, repId) => setLeads((ls) => ls.map((l) => {if (l.id !== id) return l;
       const rep = repId === '__city' ? (window.CRM_CITY_REP || {})[l.city] || '' : repId || '';
+      crmApi('PUT', '/leads/' + id, { flagged: false, rep, assigned: !!rep });
       return { ...l, flagged: false, rep, assigned: !!rep };})),
-    discardFlaggedLead: (id) => setLeads((ls) => ls.filter((l) => l.id !== id)),
+    discardFlaggedLead: (id) => { setLeads((ls) => ls.filter((l) => l.id !== id)); crmApi('DELETE', '/leads/' + id); },
     addCustOpen,
     goAddCustomer: () => {setAddCustOpen(true);setPage('customers');},
     goPipeline: () => setPage('pipeline'),
@@ -2449,7 +2461,7 @@ function CRM() {
       setRepBlocked((m) => ({ ...m, [id]: true }));setCustomers((cs) => cs.map((c) => c.rep === id ? { ...c, rep: '' } : c));},
     restoreRep: (id) => setRepBlocked((m) => ({ ...m, [id]: false })),
     delinkCustomer: (id) => setCustomers((cs) => cs.map((c) => c.id === id ? { ...c, rep: '' } : c)),
-    reassignLead: (id, rep) => setLeads((ls) => ls.map((l) => l.id === id ? { ...l, rep, assigned: !!rep } : l)),
+    reassignLead: (id, rep) => { setLeads((ls) => ls.map((l) => l.id === id ? { ...l, rep, assigned: !!rep } : l)); crmApi('PUT', '/leads/' + id, { rep, assigned: !!rep }); },
     leaders,
     addLeader: (lr) => setLeaders((ls) => [...ls, { ...lr, id: 'L' + (ls.length + 1 + Date.now() % 1000) }]),
     removeLeader: (id) => setLeaders((ls) => ls.filter((l) => l.id !== id)),

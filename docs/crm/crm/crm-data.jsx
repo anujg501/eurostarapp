@@ -187,6 +187,7 @@ const CRM_LEADERBOARD = [];
   replaceInPlace(CRM_VISITS, pull('eurostar-crm-visits'));
   replaceInPlace(CRM_FRANCHISE, pull('eurostar-crm-franchise'));
   replaceInPlace(CRM_SAMPLE_PAYMENTS, pull('eurostar-crm-payments'));
+  replaceInPlace(CRM_LEADS, pull('eurostar-crm-leads'));
 })();
 
 Object.assign(window, { CRM_REPS, CRM_CUSTOMERS, CRM_ORDERS, CRM_CARTS, CRM_QUERIES, CRM_ATTENDANCE, CRM_STAGES, CRM_LEADS, CRM_CITY_REP, CRM_FRANCHISE, CRM_SALES_BY_CATEGORY, CRM_SALES_BY_MONTH, CRM_LEADERS, CRM_HELPERS, CRM_SAMPLE_PAYMENTS, CRM_VISITS, CITY_COORDS, CRM_SUMMARY, CRM_LEADERBOARD });

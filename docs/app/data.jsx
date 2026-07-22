@@ -2040,10 +2040,12 @@ const ALP_EXTRA_SHEETS = {
     ['1.50 mm',1000,1.4],['1.60 mm',1000,1.62],['1.70 mm',1000,2.0],['1.80 mm',1000,2.26],['1.90 mm',1000,2.74],
     ['2.00 mm',1000,2.98],
   ] },
+  // Rows: [size, pcs per box, ₹/piece, grams per 1000 pc]. The 4th value is the
+  // real weight from the price sheet (shown in the pad's Wt/1000 pcs column).
   'yz-green': { round: [
-    ['1.00 mm',1000,1.05],['1.10 mm',1000,1.13],['1.20 mm',1000,1.46],['1.30 mm',1000,1.86],['1.40 mm',1000,2.51],
-    ['1.50 mm',1000,3.0],['1.60 mm',1000,3.4],['1.70 mm',1000,3.73],['1.75 mm',1000,4.05],['1.80 mm',1000,4.7],
-    ['1.90 mm',1000,5.18],['2.00 mm',1000,5.83],
+    ['1.00 mm',1000,1.05,1.60],['1.10 mm',1000,1.13,2.20],['1.20 mm',1000,1.46,2.50],['1.30 mm',1000,1.86,3.10],['1.40 mm',1000,2.51,3.70],
+    ['1.50 mm',1000,3.0,4.80],['1.60 mm',1000,3.4,5.80],['1.70 mm',1000,3.73,6.50],['1.75 mm',1000,4.05,7.40],['1.80 mm',1000,4.7,8.80],
+    ['1.90 mm',1000,5.18,9.30],['2.00 mm',1000,5.83,10.80],
   ] },
 };
 function alpSheetSizes(colorId, shape) {
@@ -2054,10 +2056,16 @@ function alpSheetSku(colorId, shape, size) {
   const s = ALP_EXTRA_SHEETS[colorId];
   const row = s && s[shape] ? s[shape].find((r) => r[0] === size) : null;
   if (!row) return null;
-  return { id: 'alp-' + colorId + '-' + shape + '-' + String(size).replace(/\s/g, ''), price: row[2], pcsPerPacket: row[1], moq: row[1], size, stock: 'in', stockCount: 0 };
+  return { id: 'alp-' + colorId + '-' + shape + '-' + String(size).replace(/\s/g, ''), price: row[2], pcsPerPacket: row[1], moq: row[1], size, stock: 'in', stockCount: 0, wtPer1000: row[3] != null ? row[3] : null };
+}
+// True when this colour+shape's price sheet carries a real weight (grams/1000 pc).
+function alpSheetHasWeight(colorId, shape) {
+  const s = ALP_EXTRA_SHEETS[colorId];
+  return !!(s && s[shape] && s[shape].some((r) => r[3] != null));
 }
 window.alpSheetSizes = alpSheetSizes;
 window.alpSheetSku = alpSheetSku;
+window.alpSheetHasWeight = alpSheetHasWeight;
 
 // Bracelet: colours differ per style. Cartier = full 21-colour chart; Rolex = 6 metallic finishes.
 const BRACELET_BY_GRADE = {

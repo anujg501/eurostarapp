@@ -948,7 +948,10 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
     return rowUnit(s) === 'pc' ? n : Infinity;
   };
   const capQty = (s, v) => Math.min(v, sizeStock(s));
-  const showWt = catShowWeight(category.id);
+  // Show the weight column for weight-priced categories, or for an Alpanite
+  // colour whose uploaded price sheet carries a real grams/1000-pc figure.
+  const alpHasWt = category.id === 'alpanite' && color && window.alpSheetHasWeight && window.alpSheetHasWeight(color.id, shape);
+  const showWt = catShowWeight(category.id) || alpHasWt;
   const navMode = category.id === 'navratna'; // sold by packet, one flat price per packet, no pcs/packet
   // Natural Pearl Cabs: show a weight-per-piece (grams) column.
   const showPieceWt = category.id === 'pearls' && grade.id === 'natural' && shape === 'cabs';
@@ -1401,8 +1404,11 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
           const ruWord = unitLabel(ru);
           const r = rate(s);
           const each = ru === 'pkt' ? rowPacketPcs(s) : unitPcsEach(ru, s, category.id);
-          const ctPer1000 = 1000 / pcsPerCt(s); // carats per 1000 pcs
-          const gPer1000 = ctPer1000 * 0.2; // 1 ct = 0.2 g
+          let ctPer1000 = 1000 / pcsPerCt(s); // carats per 1000 pcs
+          let gPer1000 = ctPer1000 * 0.2; // 1 ct = 0.2 g
+          // Alpanite price sheets carry the real weight (grams/1000 pc) — use it.
+          const _wtSku = skuFor(s);
+          if (_wtSku && _wtSku.wtPer1000 != null) { gPer1000 = _wtSku.wtPer1000; ctPer1000 = gPer1000 / 0.2; }
           const q = qtyBySize[s] || 0;
           const navUnitPrice = sizeUnitPrice(product, s);
           const lineTotal = navMode ? q * navUnitPrice + foilForLine(s, q) : mixedMoiss ? stoneAmount(s, q) + certForLine(s, q) + foilForLine(s, q) : q * r + certForLine(s, q) + foilForLine(s, q);

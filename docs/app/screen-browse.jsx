@@ -973,7 +973,8 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   // chart, and never let a stray uploaded/sample SKU (which would otherwise
   // collapse the pad to just its 1-2 sizes at the flat price) take over.
   const alpGreen = category.id === 'alpanite' && color && color.id === 'green' && window.alpGreenSizes && window.alpGreenSizes(shape).length ? window.alpGreenSizes(shape) : null;
-  let sizes = category.id === 'moissanite' ? (moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm']) : alpGreen ? alpGreen : skuSizes.length ? skuSizes.slice() : (SIZES_BY_CATEGORY && SIZES_BY_CATEGORY[category.id]) ? SIZES_BY_CATEGORY[category.id].slice() : ourosaMode ? OUROSA_SIZES.map((x) => x[0]) : mixedMoiss ? moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm'] : byStrip ? FULL_SIZES[shape] || ['4.00 mm'] : FULL_SIZES[shape] || ['4.00 mm'];
+  const alpBlue = category.id === 'alpanite' && color && color.id === 'blue' && window.alpBlueSizes && window.alpBlueSizes(shape).length ? window.alpBlueSizes(shape) : null;
+  let sizes = category.id === 'moissanite' ? (moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm']) : alpGreen ? alpGreen : alpBlue ? alpBlue : skuSizes.length ? skuSizes.slice() : (SIZES_BY_CATEGORY && SIZES_BY_CATEGORY[category.id]) ? SIZES_BY_CATEGORY[category.id].slice() : ourosaMode ? OUROSA_SIZES.map((x) => x[0]) : mixedMoiss ? moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm'] : byStrip ? FULL_SIZES[shape] || ['4.00 mm'] : FULL_SIZES[shape] || ['4.00 mm'];
   // A colour may cap its size range (e.g. Alpanite Yellow / 162/2 → 1.00–2.00 mm only).
   if (color && color.sizeMax) {sizes = sizes.filter((s) => (parseFloat(s) || 0) <= color.sizeMax + 0.001);}
   // A colour may set a minimum size. Fancy NxN sizes (e.g. "3x4") are kept as-is
@@ -1012,6 +1013,10 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
     // (final ₹/piece + pcs per box) so the packet pad prices it directly.
     if (category.id === 'alpanite' && color && color.id === 'green' && window.alpGreenSku) {
       const a = window.alpGreenSku(shape, size);
+      if (a) return a;
+    }
+    if (category.id === 'alpanite' && color && color.id === 'blue' && window.alpBlueSku) {
+      const a = window.alpBlueSku(shape, size);
       if (a) return a;
     }
     return window.uploadedSkuFor ? uploadedSkuFor(category.id, shape, size, grade) : null;

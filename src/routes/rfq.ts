@@ -49,10 +49,17 @@ rfqRouter.post(
       return fail(res, 422, `RFQ needs a minimum order value of ₹${config.rules.rfqMinValue.toLocaleString('en-IN')}`);
     }
 
-    // Attribute to the signed-in customer; fall back to a passed id. Link only
-    // when it is a real Customer row so an unknown id stores unlinked, not 500.
-    let customerId: string | null =
-      (req.user?.role === 'customer' ? req.user.sub : d.customerId) ?? null;
+    // Attribute to the signed-in customer. Customers are User rows; the master
+    // record is a separate Customer keyed by phone, so resolve it by phone the
+    // same way checkout does (me.sub is a User id, not a Customer id).
+    let customerId: string | null = d.customerId ?? null;
+    if (req.user?.role === 'customer') {
+      const u = await prisma.user.findUnique({ where: { id: req.user.sub } });
+      if (u?.phone) {
+        const c = await prisma.customer.findFirst({ where: { phone: u.phone } });
+        if (c) customerId = c.id;
+      }
+    }
     if (customerId) {
       const exists = await prisma.customer.findUnique({ where: { id: customerId } });
       if (!exists) customerId = null;

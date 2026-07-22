@@ -295,6 +295,7 @@ export const GRADE_SCOPED: Record<string, boolean> = {
   labgrown: true,
   navratna: true,
   hollowmop: true,
+  bracelet: true,
 };
 
 // The grade list to offer per grade-scoped category (id must match the
@@ -328,6 +329,10 @@ export const GRADE_SCOPED_GRADES: Record<string, { id: string; name: string }[]>
     { id: 'white', name: 'White MOP' },
     { id: 'onyx', name: 'Black Onyx' },
   ],
+  bracelet: [
+    { id: 'rolex', name: 'Rolex Style' },
+    { id: 'cartier', name: 'Cartier Style' },
+  ],
 };
 
 // Some grade-scoped categories have DIFFERENT colours per grade (mirrors the
@@ -360,6 +365,73 @@ export const GRADE_SCOPED_COLOURS: Record<string, Record<string, Colour[]>> = {
       { id: 'yellow', name: 'Yellow', hex: '#E2B43A' },
       { id: 'yellow20', name: 'Yellow 20', hex: '#EAC24E' },
     ],
+  },
+  opaque: {
+    natural: [
+      { id: 'red', name: 'Red', hex: '#C0432E' },
+      { id: 'green', name: 'Green', hex: '#2E8C5C' },
+    ],
+    opal: [
+      { id: 'op290', name: 'Color #290/4', hex: '#C98AA0' },
+      { id: 'op210', name: 'Color #210/2', hex: '#7FB4C9' },
+      { id: 'op283', name: 'Color #283', hex: '#9C7DC2' },
+      { id: 'op240', name: 'Color #240', hex: '#E2B43A' },
+      { id: 'op223', name: 'Color #223/2', hex: '#5BB89A' },
+      { id: 'op216', name: 'Color #216', hex: '#5B7BC4' },
+      { id: 'op209', name: 'Color #209/3', hex: '#4F86B8' },
+      { id: 'op288', name: 'Color #288/1', hex: '#D08A5B' },
+    ],
+  },
+  bracelet: {
+    // Cartier and Rolex share colour names (Silver, Gold, Rose Gold, Black), so
+    // grade-scoping keeps their photos separate.
+    cartier: [
+      { id: 'silver', name: 'Silver', hex: '#C0C2C4' },
+      { id: 'lavender', name: 'Lavender', hex: '#9B7BBF' },
+      { id: 'wine', name: 'Wine', hex: '#6E1A2A' },
+      { id: 'royal', name: 'Royal Blue', hex: '#1E3A8A' },
+      { id: 'white', name: 'White', hex: '#F2EFE8' },
+      { id: 'brown', name: 'Brown', hex: '#5A3A28' },
+      { id: 'nightgrey', name: 'Night Grey', hex: '#4A4A48' },
+      { id: 'gold', name: 'Gold', hex: '#C9A227' },
+      { id: 'skyblue', name: 'Sky Blue', hex: '#4FA6D8' },
+      { id: 'rosegold', name: 'Rose Gold', hex: '#C98A6E' },
+      { id: 'orange', name: 'Orange', hex: '#D2691E' },
+      { id: 'navy', name: 'Navy Blue', hex: '#1B2A4A' },
+      { id: 'pink', name: 'Pink', hex: '#E6A4B4' },
+      { id: 'green', name: 'Green', hex: '#2E6B3E' },
+      { id: 'mocha', name: 'Mocha', hex: '#6B4A32' },
+      { id: 'teal', name: 'Teal Blue', hex: '#1F7A8C' },
+      { id: 'champagne', name: 'Champagne', hex: '#D8C9A8' },
+      { id: 'red', name: 'Red', hex: '#C0202E' },
+      { id: 'black', name: 'Black', hex: '#2A2A28' },
+      { id: 'magenta', name: 'Magenta', hex: '#C81E7A' },
+      { id: 'greenapple', name: 'Green Apple', hex: '#4FA02E' },
+    ],
+    rolex: [
+      { id: 'silver', name: 'Silver', hex: '#C0C2C4' },
+      { id: 'mauve', name: 'Mauve', hex: '#9E6E7A' },
+      { id: 'rosegold', name: 'Rose Gold', hex: '#C98A6E' },
+      { id: 'gold', name: 'Gold', hex: '#C9A227' },
+      { id: 'blue', name: 'Blue', hex: '#1F5FA8' },
+      { id: 'black', name: 'Black', hex: '#2A2A28' },
+    ],
+  },
+};
+
+// A few grade-scoped categories also vary their SHAPES per grade (Opaque:
+// natural stones are cut/maniya/tyre/ball-hole; opal stones are round/oval/
+// cushion). Mirrors the per-colour `shapes` in OPAQUE_COLORS_BY_GRADE. Grades
+// not listed fall back to the category's lifted shapes.
+export const GRADE_SCOPED_SHAPES: Record<string, Record<string, string[]>> = {
+  opaque: {
+    natural: ['cutstones', 'maniya', 'tyre-plain', 'tyre-fac', 'ballhole-plain', 'ballhole-fac'],
+    opal: ['round', 'oval', 'cushion'],
+  },
+  // Bracelets have no shape axis; the storefront keys the photo under 'round'.
+  bracelet: {
+    rolex: ['round'],
+    cartier: ['round'],
   },
 };
 

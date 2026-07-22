@@ -7,6 +7,7 @@ import {
   GRADE_SCOPED,
   GRADE_SCOPED_GRADES,
   GRADE_SCOPED_COLOURS,
+  GRADE_SCOPED_SHAPES,
   type Category,
   type Colour,
   type ProductImages,
@@ -258,9 +259,11 @@ function ProductPhotos({ standalone = false }: { standalone?: boolean } = {}) {
 
   const scoped = !!GRADE_SCOPED[cat];
   const gradeChoices = GRADE_SCOPED_GRADES[cat] ?? [];
-  // Grades that carry their own colour set (Lab Grown "Created"/"Corundum") show
-  // those colours; others fall back to the category's lifted base colours.
+  // Grades that carry their own colour set (Lab Grown "Created"/"Corundum",
+  // Opaque "Opal", each Bracelet style) show those; others fall back to the
+  // category's lifted base colours. Same idea for shapes (Opaque cut vs opal).
   const effColours = (scoped && GRADE_SCOPED_COLOURS[cat]?.[grade]) || colours;
+  const effShapes = (scoped && GRADE_SCOPED_SHAPES[cat]?.[grade]) || shapes;
 
   const save = async (key: string, dataUrl: string | null) => {
     setBusyKey(key);
@@ -334,7 +337,7 @@ function ProductPhotos({ standalone = false }: { standalone?: boolean } = {}) {
 
       {error && <div className="ad-error" style={{ marginTop: 12 }}>{error}</div>}
 
-      {effColours.length === 0 || shapes.length === 0 ? (
+      {effColours.length === 0 || effShapes.length === 0 ? (
         <p className="ad-hint" style={{ marginTop: 14 }}>
           This category has no {effColours.length === 0 ? 'colours' : 'shapes'} yet — add them under Catalog → {cats.find((c) => c.key === cat)?.name} first,
           then each colour × shape gets a photo slot here.
@@ -348,7 +351,7 @@ function ProductPhotos({ standalone = false }: { standalone?: boolean } = {}) {
               <thead>
                 <tr>
                   <th>Colour</th>
-                  {shapes.map((sh) => (
+                  {effShapes.map((sh) => (
                     <th key={sh}>{sh}</th>
                   ))}
                 </tr>
@@ -360,7 +363,7 @@ function ProductPhotos({ standalone = false }: { standalone?: boolean } = {}) {
                       <i className="ad-sw" style={{ background: col.hex || '#ccc' }} />
                       {col.name}
                     </td>
-                    {shapes.map((sh) => {
+                    {effShapes.map((sh) => {
                       const key = productImageKey(cat, col.id, sh, scoped ? grade : undefined);
                       const img = resolveProductImage(images, cat, col.id, sh, scoped ? grade : undefined);
                       return (

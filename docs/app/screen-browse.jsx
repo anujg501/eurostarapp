@@ -578,7 +578,12 @@ function BraceletOrderPad({ grade, colors, imgPrefix, category, qtyBySize, setQt
   const price = grade.basePrice || 0;
   const [selId, setSelId] = React.useState(colors[0].id);
   const sel = colors.find((c) => c.id === selId) || colors[0];
-  const img = (id) => (imgPrefix || 'assets/products/bracelet-') + id + '.jpg';
+  // Prefer an admin-uploaded photo, keyed per style (grade) so Rolex and Cartier
+  // keep separate images even for shared colour names; fall back to the built-in
+  // bracelet asset for that style.
+  const img = (id) =>
+    (window.getStoredProductImage && window.getStoredProductImage('bracelet', id, 'round', grade.id)) ||
+    (imgPrefix || 'assets/products/bracelet-') + id + '.jpg';
   const q = qtyBySize[selId] || 0;
   const setQ = (v) => setQtyBySize((p) => ({ ...p, [selId]: Math.max(0, parseInt(v, 10) || 0) }));
   const bump = (d) => setQtyBySize((p) => ({ ...p, [selId]: Math.max(0, (p[selId] || 0) + d) }));

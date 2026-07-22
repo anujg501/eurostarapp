@@ -1,7 +1,9 @@
 // crm-app.jsx — Eurostar CRM: Admin · Sales Rep · Back Office (full multi-screen navigation)
 const { useState } = React;
 const H = window.CRM_HELPERS;
-const FLOW = ['new', 'confirmed', 'packed', 'shipped', 'delivered'];
+const FLOW = ['new', 'confirmed', 'packed', 'shipped', 'out-for-delivery', 'delivered'];
+// Terminal states outside the forward pipeline.
+const ORDER_TERMINAL = ['cancelled', 'rejected', 'returned', 'refunded'];
 
 /* ===== Ingest reps onboarded from the LMS (shared localStorage bus) =====
    The LMS writes a rep record to 'eurostar-crm-new-hires' on "Onboard to CRM".
@@ -52,7 +54,9 @@ function Pill({ s, label }) {
   return <span className={`pill ${cls}`}>{label || s}</span>;
 }
 function statusLabel(s) {
-  return { 'new': 'New', 'confirmed': 'Confirmed', 'packed': 'Packed', 'shipped': 'Shipped', 'delivered': 'Delivered',
+  return { 'new': 'New', 'confirmed': 'Confirmed', 'packed': 'Packed', 'shipped': 'Dispatched', 'dispatched': 'Dispatched',
+    'out-for-delivery': 'Out for delivery', 'delivered': 'Delivered',
+    'cancelled': 'Cancelled', 'rejected': 'Rejected', 'returned': 'Returned', 'refunded': 'Refunded',
     'active': 'Open cart', 'abandoned': 'Abandoned', 'quote-requested': 'Quote requested', 'open': 'Open', 'answered': 'Answered' }[s] || s;
 }
 function SecHead({ title, meta }) {

@@ -393,7 +393,12 @@ ordersRouter.post(
 // (new → confirmed → packed → shipped → delivered). Marking it shipped/dispatched
 // writes a Mira shipment notification for the customer.
 const pipelineSchema = z.object({
-  status: z.enum(['pending', 'confirmed', 'packed', 'shipped', 'dispatched', 'delivered', 'cancelled']).optional(),
+  status: z
+    .enum([
+      'pending', 'confirmed', 'packed', 'shipped', 'dispatched', 'out-for-delivery',
+      'delivered', 'cancelled', 'rejected', 'returned', 'refunded',
+    ])
+    .optional(),
   courier: z.string().optional(),
   track: z.string().optional(),
 });

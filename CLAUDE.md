@@ -18,6 +18,11 @@ When the user uploads a price-list spreadsheet for a colour/grade:
   - Add `alp<Colour>Sizes(shape)` and `alp<Colour>Sku(shape, size)` (returns `{ price, pcsPerPacket, moq, ... }`), exported on `window`.
   - Wire `docs/app/screen-browse.jsx` `SizeOrderPad`: gate `sizes` and `skuFor(size)` to that `color.id`, alongside the green/blue branches.
 - Never fabricate prices. Parse the sheet programmatically and spot-check a few values before committing.
+- **Default MOQ / pieces-per-box ladder (round sizes)** — use when a sheet gives price but no pcs-per-box:
+  - 0.70–2.00 mm → **1000** pcs
+  - 2.10–3.00 mm → **500** pcs
+  - 3.25, 3.50, 3.75, 4.00 mm → **200** pcs
+  (Only fill this in when the file has no other pieces-per-box info. If a size falls outside this ladder and isn't in the file, ask.)
 
 ## Product images (per-grade)
 - Photos are stored via the backend (`PUT /admin/product-images`), keyed `cat|colour|shape`, or `cat|grade|colour|shape` for grade-scoped categories.

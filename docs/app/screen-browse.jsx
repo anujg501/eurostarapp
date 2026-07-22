@@ -954,7 +954,8 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   // colour whose uploaded price sheet carries a real grams/1000-pc figure.
   const alpHasWt = category.id === 'alpanite' && color && window.alpSheetHasWeight && window.alpSheetHasWeight(color.id, shape);
   const hdHasWt = category.id === 'highdensity' && grade && window.hdHasWeight && window.hdHasWeight(grade.id, shape);
-  const showWt = catShowWeight(category.id) || alpHasWt || hdHasWt;
+  const czHasWt = category.id === 'whitecz' && grade && window.czHasWeight && window.czHasWeight(grade.id, shape);
+  const showWt = catShowWeight(category.id) || alpHasWt || hdHasWt || czHasWt;
   const navMode = category.id === 'navratna'; // sold by packet, one flat price per packet, no pcs/packet
   // Natural Pearl Cabs: show a weight-per-piece (grams) column.
   const showPieceWt = category.id === 'pearls' && grade.id === 'natural' && shape === 'cabs';
@@ -988,7 +989,9 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   const corSheet = category.id === 'corundum' && grade && color && window.corSizes && window.corSizes(grade.id, color.id, shape).length ? window.corSizes(grade.id, color.id, shape) : null;
   // White Fancy Shapes: per-grade price sheet (Le Plus / Au Desus).
   const wfSheet = category.id === 'whitefancy' && grade && window.wfSizes && window.wfSizes(grade.id, shape).length ? window.wfSizes(grade.id, shape) : null;
-  let sizes = category.id === 'moissanite' ? (moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm']) : alpGreen ? alpGreen : alpBlue ? alpBlue : alpSheet ? alpSheet : hdSheet ? hdSheet : corSheet ? corSheet : wfSheet ? wfSheet : skuSizes.length ? skuSizes.slice() : (SIZES_BY_CATEGORY && SIZES_BY_CATEGORY[category.id]) ? SIZES_BY_CATEGORY[category.id].slice() : ourosaMode ? OUROSA_SIZES.map((x) => x[0]) : mixedMoiss ? moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm'] : byStrip ? FULL_SIZES[shape] || ['4.00 mm'] : FULL_SIZES[shape] || ['4.00 mm'];
+  // White Round CZ: per-subgrade round price+weight sheet.
+  const czSheet = category.id === 'whitecz' && grade && window.czSizes && window.czSizes(grade.id, shape).length ? window.czSizes(grade.id, shape) : null;
+  let sizes = category.id === 'moissanite' ? (moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm']) : alpGreen ? alpGreen : alpBlue ? alpBlue : alpSheet ? alpSheet : hdSheet ? hdSheet : corSheet ? corSheet : wfSheet ? wfSheet : czSheet ? czSheet : skuSizes.length ? skuSizes.slice() : (SIZES_BY_CATEGORY && SIZES_BY_CATEGORY[category.id]) ? SIZES_BY_CATEGORY[category.id].slice() : ourosaMode ? OUROSA_SIZES.map((x) => x[0]) : mixedMoiss ? moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm'] : byStrip ? FULL_SIZES[shape] || ['4.00 mm'] : FULL_SIZES[shape] || ['4.00 mm'];
   // A colour may cap its size range (e.g. Alpanite Yellow / 162/2 → 1.00–2.00 mm only).
   if (color && color.sizeMax) {sizes = sizes.filter((s) => (parseFloat(s) || 0) <= color.sizeMax + 0.001);}
   // A colour may set a minimum size. Fancy NxN sizes (e.g. "3x4") are kept as-is
@@ -1051,6 +1054,11 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
     // White Fancy Shapes: per-grade price sheet (Le Plus / Au Desus).
     if (category.id === 'whitefancy' && grade && window.wfSku) {
       const a = window.wfSku(grade.id, shape, size);
+      if (a) return a;
+    }
+    // White Round CZ: per-subgrade round price sheet.
+    if (category.id === 'whitecz' && grade && window.czSku) {
+      const a = window.czSku(grade.id, shape, size);
       if (a) return a;
     }
     return window.uploadedSkuFor ? uploadedSkuFor(category.id, shape, size, grade) : null;

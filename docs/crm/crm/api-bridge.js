@@ -126,12 +126,16 @@
       if (Array.isArray(rfqs)) {
         put('eurostar-crm-queries', rfqs.map(function (r) {
           var it = Array.isArray(r.items) && r.items[0] ? r.items[0] : {};
+          var d = r.detail || {};
           return {
-            id: r.id, cust: r.customerId || '', status: r.status || 'open', channel: '',
-            date: dateOnly(r.createdAt), product: it.name || it.product || '',
-            size: it.size || '', weight: '', quality: it.quality || it.grade || '',
-            qty: it.qty ? String(it.qty) : '', city: '', contactName: '', contact: '',
-            special: it.special || '', image: '',
+            id: r.id, cust: r.custCode || r.customerId || '', custName: r.custName || d.contactName || '',
+            status: r.status || 'open', channel: '',
+            date: dateOnly(r.createdAt), assignedRep: r.assignedRep || '',
+            product: d.product || it.name || it.shape || '',
+            size: d.size || it.size || '', weight: d.weight || '',
+            quality: d.quality || it.grade || '', qty: d.qty || (it.qty ? String(it.qty) : ''),
+            city: r.city || d.city || '', contactName: d.contactName || '', contact: d.contact || '',
+            special: d.special || it.note || '', image: d.image || '',
           };
         }));
       }
@@ -190,10 +194,10 @@
     // Bump this key whenever the hydrate writes new localStorage keys, so a
     // session that already hydrated under an older bridge re-runs once and picks
     // up the new data (otherwise it skips the reload and keeps rendering seed).
-    if (!sessionStorage.getItem('crm-hydrated-v7')) {
+    if (!sessionStorage.getItem('crm-hydrated-v9')) {
       // First visit this session: load live data, then reload so the CRM renders it.
       hydrate().then(function () {
-        sessionStorage.setItem('crm-hydrated-v7', '1');
+        sessionStorage.setItem('crm-hydrated-v9', '1');
         location.reload();
       });
     } else {

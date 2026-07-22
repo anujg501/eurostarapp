@@ -999,6 +999,36 @@ function RfqStub({ setRoute }) {
   const [imgName, setImgName] = React.useState('');
   const [submitted, setSubmitted] = React.useState(false);
   const fileRef = React.useRef(null);
+  // The form used to capture nothing — Submit just showed the thank-you screen
+  // and the enquiry never reached the CRM. Now it is controlled and POSTs.
+  const [f, setF] = React.useState({ product: '', size: '', weight: '', quality: '', qty: '', special: '', name: '', contact: '', city: '' });
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState('');
+  const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }));
+
+  const submit = () => {
+    if (busy) return;
+    if (!f.product.trim() || !f.qty.trim() || !f.name.trim() || !f.contact.trim() || !f.city.trim()) {
+      setErr('Product, quantity, name, contact and city are required.');
+      return;
+    }
+    setErr(''); setBusy(true);
+    const headers = { 'content-type': 'application/json' };
+    try { var t = localStorage.getItem('eurostar_token'); if (t) headers.authorization = 'Bearer ' + t; } catch (e) {}
+    fetch((window.EUROSTAR_API || location.origin) + '/rfq', {
+      method: 'POST', headers: headers,
+      body: JSON.stringify({
+        value: 10000, // RFQ has no price at request time; send the ₹10,000 minimum
+        items: [{ shape: f.product, size: f.size, note: f.special }],
+        city: f.city,
+        detail: { product: f.product, size: f.size, qty: f.qty, weight: f.weight, quality: f.quality, contactName: f.name, contact: f.contact, special: f.special, image: imgPreview || '' },
+      }),
+    })
+      .then((r) => { if (!r.ok) throw new Error('failed'); return r.json(); })
+      .then(() => setSubmitted(true))
+      .catch(() => setErr('Could not submit right now. Please sign in and try again.'))
+      .finally(() => setBusy(false));
+  };
 
   const onFile = (e) => {
     const f = e.target.files && e.target.files[0];
@@ -1080,23 +1110,23 @@ function RfqStub({ setRoute }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
           <label style={{ gridColumn: '1 / -1' }}>
             {fieldLabel('Product name', true)}
-            <input style={inputStyle} placeholder="e.g. Moissanite DEF Round, Cabochon Ruby…" />
+            <input style={inputStyle} placeholder="e.g. Moissanite DEF Round, Cabochon Ruby…" value={f.product} onChange={set('product')} />
           </label>
           <label>
             {fieldLabel('Size')}
-            <input style={inputStyle} placeholder="e.g. 3.00 mm / 7×5 mm" />
+            <input style={inputStyle} placeholder="e.g. 3.00 mm / 7×5 mm" value={f.size} onChange={set('size')} />
           </label>
           <label>
             {fieldLabel('Weight (grams)')}
-            <input style={inputStyle} type="number" inputMode="decimal" placeholder="e.g. 25" />
+            <input style={inputStyle} type="number" inputMode="decimal" placeholder="e.g. 25" value={f.weight} onChange={set('weight')} />
           </label>
           <label>
             {fieldLabel('Quality')}
-            <input style={inputStyle} placeholder="e.g. VVS DEF / AAA / AAAAA" />
+            <input style={inputStyle} placeholder="e.g. VVS DEF / AAA / AAAAA" value={f.quality} onChange={set('quality')} />
           </label>
           <label>
             {fieldLabel('Quantity required', true)}
-            <input style={inputStyle} placeholder="e.g. 500 pcs / 50 ct / 10 packets" />
+            <input style={inputStyle} placeholder="e.g. 500 pcs / 50 ct / 10 packets" value={f.qty} onChange={set('qty')} />
           </label>
         </div>
 
@@ -1143,7 +1173,7 @@ function RfqStub({ setRoute }) {
         <label style={{ display: 'block', marginTop: 20 }}>
           {fieldLabel('Special request')}
           <textarea rows="3" style={{ ...inputStyle, resize: 'vertical' }}
-            placeholder="Matched pairs, certificate requirements, calibration tolerance, delivery preferences…" />
+            placeholder="Matched pairs, certificate requirements, calibration tolerance, delivery preferences…" value={f.special} onChange={set('special')} />
         </label>
 
         {/* Contact */}
@@ -1155,24 +1185,25 @@ function RfqStub({ setRoute }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
           <label>
             {fieldLabel('Your name', true)}
-            <input style={inputStyle} placeholder="Full name" />
+            <input style={inputStyle} placeholder="Full name" value={f.name} onChange={set('name')} />
           </label>
           <label>
             {fieldLabel('Contact number', true)}
-            <input style={inputStyle} type="tel" placeholder="+91 / +971 …" />
+            <input style={inputStyle} type="tel" placeholder="+91 / +971 …" value={f.contact} onChange={set('contact')} />
           </label>
           <label>
             {fieldLabel('City', true)}
-            <input style={inputStyle} placeholder="e.g. Surat, Mumbai, Dubai" />
+            <input style={inputStyle} placeholder="e.g. Surat, Mumbai, Dubai" value={f.city} onChange={set('city')} />
           </label>
         </div>
 
+        {err && <div style={{ marginTop: 16, color: 'var(--ruby)', fontSize: 13, fontWeight: 600 }}>{err}</div>}
         <div style={{ display: 'flex', gap: 10, marginTop: 24, justifyContent: 'flex-end', alignItems: 'center' }}>
           <span style={{ fontSize: 12, color: 'var(--fg-meta)', marginRight: 'auto' }}>
             <span style={{ color: 'var(--ruby)' }}>*</span> required fields
           </span>
           <button className="btn btn-secondary" onClick={() => setRoute({ name: 'home' })}>Cancel</button>
-          <button className="btn btn-accent btn-lg" onClick={() => setSubmitted(true)}>Submit RFQ</button>
+          <button className="btn btn-accent btn-lg" disabled={busy} onClick={submit}>{busy ? 'Submitting…' : 'Submit RFQ'}</button>
         </div>
       </div>
     </div>

@@ -729,7 +729,7 @@ function OfficeQueries({ st }) {
           <thead><tr><th>Ref</th><th>Customer</th><th>Product</th><th>Size</th><th>Qty</th><th>City</th><th>Assigned rep</th><th>Status</th><th></th></tr></thead>
           <tbody>{st.queries.map((q) => {const cu = H.cust(q.cust);return (
                 <React.Fragment key={q.id}>
-            <tr><td className="crm-id">{q.id}</td><td>{cu.name}</td><td>{q.product}</td><td className="crm-muted">{q.size}</td>
+            <tr><td className="crm-id">{q.id}</td><td>{cu.name || q.custName || '—'}</td><td>{q.product}</td><td className="crm-muted">{q.size}</td>
             <td className="crm-muted">{q.qty}</td><td className="crm-muted">{q.city}</td>
             <td><select className="disc-input" style={{ width: 130, textAlign: 'left' }} value={q.assignedRep || ''} onChange={(e) => st.assignRfq(q.id, e.target.value)}>
               <option value="">— Unassigned —</option>
@@ -2365,9 +2365,9 @@ function CRM() {
     removeCart: (id) => {if (confirm('Remove this cart? This cannot be undone.')) setCarts((cs) => cs.filter((c) => c.id !== id));},
     editOrder: (id) => setEditTarget({ kind: 'order', id }),
     removeOrder: (id) => {if (confirm('Remove this completed order? This cannot be undone.')) setOrders((os) => os.filter((o) => o.id !== id));},
-    answer: (id) => setQueries((qs) => qs.map((q) => q.id === id ? { ...q, status: 'answered' } : q)),
-    assignRfq: (id, rep) => setQueries((qs) => qs.map((q) => q.id === id ? { ...q, assignedRep: rep } : q)),
-    autoAssignRfq: () => setQueries((qs) => qs.map((q) => {const cu = H.cust(q.cust);const byCity = (window.CRM_CITY_REP || {})[q.city || cu.city];return byCity ? { ...q, assignedRep: byCity } : q;})),
+    answer: (id) => { setQueries((qs) => qs.map((q) => q.id === id ? { ...q, status: 'answered' } : q)); crmApi('PUT', '/rfq/' + id, { status: 'answered' }); },
+    assignRfq: (id, rep) => { setQueries((qs) => qs.map((q) => q.id === id ? { ...q, assignedRep: rep } : q)); crmApi('PUT', '/rfq/' + id, { assignedRep: rep }); },
+    autoAssignRfq: () => setQueries((qs) => qs.map((q) => {const cu = H.cust(q.cust);const byCity = (window.CRM_CITY_REP || {})[q.city || cu.city];if (byCity) crmApi('PUT', '/rfq/' + q.id, { assignedRep: byCity });return byCity ? { ...q, assignedRep: byCity } : q;})),
     checkin,
     doCheckin: (id, photo) => setCheckin((m) => ({ ...m, [id]: { photo, time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) } })),
     leads,

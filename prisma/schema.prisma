@@ -249,8 +249,11 @@ model Rfq {
   customerId String?
   customer   Customer? @relation(fields: [customerId], references: [id])
   value      Int
-  status     String   @default("open") // "open" | "quoted" | "closed"
+  status     String   @default("open") // "open" | "answered" | "quoted" | "closed"
   lines      String // JSON-encoded list of requested items (SQLite has no JSON type)
+  assignedRep String? // repId the CRM routed this enquiry to
+  city       String?
+  detail     String? // JSON: product/size/qty/weight/quality/contactName/contact/special/image
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 

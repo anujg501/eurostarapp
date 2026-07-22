@@ -18,15 +18,10 @@ const CRM_CUSTOMERS = [
 ];
 
 // status: new | confirmed | packed | shipped | delivered
-const CRM_ORDERS = [
-  { id: 'SO-24881', cust: 'EUR-10482', date: '2026-06-14', status: 'new', value: 184500, items: 7, courier: '', track: '', discount: 0 },
-  { id: 'SO-24876', cust: 'EUR-10517', date: '2026-06-13', status: 'confirmed', value: 412800, items: 14, courier: '', track: '', discount: 5 },
-  { id: 'SO-24869', cust: 'EUR-10663', date: '2026-05-02', status: 'delivered', value: 96400, items: 5, courier: 'Bluedart', track: 'BD220045', discount: 0 },
-  { id: 'SO-24855', cust: 'EUR-10701', date: '2026-06-11', status: 'shipped', value: 142300, items: 9, courier: 'DTDC', track: 'DT884510023', discount: 3 },
-  { id: 'SO-24840', cust: 'EUR-10788', date: '2026-06-09', status: 'delivered', value: 268000, items: 11, courier: 'Bluedart', track: 'BD771209845', discount: 0 },
-  { id: 'SO-24822', cust: 'EUR-10482', date: '2026-06-07', status: 'delivered', value: 88900, items: 4, courier: 'Professional', track: 'PR556120098', discount: 0 },
-  { id: 'SO-24810', cust: 'EUR-10744', date: '2026-06-05', status: 'delivered', value: 54200, items: 3, courier: 'DTDC', track: 'DT884320011', discount: 8 },
-];
+// No demo/seed orders — Recent Orders and the Orders screen show only real
+// orders from the local database (hydrated by the api-bridge). Empty until
+// hydrated, never fake rows.
+const CRM_ORDERS = [];
 
 // status: active (open) | abandoned | quote-requested
 const CRM_CARTS = [

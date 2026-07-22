@@ -125,6 +125,7 @@ reportsRouter.get(
       customerCount, repCount, openRfq,
       mtdSalesAgg, revenueAgg, paidAgg,
       activeCustomerRows, openCartCount, openCartValueAgg,
+      pendingPayments, rejectedPayments, todaysCollectionsAgg, verifiedTodayCount,
     ] = await Promise.all([
       // Orders = New + Confirmed + Packed + Dispatched + Out-for-delivery.
       prisma.order.count({ where: { status: { in: OPEN_ORDER_STATUSES } } }),
@@ -143,6 +144,11 @@ reportsRouter.get(
       prisma.order.findMany({ where: { customerId: { not: null } }, distinct: ['customerId'], select: { customerId: true } }),
       prisma.cart.count({ where: { status: 'active' } }),
       prisma.cartLine.aggregate({ _sum: { lineTotal: true }, where: { cart: { status: 'active' } } }),
+      // Payment verification counters.
+      prisma.payment.count({ where: { status: 'pending' } }),
+      prisma.payment.count({ where: { status: 'failed' } }),
+      prisma.payment.aggregate({ _sum: { amount: true }, where: { status: 'confirmed', loggedAt: { gte: todayStart } } }),
+      prisma.payment.count({ where: { status: 'confirmed', verifiedAt: { gte: todayStart } } }),
     ]);
 
     const mtdSales = mtdSalesAgg._sum.grand || 0;
@@ -164,6 +170,10 @@ reportsRouter.get(
       revenue,
       collected,
       outstanding: Math.max(0, revenue - collected),
+      pendingPayments,
+      rejectedPayments,
+      todaysCollections: todaysCollectionsAgg._sum.amount || 0,
+      verifiedToday: verifiedTodayCount,
     });
   })
 );

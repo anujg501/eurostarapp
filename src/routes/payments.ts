@@ -25,6 +25,8 @@ function serialisePayment(p: any) {
     img: p.img,
     status: p.status,
     source: p.source,
+    verifiedAt: p.verifiedAt ?? null,
+    rejectReason: p.rejectReason ?? null,
     loggedAt: p.loggedAt,
   };
 }
@@ -163,15 +165,49 @@ paymentsRouter.put(
   authenticate,
   requireInternal,
   asyncHandler(async (req: AuthedRequest, res) => {
-    const parsed = z.object({ status: z.enum(['pending', 'confirmed', 'failed']) }).safeParse(req.body);
+    const parsed = z
+      .object({ status: z.enum(['pending', 'confirmed', 'failed']), reason: z.string().optional() })
+      .safeParse(req.body);
     if (!parsed.success) return failValidation(res, parsed.error);
     const existing = await prisma.payment.findUnique({ where: { id: req.params.id } });
     if (!existing) return fail(res, 404, 'Payment not found');
-    const payment = await prisma.payment.update({
-      where: { id: existing.id },
-      data: { status: parsed.data.status },
-    });
-    if (parsed.data.status === 'confirmed' && existing.orderId) await markOrderPaid(existing.orderId);
+    const me = req.user;
+    const now = new Date();
+
+    // Audit trail: record who verified/rejected and when. Reject keeps the reason.
+    const data: {
+      status: string;
+      verifiedById?: string | null;
+      verifiedAt?: Date | null;
+      rejectReason?: string | null;
+    } = { status: parsed.data.status };
+    if (parsed.data.status === 'confirmed') {
+      data.verifiedById = me?.sub ?? null;
+      data.verifiedAt = now;
+      data.rejectReason = null;
+    } else if (parsed.data.status === 'failed') {
+      data.verifiedById = me?.sub ?? null;
+      data.verifiedAt = now;
+      data.rejectReason = parsed.data.reason ?? '';
+    }
+    const payment = await prisma.payment.update({ where: { id: existing.id }, data });
+
+    // Propagate to the order.
+    if (existing.orderId) {
+      const order = await prisma.order.findUnique({ where: { id: existing.orderId } });
+      if (order) {
+        if (parsed.data.status === 'confirmed') {
+          // Verified → order is paid and moves into the confirmed pipeline.
+          await prisma.order.update({
+            where: { id: order.id },
+            data: { paid: true, ...(order.status === 'pending' ? { status: 'confirmed' } : {}) },
+          });
+        } else if (parsed.data.status === 'failed') {
+          // Rejected → payment failed; the order is no longer treated as paid.
+          await prisma.order.update({ where: { id: order.id }, data: { paid: false } });
+        }
+      }
+    }
     return ok(res, serialisePayment(payment));
   })
 );

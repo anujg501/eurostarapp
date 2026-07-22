@@ -37,6 +37,7 @@ model User {
   customersAsRep Customer[] @relation("RepCustomers")
   ordersTaken    Order[]    @relation("OrderTakenBy")
   paymentsTaken  Payment[]  @relation("PaymentReceivedBy")
+  paymentsVerified Payment[] @relation("PaymentVerifiedBy")
 }
 
 // "Remember me" tokens — let a user stay logged in without retyping.
@@ -234,6 +235,11 @@ model Payment {
   source       String   @default("Sales App")
   receivedById String?
   receivedBy   User?    @relation("PaymentReceivedBy", fields: [receivedById], references: [id])
+  // Verification audit trail (who confirmed/rejected, when, and why).
+  verifiedById String?
+  verifiedBy   User?    @relation("PaymentVerifiedBy", fields: [verifiedById], references: [id])
+  verifiedAt   DateTime?
+  rejectReason String?
   loggedAt     DateTime @default(now())
 
   @@index([orderId])

@@ -2407,6 +2407,15 @@ function CRM() {
         setCarts(rows.map((c) => ({ id: c.id, cust: c.customerId || '', updated: dateOnly(c.updatedAt), status: c.status || 'active', value: (c.totals && c.totals.grand) || 0, items: Array.isArray(c.lines) ? c.lines.length : 0, age: '', note: '' })));
       })
       .catch(() => {});
+    // Payment log — straight from the Payments table. 'failed' is the API term
+    // for the CRM's 'rejected' tab.
+    fetch(API + '/payments', { headers: { authorization: 'Bearer ' + tok } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((rows) => {
+        if (!Array.isArray(rows) || !rows.length) return;
+        setPayments(rows.map((p) => (p.status === 'failed' ? { ...p, status: 'rejected' } : p)));
+      })
+      .catch(() => {});
   }, []);
 
   const st = {
@@ -2522,7 +2531,12 @@ function CRM() {
     checkInVisit: (rep, custId, geo) => setVisits((vs) => [...vs, { id: 'VST-' + (300 + vs.length), rep, custId, day: '2026-06-16', checkIn: new Date().toISOString(), inLat: geo.lat, inLng: geo.lng, inAcc: geo.acc, inSource: geo.source, checkOut: null, outLat: null, outLng: null }]),
     checkOutVisit: (id, geo) => setVisits((vs) => vs.map((v) => v.id === id ? { ...v, checkOut: new Date().toISOString(), outLat: geo.lat, outLng: geo.lng } : v)),
     verifyPayment: (id) => { setPayments((ps) => ps.map((p) => p.id === id ? { ...p, status: 'confirmed' } : p)); crmApi('PUT', '/payments/' + id, { status: 'confirmed' }); },
-    rejectPayment: (id) => { setPayments((ps) => ps.map((p) => p.id === id ? { ...p, status: 'rejected' } : p)); crmApi('PUT', '/payments/' + id, { status: 'failed' }); },
+    rejectPayment: (id) => {
+      const reason = prompt('Reason for rejecting this payment? (the customer and rep are notified)');
+      if (reason === null) return; // cancelled the reject
+      setPayments((ps) => ps.map((p) => p.id === id ? { ...p, status: 'rejected', rejectReason: reason } : p));
+      crmApi('PUT', '/payments/' + id, { status: 'failed', reason: reason || '' });
+    },
     paidByCust: (custId) => payments.filter((p) => p.custId === custId && p.status === 'confirmed').reduce((a, p) => a + (p.amount || 0), 0),
     paidByOrder: (orderId) => payments.filter((p) => p.orderId === orderId && p.status === 'confirmed').reduce((a, p) => a + (p.amount || 0), 0),
     repBlocked,

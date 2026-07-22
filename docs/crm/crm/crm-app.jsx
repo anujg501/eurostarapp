@@ -2344,6 +2344,34 @@ function CRM() {
     } catch (e) {}
   };
 
+  // Load orders straight from the database on mount, independent of the
+  // localStorage/bridge hydration. This guarantees the dashboard, Recent Orders
+  // and Orders screen show real orders whenever the API is reachable — the seed
+  // arrays are only ever a first-paint/offline fallback, never what persists.
+  React.useEffect(() => {
+    const API = window.EUROSTAR_API || location.origin;
+    let tok = '';
+    try { tok = localStorage.getItem('eurostar-admin-token') || ''; } catch (e) {}
+    if (!tok) return;
+    const dateOnly = (x) => { if (!x) return ''; const d = typeof x === 'number' ? new Date(x) : new Date(String(x)); return isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10); };
+    fetch(API + '/orders', { headers: { authorization: 'Bearer ' + tok } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((rows) => {
+        if (!Array.isArray(rows) || !rows.length) return; // keep fallback if empty/unreachable
+        const mapped = rows.map((o) => ({
+          id: o.id, cust: o.code || o.customerId || '', date: dateOnly(o.ts || o.createdAt),
+          status: o.status === 'pending' ? 'new' : (o.status || 'new'),
+          value: o.grand || o.value || 0, items: Array.isArray(o.items) ? o.items.length : 0,
+          courier: o.courier || '', track: o.track || '', discount: 0,
+        }));
+        setOrders(mapped);
+        // Some dashboard cards (Total sales, Sales-by-rep) read the CRM_ORDERS
+        // global directly, so replace its contents in place too.
+        try { if (Array.isArray(window.CRM_ORDERS)) { window.CRM_ORDERS.length = 0; mapped.forEach((o) => window.CRM_ORDERS.push(o)); } } catch (e) {}
+      })
+      .catch(() => {});
+  }, []);
+
   const st = {
     customers, orders, carts, queries, repRates, repTargets, newAdds, reps, leaders, payments, visits,
     setTerms: (id, v) => setCustomers((cs) => cs.map((c) => c.id === id ? { ...c, terms: v } : c)),

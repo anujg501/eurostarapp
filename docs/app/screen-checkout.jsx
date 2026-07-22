@@ -260,16 +260,30 @@ function PaymentScreen({ order, persona, onPaid, onBack }) {
   // Fallback used when online payment isn't live yet (Razorpay keys not set) or
   // the gateway can't load — the previous simulated confirmation. Keeps the app
   // fully working before/without Razorpay.
-  const simulatedPay = () => { setProcessing(true); setTimeout(() => { setProcessing(false);
+  const simulatedPay = () => { setProcessing(true);
+    const payload = {
+      id: 'PAY-APP-' + order.id, orderId: order.id,
+      custId: (order.customer && order.customer.id) || '',
+      custCode: (order.customer && order.customer.code) || persona.code || '',
+      custName: (order.customer && order.customer.name) || persona.company || '',
+      mode: method, amount: order.grand || 0, utr: 'ONLINE-' + Date.now().toString().slice(-8),
+      date: new Date().toISOString().slice(0, 10), by: '', contact: '', img: null,
+      status: 'confirmed', source: 'Sales App', loggedAt: new Date().toISOString(),
+    };
+    // Keep the localStorage copy for the CRM's "incoming" panel …
     try {
       const k = 'eurostar-crm-incoming-payments';
       const arr = JSON.parse(localStorage.getItem(k) || '[]') || [];
-      if (!arr.some((p) => p.orderId === order.id)) {
-        arr.unshift({ id: 'PAY-APP-' + order.id, orderId: order.id, custId: (order.customer && order.customer.id) || '', custCode: (order.customer && order.customer.code) || persona.code || '', custName: (order.customer && order.customer.name) || persona.company || '', mode: method, amount: order.grand || 0, utr: 'ONLINE-' + Date.now().toString().slice(-8), date: new Date().toISOString().slice(0, 10), by: '', contact: '', img: null, status: 'confirmed', source: 'Sales App', loggedAt: new Date().toISOString() });
-        localStorage.setItem(k, JSON.stringify(arr));
-      }
+      if (!arr.some((p) => p.orderId === order.id)) { arr.unshift(payload); localStorage.setItem(k, JSON.stringify(arr)); }
     } catch (e) {}
-    onPaid(); }, 1400); };
+    // … and persist it to the server so the payment shows in the CRM Payment log
+    // (previously it lived only in this browser's localStorage, so a website
+    // order left no payment record for the back office).
+    ensureOrder()
+      .then(function () { return fetch(API + '/payments', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) }).catch(function () {}); })
+      .catch(function () {})
+      .then(function () { setProcessing(false); onPaid(); });
+  };
 
   // Make sure the order exists in the back room so the verified payment can be
   // attached to it (the confirmation screen also pushes it; upsert dedups by id).

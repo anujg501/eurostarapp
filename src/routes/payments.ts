@@ -50,7 +50,7 @@ const createSchema = z.object({
   custId: z.string().optional(),
   custCode: z.string().optional(),
   custName: z.string().optional(),
-  mode: z.enum(['upi', 'card', 'netbanking', 'neft', 'qr']),
+  mode: z.enum(['upi', 'card', 'netbanking', 'neft', 'qr', 'cash', 'cheque']),
   amount: z.number().int().positive(),
   utr: z.string().optional(),
   date: z.string().optional(),
@@ -96,8 +96,16 @@ paymentsRouter.post(
       if (!exists) customerId = null;
     }
 
+    // orderId is a real foreign key too: a payment logged against an order that
+    // isn't in this database (e.g. a stale/demo id) must store unlinked, not 500.
+    let orderId: string | null = d.orderId || null;
+    if (orderId) {
+      const order = await prisma.order.findUnique({ where: { id: orderId } });
+      if (!order) orderId = null;
+    }
+
     const data = {
-      orderId: d.orderId,
+      orderId,
       customerId,
       custId: d.custId,
       custCode: d.custCode,
@@ -121,7 +129,7 @@ paymentsRouter.post(
       update: data,
     });
 
-    if (status === 'confirmed' && d.orderId) await markOrderPaid(d.orderId);
+    if (status === 'confirmed' && orderId) await markOrderPaid(orderId);
 
     return ok(res, serialisePayment(payment), 201);
   })
@@ -143,6 +151,26 @@ paymentsRouter.get(
       take: 200,
     });
     return ok(res, payments.map(serialisePayment));
+  })
+);
+
+// PUT /payments/:id — the back office verifies (confirmed) or rejects (failed) a
+// reported payment. Confirming marks the linked order paid.
+paymentsRouter.put(
+  '/:id',
+  authenticate,
+  requireInternal,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = z.object({ status: z.enum(['pending', 'confirmed', 'failed']) }).safeParse(req.body);
+    if (!parsed.success) return failValidation(res, parsed.error);
+    const existing = await prisma.payment.findUnique({ where: { id: req.params.id } });
+    if (!existing) return fail(res, 404, 'Payment not found');
+    const payment = await prisma.payment.update({
+      where: { id: existing.id },
+      data: { status: parsed.data.status },
+    });
+    if (parsed.data.status === 'confirmed' && existing.orderId) await markOrderPaid(existing.orderId);
+    return ok(res, serialisePayment(payment));
   })
 );
 

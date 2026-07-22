@@ -39,16 +39,130 @@
     try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {}
   }
 
+  // "2026-06-16T…" or an epoch ms → "2026-06-16", for the CRM's date fields.
+  function dateOnly(x) {
+    if (!x) return '';
+    var d = typeof x === 'number' ? new Date(x) : new Date(String(x));
+    return isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
+  }
+
   function hydrate() {
     return Promise.all([
       getJson('/orders'),
       getJson('/payments'),
       getJson('/reps'),
       getJson('/customers'),
+      // Dashboard analytics, derived server-side from the real orders/payments.
+      // These replace the hardcoded CRM_SALES_BY_* / summary / leaderboard the
+      // console shipped with. Written to localStorage so they survive the reload
+      // crm-data.jsx reads them back on (globals reset on reload; storage does not).
+      getJson('/reports/sales-by-month'),
+      getJson('/reports/sales-by-category'),
+      getJson('/reports/leaderboard'),
+      getJson('/reports/summary'),
+      // Phase 2: the CRM's main tables (orders/customers/carts/queries/visits/
+      // reps) render from static CRM_* globals. Fetch the live equivalents and
+      // map them to those shapes so every table goes dynamic — see the pulls in
+      // crm-data.jsx that lay these over the static seed on reload.
+      getJson('/carts'),
+      getJson('/rfq'),
+      getJson('/reps/checkins'),
+      getJson('/franchise'),
     ]).then(function (res) {
       var orders = res[0], payments = res[1], reps = res[2], customers = res[3];
+      if (Array.isArray(res[4])) put('eurostar-crm-sales-by-month', res[4]);
+      if (Array.isArray(res[5])) put('eurostar-crm-sales-by-category', res[5]);
+      if (Array.isArray(res[6])) put('eurostar-crm-leaderboard', res[6]);
+      if (res[7] && typeof res[7] === 'object') put('eurostar-crm-summary', res[7]);
+      var carts = res[8], rfqs = res[9], checkins = res[10], franchise = res[11];
+
+      // --- Live data mapped into the CRM's own shapes ---
+      if (Array.isArray(customers)) {
+        put('eurostar-crm-customers', customers.map(function (c) {
+          return {
+            id: c.code || c.id, name: c.name, city: c.city || '', gst: c.gstin || '',
+            mobile: c.phone || '', rep: c.rep || '', terms: c.terms || 'cash',
+            tier: '', since: '', credit: 0, cartViewsNoOrder: 0, active: true,
+          };
+        }));
+      }
+      if (Array.isArray(orders)) {
+        // The CRM order flow starts at 'new' (needs office confirmation); the API
+        // calls that same state 'pending'. Translate so a fresh order shows up in
+        // the "new order to confirm" queue and the "awaiting review" KPI.
+        var orderStatus = function (s) { return s === 'pending' ? 'new' : (s || 'new'); };
+        put('eurostar-crm-orders', orders.map(function (o) {
+          return {
+            id: o.id, cust: o.code || o.customerId || '', date: dateOnly(o.ts || o.createdAt),
+            status: orderStatus(o.status), value: o.grand || o.value || 0,
+            items: Array.isArray(o.items) ? o.items.length : 0,
+            courier: o.courier || '', track: o.track || '', discount: 0,
+          };
+        }));
+      }
+      // Reps: prefer the Rep table, but it is usually empty — the real reps are
+      // Users (repId like REP-204) that only the leaderboard surfaces. Fall back
+      // to the leaderboard so CRM_REPS carries the same ids that customers and
+      // orders reference (otherwise sales-by-rep, commission and dues attribute
+      // to nobody).
+      var repRows = (Array.isArray(reps) && reps.length)
+        ? reps.map(function (r) {
+            return { id: r.repId || r.id, name: r.name, region: r.city || '', phone: r.phone || '', rate: 0.04, joined: '', target: 50, addedThisMonth: 0, asm: 'L1', head: 'L2' };
+          })
+        : (Array.isArray(res[6]) ? res[6].map(function (l) {
+            return { id: l.repId, name: l.name, region: '', phone: '', rate: 0.04, joined: '', target: 50, addedThisMonth: 0, asm: 'L1', head: 'L2' };
+          }) : []);
+      if (repRows.length) put('eurostar-crm-reps', repRows);
+      if (Array.isArray(carts)) {
+        put('eurostar-crm-carts', carts.map(function (c) {
+          return {
+            id: c.id, cust: c.customerId || '', updated: dateOnly(c.updatedAt),
+            status: c.status || 'active', value: (c.totals && c.totals.grand) || 0,
+            items: Array.isArray(c.lines) ? c.lines.length : 0, age: '', note: '',
+          };
+        }));
+      }
+      if (Array.isArray(rfqs)) {
+        put('eurostar-crm-queries', rfqs.map(function (r) {
+          var it = Array.isArray(r.items) && r.items[0] ? r.items[0] : {};
+          return {
+            id: r.id, cust: r.customerId || '', status: r.status || 'open', channel: '',
+            date: dateOnly(r.createdAt), product: it.name || it.product || '',
+            size: it.size || '', weight: '', quality: it.quality || it.grade || '',
+            qty: it.qty ? String(it.qty) : '', city: '', contactName: '', contact: '',
+            special: it.special || '', image: '',
+          };
+        }));
+      }
+      if (Array.isArray(checkins)) {
+        put('eurostar-crm-visits', checkins.map(function (c) {
+          var isIn = c.type !== 'out';
+          return {
+            id: c.id, rep: c.repId || '', custId: '', day: dateOnly(c.at),
+            checkIn: isIn ? c.at : '', checkOut: isIn ? '' : c.at,
+            inLat: c.lat, inLng: c.lng, inAcc: c.accuracy, inSource: 'gps',
+          };
+        }));
+      }
+      if (Array.isArray(franchise)) {
+        put('eurostar-crm-franchise', franchise.map(function (r) {
+          return {
+            id: r.id, name: r.name, firm: r.firm || '—', city: r.city || '',
+            mobile: r.mobile || '', invest: r.invest || '', exp: r.exp || '',
+            date: dateOnly(r.createdAt), status: r.status || 'new',
+          };
+        }));
+      }
       if (Array.isArray(orders)) put('eurostar-crm-incoming-orders', orders);
       if (Array.isArray(payments)) put('eurostar-crm-incoming-payments', payments);
+      // The Payment log renders CRM_SAMPLE_PAYMENTS. serialisePayment already
+      // matches that shape; the only gap is the API's 'failed' vs the CRM's
+      // 'rejected', so translate that one status.
+      if (Array.isArray(payments)) {
+        put('eurostar-crm-payments', payments.map(function (p) {
+          return p.status === 'failed' ? Object.assign({}, p, { status: 'rejected' }) : p;
+        }));
+      }
       if (Array.isArray(reps)) {
         put('eurostar-crm-new-hires', reps.map(function (r) {
           return { id: r.id, name: r.name, city: r.city, state: r.state, source: r.source, repId: r.repId };
@@ -69,10 +183,13 @@
     // session "hydrated" with empty data.
     if (!token()) { setTimeout(boot, 1000); return; }
 
-    if (!sessionStorage.getItem('crm-hydrated')) {
+    // Bump this key whenever the hydrate writes new localStorage keys, so a
+    // session that already hydrated under an older bridge re-runs once and picks
+    // up the new data (otherwise it skips the reload and keeps rendering seed).
+    if (!sessionStorage.getItem('crm-hydrated-v6')) {
       // First visit this session: load live data, then reload so the CRM renders it.
       hydrate().then(function () {
-        sessionStorage.setItem('crm-hydrated', '1');
+        sessionStorage.setItem('crm-hydrated-v6', '1');
         location.reload();
       });
     } else {

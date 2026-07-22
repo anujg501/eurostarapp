@@ -162,7 +162,38 @@
       try { var savedUser = localStorage.getItem(AUTH_KEY); if (savedUser) userEl.value = savedUser; } catch (e) {}
       applyRole(role);
       function unlock() { gate.style.display = 'none'; document.documentElement.style.overflow = ''; document.body.style.overflow = ''; }
+      function relock() {
+        try { localStorage.removeItem('eurostar-admin-token'); localStorage.removeItem('eurostar-admin-refresh'); } catch (e) {}
+        gate.style.display = ''; document.documentElement.style.overflow = 'hidden'; document.body.style.overflow = 'hidden';
+      }
       var API = window.EUROSTAR_API || location.origin;
+      // Restore the session on reload. Previously the gate always showed on load
+      // and only a fresh sign-in called unlock(), so every refresh logged you
+      // out. Now: unlock optimistically if a token exists, verify it in the
+      // background, and silently refresh a 15-min-expired access token before
+      // falling back to the gate.
+      (function restoreSession() {
+        var at = '', rt = '';
+        try { at = localStorage.getItem('eurostar-admin-token') || ''; rt = localStorage.getItem('eurostar-admin-refresh') || ''; } catch (e) {}
+        if (!at && !rt) return; // never signed in — leave the gate up
+        if (at) unlock();       // avoid a login flash for the common case
+        fetch(API + '/auth/me', { headers: { authorization: 'Bearer ' + at } })
+          .then(function (r) {
+            if (r.ok) return true;            // access token still valid
+            if (!rt) return Promise.reject(); // nothing to refresh with
+            return fetch(API + '/auth/refresh', {
+              method: 'POST', headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ refreshToken: rt })
+            }).then(function (rr) { return rr.ok ? rr.json() : Promise.reject(); })
+              .then(function (d) {
+                if (!d || !d.accessToken) return Promise.reject();
+                try { localStorage.setItem('eurostar-admin-token', d.accessToken); } catch (e) {}
+                unlock();
+                return true;
+              });
+          })
+          .catch(function () { relock(); }); // truly unauthenticated
+      })();
       var btn = form.querySelector('.lgbtn');
       form.addEventListener('submit', function (e) {
         e.preventDefault();
@@ -179,6 +210,9 @@
             if (!res.ok || !res.d || !res.d.accessToken) throw new Error((res.d && res.d.error) || 'Incorrect username or password.');
             try {
               localStorage.setItem('eurostar-admin-token', res.d.accessToken);
+              // Keep the refresh token so a page reload can silently mint a new
+              // access token instead of bouncing back to this login gate.
+              if (res.d.refreshToken) localStorage.setItem('eurostar-admin-refresh', res.d.refreshToken);
               if (remember) localStorage.setItem(AUTH_KEY, username); else localStorage.removeItem(AUTH_KEY);
             } catch (e) {}
             unlock();
@@ -219,10 +253,10 @@
   <script src="../vendor/react-dom.development.js"></script>
   <script src="../vendor/babel.min.js"></script>
   <!-- Phase 3: hydrate the CRM from the live back room (no UI change). -->
-  <script src="crm/api-bridge.js"></script>
+  <script src="crm/api-bridge.js?v=7"></script>
   <script src="assets/logo-data.js"></script>
-  <script type="text/babel" src="crm/crm-data.jsx"></script>
-  <script type="text/babel" src="crm/crm-app.jsx"></script>
+  <script type="text/babel" src="crm/crm-data.jsx?v=7"></script>
+  <script type="text/babel" src="crm/crm-app.jsx?v=7"></script>
   <script src="app/mira-claude-shim.js"></script>
   <script src="app/mira-staff.js"></script>
 

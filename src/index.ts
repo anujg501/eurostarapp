@@ -17,6 +17,8 @@ import { proformaRouter } from './routes/proforma';
 import { assistantRouter } from './routes/assistant';
 import { notificationsRouter } from './routes/notifications';
 import { repsRouter } from './routes/reps';
+import { reportsRouter } from './routes/reports';
+import { franchiseRouter } from './routes/franchise';
 import { announcementsRouter } from './routes/announcements';
 import { candidatesRouter, modulesRouter } from './routes/candidates';
 import { adminRouter } from './routes/admin';
@@ -68,6 +70,8 @@ app.use('/proforma', proformaRouter);
 app.use('/assistant', assistantRouter);
 app.use('/notifications', notificationsRouter);
 app.use('/reps', repsRouter);
+app.use('/reports', reportsRouter);
+app.use('/franchise', franchiseRouter);
 app.use('/announcements', announcementsRouter);
 app.use('/candidates', candidatesRouter);
 app.use('/modules', modulesRouter);
@@ -100,6 +104,17 @@ app.get('/login', (_req, res) => res.sendFile(path.join(webDir, 'Eurostar Login.
 app.get('/site', (_req, res) => res.sendFile(path.join(webDir, 'Eurostar Sales website.html')));
 app.get('/mobile', (_req, res) => res.sendFile(path.join(webDir, 'Eurostar Sales website (Mobile).html')));
 
+// Serve the folder-apps' real entry HTML directly at their clean URL, the way
+// /admin is served above. Their docs/<app>/index.html is a meta-refresh loader
+// that pointed at "Eurostar CRM.html" etc.; that filename used to 301 back to
+// the clean URL, so the loader looped. Browsers cache a 301 permanently, so the
+// loop survived even after the redirect was removed. Serving the app here means
+// the loader is never reached, and the stale cached redirect is irrelevant.
+app.get(['/crm', '/crm/'], (_req, res) => res.sendFile(path.join(webDir, 'crm', 'Eurostar CRM.html')));
+app.get(['/lms', '/lms/'], (_req, res) => res.sendFile(path.join(webDir, 'lms', 'Eurostar LMS.html')));
+app.get(['/mira-admin', '/mira-admin/'], (_req, res) =>
+  res.sendFile(path.join(webDir, 'mira-admin', 'Eurostar Mira Admin.html')));
+
 // The pages are files with spaces in their names ("Eurostar Sales website.html"),
 // and several in-app links still point at those filenames — a leftover from when
 // each app was opened straight from a folder. They work, but "%20" in the address
@@ -113,10 +128,13 @@ const LEGACY_PAGES: Record<string, string> = {
   '/eurostar sales website.html': '/',
   '/eurostar sales website (mobile).html': '/mobile',
   '/eurostar login.html': '/login',
-  '/crm/eurostar crm.html': '/crm/',
-  '/lms/eurostar lms.html': '/lms/',
   '/admin/eurostar admin.html': '/admin',
-  '/mira-admin/eurostar mira admin.html': '/mira-admin/',
+  // NOTE: the crm, lms and mira-admin filenames are deliberately NOT redirected.
+  // Their clean URL (e.g. /crm/) serves an index.html loader whose meta-refresh
+  // points straight back at the filename (Eurostar CRM.html). Redirecting the
+  // filename to /crm/ therefore looped: /crm/ -> loader -> Eurostar CRM.html ->
+  // 301 /crm/ -> loader -> … The Sales entry above is safe because "/" serves a
+  // real portal page, not a loader that bounces back.
 };
 app.use((req, res, next) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') return next();

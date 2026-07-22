@@ -406,6 +406,26 @@ model Announcement {
   updatedAt   DateTime @updatedAt
 }
 
+// Franchise enquiries from the Sales App "Join Franchise" form. Read by the CRM
+// "Franchise Requests" screen.
+model Franchise {
+  id        String   @id @default(cuid())
+  name      String
+  firm      String   @default("")
+  city      String   @default("")
+  mobile    String   @default("")
+  invest    String   @default("")
+  exp       String   @default("") // existing jewellery trade answer
+  geo       String   @default("") // proposed store location / map link
+  area      String   @default("") // proposed store area (sq ft)
+  floor     String   @default("")
+  plans     String   @default("")
+  status    String   @default("new") // new | contacted | closed
+  createdAt DateTime @default(now())
+
+  @@index([status])
+}
+
 // Generic key/value store (JSON as text) for admin content overlays:
 // catalog extra colours/shapes, category/shape thumbnails, splash pop-up,
 // category order, Mira images/enabled flags, language default, etc.

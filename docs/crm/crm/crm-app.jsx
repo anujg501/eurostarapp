@@ -71,11 +71,20 @@ function AdminDashboard({ st }) {
   const totalSales = CRM_ORDERS.reduce((a, o) => a + o.value, 0);
   const openCarts = st.carts.filter((c) => c.status !== 'abandoned');
   const abandoned = st.carts.filter((c) => c.status === 'abandoned');
+  // Real month-over-month from the hydrated series (oldest-first). Was a
+  // hardcoded "▲ 12%".
+  const mom = (() => {
+    const s = CRM_SALES_BY_MONTH;
+    if (!s || s.length < 2) return null;
+    const cur = s[s.length - 1].revenue, prev = s[s.length - 2].revenue;
+    if (!prev) return null;
+    return Math.round(((cur - prev) / prev) * 100);
+  })();
   return (
     <div className="crm-body">
       <AdminCoachDigest st={st} />
       <div className="kpi-grid">
-        <div className="kpi"><div className="kpi-label">Total sales (MTD)</div><div className="kpi-value">{H.inr(totalSales)}</div><div className="kpi-sub"><span className="up">▲ 12%</span> vs last month</div></div>
+        <div className="kpi"><div className="kpi-label">Total sales (MTD)</div><div className="kpi-value">{H.inr(totalSales)}</div><div className="kpi-sub">{mom === null ? <span className="crm-muted">—</span> : <span className={mom >= 0 ? 'up' : 'down'}>{mom >= 0 ? '▲' : '▼'} {Math.abs(mom)}%</span>} vs last month</div></div>
         <div className="kpi"><div className="kpi-label">Orders</div><div className="kpi-value">{st.orders.length}</div><div className="kpi-sub">{st.orders.filter((o) => o.status === 'new').length} awaiting review</div></div>
         <div className="kpi"><div className="kpi-label">Open carts</div><div className="kpi-value">{openCarts.length}</div><div className="kpi-sub">{H.inr(openCarts.reduce((a, c) => a + c.value, 0))} in play</div></div>
         <div className="kpi"><div className="kpi-label">Abandoned value</div><div className="kpi-value">{H.inr(abandoned.reduce((a, c) => a + c.value, 0))}</div><div className="kpi-sub"><span className="down">{abandoned.length} carts</span> to recover</div></div>
@@ -787,7 +796,7 @@ function repData(st, repId) {
   const rate = commCalc.effectiveRate;          // blended rate across slabs
   const comm = commCalc.total;
   const commBreakdown = commCalc.breakdown;
-  const today = new Date('2026-06-17');const dueAlerts = [];
+  const today = new Date();const dueAlerts = [];
   myOrders.forEach((o) => {const c = H.cust(o.cust);const t = c.terms;if (!t || t === 'cash') return;
     if (st.paidByOrder(o.id) >= o.value) return; // payment confirmed by office — stop reminding
     const due = new Date(o.date);due.setDate(due.getDate() + parseInt(t, 10));const od = Math.floor((today - due) / 86400000);
@@ -801,7 +810,7 @@ function repData(st, repId) {
   return { rep, myCust, myOrders, myCarts, sales, rate, comm, commBreakdown, dueAlerts, target: effTarget, added, pending };
 }
 
-const COACH_TODAY = '2026-06-17';
+const COACH_TODAY = new Date().toISOString().slice(0, 10);
 function coachInsights(st, repId) {
   const d = repData(st, repId);
   const myLeads = (st.leads || []).filter((l) => l.rep === repId);
@@ -1406,7 +1415,7 @@ function LogPaymentModal({ order, cust, onLog, onClose }) {
     if (!amount || parseFloat(amount) <= 0) {alert('Enter a valid amount.');return;}
     if (isCash && !by) {alert('Please enter who transferred the cash to Head Office.');return;}
     if (!isCash && !utr) {alert('Please enter the UTR / reference number.');return;}
-    onLog({ orderId: order.id, custId: order.cust, mode, amount: parseFloat(amount), utr: isCash ? '' : utr, date, by: isCash ? by : '', contact: isCash ? contact : '', img, status: 'pending', loggedAt: new Date().toISOString() });
+    onLog({ orderId: order.id, custId: order.cust, custName: (cust && cust.name) || '', mode, amount: parseFloat(amount), utr: isCash ? '' : utr, date, by: isCash ? by : '', contact: isCash ? contact : '', img, status: 'pending', loggedAt: new Date().toISOString() });
     onClose();
   };
   return (
@@ -2312,14 +2321,22 @@ function CRM() {
   const [repTargets, setRepTargets] = useState(() => {const m = {};CRM_REPS.forEach((r) => m[r.id] = Math.max(50, r.target || 0));return m;});
   const [newAdds, setNewAdds] = useState(() => {const m = {};CRM_REPS.forEach((r) => m[r.id] = r.addedThisMonth || 0);return m;});
   const [payments, setPayments] = useState(() => {
-    const seed = (window.CRM_SAMPLE_PAYMENTS || []).map((p) => ({ ...p }));
-    try {
-      const app = JSON.parse(localStorage.getItem('eurostar-crm-incoming-payments') || '[]') || [];
-      app.forEach((a) => { if (!seed.some((s) => s.id === a.id)) seed.push(a); });
-    } catch (e) {}
-    return seed;
+    // CRM_SAMPLE_PAYMENTS is hydrated with the live /payments (or the seed as a
+    // fallback) by crm-data.jsx, so it is already the source of truth.
+    return (window.CRM_SAMPLE_PAYMENTS || []).map((p) => ({ ...p }));
   });
   const [visits, setVisits] = useState((window.CRM_VISITS || []).map((v) => ({ ...v })));
+
+  // Persist a staff action to the server (fire-and-forget; local state already
+  // updated optimistically). Without this, verifying a payment or confirming an
+  // order only changed the screen and reverted on the next reload.
+  const crmApi = (method, path, body) => {
+    try {
+      const API = window.EUROSTAR_API || location.origin;
+      const tok = localStorage.getItem('eurostar-admin-token') || '';
+      fetch(API + path, { method, headers: { 'content-type': 'application/json', authorization: 'Bearer ' + tok }, body: JSON.stringify(body) }).catch(() => {});
+    } catch (e) {}
+  };
 
   const st = {
     customers, orders, carts, queries, repRates, repTargets, newAdds, reps, leaders, payments, visits,
@@ -2331,7 +2348,16 @@ function CRM() {
     addRep: (f) => {const id = 'REP-' + (300 + reps.length);setReps((rs) => [...rs, { id, name: f.name, region: f.region || '—', phone: f.phone || '', rate: (parseFloat(f.rate) || 4) / 100, target: 50 }]);
       setRepRates((m) => ({ ...m, [id]: (parseFloat(f.rate) || 4) / 100 }));setRepTargets((m) => ({ ...m, [id]: 50 }));setNewAdds((m) => ({ ...m, [id]: 0 }));},
     claimCustomer: (id, rep) => {setCustomers((cs) => cs.map((c) => c.id === id ? { ...c, rep } : c));setNewAdds((m) => ({ ...m, [rep]: (m[rep] || 0) + 1 }));},
-    advance: (id) => setOrders((os) => os.map((o) => {if (o.id !== id) return o;const i = FLOW.indexOf(o.status);return i < FLOW.length - 1 ? { ...o, status: FLOW[i + 1] } : o;})),
+    advance: (id) => {
+      const o = (orders || []).find((x) => x.id === id);
+      if (!o) return;
+      const i = FLOW.indexOf(o.status);
+      if (i < 0 || i >= FLOW.length - 1) return;
+      const next = FLOW[i + 1];
+      setOrders((os) => os.map((x) => x.id === id ? { ...x, status: next } : x));
+      // FLOW 'new' maps to the API's 'pending'; every later step matches the API.
+      crmApi('PUT', '/orders/' + id, { status: next === 'new' ? 'pending' : next });
+    },
     setDisc: (id, v) => setCarts((cs) => cs.map((c) => c.id === id ? { ...c, appliedDisc: Math.max(0, Math.min(100, parseInt(v, 10) || 0)) } : c)),
     editItems: (id) => setEditTarget({ kind: 'cart', id }),
     removeCart: (id) => {if (confirm('Remove this cart? This cannot be undone.')) setCarts((cs) => cs.filter((c) => c.id !== id));},
@@ -2392,11 +2418,30 @@ function CRM() {
       }
       return merged;
     })),
-    logPayment: (p) => setPayments((ps) => [...ps, { ...p, id: 'PAY-' + (ps.length + 101) }]),
+    logPayment: (p) => {
+      // Show it immediately for the rep, and persist to the server so the Back
+      // Office sees it in the pending-verification queue (a real DB row, not
+      // just local state that vanishes on reload).
+      setPayments((ps) => [...ps, { ...p, id: 'PAY-' + (ps.length + 101), source: 'Rep collection' }]);
+      try {
+        const API = window.EUROSTAR_API || location.origin;
+        const tok = localStorage.getItem('eurostar-admin-token') || '';
+        fetch(API + '/payments', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', authorization: 'Bearer ' + tok },
+          body: JSON.stringify({
+            orderId: p.orderId, custId: p.custId, custName: p.custName || '',
+            mode: p.mode, amount: Math.round(p.amount || 0), utr: p.utr || '',
+            date: p.date, by: p.by || '', contact: p.contact || '', img: p.img || null,
+            status: 'pending', source: 'Rep collection',
+          }),
+        }).catch(() => {});
+      } catch (e) {}
+    },
     checkInVisit: (rep, custId, geo) => setVisits((vs) => [...vs, { id: 'VST-' + (300 + vs.length), rep, custId, day: '2026-06-16', checkIn: new Date().toISOString(), inLat: geo.lat, inLng: geo.lng, inAcc: geo.acc, inSource: geo.source, checkOut: null, outLat: null, outLng: null }]),
     checkOutVisit: (id, geo) => setVisits((vs) => vs.map((v) => v.id === id ? { ...v, checkOut: new Date().toISOString(), outLat: geo.lat, outLng: geo.lng } : v)),
-    verifyPayment: (id) => setPayments((ps) => ps.map((p) => p.id === id ? { ...p, status: 'confirmed' } : p)),
-    rejectPayment: (id) => setPayments((ps) => ps.map((p) => p.id === id ? { ...p, status: 'rejected' } : p)),
+    verifyPayment: (id) => { setPayments((ps) => ps.map((p) => p.id === id ? { ...p, status: 'confirmed' } : p)); crmApi('PUT', '/payments/' + id, { status: 'confirmed' }); },
+    rejectPayment: (id) => { setPayments((ps) => ps.map((p) => p.id === id ? { ...p, status: 'rejected' } : p)); crmApi('PUT', '/payments/' + id, { status: 'failed' }); },
     paidByCust: (custId) => payments.filter((p) => p.custId === custId && p.status === 'confirmed').reduce((a, p) => a + (p.amount || 0), 0),
     paidByOrder: (orderId) => payments.filter((p) => p.orderId === orderId && p.status === 'confirmed').reduce((a, p) => a + (p.amount || 0), 0),
     repBlocked,

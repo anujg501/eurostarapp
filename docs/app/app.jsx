@@ -696,6 +696,13 @@ function ProfileScreen({ persona, setRoute }) {
   };
 
   // ----- Security tab -------------------------------------------------------
+  // Customers sign in with a mobile OTP and have no password, so the change-
+  // password form does not apply to them — only rep and back-office logins use
+  // a password. Same source the checkout and orders screens read.
+  const loginMode = (() => {
+    try { return localStorage.getItem('eurostar_login_mode') || 'customer'; } catch (e) { return 'customer'; }
+  })();
+  const usesPassword = loginMode !== 'customer';
   const [pw, setPw] = React.useState({ cur: '', next: '', confirm: '' });
   const [pwSaving, setPwSaving] = React.useState(false);
   const [pwNotice, setPwNotice] = React.useState(null);
@@ -792,6 +799,9 @@ function ProfileScreen({ persona, setRoute }) {
 
       {tab === 'security' &&
       <div className="card card-pad">
+        {usesPassword ? (
+        /* Rep / back-office logins use a password. */
+        <React.Fragment>
         <h3 className="od-section" style={{ marginTop: 0 }}>Change password</h3>
         {noticeBox(pwNotice)}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 14, maxWidth: 380 }}>
@@ -804,6 +814,31 @@ function ProfileScreen({ persona, setRoute }) {
             {pwSaving ? 'Updating…' : 'Update password'}
           </button>
         </div>
+        </React.Fragment>
+        ) : (
+        /* Customers authenticate by mobile OTP — there is no password to change. */
+        <React.Fragment>
+        <h3 className="od-section" style={{ marginTop: 0 }}>Sign-in &amp; security</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 14, maxWidth: 420 }}>
+          <div>
+            {lbl('Registered mobile')}
+            <div style={{ ...inp, display: 'flex', alignItems: 'center', color: 'var(--fg)' }}>
+              {persona.phone ? '+91 ' + persona.phone : 'Not on file'}
+            </div>
+          </div>
+          <div>
+            {lbl('Login method')}
+            <div style={{ ...inp, display: 'flex', alignItems: 'center', color: 'var(--fg)' }}>
+              Mobile OTP
+            </div>
+          </div>
+        </div>
+        <p style={{ fontSize: 13.5, color: 'var(--fg-muted)', lineHeight: 1.5, marginTop: 16, maxWidth: 460 }}>
+          Your account is secured using Mobile OTP authentication. Password management is
+          not applicable for customer accounts.
+        </p>
+        </React.Fragment>
+        )}
         <div style={{ marginTop: 24, paddingTop: 18, borderTop: '1px solid var(--divider)' }}>
           <button className="btn btn-secondary" onClick={() => {
             // Used to just navigate home, leaving the session intact — so
@@ -833,6 +868,33 @@ function ProfileScreen({ persona, setRoute }) {
 
 function FranchiseScreen({ setRoute }) {
   const [submitted, setSubmitted] = React.useState(false);
+  // The form used to capture nothing — Submit just flipped to the thank-you
+  // screen and the application was discarded, so it never reached the CRM.
+  const [f, setF] = React.useState({
+    name: '', firm: '', city: '', mobile: '', invest: '',
+    exp: 'Yes — established', geo: '', area: '', floor: 'Ground floor', plans: '',
+  });
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState('');
+  const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }));
+
+  const submit = () => {
+    if (busy) return;
+    if (!f.name.trim() || !f.city.trim() || !f.mobile.trim()) {
+      setErr('Name, city and mobile number are required.');
+      return;
+    }
+    setErr('');
+    setBusy(true);
+    fetch((window.EUROSTAR_API || location.origin) + '/franchise', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(f),
+    })
+      .then((r) => { if (!r.ok) throw new Error('save failed'); return r.json(); })
+      .then(() => setSubmitted(true))
+      .catch(() => setErr('Could not submit right now. Please try again.'))
+      .finally(() => setBusy(false));
+  };
   const fieldLabel = (txt, req) => (
     <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
                   letterSpacing: '0.08em', color: 'var(--fg-meta)', marginBottom: 6 }}>
@@ -901,30 +963,31 @@ function FranchiseScreen({ setRoute }) {
         <div style={{ fontFamily: 'var(--font-serif)', fontWeight: 500, fontSize: 24, marginBottom: 4 }}>Franchise enquiry</div>
         <p style={{ color: 'var(--fg-muted)', fontSize: 14, margin: '0 0 22px' }}>Tell us about yourself and we'll get in touch.</p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
-          <label>{fieldLabel('Your name', true)}<input style={inputStyle} placeholder="Full name" /></label>
-          <label>{fieldLabel('Firm / company', true)}<input style={inputStyle} placeholder="Business name (if any)" /></label>
-          <label>{fieldLabel('City', true)}<input style={inputStyle} placeholder="Proposed city / area" /></label>
-          <label>{fieldLabel('Mobile number', true)}<input style={inputStyle} type="tel" placeholder="+91 …" /></label>
-          <label>{fieldLabel('Investment capacity')}<input style={inputStyle} placeholder="e.g. ₹10–25 lakh" /></label>
+          <label>{fieldLabel('Your name', true)}<input style={inputStyle} placeholder="Full name" value={f.name} onChange={set('name')} /></label>
+          <label>{fieldLabel('Firm / company', true)}<input style={inputStyle} placeholder="Business name (if any)" value={f.firm} onChange={set('firm')} /></label>
+          <label>{fieldLabel('City', true)}<input style={inputStyle} placeholder="Proposed city / area" value={f.city} onChange={set('city')} /></label>
+          <label>{fieldLabel('Mobile number', true)}<input style={inputStyle} type="tel" placeholder="+91 …" value={f.mobile} onChange={set('mobile')} /></label>
+          <label>{fieldLabel('Investment capacity')}<input style={inputStyle} placeholder="e.g. ₹10–25 lakh" value={f.invest} onChange={set('invest')} /></label>
           <label>{fieldLabel('Existing jewellery trade?')}
-            <select style={inputStyle}><option>Yes — established</option><option>Yes — small/new</option><option>No — new to trade</option></select>
+            <select style={inputStyle} value={f.exp} onChange={set('exp')}><option>Yes — established</option><option>Yes — small/new</option><option>No — new to trade</option></select>
           </label>
-          <label>{fieldLabel('Geolocation of proposed store')}<input style={inputStyle} placeholder="Map link / area landmark" /></label>
-          <label>{fieldLabel('Area of proposed store')}<input style={inputStyle} placeholder="Sq. ft (minimum 100 sq feet)" /></label>
+          <label>{fieldLabel('Geolocation of proposed store')}<input style={inputStyle} placeholder="Map link / area landmark" value={f.geo} onChange={set('geo')} /></label>
+          <label>{fieldLabel('Area of proposed store')}<input style={inputStyle} placeholder="Sq. ft (minimum 100 sq feet)" value={f.area} onChange={set('area')} /></label>
           <label>{fieldLabel('Which floor?')}
-            <select style={inputStyle}><option>Ground floor</option><option>First floor</option><option>Upper floor</option><option>Basement</option></select>
+            <select style={inputStyle} value={f.floor} onChange={set('floor')}><option>Ground floor</option><option>First floor</option><option>Upper floor</option><option>Basement</option></select>
           </label>
           <div style={{ gridColumn: '1 / -1', fontSize: 12.5, color: 'var(--fg-muted)', background: 'var(--paper-2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px', marginTop: -2 }}>
             Most preferred: a store in the jewellery market on the ground floor, minimum 100 sq feet.
           </div>
           <label style={{ gridColumn: '1 / -1' }}>{fieldLabel('Tell us about your plans')}
-            <textarea rows="3" style={{ ...inputStyle, resize: 'vertical' }} placeholder="Retail space, target market, timeline…"></textarea>
+            <textarea rows="3" style={{ ...inputStyle, resize: 'vertical' }} placeholder="Retail space, target market, timeline…" value={f.plans} onChange={set('plans')}></textarea>
           </label>
         </div>
+        {err && <div style={{ marginTop: 14, color: 'var(--ruby)', fontSize: 13, fontWeight: 600 }}>{err}</div>}
         <div style={{ display: 'flex', gap: 10, marginTop: 22, justifyContent: 'flex-end', alignItems: 'center' }}>
           <span style={{ fontSize: 12, color: 'var(--fg-meta)', marginRight: 'auto' }}><span style={{ color: 'var(--ruby)' }}>*</span> required fields</span>
           <button className="btn btn-secondary" onClick={() => setRoute({ name: 'home' })}>Cancel</button>
-          <button className="btn btn-accent btn-lg" onClick={() => setSubmitted(true)}>Submit application</button>
+          <button className="btn btn-accent btn-lg" disabled={busy} onClick={submit}>{busy ? 'Submitting…' : 'Submit application'}</button>
         </div>
       </div>
     </div>

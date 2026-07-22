@@ -154,4 +154,39 @@ const CRM_SAMPLE_PAYMENTS = [
   { id:'PAY-105', orderId:'SO-24822', custId:'EUR-10482', mode:'upi',    amount:88900,  utr:'326709988712', date:'2026-06-20', by:'', contact:'', img:null, status:'pending', loggedAt:'2026-06-20T09:55:00.000Z' },
 ];
 
-Object.assign(window, { CRM_REPS, CRM_CUSTOMERS, CRM_ORDERS, CRM_CARTS, CRM_QUERIES, CRM_ATTENDANCE, CRM_STAGES, CRM_LEADS, CRM_CITY_REP, CRM_FRANCHISE, CRM_SALES_BY_CATEGORY, CRM_SALES_BY_MONTH, CRM_LEADERS, CRM_HELPERS, CRM_SAMPLE_PAYMENTS, CRM_VISITS, CITY_COORDS });
+// Live analytics override. The api-bridge writes the server-derived reports to
+// localStorage before it reloads the page; here — on that reload — we pull them
+// in over the static arrays above, in place, before any screen renders. When
+// nothing has been hydrated yet (first load, or offline) the static arrays stand
+// as the fallback, so the dashboard is never blank.
+const CRM_SUMMARY = { orders: 0, customers: 0, reps: 0, openRfq: 0, revenue: 0, collected: 0, outstanding: 0 };
+const CRM_LEADERBOARD = [];
+(function hydrateAnalytics() {
+  function pull(key) {
+    try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) { return null; }
+  }
+  function replaceInPlace(arr, next) {
+    if (!Array.isArray(next) || !next.length) return; // keep the static fallback
+    arr.splice(0, arr.length);
+    next.forEach(function (x) { arr.push(x); });
+  }
+  replaceInPlace(CRM_SALES_BY_MONTH, pull('eurostar-crm-sales-by-month'));
+  replaceInPlace(CRM_SALES_BY_CATEGORY, pull('eurostar-crm-sales-by-category'));
+  replaceInPlace(CRM_LEADERBOARD, pull('eurostar-crm-leaderboard'));
+  var s = pull('eurostar-crm-summary');
+  if (s && typeof s === 'object') Object.assign(CRM_SUMMARY, s);
+
+  // Phase 2: the main tables. Each is the live API data mapped to the CRM shape
+  // by the bridge; the static arrays above remain the first-load/offline
+  // fallback so no table is ever blank.
+  replaceInPlace(CRM_CUSTOMERS, pull('eurostar-crm-customers'));
+  replaceInPlace(CRM_ORDERS, pull('eurostar-crm-orders'));
+  replaceInPlace(CRM_REPS, pull('eurostar-crm-reps'));
+  replaceInPlace(CRM_CARTS, pull('eurostar-crm-carts'));
+  replaceInPlace(CRM_QUERIES, pull('eurostar-crm-queries'));
+  replaceInPlace(CRM_VISITS, pull('eurostar-crm-visits'));
+  replaceInPlace(CRM_FRANCHISE, pull('eurostar-crm-franchise'));
+  replaceInPlace(CRM_SAMPLE_PAYMENTS, pull('eurostar-crm-payments'));
+})();
+
+Object.assign(window, { CRM_REPS, CRM_CUSTOMERS, CRM_ORDERS, CRM_CARTS, CRM_QUERIES, CRM_ATTENDANCE, CRM_STAGES, CRM_LEADS, CRM_CITY_REP, CRM_FRANCHISE, CRM_SALES_BY_CATEGORY, CRM_SALES_BY_MONTH, CRM_LEADERS, CRM_HELPERS, CRM_SAMPLE_PAYMENTS, CRM_VISITS, CITY_COORDS, CRM_SUMMARY, CRM_LEADERBOARD });

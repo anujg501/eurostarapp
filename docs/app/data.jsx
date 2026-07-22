@@ -1193,11 +1193,11 @@ const COLORS_BY_CATEGORY = {
     { id: 'green',  name: 'Euro Alp Green', hex: '#3E8E4F' },
     { id: 'blue',   name: 'Alp Blue',       hex: '#1E3A8A',
       shapes: ['round','oval','pear','marquise','princess','cushion','asscher','triangle','trillion','heart','star','octagon-step','octagon-princess','baguette-step','tapered'] },
-    { id: 'yellow',   name: 'Alp Yellow',       hex: '#E2B43A', shapes: ['round'], sizeMax: 2.00 },
-    { id: 'alp162',   name: 'Alp 162/2',        hex: '#C8A24C', shapes: ['round'], sizeMax: 2.00 },
-    { id: 'alp-aqua', name: 'Alp Aqua',          hex: '#3ABFBF', shapes: ['round'], sizeMin: 1.00, sizeMax: 3.00 },
+    { id: 'yellow',   name: 'Alp Yellow',       hex: '#E2B43A', shapes: ['round'] },
+    { id: 'alp162',   name: 'Alp 162/2',        hex: '#C8A24C', shapes: ['round'] },
+    { id: 'alp-aqua', name: 'Alp Aqua',          hex: '#3ABFBF', shapes: ['round'] },
     { id: 'paraiba',  name: 'Alpanite Paraiba',  hex: '#2DAFD4' },
-    { id: 'alp-brown',name: 'Alp Brown',         hex: '#8B5E3C', shapes: ['round'], sizeMin: 1.00, sizeMax: 2.00 },
+    { id: 'alp-brown',name: 'Alp Brown',         hex: '#8B5E3C', shapes: ['round'] },
     { id: 'yz-green', name: 'YZ Green (SP Green)',hex: '#4A9B5C', shapes: ['round'], sizeMin: 1.00, sizeMax: 3.00 },
   ],
   multisapphire: [
@@ -1918,6 +1918,50 @@ function alpBlueSku(shape, size) {
 }
 window.alpBlueSizes = alpBlueSizes;
 window.alpBlueSku = alpBlueSku;
+
+// Alpanite per-colour round price sheets (from the price chart image).
+// Each row: [size, pcs per box, ₹ per piece]. pcs filled from the standard
+// round MOQ ladder (1000 ≤2.00, 500 ≤3.00, 200 ≤4.75, 100 at 5.00).
+const ALP_EXTRA_SHEETS = {
+  yellow: { round: [
+    ['0.80 mm',1000,0.42],['0.90 mm',1000,0.42],['1.00 mm',1000,0.2],['1.10 mm',1000,0.23],['1.20 mm',1000,0.29],
+    ['1.30 mm',1000,0.35],['1.40 mm',1000,0.4],['1.50 mm',1000,0.47],['1.60 mm',1000,0.55],['1.70 mm',1000,0.68],
+    ['1.80 mm',1000,0.83],['1.90 mm',1000,0.93],['2.00 mm',1000,1.01],['2.10 mm',500,2.14],['2.20 mm',500,2.14],
+    ['2.30 mm',500,2.27],['2.40 mm',500,2.39],['2.50 mm',500,2.88],['2.60 mm',500,3.02],['2.70 mm',500,3.15],
+    ['2.80 mm',500,3.79],['2.90 mm',500,3.79],['3.00 mm',500,4.0],['3.25 mm',200,5.3],['3.50 mm',200,5.8],
+    ['3.75 mm',200,8.0],['4.00 mm',200,8.5],['4.25 mm',200,10.4],['4.50 mm',200,11.2],['4.75 mm',200,14.4],
+    ['5.00 mm',100,16.5],
+  ] },
+  alp162: { round: [
+    ['0.80 mm',1000,0.9],['0.90 mm',1000,0.86],['1.00 mm',1000,0.71],['1.10 mm',1000,1.11],['1.20 mm',1000,1.11],
+    ['1.30 mm',1000,1.11],['1.40 mm',1000,1.34],['1.50 mm',1000,1.49],['1.60 mm',1000,1.71],['1.70 mm',1000,2.12],
+    ['1.80 mm',1000,2.39],['1.90 mm',1000,2.9],['2.00 mm',1000,3.15],['2.10 mm',500,3.25],['2.25 mm',500,4.2],
+    ['2.50 mm',500,5.6],['2.75 mm',500,6.58],['3.00 mm',500,8.26],['3.25 mm',200,9.8],['3.50 mm',200,12.04],
+    ['3.75 mm',200,14.84],['4.00 mm',200,18.2],
+  ] },
+  'alp-aqua': { round: [
+    ['0.80 mm',1000,0.63],['0.90 mm',1000,0.58],['1.00 mm',1000,0.45],['1.10 mm',1000,0.55],['1.20 mm',1000,0.63],
+    ['1.30 mm',1000,0.81],['1.40 mm',1000,1.01],['1.50 mm',1000,1.13],['1.60 mm',1000,1.26],['1.70 mm',1000,1.64],
+    ['1.80 mm',1000,1.89],['1.90 mm',1000,2.14],['2.00 mm',1000,2.39],
+  ] },
+  'alp-brown': { round: [
+    ['1.00 mm',1000,0.67],['1.10 mm',1000,0.71],['1.20 mm',1000,1.05],['1.30 mm',1000,1.05],['1.40 mm',1000,1.26],
+    ['1.50 mm',1000,1.4],['1.60 mm',1000,1.62],['1.70 mm',1000,2.0],['1.80 mm',1000,2.26],['1.90 mm',1000,2.74],
+    ['2.00 mm',1000,2.98],
+  ] },
+};
+function alpSheetSizes(colorId, shape) {
+  const s = ALP_EXTRA_SHEETS[colorId];
+  return s && s[shape] ? s[shape].map((r) => r[0]) : [];
+}
+function alpSheetSku(colorId, shape, size) {
+  const s = ALP_EXTRA_SHEETS[colorId];
+  const row = s && s[shape] ? s[shape].find((r) => r[0] === size) : null;
+  if (!row) return null;
+  return { id: 'alp-' + colorId + '-' + shape + '-' + String(size).replace(/\s/g, ''), price: row[2], pcsPerPacket: row[1], moq: row[1], size, stock: 'in', stockCount: 0 };
+}
+window.alpSheetSizes = alpSheetSizes;
+window.alpSheetSku = alpSheetSku;
 
 // Bracelet: colours differ per style. Cartier = full 21-colour chart; Rolex = 6 metallic finishes.
 const BRACELET_BY_GRADE = {

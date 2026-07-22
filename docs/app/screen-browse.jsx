@@ -55,6 +55,8 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
   PEARL_SHAPES_BY_GRADE[grade.id] :
   route.cat === 'navratna' && grade && NAVRATNA_SHAPES_BY_GRADE[grade.id] ?
   NAVRATNA_SHAPES_BY_GRADE[grade.id] :
+  route.cat === 'whitefancy' && grade && window.WHITEFANCY_SHAPES_BY_GRADE && window.WHITEFANCY_SHAPES_BY_GRADE[grade.id] ?
+  window.WHITEFANCY_SHAPES_BY_GRADE[grade.id] :
   baseShapeIds;
   // Some shapes (e.g. Opaque · Cut Stones) open a second grid of cut shapes.
   const baseShapeMeta = shape ? findShape(shape) : null;
@@ -984,7 +986,9 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   const hdSheet = category.id === 'highdensity' && grade && window.hdSizes && window.hdSizes(grade.id, shape).length ? window.hdSizes(grade.id, shape) : null;
   // Corundum: per grade+colour price sheet (e.g. EXCEL AAA · Ruby 5).
   const corSheet = category.id === 'corundum' && grade && color && window.corSizes && window.corSizes(grade.id, color.id, shape).length ? window.corSizes(grade.id, color.id, shape) : null;
-  let sizes = category.id === 'moissanite' ? (moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm']) : alpGreen ? alpGreen : alpBlue ? alpBlue : alpSheet ? alpSheet : hdSheet ? hdSheet : corSheet ? corSheet : skuSizes.length ? skuSizes.slice() : (SIZES_BY_CATEGORY && SIZES_BY_CATEGORY[category.id]) ? SIZES_BY_CATEGORY[category.id].slice() : ourosaMode ? OUROSA_SIZES.map((x) => x[0]) : mixedMoiss ? moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm'] : byStrip ? FULL_SIZES[shape] || ['4.00 mm'] : FULL_SIZES[shape] || ['4.00 mm'];
+  // White Fancy Shapes: per-grade price sheet (Le Plus / Au Desus).
+  const wfSheet = category.id === 'whitefancy' && grade && window.wfSizes && window.wfSizes(grade.id, shape).length ? window.wfSizes(grade.id, shape) : null;
+  let sizes = category.id === 'moissanite' ? (moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm']) : alpGreen ? alpGreen : alpBlue ? alpBlue : alpSheet ? alpSheet : hdSheet ? hdSheet : corSheet ? corSheet : wfSheet ? wfSheet : skuSizes.length ? skuSizes.slice() : (SIZES_BY_CATEGORY && SIZES_BY_CATEGORY[category.id]) ? SIZES_BY_CATEGORY[category.id].slice() : ourosaMode ? OUROSA_SIZES.map((x) => x[0]) : mixedMoiss ? moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm'] : byStrip ? FULL_SIZES[shape] || ['4.00 mm'] : FULL_SIZES[shape] || ['4.00 mm'];
   // A colour may cap its size range (e.g. Alpanite Yellow / 162/2 → 1.00–2.00 mm only).
   if (color && color.sizeMax) {sizes = sizes.filter((s) => (parseFloat(s) || 0) <= color.sizeMax + 0.001);}
   // A colour may set a minimum size. Fancy NxN sizes (e.g. "3x4") are kept as-is
@@ -1042,6 +1046,11 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
     // Corundum: per grade+colour price sheet (EXCEL AAA · Ruby 5, priced per piece).
     if (category.id === 'corundum' && grade && color && window.corSku) {
       const a = window.corSku(grade.id, color.id, shape, size);
+      if (a) return a;
+    }
+    // White Fancy Shapes: per-grade price sheet (Le Plus / Au Desus).
+    if (category.id === 'whitefancy' && grade && window.wfSku) {
+      const a = window.wfSku(grade.id, shape, size);
       if (a) return a;
     }
     return window.uploadedSkuFor ? uploadedSkuFor(category.id, shape, size, grade) : null;

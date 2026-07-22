@@ -756,7 +756,9 @@ const CORUNDUM_COLORS_BY_GRADE = {
   aaa: [
     { id: 'ruby2',  name: 'Ruby 2',  hex: '#B23A4A' },
     { id: 'ruby3',  name: 'Ruby 3',  hex: '#9E2A3A' },
-    { id: 'ruby5',  name: 'Ruby 5',  hex: '#8B1E2E' },
+    // Ruby 5 (VGI) prices loaded from a sheet — restrict to the shapes it prices.
+    { id: 'ruby5',  name: 'Ruby 5',  hex: '#8B1E2E',
+      shapes: ['round','oval','pear','marquise','princess','octagon-princess','heart'] },
     { id: 'ruby8',  name: 'Ruby 8',  hex: '#6E1422' },
     { id: 'blue34', name: 'Blue 34', hex: '#1E3A8A' },
     { id: 'white',  name: 'White',   hex: '#F2EFE8' },
@@ -2116,6 +2118,61 @@ function hdHasWeight(gradeId, shape) {
 window.hdSizes = hdSizes;
 window.hdSku = hdSku;
 window.hdHasWeight = hdHasWeight;
+
+// Corundum EXCEL AAA · Ruby 5 (VGI) price sheet — RIVEN tab. Priced PER PIECE
+// (pcs=1). Keyed 'grade|colour' = 'aaa|ruby5'. Row: [size, pcs, ₹/piece].
+const CORUNDUM_SHEETS = {
+  'aaa|ruby5': {
+    round: [
+      ['0.80 mm',1,0.98],['0.90 mm',1,0.84],['1.00 mm',1,0.84],['1.10 mm',1,0.84],['1.20 mm',1,0.98],
+      ['1.30 mm',1,1.12],['1.40 mm',1,1.26],['1.50 mm',1,1.4],['1.60 mm',1,1.6],['1.70 mm',1,1.74],
+      ['1.80 mm',1,1.9],['1.90 mm',1,2.24],['2.00 mm',1,2.24],['2.10 mm',1,3.22],['2.20 mm',1,3.92],
+      ['2.30 mm',1,4.2],['2.40 mm',1,4.76],['2.50 mm',1,4.9],['2.60 mm',1,5.88],['2.70 mm',1,6.44],
+      ['2.80 mm',1,7.56],['2.90 mm',1,8.12],['3.00 mm',1,8.12],['3.25 mm',1,9.8],['3.50 mm',1,11.2],
+      ['3.75 mm',1,12.04],['4.00 mm',1,13.44],['4.25 mm',1,15.4],['4.50 mm',1,16.24],['4.75 mm',1,21.0],
+      ['5.00 mm',1,23.24],['5.25 mm',1,28.0],['5.50 mm',1,30.8],['5.75 mm',1,32.2],['6.00 mm',1,33.6],
+      ['6.50 mm',1,43.4],['7.00 mm',1,50.4],['7.50 mm',1,58.8],['8.00 mm',1,70.0],
+    ],
+    oval: [
+      ['3×2 mm',1,13.48],['3×2.5 mm',1,13.57],['4×3 mm',1,13.48],['4.5×3.5 mm',1,24.42],['5×3 mm',1,16.07],
+      ['5×4 mm',1,24.42],['6×4 mm',1,24.42],['7×5 mm',1,34.27],['8×5 mm',1,48.44],['8×6 mm',1,48.44],
+      ['9×7 mm',1,52.5],['10×8 mm',1,58.8],
+    ],
+    pear: [
+      ['3×2 mm',1,13.48],['3×2.5 mm',1,13.57],['4×3 mm',1,13.48],['4.5×3.5 mm',1,24.42],['5×3 mm',1,16.07],
+      ['5×4 mm',1,24.42],['6×4 mm',1,24.42],['7×5 mm',1,34.27],['8×5 mm',1,48.44],['8×6 mm',1,48.44],
+      ['9×7 mm',1,52.5],['10×8 mm',1,58.8],
+    ],
+    marquise: [
+      ['3×1.5 mm',1,8.67],['4×2 mm',1,9.81],['5×2.5 mm',1,13.92],['6×3 mm',1,18.77],['7×3.5 mm',1,21.84],
+      ['8×4 mm',1,26.22],['9×4.5 mm',1,52.96],
+    ],
+    princess: [
+      ['1.5 mm',1,8.39],['1.75 mm',1,7.0],['2 mm',1,6.93],['2.25 mm',1,7.5],['2.5 mm',1,9.24],
+      ['2.75 mm',1,9.45],['3 mm',1,10.12],['3.25 mm',1,17.51],['3.5 mm',1,18.76],['4 mm',1,19.33],
+      ['5 mm',1,34.31],['6 mm',1,41.31],['9 mm',1,162.4],
+    ],
+    'octagon-princess': [
+      ['5×3 mm',1,10.12],['6×4 mm',1,20.17],['7×5 mm',1,33.26],['8×6 mm',1,53.37],['10×8 mm',1,131.6],
+      ['11×9 mm',1,189.0],
+    ],
+    heart: [
+      ['3 mm',1,10.12],['4 mm',1,21.01],['5 mm',1,27.78],
+    ],
+  },
+};
+function corSizes(gradeId, colorId, shape) {
+  const g = CORUNDUM_SHEETS[gradeId + '|' + colorId];
+  return g && g[shape] ? g[shape].map((r) => r[0]) : [];
+}
+function corSku(gradeId, colorId, shape, size) {
+  const g = CORUNDUM_SHEETS[gradeId + '|' + colorId];
+  const row = g && g[shape] ? g[shape].find((r) => r[0] === size) : null;
+  if (!row) return null;
+  return { id: 'cor-' + gradeId + '-' + colorId + '-' + shape + '-' + String(size).replace(/\s/g, ''), price: row[2], pcsPerPacket: row[1], moq: row[1], size, stock: 'in', stockCount: 0 };
+}
+window.corSizes = corSizes;
+window.corSku = corSku;
 
 // Bracelet: colours differ per style. Cartier = full 21-colour chart; Rolex = 6 metallic finishes.
 const BRACELET_BY_GRADE = {

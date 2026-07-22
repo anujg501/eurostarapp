@@ -982,7 +982,9 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   const alpSheet = category.id === 'alpanite' && color && window.alpSheetSizes && window.alpSheetSizes(color.id, shape).length ? window.alpSheetSizes(color.id, shape) : null;
   // HD Zirconia: per-grade round price+weight sheet (Mercury Etoile/H/HH/Super Heavy/HHH).
   const hdSheet = category.id === 'highdensity' && grade && window.hdSizes && window.hdSizes(grade.id, shape).length ? window.hdSizes(grade.id, shape) : null;
-  let sizes = category.id === 'moissanite' ? (moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm']) : alpGreen ? alpGreen : alpBlue ? alpBlue : alpSheet ? alpSheet : hdSheet ? hdSheet : skuSizes.length ? skuSizes.slice() : (SIZES_BY_CATEGORY && SIZES_BY_CATEGORY[category.id]) ? SIZES_BY_CATEGORY[category.id].slice() : ourosaMode ? OUROSA_SIZES.map((x) => x[0]) : mixedMoiss ? moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm'] : byStrip ? FULL_SIZES[shape] || ['4.00 mm'] : FULL_SIZES[shape] || ['4.00 mm'];
+  // Corundum: per grade+colour price sheet (e.g. EXCEL AAA · Ruby 5).
+  const corSheet = category.id === 'corundum' && grade && color && window.corSizes && window.corSizes(grade.id, color.id, shape).length ? window.corSizes(grade.id, color.id, shape) : null;
+  let sizes = category.id === 'moissanite' ? (moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm']) : alpGreen ? alpGreen : alpBlue ? alpBlue : alpSheet ? alpSheet : hdSheet ? hdSheet : corSheet ? corSheet : skuSizes.length ? skuSizes.slice() : (SIZES_BY_CATEGORY && SIZES_BY_CATEGORY[category.id]) ? SIZES_BY_CATEGORY[category.id].slice() : ourosaMode ? OUROSA_SIZES.map((x) => x[0]) : mixedMoiss ? moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm'] : byStrip ? FULL_SIZES[shape] || ['4.00 mm'] : FULL_SIZES[shape] || ['4.00 mm'];
   // A colour may cap its size range (e.g. Alpanite Yellow / 162/2 → 1.00–2.00 mm only).
   if (color && color.sizeMax) {sizes = sizes.filter((s) => (parseFloat(s) || 0) <= color.sizeMax + 0.001);}
   // A colour may set a minimum size. Fancy NxN sizes (e.g. "3x4") are kept as-is
@@ -1035,6 +1037,11 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
     // HD Zirconia: per-grade price+weight sheet.
     if (category.id === 'highdensity' && grade && window.hdSku) {
       const a = window.hdSku(grade.id, shape, size);
+      if (a) return a;
+    }
+    // Corundum: per grade+colour price sheet (EXCEL AAA · Ruby 5, priced per piece).
+    if (category.id === 'corundum' && grade && color && window.corSku) {
+      const a = window.corSku(grade.id, color.id, shape, size);
       if (a) return a;
     }
     return window.uploadedSkuFor ? uploadedSkuFor(category.id, shape, size, grade) : null;

@@ -1,21 +1,34 @@
 // product-images.jsx — admin-uploaded product photos, stored in the browser.
 // Keyed by category|colour|shape so ONE photo represents that colour+shape
 // across every grade and every size. Falls back to the generated gem when empty.
+//
+// Some categories show their *grade* as the visual variant while sharing a
+// single colour id (e.g. Mother of Pearl: White MOP / Malachite / Black MOP all
+// map to colour 'mop'; Multi Sapphires: Natural / Synthetic / Ice Cut all map to
+// colour 'multi'). For those, the grade is folded into the key so each grade can
+// carry its own photo. See PIMG_GRADE_SCOPED below.
 
 const PIMG_KEY = 'eurostar-product-images-v1';
+
+// Categories whose photo depends on the GRADE, not just colour + shape.
+const PIMG_GRADE_SCOPED = { mop: true, multisapphire: true, opaque: true };
 
 function pimgLoadAll() {
   try { return JSON.parse(localStorage.getItem(PIMG_KEY) || '{}'); }
   catch (e) { return {}; }
 }
-function pimgKey(catId, colorId, shape) { return catId + '|' + colorId + '|' + shape; }
-
-function getStoredProductImage(catId, colorId, shape) {
-  return pimgLoadAll()[pimgKey(catId, colorId, shape)] || null;
+function pimgKey(catId, colorId, shape, gradeId) {
+  return (gradeId && PIMG_GRADE_SCOPED[catId])
+    ? catId + '|' + gradeId + '|' + colorId + '|' + shape
+    : catId + '|' + colorId + '|' + shape;
 }
-function setStoredProductImage(catId, colorId, shape, dataUrl) {
+
+function getStoredProductImage(catId, colorId, shape, gradeId) {
+  return pimgLoadAll()[pimgKey(catId, colorId, shape, gradeId)] || null;
+}
+function setStoredProductImage(catId, colorId, shape, dataUrl, gradeId) {
   const all = pimgLoadAll();
-  const k = pimgKey(catId, colorId, shape);
+  const k = pimgKey(catId, colorId, shape, gradeId);
   if (dataUrl) all[k] = dataUrl; else delete all[k];
   try {
     localStorage.setItem(PIMG_KEY, JSON.stringify(all));
@@ -55,16 +68,17 @@ function fileToCompressedDataUrl(file, maxDim = 900, quality = 0.82) {
 
 // Uploadable product hero — shows the stored photo, else the gem render / shape icon.
 // `allowUpload` gates the upload control (scoped per-category by the caller).
-function ProductHero({ category, color, shape, photo, hex, lightenTone }) {
+function ProductHero({ category, color, shape, grade, photo, hex, lightenTone }) {
   const catId = category.id, colorId = color.id;
-  const allowUpload = catId === 'alpanite';
-  const [img, setImg] = React.useState(() => getStoredProductImage(catId, colorId, shape));
+  const gradeId = grade && grade.id;
+  const allowUpload = catId === 'alpanite' || !!PIMG_GRADE_SCOPED[catId];
+  const [img, setImg] = React.useState(() => getStoredProductImage(catId, colorId, shape, gradeId));
   const [busy, setBusy] = React.useState(false);
   const fileRef = React.useRef(null);
 
   React.useEffect(() => {
-    setImg(getStoredProductImage(catId, colorId, shape));
-  }, [catId, colorId, shape]);
+    setImg(getStoredProductImage(catId, colorId, shape, gradeId));
+  }, [catId, colorId, shape, gradeId]);
 
   const onPick = async (e) => {
     const f = e.target.files && e.target.files[0];
@@ -72,14 +86,14 @@ function ProductHero({ category, color, shape, photo, hex, lightenTone }) {
     setBusy(true);
     try {
       const url = await fileToCompressedDataUrl(f);
-      if (setStoredProductImage(catId, colorId, shape, url)) setImg(url);
+      if (setStoredProductImage(catId, colorId, shape, url, gradeId)) setImg(url);
     } catch (err) { alert('Could not read that image.'); }
     setBusy(false);
     e.target.value = '';
   };
   const onRemove = (e) => {
     e.stopPropagation();
-    setStoredProductImage(catId, colorId, shape, null);
+    setStoredProductImage(catId, colorId, shape, null, gradeId);
     setImg(null);
   };
 
@@ -171,4 +185,5 @@ function DocUploadCard({ catId, gradeId, docId, label, caption }) {
 
 Object.assign(window, {
   getStoredProductImage, setStoredProductImage, fileToCompressedDataUrl, ProductHero, DocUploadCard,
+  PIMG_GRADE_SCOPED, pimgKey,
 });

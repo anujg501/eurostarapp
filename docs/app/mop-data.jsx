@@ -222,9 +222,16 @@ function MopOrderPad({ grade, shape, category, qtyBySize, setQtyBySize, onBack, 
   return (
     <div className="browse-step">
       <div className="pad-header">
-        <div className="pad-header-art" style={{ background: tint, width: 132, height: 132, flex: '0 0 132px' }}>
-          {window.ShapeIcon ? <window.ShapeIcon shape={shape} size={48} color={hex} /> : null}
-        </div>
+        {window.ProductHero
+          ? <window.ProductHero
+              category={category}
+              color={{ id: 'mop', name: grade.name, hex }}
+              shape={shape} grade={grade}
+              photo={null} hex={hex}
+              lightenTone={window.lightenTone || ((h) => h)} />
+          : <div className="pad-header-art" style={{ background: tint, width: 132, height: 132, flex: '0 0 132px' }}>
+              {window.ShapeIcon ? <window.ShapeIcon shape={shape} size={48} color={hex} /> : null}
+            </div>}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="crumb">{category.short} · {grade.name} · {shapeMeta.name}</div>
           <h1 style={{ fontFamily: 'var(--font-serif)', fontWeight: 500, fontSize: 32,

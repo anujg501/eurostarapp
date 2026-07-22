@@ -677,31 +677,137 @@ function HomeThumbs() {
   );
 }
 
-/* ---------------- MEDIA (per-colour product photos) ---------------- */
+/* ---------------- MEDIA (per-colour / per-grade product photos) ---------------- */
+// Product photos shown on the Sales App live in the SAME localStorage store the
+// storefront reads (`eurostar-product-images-v1`). For most categories one photo
+// covers a colour+shape across all grades. But some categories show their GRADE
+// as the visual variant while sharing a single colour id (Mother of Pearl:
+// White MOP / Malachite / Black MOP → colour 'mop'; Multi Sapphires: Natural /
+// Synthetic / Ice Cut → colour 'multi'). For those the grade is folded into the
+// key so each grade carries its own photo. Keep this in sync with product-images.jsx.
+const PIMG_STORE_KEY = 'eurostar-product-images-v1';
+const PIMG_GRADE_SCOPED = W.PIMG_GRADE_SCOPED || { mop:true, multisapphire:true, opaque:true };
+function pimgLoadAll(){ try { return JSON.parse(localStorage.getItem(PIMG_STORE_KEY)||'{}')||{}; } catch(e){ return {}; } }
+function pimgKey(catId, colorId, shape, gradeId){
+  return (gradeId && PIMG_GRADE_SCOPED[catId])
+    ? catId+'|'+gradeId+'|'+colorId+'|'+shape
+    : catId+'|'+colorId+'|'+shape;
+}
+function pimgGet(catId, colorId, shape, gradeId){ return pimgLoadAll()[pimgKey(catId,colorId,shape,gradeId)]||''; }
+function pimgSet(catId, colorId, shape, url, gradeId){
+  const all = pimgLoadAll(); const k = pimgKey(catId,colorId,shape,gradeId);
+  if (url) all[k]=url; else delete all[k];
+  try { localStorage.setItem(PIMG_STORE_KEY, JSON.stringify(all)); return true; }
+  catch(e){ alert('Browser storage is full — try a smaller image.'); return false; }
+}
+
+// The colour list shown for a given grade, mirroring the storefront drill-down.
+function coloursForGrade(catId, gradeId){
+  const byGrade =
+    (catId==='opaque'   && (W.OPAQUE_COLORS_BY_GRADE||{})[gradeId]) ||
+    (catId==='pearls'   && (W.PEARL_COLORS_BY_GRADE||{})[gradeId]) ||
+    (catId==='corundum' && (W.CORUNDUM_COLORS_BY_GRADE||{})[gradeId]) ||
+    (catId==='labgrown' && (W.LABGROWN_COLORS_BY_GRADE||{})[gradeId]) ||
+    (catId==='cz'       && (W.CZ_COLORS_BY_GRADE||{})[gradeId]) ||
+    (catId==='rajkot'   && (W.RAJKOT_COLORS_BY_GRADE||{})[gradeId]);
+  return byGrade || CBY[catId] || [{ id:'default', name:'Default', hex:'#CCCCCC' }];
+}
+function shapesForColour(catId, colour){
+  return (colour && colour.shapes) || SBY[catId] || ['round'];
+}
+
+// One uploadable photo cell (colour + shape, optionally scoped to a grade).
+function MediaCell({ catId, colour, shape, gradeId }){
+  const [img, setImg] = useState(()=>pimgGet(catId, colour.id, shape, gradeId));
+  const [busy, setBusy] = useState(false);
+  const ref = React.useRef(null);
+  React.useEffect(()=>{ setImg(pimgGet(catId, colour.id, shape, gradeId)); }, [catId, colour.id, shape, gradeId]);
+  const onPick = async (e)=>{ const f=e.target.files&&e.target.files[0]; if(!f) return; setBusy(true);
+    try { const url=await adThumbCompress(f, 900, 0.82); if(pimgSet(catId, colour.id, shape, url, gradeId)) setImg(url); }
+    catch(err){ alert('Could not read that image.'); } setBusy(false); e.target.value=''; };
+  const onRemove = ()=>{ pimgSet(catId, colour.id, shape, null, gradeId); setImg(''); };
+  return (
+    <div className="ad-thumb-cell">
+      <div className="ad-thumb-art">
+        {img ? <img src={img} alt={shape} /> : <span className="ad-thumb-empty" style={{background:colour.hex}}></span>}
+      </div>
+      <div className="ad-thumb-label">{adFindShape(shape).name}</div>
+      <div style={{display:'flex',gap:6,marginTop:4,flexWrap:'wrap'}}>
+        <input ref={ref} type="file" accept="image/*" onChange={onPick} style={{display:'none'}} />
+        <button className="ad-btn ad-btn-ghost ad-btn-sm" onClick={()=>ref.current&&ref.current.click()}>{busy?'Saving…':img?'Change':'＋ Upload'}</button>
+        {img && <button className="ad-btn ad-btn-ghost ad-btn-sm" onClick={onRemove}>Remove</button>}
+      </div>
+    </div>
+  );
+}
+
+// A group of shape cells for one colour (under a specific grade, if scoped).
+function MediaColourBlock({ catId, colour, gradeId }){
+  const shapes = shapesForColour(catId, colour);
+  return (
+    <div className="ad-card ad-card-pad" style={{marginTop:12}}>
+      <div className="ad-sechead" style={{marginBottom:10}}>
+        <h3 style={{display:'flex',alignItems:'center',gap:8}}>
+          <span className="ad-sw" style={{background:colour.hex}} />{colour.name}
+        </h3>
+        <span className="meta">{shapes.length} shape{shapes.length!==1?'s':''}</span>
+      </div>
+      <div className="ad-thumb-grid">
+        {shapes.map((s)=>(<MediaCell key={s} catId={catId} colour={colour} shape={s} gradeId={gradeId} />))}
+      </div>
+    </div>
+  );
+}
+
 function Media() {
   const [cat, setCat] = useState(CATS[0]?CATS[0].id:'');
-  const colours = CBY[cat]||[];
-  const shapes = SBY[cat]||[];
+  const grades = GBY[cat]||[];
+  const scoped = !!PIMG_GRADE_SCOPED[cat] && grades.length>1;
+  const [gradeId, setGradeId] = useState(scoped ? (grades[0]&&grades[0].id) : '');
+  React.useEffect(()=>{
+    const gs = GBY[cat]||[];
+    const sc = !!PIMG_GRADE_SCOPED[cat] && gs.length>1;
+    setGradeId(sc ? (gs[0]&&gs[0].id) : '');
+  }, [cat]);
+
+  const activeGradeId = scoped ? gradeId : '';
+  const colours = coloursForGrade(cat, activeGradeId);
+  const gradeName = scoped ? ((grades.find((g)=>g.id===gradeId)||{}).name||'') : '';
+
   return (
     <div className="ad-body">
-      <PageHead title="Product images" sub="Upload one photo per colour + shape — shows across all grades & sizes" />
+      <PageHead title="Product images"
+        sub={scoped
+          ? 'Each grade carries its own photo — upload a different image per grade, colour & shape.'
+          : 'Upload one photo per colour + shape — shows across all grades & sizes.'} />
       <div className="ad-card ad-card-pad">
-        <div className="ad-field" style={{maxWidth:280}}>
-          <span className="ad-label">Category</span>
-          <select className="ad-select" style={{width:'100%'}} value={cat} onChange={(e)=>setCat(e.target.value)}>
-            {CATS.map((c)=>(<option key={c.id} value={c.id}>{c.name}</option>))}
-          </select>
+        <div style={{display:'flex',gap:16,flexWrap:'wrap',alignItems:'flex-end'}}>
+          <div className="ad-field" style={{maxWidth:280,flex:'1 1 240px'}}>
+            <span className="ad-label">Category</span>
+            <select className="ad-select" style={{width:'100%'}} value={cat} onChange={(e)=>setCat(e.target.value)}>
+              {CATS.map((c)=>(<option key={c.id} value={c.id}>{c.name}</option>))}
+            </select>
+          </div>
+          {scoped &&
+            <div className="ad-field" style={{maxWidth:280,flex:'1 1 240px'}}>
+              <span className="ad-label">Grade</span>
+              <select className="ad-select" style={{width:'100%'}} value={gradeId} onChange={(e)=>setGradeId(e.target.value)}>
+                {grades.map((g)=>(<option key={g.id} value={g.id}>{g.name}</option>))}
+              </select>
+            </div>}
         </div>
-        <div style={{overflowX:'auto'}}>
-          <table className="ad-table" style={{minWidth:480}}>
-            <thead><tr><th>Colour</th>{shapes.map((s)=>(<th key={s}>{adFindShape(s).name}</th>))}</tr></thead>
-            <tbody>{colours.map((cl)=>(
-              <tr key={cl.id}><td><span className="ad-sw" style={{background:cl.hex,marginRight:8}} />{cl.name}</td>
-              {shapes.map((s)=>(<td key={s}><button className="ad-btn ad-btn-ghost ad-btn-sm">＋ Upload</button></td>))}</tr>
-            ))}</tbody>
-          </table>
-        </div>
-        <div className="ad-muted" style={{fontSize:12,marginTop:12}}>Tip: name files <code>{cat}_colour_shape.jpg</code> and bulk-upload via the image sheet.</div>
+        {scoped &&
+          <div className="ad-muted" style={{fontSize:12.5,marginTop:10}}>
+            Editing photos for <strong>{gradeName}</strong>. Switch the grade above to give each one a different image.
+          </div>}
+      </div>
+
+      {colours.map((cl)=>(
+        <MediaColourBlock key={(activeGradeId||'')+'|'+cl.id} catId={cat} colour={cl} gradeId={activeGradeId} />
+      ))}
+
+      <div className="ad-muted" style={{fontSize:12,marginTop:12}}>
+        Photos are saved instantly and appear on the Sales App storefront for the matching {scoped?'grade, ':''}colour &amp; shape.
       </div>
     </div>
   );

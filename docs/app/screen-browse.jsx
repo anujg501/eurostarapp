@@ -449,7 +449,7 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
             {(needsSubShape ? shapeSubs : shapeIds).map((s) => {
             const meta = findShape(s);
             const sizes = category.id === 'mop' ? window.MOP_PRICES[s] || [] : FULL_SIZES[s] || ['4.00 mm'];
-            const shapeImg = getStoredProductImage(category.id, color.id, s) || productPhoto(color.id);
+            const shapeImg = getStoredProductImage(category.id, color.id, s, grade && grade.id) || productPhoto(color.id);
             return (
               <button key={s} className="shape-pick-card" onClick={() => needsSubShape ? pickShapeSub(s) : pickShape(s)}>
                   <div className="shape-pick-art" style={{ background: lightenTone(color.hex),
@@ -987,7 +987,7 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   return (
     <div className="browse-step">
       <div className="pad-header">
-        <ProductHero category={category} color={color} shape={shape}
+        <ProductHero category={category} color={color} shape={shape} grade={grade}
         photo={photo} hex={hex} lightenTone={lightenTone} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="crumb">{category.short} · {grade.name} · {color.name} · {findShape(shape)?.name}</div>

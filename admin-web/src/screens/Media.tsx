@@ -3,6 +3,9 @@ import {
   adminApi,
   uploadImage,
   productImageKey,
+  resolveProductImage,
+  GRADE_SCOPED,
+  GRADE_SCOPED_GRADES,
   type Category,
   type Colour,
   type ProductImages,
@@ -22,7 +25,7 @@ export function Media({ initialTab = 'thumbs' }: { initialTab?: 'thumbs' | 'prod
       <div className="ad-body">
         <div className="ad-pagehead">
           <h2>Product images</h2>
-          <p className="ad-muted">Upload one photo per colour + shape — shows across all grades &amp; sizes</p>
+          <p className="ad-muted">Upload a photo per colour + shape — and per grade for MOP, Multi Sapphire &amp; Opaque</p>
         </div>
         <ProductPhotos standalone />
       </div>
@@ -209,6 +212,7 @@ function Thumbs() {
 function ProductPhotos({ standalone = false }: { standalone?: boolean } = {}) {
   const [cats, setCats] = useState<Category[]>([]);
   const [cat, setCat] = useState('');
+  const [grade, setGrade] = useState('');
   const [colours, setColours] = useState<Colour[]>([]);
   const [shapes, setShapes] = useState<string[]>([]);
   const [images, setImages] = useState<ProductImages>({});
@@ -233,6 +237,12 @@ function ProductPhotos({ standalone = false }: { standalone?: boolean } = {}) {
   }, []);
 
   useEffect(() => {
+    // Grade-scoped categories (MOP, Multi Sapphire, Opaque) show a grade picker;
+    // default to the first grade so uploads target one grade, not all at once.
+    setGrade(GRADE_SCOPED[cat] ? (GRADE_SCOPED_GRADES[cat]?.[0]?.id ?? '') : '');
+  }, [cat]);
+
+  useEffect(() => {
     if (!cat) return;
     (async () => {
       try {
@@ -244,6 +254,9 @@ function ProductPhotos({ standalone = false }: { standalone?: boolean } = {}) {
       }
     })();
   }, [cat]);
+
+  const scoped = !!GRADE_SCOPED[cat];
+  const gradeChoices = GRADE_SCOPED_GRADES[cat] ?? [];
 
   const save = async (key: string, dataUrl: string | null) => {
     setBusyKey(key);
@@ -284,16 +297,36 @@ function ProductPhotos({ standalone = false }: { standalone?: boolean } = {}) {
         </>
       )}
 
-      <div className="ad-field-v" style={{ marginTop: standalone ? 0 : 12, marginBottom: 0 }}>
-        <span className="ad-label">Category</span>
-        <select className="ad-input" style={{ maxWidth: 280, width: '100%' }} value={cat} onChange={(e) => setCat(e.target.value)}>
-          {cats.map((c) => (
-            <option key={c.key} value={c.key}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end', marginTop: standalone ? 0 : 12 }}>
+        <div className="ad-field-v" style={{ marginBottom: 0, flex: '1 1 240px', maxWidth: 280 }}>
+          <span className="ad-label">Category</span>
+          <select className="ad-input" style={{ width: '100%' }} value={cat} onChange={(e) => setCat(e.target.value)}>
+            {cats.map((c) => (
+              <option key={c.key} value={c.key}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        {scoped && (
+          <div className="ad-field-v" style={{ marginBottom: 0, flex: '1 1 240px', maxWidth: 280 }}>
+            <span className="ad-label">Grade</span>
+            <select className="ad-input" style={{ width: '100%' }} value={grade} onChange={(e) => setGrade(e.target.value)}>
+              {gradeChoices.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
+      {scoped && (
+        <p className="ad-muted" style={{ marginTop: 10, marginBottom: 0, fontSize: 12.5 }}>
+          Each grade has its own photos — switch the grade above to give{' '}
+          {gradeChoices.map((g) => g.name).join(' / ')} different images.
+        </p>
+      )}
 
       {error && <div className="ad-error" style={{ marginTop: 12 }}>{error}</div>}
 
@@ -324,8 +357,8 @@ function ProductPhotos({ standalone = false }: { standalone?: boolean } = {}) {
                       {col.name}
                     </td>
                     {shapes.map((sh) => {
-                      const key = productImageKey(cat, col.id, sh);
-                      const img = images[key];
+                      const key = productImageKey(cat, col.id, sh, scoped ? grade : undefined);
+                      const img = resolveProductImage(images, cat, col.id, sh, scoped ? grade : undefined);
                       return (
                         <td key={sh}>
                           <div className="pi-cell">
@@ -354,7 +387,10 @@ function ProductPhotos({ standalone = false }: { standalone?: boolean } = {}) {
             </table>
           </div>
           <p className="ad-hint" style={{ marginTop: 10 }}>
-            Tip: square JPG/PNG photos look best — the same photo shows across all grades &amp; sizes of that colour + shape.
+            Tip: square JPG/PNG photos look best.{' '}
+            {scoped
+              ? 'This photo shows for the selected grade, across all its sizes.'
+              : 'The same photo shows across all grades & sizes of that colour + shape.'}
           </p>
         </>
       )}

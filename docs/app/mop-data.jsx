@@ -185,10 +185,11 @@ function MopOrderPad({ grade, shape, category, qtyBySize, setQtyBySize, onBack, 
   const colorId = grade.id;
   const hex = (MOP_COLORS.find((c) => c.id === colorId) || {}).hex || '#EFE9DD';
   const tint = window.lightenTone ? window.lightenTone(hex) : 'var(--paper-2)';
-  // Same resolver the shape cards use — see laser-data.jsx. This pad has no
-  // colour prop; its colour identity is the grade, which is what the upload
-  // key is built from for this category.
-  const heroImg = window.productImageFor ? window.productImageFor(category.id, colorId, shape) : null;
+  // Same resolver + key the shape cards and the admin use: MOP shares one colour
+  // ('mop') across grades, so the photo is keyed by GRADE (grade.id = colorId here)
+  // with that shared colour — each of White/Malachite/Black gets its own image.
+  const mopColourId = (window.COLORS_BY_CATEGORY && window.COLORS_BY_CATEGORY.mop && window.COLORS_BY_CATEGORY.mop[0] && window.COLORS_BY_CATEGORY.mop[0].id) || 'mop';
+  const heroImg = window.productImageFor ? window.productImageFor(category.id, mopColourId, shape, colorId) : null;
   const rows = mopRows(shape);
 
   const setQty = (size, v) => setQtyBySize((p) => ({ ...p, [size]: Math.max(0, parseInt(v, 10) || 0) }));

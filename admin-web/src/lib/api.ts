@@ -279,9 +279,51 @@ export interface Colour {
 export type ColoursByCat = Record<string, Colour[]>;
 export type ShapesByCat = Record<string, string[]>;
 
-/** Product photo map. Key format is fixed by the storefront: `cat|colour|shape`. */
+/** Product photo map. Key format is fixed by the storefront (see
+ *  docs/app/product-images.jsx): `cat|colour|shape`, or `cat|grade|colour|shape`
+ *  for grade-scoped categories. */
 export type ProductImages = Record<string, string>;
-export const productImageKey = (cat: string, colour: string, shape: string) => `${cat}|${colour}|${shape}`;
+
+// Categories whose photo depends on the GRADE, not just colour + shape. In these,
+// the cards shown as "colours" are actually grades sharing one colour id (Mother
+// of Pearl → 'mop'; Multi Sapphires → 'multi'; Opaque → natural/opal). Keep in
+// sync with docs/app/product-images.jsx (PIMG_GRADE_SCOPED).
+export const GRADE_SCOPED: Record<string, boolean> = { mop: true, multisapphire: true, opaque: true };
+
+// The grade list to offer per grade-scoped category (id must match the
+// storefront's grade ids in docs/app/data.jsx → GRADES_BY_CATEGORY). Grades are
+// not lifted into the admin overlays, so they are defined here.
+export const GRADE_SCOPED_GRADES: Record<string, { id: string; name: string }[]> = {
+  mop: [
+    { id: 'white', name: 'White MOP' },
+    { id: 'malachite', name: 'Malachite' },
+    { id: 'black', name: 'Black MOP' },
+  ],
+  multisapphire: [
+    { id: 'aaa', name: 'Natural Multi Sapphires' },
+    { id: 'aa', name: 'Synthetic Multi Sapphires' },
+    { id: 'icecut', name: 'Ice Cut Multi Sapphires' },
+  ],
+  opaque: [
+    { id: 'natural', name: 'Natural look Opaque Stones' },
+    { id: 'opal', name: 'Opal look Opaque Stones' },
+  ],
+};
+
+export const productImageKey = (cat: string, colour: string, shape: string, grade?: string) =>
+  grade && GRADE_SCOPED[cat] ? `${cat}|${grade}|${colour}|${shape}` : `${cat}|${colour}|${shape}`;
+
+/** Resolve a photo for a cell: a grade-specific upload wins, else the legacy
+ *  shared colour+shape photo (so pre-per-grade uploads still show). */
+export const resolveProductImage = (
+  images: ProductImages,
+  cat: string,
+  colour: string,
+  shape: string,
+  grade?: string,
+): string | undefined =>
+  images[productImageKey(cat, colour, shape, grade)] ??
+  (grade && GRADE_SCOPED[cat] ? images[productImageKey(cat, colour, shape)] : undefined);
 
 export interface Announcement {
   active: boolean;

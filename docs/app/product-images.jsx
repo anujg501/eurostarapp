@@ -4,11 +4,23 @@
 
 const PIMG_KEY = 'eurostar-product-images-v1';
 
+// Categories whose photo depends on the GRADE, not just colour + shape. In these,
+// the three cards shown as "colours" are actually grades that share one colour id
+// (Mother of Pearl → 'mop': White MOP / Malachite / Black MOP; Multi Sapphires →
+// 'multi': Natural / Synthetic / Ice Cut), so the grade is folded into the key to
+// give each its own photo. Keep in sync with admin-web/src/lib/api.ts.
+const PIMG_GRADE_SCOPED = { mop: true, multisapphire: true, opaque: true };
+
 function pimgLoadAll() {
   try { return JSON.parse(localStorage.getItem(PIMG_KEY) || '{}'); }
   catch (e) { return {}; }
 }
-function pimgKey(catId, colorId, shape) { return catId + '|' + colorId + '|' + shape; }
+// Legacy key: category|colour|shape.  Grade-scoped key: category|grade|colour|shape.
+function pimgKey(catId, colorId, shape, gradeId) {
+  return (gradeId && PIMG_GRADE_SCOPED[catId])
+    ? catId + '|' + gradeId + '|' + colorId + '|' + shape
+    : catId + '|' + colorId + '|' + shape;
+}
 
 /** The one image resolution rule for the whole app: an image the admin uploaded
  *  for this exact category + colour + shape wins, otherwise the built-in stock
@@ -18,19 +30,25 @@ function pimgKey(catId, colorId, shape) { return catId + '|' + colorId + '|' + s
  *  shape cards and the size-pad hero consulted the uploaded store while the
  *  cart looked only at the stock photo, so one product showed two different
  *  images depending on the page. */
-function productImageFor(catId, colorId, shape) {
+function productImageFor(catId, colorId, shape, gradeId) {
   return (
-    getStoredProductImage(catId, colorId, shape) ||
+    getStoredProductImage(catId, colorId, shape, gradeId) ||
     (typeof window.productPhoto === 'function' ? window.productPhoto(colorId) : null)
   );
 }
 
-function getStoredProductImage(catId, colorId, shape) {
-  return pimgLoadAll()[pimgKey(catId, colorId, shape)] || null;
-}
-function setStoredProductImage(catId, colorId, shape, dataUrl) {
+function getStoredProductImage(catId, colorId, shape, gradeId) {
   const all = pimgLoadAll();
-  const k = pimgKey(catId, colorId, shape);
+  // A grade-specific photo wins; otherwise fall back to the legacy shared
+  // colour+shape photo, so images uploaded before per-grade support keep
+  // showing on every grade until a grade-specific one replaces them.
+  return all[pimgKey(catId, colorId, shape, gradeId)]
+      || (gradeId && PIMG_GRADE_SCOPED[catId] ? all[pimgKey(catId, colorId, shape)] : null)
+      || null;
+}
+function setStoredProductImage(catId, colorId, shape, dataUrl, gradeId) {
+  const all = pimgLoadAll();
+  const k = pimgKey(catId, colorId, shape, gradeId);
   if (dataUrl) all[k] = dataUrl; else delete all[k];
   try {
     localStorage.setItem(PIMG_KEY, JSON.stringify(all));
@@ -70,16 +88,17 @@ function fileToCompressedDataUrl(file, maxDim = 900, quality = 0.82) {
 
 // Uploadable product hero — shows the stored photo, else the gem render / shape icon.
 // `allowUpload` gates the upload control (scoped per-category by the caller).
-function ProductHero({ category, color, shape, photo, hex, lightenTone }) {
+function ProductHero({ category, color, shape, grade, photo, hex, lightenTone }) {
   const catId = category.id, colorId = color.id;
+  const gradeId = grade && grade.id;
   const allowUpload = catId === 'alpanite';
-  const [img, setImg] = React.useState(() => getStoredProductImage(catId, colorId, shape));
+  const [img, setImg] = React.useState(() => getStoredProductImage(catId, colorId, shape, gradeId));
   const [busy, setBusy] = React.useState(false);
   const fileRef = React.useRef(null);
 
   React.useEffect(() => {
-    setImg(getStoredProductImage(catId, colorId, shape));
-  }, [catId, colorId, shape]);
+    setImg(getStoredProductImage(catId, colorId, shape, gradeId));
+  }, [catId, colorId, shape, gradeId]);
 
   const onPick = async (e) => {
     const f = e.target.files && e.target.files[0];
@@ -87,14 +106,14 @@ function ProductHero({ category, color, shape, photo, hex, lightenTone }) {
     setBusy(true);
     try {
       const url = await fileToCompressedDataUrl(f);
-      if (setStoredProductImage(catId, colorId, shape, url)) setImg(url);
+      if (setStoredProductImage(catId, colorId, shape, url, gradeId)) setImg(url);
     } catch (err) { alert('Could not read that image.'); }
     setBusy(false);
     e.target.value = '';
   };
   const onRemove = (e) => {
     e.stopPropagation();
-    setStoredProductImage(catId, colorId, shape, null);
+    setStoredProductImage(catId, colorId, shape, null, gradeId);
     setImg(null);
   };
 
@@ -193,5 +212,5 @@ function DocUploadCard({ catId, gradeId, docId, label, caption }) {
 
 Object.assign(window, {
   getStoredProductImage, setStoredProductImage, fileToCompressedDataUrl, ProductHero, DocUploadCard,
-  productImageFor,
+  productImageFor, PIMG_GRADE_SCOPED,
 });

@@ -72,9 +72,18 @@ function PageHead({ title, sub }) {
 /* ===================== ADMIN SCREENS ===================== */
 function AdminDashboard({ st }) {
   const { customers, byRep, maxSales } = st;
-  const totalSales = CRM_ORDERS.reduce((a, o) => a + o.value, 0);
+  // Every headline number comes from the server-computed summary (real DB
+  // queries); the local arrays are only a fallback for first paint / offline.
+  const S = st.summary || {};
+  const num = (v, fb) => (v == null ? fb : v);
   const openCarts = st.carts.filter((c) => c.status !== 'abandoned');
   const abandoned = st.carts.filter((c) => c.status === 'abandoned');
+  const totalSales = num(S.mtdSales, CRM_ORDERS.reduce((a, o) => a + o.value, 0));
+  const ordersCount = num(S.orders, st.orders.length);
+  const pendingCount = num(S.pendingOrders, st.orders.filter((o) => o.status === 'new').length);
+  const openCartsCount = num(S.openCarts, openCarts.length);
+  const openCartsValue = num(S.openCartsValue, openCarts.reduce((a, c) => a + c.value, 0));
+  const activeCustCount = num(S.activeCustomers, customers.filter((c) => c.active).length);
   // Real month-over-month from the hydrated series (oldest-first). Was a
   // hardcoded "▲ 12%".
   const mom = (() => {
@@ -89,10 +98,10 @@ function AdminDashboard({ st }) {
       <AdminCoachDigest st={st} />
       <div className="kpi-grid">
         <div className="kpi"><div className="kpi-label">Total sales (MTD)</div><div className="kpi-value">{H.inr(totalSales)}</div><div className="kpi-sub">{mom === null ? <span className="crm-muted">—</span> : <span className={mom >= 0 ? 'up' : 'down'}>{mom >= 0 ? '▲' : '▼'} {Math.abs(mom)}%</span>} vs last month</div></div>
-        <div className="kpi"><div className="kpi-label">Orders</div><div className="kpi-value">{st.orders.length}</div><div className="kpi-sub">{st.orders.filter((o) => o.status === 'new').length} awaiting review</div></div>
-        <div className="kpi"><div className="kpi-label">Open carts</div><div className="kpi-value">{openCarts.length}</div><div className="kpi-sub">{H.inr(openCarts.reduce((a, c) => a + c.value, 0))} in play</div></div>
+        <div className="kpi"><div className="kpi-label">Orders</div><div className="kpi-value">{ordersCount}</div><div className="kpi-sub">{pendingCount} awaiting review</div></div>
+        <div className="kpi"><div className="kpi-label">Open carts</div><div className="kpi-value">{openCartsCount}</div><div className="kpi-sub">{H.inr(openCartsValue)} in play</div></div>
         <div className="kpi"><div className="kpi-label">Abandoned value</div><div className="kpi-value">{H.inr(abandoned.reduce((a, c) => a + c.value, 0))}</div><div className="kpi-sub"><span className="down">{abandoned.length} carts</span> to recover</div></div>
-        <div className="kpi"><div className="kpi-label">Active customers</div><div className="kpi-value">{customers.filter((c) => c.active).length}</div><div className="kpi-sub">across {CRM_REPS.length} reps</div></div>
+        <div className="kpi"><div className="kpi-label">Active customers</div><div className="kpi-value">{activeCustCount}</div><div className="kpi-sub">across {CRM_REPS.length} reps</div></div>
       </div>
       <div className="crm-cols">
         <div className="crm-card">
@@ -2312,6 +2321,8 @@ function CRM() {
   const [checkin, setCheckin] = useState({});
   const [leads, setLeads] = useState((window.CRM_LEADS || []).map((l) => ({ ...l })));
   const [leaders, setLeaders] = useState((window.CRM_LEADERS || []).map((l) => ({ ...l })));
+  // Dashboard headline metrics, computed server-side from real orders/carts.
+  const [summary, setSummary] = useState(() => ({ ...(window.CRM_SUMMARY || {}) }));
 
   // shared state across all screens
   const [customers, setCustomers] = useState(CRM_CUSTOMERS.map((c) => ({ ...c, active: c.active !== false, terms: c.terms || 'cash' })));
@@ -2370,10 +2381,36 @@ function CRM() {
         try { if (Array.isArray(window.CRM_ORDERS)) { window.CRM_ORDERS.length = 0; mapped.forEach((o) => window.CRM_ORDERS.push(o)); } } catch (e) {}
       })
       .catch(() => {});
+
+    // Dashboard headline metrics — every card computed from the database.
+    fetch(API + '/reports/summary', { headers: { authorization: 'Bearer ' + tok } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((s) => {
+        if (!s || typeof s !== 'object') return;
+        setSummary(s);
+        try { if (window.CRM_SUMMARY) Object.assign(window.CRM_SUMMARY, s); } catch (e) {}
+      })
+      .catch(() => {});
+
+    // Customers + carts, straight from the DB, so their counts/tables are live.
+    fetch(API + '/customers', { headers: { authorization: 'Bearer ' + tok } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((rows) => {
+        if (!Array.isArray(rows) || !rows.length) return;
+        setCustomers(rows.map((c) => ({ id: c.code || c.id, name: c.name, city: c.city || '', gst: c.gstin || '', mobile: c.phone || '', rep: c.rep || '', terms: c.terms || 'cash', tier: '', since: '', credit: 0, cartViewsNoOrder: 0, active: true })));
+      })
+      .catch(() => {});
+    fetch(API + '/carts', { headers: { authorization: 'Bearer ' + tok } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((rows) => {
+        if (!Array.isArray(rows)) return;
+        setCarts(rows.map((c) => ({ id: c.id, cust: c.customerId || '', updated: dateOnly(c.updatedAt), status: c.status || 'active', value: (c.totals && c.totals.grand) || 0, items: Array.isArray(c.lines) ? c.lines.length : 0, age: '', note: '' })));
+      })
+      .catch(() => {});
   }, []);
 
   const st = {
-    customers, orders, carts, queries, repRates, repTargets, newAdds, reps, leaders, payments, visits,
+    customers, orders, carts, queries, repRates, repTargets, newAdds, reps, leaders, payments, visits, summary,
     setTerms: (id, v) => setCustomers((cs) => cs.map((c) => c.id === id ? { ...c, terms: v } : c)),
     toggleSuspend: (id) => setCustomers((cs) => cs.map((c) => c.id === id ? { ...c, active: !c.active } : c)),
     setRate: (id, v) => setRepRates((m) => ({ ...m, [id]: Math.max(0, parseFloat(v) || 0) / 100 })),

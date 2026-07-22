@@ -108,29 +108,61 @@ reportsRouter.get(
   })
 );
 
-// GET /reports/summary — the dashboard's headline counters.
+// GET /reports/summary — every dashboard headline counter, computed live from
+// the database. No static values: each field is a real query.
+const CANCELLED_STATUSES = ['cancelled', 'rejected', 'returned', 'refunded'];
+const OPEN_ORDER_STATUSES = ['pending', 'confirmed', 'packed', 'shipped', 'dispatched', 'out-for-delivery'];
+
 reportsRouter.get(
   '/summary',
   asyncHandler(async (_req, res) => {
-    const [orderCount, customerCount, repCount, openRfq, revenueAgg, paidAgg] = await Promise.all([
-      prisma.order.count({ where: { status: { in: REVENUE_STATUSES } } }),
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const [
+      orderCount, pendingOrders, ordersToday, ordersMonth,
+      customerCount, repCount, openRfq,
+      mtdSalesAgg, revenueAgg, paidAgg,
+      activeCustomerRows, openCartCount, openCartValueAgg,
+    ] = await Promise.all([
+      // Orders = New + Confirmed + Packed + Dispatched + Out-for-delivery.
+      prisma.order.count({ where: { status: { in: OPEN_ORDER_STATUSES } } }),
+      prisma.order.count({ where: { status: 'pending' } }),
+      prisma.order.count({ where: { createdAt: { gte: todayStart } } }),
+      prisma.order.count({ where: { createdAt: { gte: monthStart } } }),
       prisma.customer.count(),
       prisma.user.count({ where: { role: 'rep', active: true } }),
       prisma.rfq.count({ where: { status: { not: 'closed' } } }).catch(() => 0),
-      prisma.order.aggregate({ _sum: { grand: true }, where: { status: { in: REVENUE_STATUSES } } }),
+      // Total Sales (MTD) = SUM(grand) this month, excluding cancelled family.
+      prisma.order.aggregate({ _sum: { grand: true }, where: { status: { notIn: CANCELLED_STATUSES }, createdAt: { gte: monthStart } } }),
+      // All-time revenue for the payments/outstanding widgets.
+      prisma.order.aggregate({ _sum: { grand: true }, where: { status: { notIn: CANCELLED_STATUSES } } }),
       prisma.payment.aggregate({ _sum: { amount: true }, where: { status: 'confirmed' } }).catch(() => ({ _sum: { amount: 0 } })),
+      // Active Customers = distinct customers with at least one order.
+      prisma.order.findMany({ where: { customerId: { not: null } }, distinct: ['customerId'], select: { customerId: true } }),
+      prisma.cart.count({ where: { status: 'active' } }),
+      prisma.cartLine.aggregate({ _sum: { lineTotal: true }, where: { cart: { status: 'active' } } }),
     ]);
 
+    const mtdSales = mtdSalesAgg._sum.grand || 0;
     const revenue = revenueAgg._sum.grand || 0;
     const collected = paidAgg._sum.amount || 0;
     return ok(res, {
       orders: orderCount,
+      pendingOrders,
+      ordersToday,
+      ordersMonth,
+      mtdSales,
+      avgOrderValue: ordersMonth ? Math.round(mtdSales / ordersMonth) : 0,
       customers: customerCount,
+      activeCustomers: activeCustomerRows.length,
       reps: repCount,
       openRfq,
+      openCarts: openCartCount,
+      openCartsValue: openCartValueAgg._sum.lineTotal || 0,
       revenue,
       collected,
-      // Outstanding = billed minus verified-collected, never negative.
       outstanding: Math.max(0, revenue - collected),
     });
   })

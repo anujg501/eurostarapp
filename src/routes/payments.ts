@@ -36,8 +36,10 @@ async function markOrderPaid(orderId: string) {
   await prisma.order.update({
     where: { id: orderId },
     data: {
+      // Mark paid, but do NOT auto-confirm. A newly placed order stays 'pending'
+      // so it lands in the CRM's "new order to confirm" queue for the back office
+      // to review and assign a courier. Confirming is the office's action.
       paid: true,
-      status: 'confirmed',
       ...(dispatch ? { dispatchBy: dispatch.date, dispatchByLabel: dispatch.label } : {}),
     },
   });

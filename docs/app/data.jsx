@@ -2067,6 +2067,56 @@ window.alpSheetSizes = alpSheetSizes;
 window.alpSheetSku = alpSheetSku;
 window.alpSheetHasWeight = alpSheetHasWeight;
 
+// HD Zirconia (High Density) price + weight sheet — sold by weight.
+// Per grade, round only. Row: [size, pcs/box, ₹/piece, grams per 1000 pc].
+// Etoile/H/HH share one price; Super Heavy/HHH share another. Super Heavy
+// adds half-step sizes; HHH is full-tenths only. From the HD MERCURY sheet.
+const HD_MERCURY = {
+  etoile: { round: [
+    ['1.00 mm',1000,1.42,2.2],['1.10 mm',1000,1.57,2.84],['1.20 mm',1000,1.76,3.76],['1.30 mm',1000,2.1,4.9],['1.40 mm',1000,2.3,5.985],
+    ['1.50 mm',1000,2.72,7.0],['1.60 mm',1000,3.1,8.5],['1.70 mm',1000,3.65,9.8],['1.80 mm',1000,4.85,11.4],['1.90 mm',1000,5.65,13.6],
+    ['2.00 mm',1000,5.85,18.4],
+  ] },
+  h: { round: [
+    ['1.00 mm',1000,1.42,2.32],['1.10 mm',1000,1.57,3.2],['1.20 mm',1000,1.76,4.0],['1.30 mm',1000,2.1,5.7],['1.40 mm',1000,2.3,6.5],
+    ['1.50 mm',1000,2.72,7.4],['1.60 mm',1000,3.1,8.7],['1.70 mm',1000,3.65,11.2],['1.80 mm',1000,4.85,13.6],['1.90 mm',1000,5.65,16.52],
+    ['2.00 mm',1000,5.85,18.9],
+  ] },
+  hh: { round: [
+    ['1.00 mm',1000,1.42,2.8],['1.10 mm',1000,1.57,3.6],['1.20 mm',1000,1.76,4.5],['1.30 mm',1000,2.1,5.8],['1.40 mm',1000,2.3,6.85],
+    ['1.50 mm',1000,2.72,8.75],['1.60 mm',1000,3.1,10.25],['1.70 mm',1000,3.65,12.3],['1.80 mm',1000,4.85,14.6],['1.90 mm',1000,5.65,17.0],
+    ['2.00 mm',1000,5.85,18.9],
+  ] },
+  superheavy: { round: [
+    ['1.00 mm',1000,1.42,4.5],['1.10 mm',1000,1.57,5.2],['1.15 mm',1000,1.65,7.0],['1.20 mm',1000,1.76,5.7],['1.25 mm',1000,1.95,8.65],
+    ['1.30 mm',1000,2.1,7.6],['1.35 mm',1000,2.2,10.85],['1.40 mm',1000,2.3,9.4],['1.45 mm',1000,2.52,13.25],['1.50 mm',1000,2.72,11.5],
+    ['1.55 mm',1000,2.92,16.35],['1.60 mm',1000,3.1,16.0],['1.70 mm',1000,3.65,17.4],['1.80 mm',1000,4.85,18.4],['1.90 mm',1000,5.65,21.2],
+    ['2.00 mm',1000,5.85,24.3],
+  ] },
+  hhh: { round: [
+    ['1.00 mm',1000,1.42,4.8],['1.10 mm',1000,1.57,6.4],['1.20 mm',1000,1.76,7.6],['1.30 mm',1000,2.1,9.7],['1.40 mm',1000,2.3,12.0],
+    ['1.50 mm',1000,2.72,14.5],['1.60 mm',1000,3.1,18.2],['1.70 mm',1000,3.65,21.4],['1.80 mm',1000,4.85,26.6],['1.90 mm',1000,5.65,31.0],
+    ['2.00 mm',1000,5.85,35.0],
+  ] },
+};
+function hdSizes(gradeId, shape) {
+  const g = HD_MERCURY[gradeId];
+  return g && g[shape] ? g[shape].map((r) => r[0]) : [];
+}
+function hdSku(gradeId, shape, size) {
+  const g = HD_MERCURY[gradeId];
+  const row = g && g[shape] ? g[shape].find((r) => r[0] === size) : null;
+  if (!row) return null;
+  return { id: 'hd-' + gradeId + '-' + shape + '-' + String(size).replace(/\s/g, ''), price: row[2], pcsPerPacket: row[1], moq: row[1], size, stock: 'in', stockCount: 0, wtPer1000: row[3] != null ? row[3] : null };
+}
+function hdHasWeight(gradeId, shape) {
+  const g = HD_MERCURY[gradeId];
+  return !!(g && g[shape] && g[shape].some((r) => r[3] != null));
+}
+window.hdSizes = hdSizes;
+window.hdSku = hdSku;
+window.hdHasWeight = hdHasWeight;
+
 // Bracelet: colours differ per style. Cartier = full 21-colour chart; Rolex = 6 metallic finishes.
 const BRACELET_BY_GRADE = {
   cartier: {

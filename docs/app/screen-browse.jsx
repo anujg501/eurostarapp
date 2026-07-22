@@ -951,7 +951,8 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   // Show the weight column for weight-priced categories, or for an Alpanite
   // colour whose uploaded price sheet carries a real grams/1000-pc figure.
   const alpHasWt = category.id === 'alpanite' && color && window.alpSheetHasWeight && window.alpSheetHasWeight(color.id, shape);
-  const showWt = catShowWeight(category.id) || alpHasWt;
+  const hdHasWt = category.id === 'highdensity' && grade && window.hdHasWeight && window.hdHasWeight(grade.id, shape);
+  const showWt = catShowWeight(category.id) || alpHasWt || hdHasWt;
   const navMode = category.id === 'navratna'; // sold by packet, one flat price per packet, no pcs/packet
   // Natural Pearl Cabs: show a weight-per-piece (grams) column.
   const showPieceWt = category.id === 'pearls' && grade.id === 'natural' && shape === 'cabs';
@@ -979,7 +980,9 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   const alpBlue = category.id === 'alpanite' && color && color.id === 'blue' && window.alpBlueSizes && window.alpBlueSizes(shape).length ? window.alpBlueSizes(shape) : null;
   // Alpanite colours with an uploaded round price chart (Yellow / 162-2 / Aqua / Brown).
   const alpSheet = category.id === 'alpanite' && color && window.alpSheetSizes && window.alpSheetSizes(color.id, shape).length ? window.alpSheetSizes(color.id, shape) : null;
-  let sizes = category.id === 'moissanite' ? (moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm']) : alpGreen ? alpGreen : alpBlue ? alpBlue : alpSheet ? alpSheet : skuSizes.length ? skuSizes.slice() : (SIZES_BY_CATEGORY && SIZES_BY_CATEGORY[category.id]) ? SIZES_BY_CATEGORY[category.id].slice() : ourosaMode ? OUROSA_SIZES.map((x) => x[0]) : mixedMoiss ? moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm'] : byStrip ? FULL_SIZES[shape] || ['4.00 mm'] : FULL_SIZES[shape] || ['4.00 mm'];
+  // HD Zirconia: per-grade round price+weight sheet (Mercury Etoile/H/HH/Super Heavy/HHH).
+  const hdSheet = category.id === 'highdensity' && grade && window.hdSizes && window.hdSizes(grade.id, shape).length ? window.hdSizes(grade.id, shape) : null;
+  let sizes = category.id === 'moissanite' ? (moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm']) : alpGreen ? alpGreen : alpBlue ? alpBlue : alpSheet ? alpSheet : hdSheet ? hdSheet : skuSizes.length ? skuSizes.slice() : (SIZES_BY_CATEGORY && SIZES_BY_CATEGORY[category.id]) ? SIZES_BY_CATEGORY[category.id].slice() : ourosaMode ? OUROSA_SIZES.map((x) => x[0]) : mixedMoiss ? moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm'] : byStrip ? FULL_SIZES[shape] || ['4.00 mm'] : FULL_SIZES[shape] || ['4.00 mm'];
   // A colour may cap its size range (e.g. Alpanite Yellow / 162/2 → 1.00–2.00 mm only).
   if (color && color.sizeMax) {sizes = sizes.filter((s) => (parseFloat(s) || 0) <= color.sizeMax + 0.001);}
   // A colour may set a minimum size. Fancy NxN sizes (e.g. "3x4") are kept as-is
@@ -1027,6 +1030,11 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
     // Alpanite colours priced from an uploaded round chart (Yellow / 162-2 / Aqua / Brown).
     if (category.id === 'alpanite' && color && window.alpSheetSku) {
       const a = window.alpSheetSku(color.id, shape, size);
+      if (a) return a;
+    }
+    // HD Zirconia: per-grade price+weight sheet.
+    if (category.id === 'highdensity' && grade && window.hdSku) {
+      const a = window.hdSku(grade.id, shape, size);
       if (a) return a;
     }
     return window.uploadedSkuFor ? uploadedSkuFor(category.id, shape, size, grade) : null;

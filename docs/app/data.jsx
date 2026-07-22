@@ -1202,7 +1202,7 @@ const COLORS_BY_CATEGORY = {
     { id: 'paraiba',  name: 'Alpanite Paraiba',  hex: '#2DAFD4',
       shapes: ['round','oval','pear','marquise','baguette','square','octagon-princess','octagon-step','heart','asscher'] },
     { id: 'alp-brown',name: 'Alp Brown',         hex: '#8B5E3C', shapes: ['round'] },
-    { id: 'yz-green', name: 'YZ Green (SP Green)',hex: '#4A9B5C', shapes: ['round'], sizeMin: 1.00, sizeMax: 3.00 },
+    { id: 'yz-green', name: 'YZ Green (SP Green)',hex: '#4A9B5C', shapes: ['round'] },
   ],
   multisapphire: [
     { id: 'multi', name: 'Multi Sapphire Strips', hex: '#1E3A8A' },
@@ -2039,6 +2039,11 @@ const ALP_EXTRA_SHEETS = {
     ['1.00 mm',1000,0.67],['1.10 mm',1000,0.71],['1.20 mm',1000,1.05],['1.30 mm',1000,1.05],['1.40 mm',1000,1.26],
     ['1.50 mm',1000,1.4],['1.60 mm',1000,1.62],['1.70 mm',1000,2.0],['1.80 mm',1000,2.26],['1.90 mm',1000,2.74],
     ['2.00 mm',1000,2.98],
+  ] },
+  'yz-green': { round: [
+    ['1.00 mm',1000,1.05],['1.10 mm',1000,1.13],['1.20 mm',1000,1.46],['1.30 mm',1000,1.86],['1.40 mm',1000,2.51],
+    ['1.50 mm',1000,3.0],['1.60 mm',1000,3.4],['1.70 mm',1000,3.73],['1.75 mm',1000,4.05],['1.80 mm',1000,4.7],
+    ['1.90 mm',1000,5.18],['2.00 mm',1000,5.83],
   ] },
 };
 function alpSheetSizes(colorId, shape) {

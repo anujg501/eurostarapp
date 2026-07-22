@@ -223,10 +223,10 @@
     // Bump this key whenever the hydrate writes new localStorage keys, so a
     // session that already hydrated under an older bridge re-runs once and picks
     // up the new data (otherwise it skips the reload and keeps rendering seed).
-    if (!sessionStorage.getItem('crm-hydrated-v11')) {
+    if (!sessionStorage.getItem('crm-hydrated-v12')) {
       // First visit this session: load live data, then reload so the CRM renders it.
       hydrate().then(function () {
-        sessionStorage.setItem('crm-hydrated-v11', '1');
+        sessionStorage.setItem('crm-hydrated-v12', '1');
         location.reload();
       });
     } else {

@@ -20,7 +20,7 @@ export const config = {
   jwt: {
     accessSecret: required('JWT_ACCESS_SECRET', 'dev-access-secret'),
     refreshSecret: required('JWT_REFRESH_SECRET', 'dev-refresh-secret'),
-    accessTtl: process.env.JWT_ACCESS_TTL ?? '15m',
+    accessTtl: process.env.JWT_ACCESS_TTL ?? '12h',
     refreshTtl: process.env.JWT_REFRESH_TTL ?? '30d',
   },
 

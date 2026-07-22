@@ -18,7 +18,28 @@
     try { return localStorage.getItem('eurostar-admin-token') || ''; } catch (e) { return ''; }
   }
 
-  function getJson(path) {
+  // Silently mint a fresh access token from the stored refresh token. Returns a
+  // promise of true on success. Without this, a 15-min-expired token made every
+  // hydrate 401 and fall back to the static seed (looked like "data went static").
+  function refreshToken() {
+    var rt = '';
+    try { rt = localStorage.getItem('eurostar-admin-refresh') || ''; } catch (e) {}
+    if (!rt) return Promise.resolve(false);
+    return fetch(API + '/auth/refresh', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ refreshToken: rt })
+    })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (d && d.accessToken) { try { localStorage.setItem('eurostar-admin-token', d.accessToken); } catch (e) {} return true; }
+        return false;
+      })
+      .catch(function () { return false; });
+  }
+
+  function getJson(path) { return doGet(path, true); }
+
+  function doGet(path, allowRefresh) {
     var t = token();
     if (!t) return Promise.resolve(null); // not signed in yet — nothing to hydrate
     return fetch(API + path, {
@@ -26,13 +47,21 @@
     })
       .then(function (r) {
         if (r.status === 401 || r.status === 403) {
-          // Session expired or revoked: drop it so the login screen comes back.
-          try { localStorage.removeItem('eurostar-admin-token'); } catch (e) {}
-          return null;
+          // Token expired — refresh once and retry before giving up (which would
+          // wipe the token and drop the CRM back to seed data).
+          if (allowRefresh) {
+            return refreshToken().then(function (ok) { return ok ? doGet(path, false) : dropToken(); });
+          }
+          return dropToken();
         }
         return r.ok ? r.json() : null;
       })
       .catch(function () { return null; });
+  }
+
+  function dropToken() {
+    try { localStorage.removeItem('eurostar-admin-token'); } catch (e) {}
+    return null;
   }
 
   function put(key, val) {
@@ -194,10 +223,10 @@
     // Bump this key whenever the hydrate writes new localStorage keys, so a
     // session that already hydrated under an older bridge re-runs once and picks
     // up the new data (otherwise it skips the reload and keeps rendering seed).
-    if (!sessionStorage.getItem('crm-hydrated-v10')) {
+    if (!sessionStorage.getItem('crm-hydrated-v11')) {
       // First visit this session: load live data, then reload so the CRM renders it.
       hydrate().then(function () {
-        sessionStorage.setItem('crm-hydrated-v10', '1');
+        sessionStorage.setItem('crm-hydrated-v11', '1');
         location.reload();
       });
     } else {

@@ -9,7 +9,7 @@ const PIMG_KEY = 'eurostar-product-images-v1';
 // (Mother of Pearl → 'mop': White MOP / Malachite / Black MOP; Multi Sapphires →
 // 'multi': Natural / Synthetic / Ice Cut), so the grade is folded into the key to
 // give each its own photo. Keep in sync with admin-web/src/lib/api.ts.
-const PIMG_GRADE_SCOPED = { mop: true, multisapphire: true, opaque: true };
+const PIMG_GRADE_SCOPED = { mop: true, multisapphire: true, opaque: true, labgrown: true, navratna: true, hollowmop: true };
 
 function pimgLoadAll() {
   try { return JSON.parse(localStorage.getItem(PIMG_KEY) || '{}'); }

@@ -288,7 +288,14 @@ export type ProductImages = Record<string, string>;
 // the cards shown as "colours" are actually grades sharing one colour id (Mother
 // of Pearl → 'mop'; Multi Sapphires → 'multi'; Opaque → natural/opal). Keep in
 // sync with docs/app/product-images.jsx (PIMG_GRADE_SCOPED).
-export const GRADE_SCOPED: Record<string, boolean> = { mop: true, multisapphire: true, opaque: true };
+export const GRADE_SCOPED: Record<string, boolean> = {
+  mop: true,
+  multisapphire: true,
+  opaque: true,
+  labgrown: true,
+  navratna: true,
+  hollowmop: true,
+};
 
 // The grade list to offer per grade-scoped category (id must match the
 // storefront's grade ids in docs/app/data.jsx → GRADES_BY_CATEGORY). Grades are
@@ -308,6 +315,52 @@ export const GRADE_SCOPED_GRADES: Record<string, { id: string; name: string }[]>
     { id: 'natural', name: 'Natural look Opaque Stones' },
     { id: 'opal', name: 'Opal look Opaque Stones' },
   ],
+  labgrown: [
+    { id: 'labgrown', name: 'Lab Grown Beryl' },
+    { id: 'created', name: 'Created Coloured Gemstones' },
+    { id: 'labcorundum', name: 'Lab Grown Corundum' },
+  ],
+  navratna: [
+    { id: 'natural', name: 'Natural Navratna' },
+    { id: 'created', name: 'Created Navratna' },
+  ],
+  hollowmop: [
+    { id: 'white', name: 'White MOP' },
+    { id: 'onyx', name: 'Black Onyx' },
+  ],
+};
+
+// Some grade-scoped categories have DIFFERENT colours per grade (mirrors the
+// storefront's LABGROWN_COLORS_BY_GRADE / OPAQUE_COLORS_BY_GRADE in data.jsx).
+// When a (category, grade) has an entry here, the admin shows these colours
+// instead of the category's lifted base colours. Grades not listed fall back to
+// the lifted colours (e.g. Lab Grown Beryl uses the base labgrown colours).
+export const GRADE_SCOPED_COLOURS: Record<string, Record<string, Colour[]>> = {
+  labgrown: {
+    created: [
+      { id: 'z8483', name: 'Z-8483 Pink Tourmaline', hex: '#E0567E' },
+      { id: 'z22', name: 'Z-22 Zambia Emerald', hex: '#0E5C4A' },
+      { id: 'z5912', name: 'Z-5912 Columbia Emerald', hex: '#1E7A52' },
+      { id: 'z597', name: 'Z-597 Tanzanite', hex: '#5B5BC4' },
+    ],
+    labcorundum: [
+      { id: 'peach', name: 'Peach', hex: '#F2B89C' },
+      { id: 'padp55', name: 'Padparadscha 55', hex: '#F08E6A' },
+      { id: 'purple65', name: 'Purple 65', hex: '#8E5FB0' },
+      { id: 'alex45', name: 'Alex 45', hex: '#4E7E6E' },
+      { id: 'alex46', name: 'Alex 46', hex: '#6E7EA0' },
+      { id: 'violet60', name: 'Violet 60', hex: '#7A4FB0' },
+      { id: 'kunzite61', name: 'Kunzite 61', hex: '#E5A8C8' },
+      { id: 'spinel105', name: 'Spinel 105', hex: '#C0324E' },
+      { id: 'spinel106', name: 'Spinel 106', hex: '#B0445E' },
+      { id: 'spinel108', name: 'Spinel 108', hex: '#9C2C44' },
+      { id: 'white', name: 'White', hex: '#F2EFE8' },
+      { id: 'green', name: 'Green', hex: '#2E8C5C' },
+      { id: 'sunrise', name: 'Sunrise', hex: '#F2925A' },
+      { id: 'yellow', name: 'Yellow', hex: '#E2B43A' },
+      { id: 'yellow20', name: 'Yellow 20', hex: '#EAC24E' },
+    ],
+  },
 };
 
 export const productImageKey = (cat: string, colour: string, shape: string, grade?: string) =>

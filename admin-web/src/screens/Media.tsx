@@ -6,6 +6,7 @@ import {
   resolveProductImage,
   GRADE_SCOPED,
   GRADE_SCOPED_GRADES,
+  GRADE_SCOPED_COLOURS,
   type Category,
   type Colour,
   type ProductImages,
@@ -25,7 +26,7 @@ export function Media({ initialTab = 'thumbs' }: { initialTab?: 'thumbs' | 'prod
       <div className="ad-body">
         <div className="ad-pagehead">
           <h2>Product images</h2>
-          <p className="ad-muted">Upload a photo per colour + shape — and per grade for MOP, Multi Sapphire &amp; Opaque</p>
+          <p className="ad-muted">Upload a photo per colour + shape — and per grade wherever a Grade selector appears</p>
         </div>
         <ProductPhotos standalone />
       </div>
@@ -257,6 +258,9 @@ function ProductPhotos({ standalone = false }: { standalone?: boolean } = {}) {
 
   const scoped = !!GRADE_SCOPED[cat];
   const gradeChoices = GRADE_SCOPED_GRADES[cat] ?? [];
+  // Grades that carry their own colour set (Lab Grown "Created"/"Corundum") show
+  // those colours; others fall back to the category's lifted base colours.
+  const effColours = (scoped && GRADE_SCOPED_COLOURS[cat]?.[grade]) || colours;
 
   const save = async (key: string, dataUrl: string | null) => {
     setBusyKey(key);
@@ -330,9 +334,9 @@ function ProductPhotos({ standalone = false }: { standalone?: boolean } = {}) {
 
       {error && <div className="ad-error" style={{ marginTop: 12 }}>{error}</div>}
 
-      {colours.length === 0 || shapes.length === 0 ? (
+      {effColours.length === 0 || shapes.length === 0 ? (
         <p className="ad-hint" style={{ marginTop: 14 }}>
-          This category has no {colours.length === 0 ? 'colours' : 'shapes'} yet — add them under Catalog → {cats.find((c) => c.key === cat)?.name} first,
+          This category has no {effColours.length === 0 ? 'colours' : 'shapes'} yet — add them under Catalog → {cats.find((c) => c.key === cat)?.name} first,
           then each colour × shape gets a photo slot here.
         </p>
       ) : (
@@ -350,7 +354,7 @@ function ProductPhotos({ standalone = false }: { standalone?: boolean } = {}) {
                 </tr>
               </thead>
               <tbody>
-                {colours.map((col) => (
+                {effColours.map((col) => (
                   <tr key={col.id}>
                     <td className="pi-colour">
                       <i className="ad-sw" style={{ background: col.hex || '#ccc' }} />

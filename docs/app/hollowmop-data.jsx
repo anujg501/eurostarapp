@@ -59,6 +59,10 @@ function HollowMopOrderPad({ grade, shape, category, qtyBySize, setQtyBySize, on
   const col = grade.id === 'onyx' ? 'b' : 'w';
   const hex = grade.id === 'onyx' ? '#2A2A28' : '#EFE9DD';
   const tint = window.lightenTone ? window.lightenTone(hex) : 'var(--paper-2)';
+  // Hollow MOP shares one colour ('default') across its grades, so the photo is
+  // keyed by GRADE — White MOP / Black Onyx each get their own image.
+  const hmColourId = (window.COLORS_BY_CATEGORY && window.COLORS_BY_CATEGORY.hollowmop && window.COLORS_BY_CATEGORY.hollowmop[0] && window.COLORS_BY_CATEGORY.hollowmop[0].id) || 'default';
+  const heroImg = window.productImageFor ? window.productImageFor(category.id, hmColourId, shape, grade.id) : null;
   const rows = hollowmopRows(shape);
 
   const setQty = (s, v) => setQtyBySize((p) => ({ ...p, [s]: Math.max(0, parseInt(v, 10) || 0) }));
@@ -92,8 +96,10 @@ function HollowMopOrderPad({ grade, shape, category, qtyBySize, setQtyBySize, on
   return (
     <div className="browse-step">
       <div className="pad-header">
-        <div className="pad-header-art" style={{ background: tint, width: 132, height: 132, flex: '0 0 132px' }}>
-          {window.ShapeIcon ? <window.ShapeIcon shape={shape} size={48} color={hex} /> : null}
+        <div className="pad-header-art" style={{ background: tint, width: 132, height: 132, flex: '0 0 132px', padding: heroImg ? 0 : undefined, overflow: 'hidden' }}>
+          {heroImg
+            ? <img src={heroImg} alt={grade.name + ' ' + shapeMeta.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : window.ShapeIcon ? <window.ShapeIcon shape={shape} size={48} color={hex} /> : null}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="crumb">{category.short} · {grade.name} · {shapeMeta.name}</div>

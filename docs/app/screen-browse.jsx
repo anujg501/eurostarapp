@@ -457,7 +457,7 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
             // shape card reads a flat "1 sizes".
             const skuSizesForCard = (window.uploadedSizesFor ? uploadedSizesFor(category.id, s, grade) : []);
             const sizes = skuSizesForCard.length ? skuSizesForCard : category.id === 'mop' ? window.MOP_PRICES[s] || [] : FULL_SIZES[s] || ['4.00 mm'];
-            const shapeImg = productImageFor(category.id, color.id, s);
+            const shapeImg = productImageFor(category.id, color.id, s, grade && grade.id);
             return (
               <button key={s} className="shape-pick-card" onClick={() => needsSubShape ? pickShapeSub(s) : pickShape(s)}>
                   <div className="shape-pick-art" style={{ background: lightenTone(color.hex),
@@ -578,7 +578,12 @@ function BraceletOrderPad({ grade, colors, imgPrefix, category, qtyBySize, setQt
   const price = grade.basePrice || 0;
   const [selId, setSelId] = React.useState(colors[0].id);
   const sel = colors.find((c) => c.id === selId) || colors[0];
-  const img = (id) => (imgPrefix || 'assets/products/bracelet-') + id + '.jpg';
+  // Prefer an admin-uploaded photo, keyed per style (grade) so Rolex and Cartier
+  // keep separate images even for shared colour names; fall back to the built-in
+  // bracelet asset for that style.
+  const img = (id) =>
+    (window.getStoredProductImage && window.getStoredProductImage('bracelet', id, 'round', grade.id)) ||
+    (imgPrefix || 'assets/products/bracelet-') + id + '.jpg';
   const q = qtyBySize[selId] || 0;
   const setQ = (v) => setQtyBySize((p) => ({ ...p, [selId]: Math.max(0, parseInt(v, 10) || 0) }));
   const bump = (d) => setQtyBySize((p) => ({ ...p, [selId]: Math.max(0, (p[selId] || 0) + d) }));
@@ -912,7 +917,7 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   const hex = color.hex;
   // Full resolution (uploaded image first), so the hero, the line added to the
   // cart and every later screen all show the same picture.
-  const photo = productImageFor(category.id, color.id, shape);
+  const photo = productImageFor(category.id, color.id, shape, grade && grade.id);
   const soldOutMap = (window.loadSoldOut ? window.loadSoldOut() : {});
   // Sold out either because the Admin marked this exact combination, or
   // because the uploaded SKU itself says the stock is out.
@@ -943,7 +948,11 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
     return rowUnit(s) === 'pc' ? n : Infinity;
   };
   const capQty = (s, v) => Math.min(v, sizeStock(s));
-  const showWt = catShowWeight(category.id);
+  // Show the weight column for weight-priced categories, or for an Alpanite
+  // colour whose uploaded price sheet carries a real grams/1000-pc figure.
+  const alpHasWt = category.id === 'alpanite' && color && window.alpSheetHasWeight && window.alpSheetHasWeight(color.id, shape);
+  const hdHasWt = category.id === 'highdensity' && grade && window.hdHasWeight && window.hdHasWeight(grade.id, shape);
+  const showWt = catShowWeight(category.id) || alpHasWt || hdHasWt;
   const navMode = category.id === 'navratna'; // sold by packet, one flat price per packet, no pcs/packet
   // Natural Pearl Cabs: show a weight-per-piece (grams) column.
   const showPieceWt = category.id === 'pearls' && grade.id === 'natural' && shape === 'cabs';
@@ -964,7 +973,16 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   // charts: a bulk-uploaded category has no chart entry, which is why every
   // shape used to show a single hardcoded "4.00 mm" row.
   const skuSizes = (window.uploadedSizesFor ? uploadedSizesFor(category.id, shape, grade) : []);
-  let sizes = skuSizes.length ? skuSizes.slice() : (SIZES_BY_CATEGORY && SIZES_BY_CATEGORY[category.id]) ? SIZES_BY_CATEGORY[category.id].slice() : ourosaMode ? OUROSA_SIZES.map((x) => x[0]) : mixedMoiss ? moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm'] : byStrip ? FULL_SIZES[shape] || ['4.00 mm'] : FULL_SIZES[shape] || ['4.00 mm'];
+  // Moissanite is fully chart + price-sheet driven: always use the full size
+  // chart, and never let a stray uploaded/sample SKU (which would otherwise
+  // collapse the pad to just its 1-2 sizes at the flat price) take over.
+  const alpGreen = category.id === 'alpanite' && color && color.id === 'green' && window.alpGreenSizes && window.alpGreenSizes(shape).length ? window.alpGreenSizes(shape) : null;
+  const alpBlue = category.id === 'alpanite' && color && color.id === 'blue' && window.alpBlueSizes && window.alpBlueSizes(shape).length ? window.alpBlueSizes(shape) : null;
+  // Alpanite colours with an uploaded round price chart (Yellow / 162-2 / Aqua / Brown).
+  const alpSheet = category.id === 'alpanite' && color && window.alpSheetSizes && window.alpSheetSizes(color.id, shape).length ? window.alpSheetSizes(color.id, shape) : null;
+  // HD Zirconia: per-grade round price+weight sheet (Mercury Etoile/H/HH/Super Heavy/HHH).
+  const hdSheet = category.id === 'highdensity' && grade && window.hdSizes && window.hdSizes(grade.id, shape).length ? window.hdSizes(grade.id, shape) : null;
+  let sizes = category.id === 'moissanite' ? (moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm']) : alpGreen ? alpGreen : alpBlue ? alpBlue : alpSheet ? alpSheet : hdSheet ? hdSheet : skuSizes.length ? skuSizes.slice() : (SIZES_BY_CATEGORY && SIZES_BY_CATEGORY[category.id]) ? SIZES_BY_CATEGORY[category.id].slice() : ourosaMode ? OUROSA_SIZES.map((x) => x[0]) : mixedMoiss ? moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm'] : byStrip ? FULL_SIZES[shape] || ['4.00 mm'] : FULL_SIZES[shape] || ['4.00 mm'];
   // A colour may cap its size range (e.g. Alpanite Yellow / 162/2 → 1.00–2.00 mm only).
   if (color && color.sizeMax) {sizes = sizes.filter((s) => (parseFloat(s) || 0) <= color.sizeMax + 0.001);}
   // A colour may set a minimum size. Fancy NxN sizes (e.g. "3x4") are kept as-is
@@ -998,7 +1016,29 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   // An uploaded SKU prices its own row: the CSV's price is the real per-piece
   // rate for that exact size, so it must beat the grade × size-multiplier
   // estimate the built-in charts produce.
-  const skuFor = (size) => (window.uploadedSkuFor ? uploadedSkuFor(category.id, shape, size, grade) : null);
+  const skuFor = (size) => {
+    // Euro Alp Green: synthesise a per-size SKU from the uploaded price sheet
+    // (final ₹/piece + pcs per box) so the packet pad prices it directly.
+    if (category.id === 'alpanite' && color && color.id === 'green' && window.alpGreenSku) {
+      const a = window.alpGreenSku(shape, size);
+      if (a) return a;
+    }
+    if (category.id === 'alpanite' && color && color.id === 'blue' && window.alpBlueSku) {
+      const a = window.alpBlueSku(shape, size);
+      if (a) return a;
+    }
+    // Alpanite colours priced from an uploaded round chart (Yellow / 162-2 / Aqua / Brown).
+    if (category.id === 'alpanite' && color && window.alpSheetSku) {
+      const a = window.alpSheetSku(color.id, shape, size);
+      if (a) return a;
+    }
+    // HD Zirconia: per-grade price+weight sheet.
+    if (category.id === 'highdensity' && grade && window.hdSku) {
+      const a = window.hdSku(grade.id, shape, size);
+      if (a) return a;
+    }
+    return window.uploadedSkuFor ? uploadedSkuFor(category.id, shape, size, grade) : null;
+  };
   const skuPriced = (size) => {
     const s = skuFor(size);
     return s && typeof s.price === 'number' && s.price > 0 ? s : null;
@@ -1089,7 +1129,7 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   return (
     <div className="browse-step">
       <div className="pad-header">
-        <ProductHero category={category} color={color} shape={shape}
+        <ProductHero category={category} color={color} shape={shape} grade={grade}
         photo={photo} hex={hex} lightenTone={lightenTone} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="crumb">{category.short} · {grade.name} · {color.name} · {findShape(shape)?.name}</div>
@@ -1371,13 +1411,16 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
           const ru = rowUnit(s);
           const ruWord = unitLabel(ru);
           const r = rate(s);
-          const each = unitPcsEach(ru, s, category.id);
-          const ctPer1000 = 1000 / pcsPerCt(s); // carats per 1000 pcs
-          const gPer1000 = ctPer1000 * 0.2; // 1 ct = 0.2 g
+          const each = ru === 'pkt' ? rowPacketPcs(s) : unitPcsEach(ru, s, category.id);
+          let ctPer1000 = 1000 / pcsPerCt(s); // carats per 1000 pcs
+          let gPer1000 = ctPer1000 * 0.2; // 1 ct = 0.2 g
+          // Alpanite price sheets carry the real weight (grams/1000 pc) — use it.
+          const _wtSku = skuFor(s);
+          if (_wtSku && _wtSku.wtPer1000 != null) { gPer1000 = _wtSku.wtPer1000; ctPer1000 = gPer1000 / 0.2; }
           const q = qtyBySize[s] || 0;
           const navUnitPrice = sizeUnitPrice(product, s);
           const lineTotal = navMode ? q * navUnitPrice + foilForLine(s, q) : mixedMoiss ? stoneAmount(s, q) + certForLine(s, q) + foilForLine(s, q) : q * r + certForLine(s, q) + foilForLine(s, q);
-          const linePcs = mixedMoiss ? rowPcs(s, q) : unitToPcs(ru, s, q, category.id);
+          const linePcs = (mixedMoiss || ru === 'pkt') ? rowPcs(s, q) : unitToPcs(ru, s, q, category.id);
           const isFilled = q > 0;
           const belowMoq = q > 0 && q < sizeMoq(s);
           const so = sizeSoldOut(s);

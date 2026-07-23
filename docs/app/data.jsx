@@ -2865,6 +2865,41 @@ function pearlSheetHasWeight(gradeId, colorId, shape) {
 }
 window.pearlSheetSizes = pearlSheetSizes; window.pearlSheetSku = pearlSheetSku; window.pearlSheetHasWeight = pearlSheetHasWeight;
 
+// Hollow Shapes MOP · per grade (White MOP / Black Onyx) price sheet. Row [size,pcs,₹/piece].
+const HOLLOWMOP_SHEETS = {
+  'white': {
+    'round': [['6×2 mm',25,39],['8×2 mm',25,45],['10×2 mm',25,54],['12×2 mm',25,60],['14×2 mm',15,75],['16×2 mm',15,96],['20×2 mm',15,126]],
+    'square': [['8×2 mm',25,36],['10×2 mm',25,45],['12×2 mm',25,54],['14×2 mm',25,75],['16×2 mm',15,96],['20×2 mm',15,126]],
+    'oval': [['10×7 mm',25,54],['10×8 mm',25,54],['12×8 mm',15,63],['12×9 mm',15,63],['14×9 mm',15,81],['14×10 mm',15,81],['16×12 mm',15,96],['20×14 mm',15,150]],
+    'baguette': [['8×6 mm',25,54],['10×8 mm',25,54],['12×8 mm',25,75],['14×10 mm',15,81],['16×10 mm',15,96],['20×14 mm',15,150]],
+    'pear': [['10×7 mm',25,54],['10×8 mm',25,57],['12×8 mm',25,57],['12×9 mm',25,66],['14×9 mm',15,75],['14×10 mm',15,96],['16×12 mm',15,96],['20×14 mm',15,150]],
+    'heart': [['8 mm',25,51],['10 mm',25,54],['12 mm',25,66],['14 mm',15,75],['16 mm',15,96],['18 mm',15,135],['20 mm',15,150]],
+    'clover': [['8 mm',25,54],['10 mm',25,60],['12 mm',25,66],['14 mm',25,75],['16 mm',15,96],['18 mm',15,105],['20 mm',15,126]],
+    'hexagon': [['10 mm',25,60],['12 mm',25,66],['14 mm',15,75],['16 mm',15,120],['18 mm',15,150],['20 mm',15,180]],
+  },
+  'onyx': {
+    'round': [['6×2 mm',25,36],['8×2 mm',25,42],['10×2 mm',25,48],['12×2 mm',25,54],['14×2 mm',15,66],['16×2 mm',15,72],['20×2 mm',15,84]],
+    'square': [['8×2 mm',25,36],['10×2 mm',25,42],['12×2 mm',25,48],['14×2 mm',25,54],['16×2 mm',15,66],['20×2 mm',15,72]],
+    'oval': [['10×7 mm',25,48],['10×8 mm',25,51],['12×8 mm',15,54],['12×9 mm',15,60],['14×9 mm',15,66],['14×10 mm',15,69],['16×12 mm',15,75],['20×14 mm',15,84]],
+    'baguette': [['8×6 mm',25,42],['10×8 mm',25,48],['12×8 mm',25,54],['14×10 mm',15,66],['16×10 mm',15,75],['20×14 mm',15,84]],
+    'pear': [['10×7 mm',25,48],['10×8 mm',25,51],['12×8 mm',25,54],['12×9 mm',25,60],['14×9 mm',15,66],['14×10 mm',15,69],['16×12 mm',15,75],['20×14 mm',15,84]],
+    'heart': [['8 mm',25,42],['10 mm',25,48],['12 mm',25,54],['14 mm',15,66],['16 mm',15,75],['18 mm',15,78],['20 mm',15,84]],
+    'clover': [['8 mm',25,42],['10 mm',25,48],['12 mm',25,54],['14 mm',25,66],['16 mm',15,75],['18 mm',15,81],['20 mm',15,90]],
+    'hexagon': [['10 mm',25,48],['12 mm',25,54],['14 mm',15,66],['16 mm',15,72],['18 mm',15,78],['20 mm',15,84]],
+  },
+};
+function hollowmopSizes(gradeId, shape) {
+  const g = HOLLOWMOP_SHEETS[gradeId];
+  return g && g[shape] ? g[shape].map((r) => r[0]) : [];
+}
+function hollowmopSku(gradeId, shape, size) {
+  const g = HOLLOWMOP_SHEETS[gradeId];
+  const row = g && g[shape] ? g[shape].find((r) => r[0] === size) : null;
+  if (!row) return null;
+  return { id: 'hmop-' + gradeId + '-' + shape + '-' + String(size).replace(/\s/g, ''), price: row[2], pcsPerPacket: row[1], moq: row[1], size, stock: 'in', stockCount: 0 };
+}
+window.hollowmopSizes = hollowmopSizes; window.hollowmopSku = hollowmopSku;
+
 // Bracelet: colours differ per style. Cartier = full 21-colour chart; Rolex = 6 metallic finishes.
 const BRACELET_BY_GRADE = {
   cartier: {

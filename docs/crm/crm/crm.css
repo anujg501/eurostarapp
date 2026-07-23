@@ -356,3 +356,11 @@ button { font-family: inherit; }
   .crm-modal .crm-table td:nth-child(6)::before { margin-bottom: 13px; }
   .crm-modal .crm-table td:nth-child(7) { text-align: right !important; margin-top: -2px; }
 }
+
+/* Sidebar sign-out — same shape as the app link, tinted to read as an exit. */
+.crm-side-foot .crm-signout {
+  width: 100%; margin-top: 8px; border: none; cursor: pointer;
+  font-family: inherit; text-align: left;
+  background: rgba(255,255,255,0.06);
+}
+.crm-side-foot .crm-signout:hover { background: rgba(220,80,80,0.22); }

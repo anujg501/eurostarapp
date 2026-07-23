@@ -18,17 +18,10 @@ const CRM_CUSTOMERS = [
 ];
 
 // status: new | confirmed | packed | shipped | delivered
-// Seed/fallback orders — shown until the api-bridge hydrates real orders from
-// the local database over them (or when a tab can't reach the server).
-const CRM_ORDERS = [
-  { id: 'SO-24881', cust: 'EUR-10482', date: '2026-06-14', status: 'new', value: 184500, items: 7, courier: '', track: '', discount: 0 },
-  { id: 'SO-24876', cust: 'EUR-10517', date: '2026-06-13', status: 'confirmed', value: 412800, items: 14, courier: '', track: '', discount: 5 },
-  { id: 'SO-24869', cust: 'EUR-10663', date: '2026-05-02', status: 'delivered', value: 96400, items: 5, courier: 'Bluedart', track: 'BD220045', discount: 0 },
-  { id: 'SO-24855', cust: 'EUR-10701', date: '2026-06-11', status: 'shipped', value: 142300, items: 9, courier: 'DTDC', track: 'DT884510023', discount: 3 },
-  { id: 'SO-24840', cust: 'EUR-10788', date: '2026-06-09', status: 'delivered', value: 268000, items: 11, courier: 'Bluedart', track: 'BD771209845', discount: 0 },
-  { id: 'SO-24822', cust: 'EUR-10482', date: '2026-06-07', status: 'delivered', value: 88900, items: 4, courier: 'Professional', track: 'PR556120098', discount: 0 },
-  { id: 'SO-24810', cust: 'EUR-10744', date: '2026-06-05', status: 'delivered', value: 54200, items: 3, courier: 'DTDC', track: 'DT884320011', discount: 8 },
-];
+// SINGLE SOURCE OF TRUTH: the Orders table. No mock orders — the CRM
+// direct-fetches /orders (with token auto-refresh and a 30s poll). An empty
+// list here means "not loaded yet / signed out", never fake data.
+const CRM_ORDERS = [];
 
 // status: active (open) | abandoned | quote-requested
 const CRM_CARTS = [
@@ -148,13 +141,10 @@ const CRM_FRANCHISE = [
 ];
 
 // Sample payment logs (rep-submitted, pending admin verification)
-const CRM_SAMPLE_PAYMENTS = [
-  { id:'PAY-101', orderId:'SO-24881', custId:'EUR-10482', mode:'upi',    amount:184500, utr:'326781234501', date:'2026-06-25', by:'', contact:'', img:null, status:'pending', loggedAt:'2026-06-25T10:14:00.000Z' },
-  { id:'PAY-102', orderId:'SO-24876', custId:'EUR-10517', mode:'neft',   amount:412800, utr:'HDFC0012345678', date:'2026-06-24', by:'', contact:'', img:null, status:'pending', loggedAt:'2026-06-24T15:42:00.000Z' },
-  { id:'PAY-103', orderId:'SO-24855', custId:'EUR-10701', mode:'cash',   amount:142300, utr:'', date:'2026-06-23', by:'Ravi Kumar (driver)', contact:'9876500123', img:null, status:'pending', loggedAt:'2026-06-23T17:05:00.000Z' },
-  { id:'PAY-104', orderId:'SO-24869', custId:'EUR-10663', mode:'cheque', amount:96400,  utr:'CHQ-004821', date:'2026-06-22', by:'', contact:'', img:null, status:'pending', loggedAt:'2026-06-22T11:30:00.000Z' },
-  { id:'PAY-105', orderId:'SO-24822', custId:'EUR-10482', mode:'upi',    amount:88900,  utr:'326709988712', date:'2026-06-20', by:'', contact:'', img:null, status:'pending', loggedAt:'2026-06-20T09:55:00.000Z' },
-];
+// No mock payments — the Payment log is loaded straight from the Payments table
+// (crm-app direct-fetches /payments on mount). Empty until real payment records
+// exist, never fake rows.
+const CRM_SAMPLE_PAYMENTS = [];
 
 // Live analytics override. The api-bridge writes the server-derived reports to
 // localStorage before it reloads the page; here — on that reload — we pull them

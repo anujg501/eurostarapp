@@ -1,6 +1,11 @@
 // crm-app.jsx — Eurostar CRM: Admin · Sales Rep · Back Office (full multi-screen navigation)
 const { useState } = React;
 const H = window.CRM_HELPERS;
+// Bump with every deploy. Logged on boot so "which build is this browser
+// running?" is answerable in one glance instead of guessed at.
+const CRM_BUILD = 'v25';
+try { console.log('[Eurostar CRM] build ' + CRM_BUILD + ' — orders load live from /orders'); } catch (e) {}
+
 const FLOW = ['new', 'confirmed', 'packed', 'shipped', 'out-for-delivery', 'delivered'];
 // Terminal states outside the forward pipeline.
 const ORDER_TERMINAL = ['cancelled', 'rejected', 'returned', 'refunded'];
@@ -54,7 +59,7 @@ function Pill({ s, label }) {
   return <span className={`pill ${cls}`}>{label || s}</span>;
 }
 function statusLabel(s) {
-  return { 'new': 'New', 'confirmed': 'Confirmed', 'packed': 'Packed', 'shipped': 'Dispatched', 'dispatched': 'Dispatched',
+  return { 'new': 'New', 'awaiting-payment': 'Awaiting payment', 'confirmed': 'Confirmed', 'packed': 'Packed', 'shipped': 'Dispatched', 'dispatched': 'Dispatched',
     'out-for-delivery': 'Out for delivery', 'delivered': 'Delivered',
     'cancelled': 'Cancelled', 'rejected': 'Rejected', 'returned': 'Returned', 'refunded': 'Refunded',
     'active': 'Open cart', 'abandoned': 'Abandoned', 'quote-requested': 'Quote requested', 'open': 'Open', 'answered': 'Answered' }[s] || s;
@@ -108,9 +113,13 @@ function AdminDashboard({ st }) {
           <SecHead title="Recent orders" meta="All reps" />
           <table className="crm-table">
             <thead><tr><th>Order</th><th>Customer</th><th>Rep</th><th>Status</th><th style={{ textAlign: 'right' }}>Value</th></tr></thead>
-            <tbody>{st.orders.slice(0, 6).map((o) => {const c = H.cust(o.cust);return (
-                  <tr key={o.id}><td className="crm-id">{o.id}</td><td>{c.name}<div className="crm-muted" style={{ fontSize: 11 }}>{c.city}</div></td>
-              <td className="crm-muted">{H.rep(c.rep).name}</td><td><Pill s={o.status} label={statusLabel(o.status)} /></td>
+            <tbody>{st.orders.slice(0, 6).map((o) => {const c = H.cust(o.cust);
+              const name = (c.name && c.name !== o.cust) ? c.name : (o.custName || o.cust || '—');
+              const sub = o.cust && o.cust !== name ? o.cust : (c.city || o.custCity || '');
+              const repName = H.rep(c.rep).name && c.rep ? H.rep(c.rep).name : (o.repName || '');
+              return (
+                  <tr key={o.id}><td className="crm-id">{o.id}</td><td>{name}<div className="crm-muted" style={{ fontSize: 11 }}>{sub}</div></td>
+              <td className="crm-muted">{repName}</td><td><Pill s={o.status} label={statusLabel(o.status)} /></td>
               <td className="crm-amt" style={{ textAlign: 'right' }}>{H.inr(o.value)}</td></tr>);})}</tbody>
           </table>
         </div>
@@ -269,9 +278,16 @@ function AdminOrders({ st }) {
       <div className="crm-card">
         <table className="crm-table">
           <thead><tr><th>Order</th><th>Customer</th><th>Rep</th><th>Date</th><th>Items</th><th style={{ textAlign: 'right' }}>Value</th></tr></thead>
-          <tbody>{st.orders.map((o) => {const c = H.cust(o.cust);return (
-                <tr key={o.id}><td className="crm-id">{o.id}</td><td>{c.name}<div className="crm-muted" style={{ fontSize: 11 }}>{c.city}</div></td>
-            <td className="crm-muted">{H.rep(c.rep).name}</td><td className="crm-muted" style={{ fontSize: 12 }}>{o.date}</td>
+          <tbody>{st.orders.map((o) => {const c = H.cust(o.cust);
+            // Business name first, customer code underneath. H.cust falls back to
+            // returning the id as the name when the customer isn't in the master
+            // list, so prefer the name the order itself carries.
+            const name = (c.name && c.name !== o.cust) ? c.name : (o.custName || o.cust || '—');
+            const sub = o.cust && o.cust !== name ? o.cust : (c.city || o.custCity || '');
+            const repName = H.rep(c.rep).name && c.rep ? H.rep(c.rep).name : (o.repName || '');
+            return (
+                <tr key={o.id}><td className="crm-id">{o.id}</td><td>{name}<div className="crm-muted" style={{ fontSize: 11 }}>{sub}</div></td>
+            <td className="crm-muted">{repName}</td><td className="crm-muted" style={{ fontSize: 12 }}>{o.date}</td>
             <td className="crm-muted">{o.items}</td>
             <td className="crm-amt" style={{ textAlign: 'right' }}>{H.inr(o.value)}{o.discount ? <div style={{ fontSize: 11, color: 'var(--emerald-ink)' }}>{o.discount}% off</div> : null}</td></tr>);})}</tbody>
         </table>
@@ -888,26 +904,33 @@ function RepCoachCard({ st, repId, onQuickPay }) {
 function adminAttention(st) {
   const T = COACH_TODAY;
   const A = [];
+  // Every core widget ALWAYS renders — values are live (the CRM direct-fetches
+  // the DB); an empty queue shows "0 …" instead of hiding the card, so the
+  // dashboard keeps the same structure regardless of data.
   const pays = (st.payments || []).filter((p) => p.status === 'pending');
-  if (pays.length) { const v = pays.reduce((a, p) => a + (p.amount || 0), 0); A.push({ w: 1, icon: '💳', tone: 'urgent', title: `${pays.length} payment${pays.length > 1 ? 's' : ''} to verify · ${H.inr(v)}`, detail: 'Reps logged these — verify so customer balances update and reminders stop.', page: 'payments', cta: 'Verify payments' }); }
+  { const v = pays.reduce((a, p) => a + (p.amount || 0), 0); const n = pays.length;
+    A.push({ w: 1, icon: '💳', tone: n ? 'urgent' : 'info', title: `${n} payment${n === 1 ? '' : 's'} to verify${n ? ' · ' + H.inr(v) : ''}`, detail: n ? 'Reps logged these — verify so customer balances update and reminders stop.' : 'No payments waiting for verification — all clear.', page: 'payments', cta: 'Verify payments' }); }
   const newOrders = (st.orders || []).filter((o) => o.status === 'new');
-  if (newOrders.length) { const v = newOrders.reduce((a, o) => a + o.value, 0); A.push({ w: 2, icon: '📦', tone: 'urgent', title: `${newOrders.length} new order${newOrders.length > 1 ? 's' : ''} to confirm · ${H.inr(v)}`, detail: 'Confirm and assign a courier so they move to packing.', page: 'orders', cta: 'Open orders' }); }
+  { const v = newOrders.reduce((a, o) => a + o.value, 0); const n = newOrders.length;
+    A.push({ w: 2, icon: '📦', tone: n ? 'urgent' : 'info', title: `${n} new order${n === 1 ? '' : 's'} to confirm${n ? ' · ' + H.inr(v) : ''}`, detail: n ? 'Confirm and assign a courier so they move to packing.' : 'No orders waiting for confirmation.', page: 'orders', cta: 'Open orders' }); }
   const openVisits = (st.visits || []).filter((v) => !v.checkOut);
   if (openVisits.length) A.push({ w: 3, icon: '📍', tone: 'warn', title: `${openVisits.length} field visit${openVisits.length > 1 ? 's' : ''} not checked out`, detail: 'Check-out needs the customer OTP. Unvalidated by 11:59pm = failed visit — follow up with the rep.', page: 'visits', cta: 'View field visits' });
   const flagged = (st.leads || []).filter((l) => l.flagged);
   const unassigned = (st.leads || []).filter((l) => !l.flagged && !l.rep);
   const toAssign = flagged.length + unassigned.length;
-  if (toAssign) A.push({ w: 4, icon: '🧲', tone: 'warn', title: `${toAssign} lead${toAssign > 1 ? 's' : ''} to assign`, detail: `${flagged.length ? flagged.length + ' flagged as existing · ' : ''}${unassigned.length} waiting for a rep. Assign by city so nobody sits idle.`, page: 'leads', cta: 'Assign leads' });
+  A.push({ w: 4, icon: '🧲', tone: toAssign ? 'warn' : 'info', title: `${toAssign} lead${toAssign === 1 ? '' : 's'} to assign`, detail: toAssign ? `${flagged.length ? flagged.length + ' flagged as existing · ' : ''}${unassigned.length} waiting for a rep. Assign by city so nobody sits idle.` : 'No unassigned leads right now.', page: 'leads', cta: 'Assign leads' });
   const overdueLeads = (st.leads || []).filter((l) => l.rep && l.stage >= 1 && l.stage < 6 && l.followUp <= T);
-  if (overdueLeads.length) A.push({ w: 5, icon: '⏰', tone: 'warn', title: `${overdueLeads.length} follow-up${overdueLeads.length > 1 ? 's' : ''} overdue across reps`, detail: 'Customers waiting on a rep call. Check the pipeline and nudge the owners.', page: 'pipeline', cta: 'Open pipeline' });
+  A.push({ w: 5, icon: '⏰', tone: overdueLeads.length ? 'warn' : 'info', title: `${overdueLeads.length} follow-up${overdueLeads.length === 1 ? '' : 's'} overdue across reps`, detail: overdueLeads.length ? 'Customers waiting on a rep call. Check the pipeline and nudge the owners.' : 'No overdue follow-ups — the pipeline is on schedule.', page: 'pipeline', cta: 'Open pipeline' });
   const openRfq = (st.queries || []).filter((q) => q.status === 'open');
-  if (openRfq.length) A.push({ w: 6, icon: '📝', tone: 'info', title: `${openRfq.length} RFQ enquir${openRfq.length > 1 ? 'ies' : 'y'} open`, detail: 'Custom-item requests waiting for a quote. Slow replies lose the deal.', page: 'rfq', cta: 'Open RFQs' });
+  A.push({ w: 6, icon: '📝', tone: 'info', title: `${openRfq.length} RFQ enquir${openRfq.length === 1 ? 'y' : 'ies'} open`, detail: openRfq.length ? 'Custom-item requests waiting for a quote. Slow replies lose the deal.' : 'No open RFQ enquiries.', page: 'rfq', cta: 'Open RFQs' });
   const quotes = (st.carts || []).filter((c) => c.status === 'quote-requested');
-  if (quotes.length) { const v = quotes.reduce((a, c) => a + c.value, 0); A.push({ w: 7, icon: '💬', tone: 'info', title: `${quotes.length} quote request${quotes.length > 1 ? 's' : ''} · ${H.inr(v)}`, detail: 'Customers asked for pricing on their cart — respond before it cools.', page: 'carts', cta: 'View carts' }); }
+  { const v = quotes.reduce((a, c) => a + c.value, 0); const n = quotes.length;
+    A.push({ w: 7, icon: '💬', tone: 'info', title: `${n} quote request${n === 1 ? '' : 's'}${n ? ' · ' + H.inr(v) : ''}`, detail: n ? 'Customers asked for pricing on their cart — respond before it cools.' : 'No carts waiting on a quote.', page: 'carts', cta: 'View carts' }); }
   const bigAband = (st.carts || []).filter((c) => c.status === 'abandoned' && c.value >= 100000);
-  if (bigAband.length) { const v = bigAband.reduce((a, c) => a + c.value, 0); A.push({ w: 8, icon: '🛒', tone: 'info', title: `${bigAband.length} big cart${bigAband.length > 1 ? 's' : ''} abandoned · ${H.inr(v)}`, detail: 'High-value carts left unpaid. Have the rep call and recover them.', page: 'carts', cta: 'View carts' }); }
+  { const v = bigAband.reduce((a, c) => a + c.value, 0); const n = bigAband.length;
+    A.push({ w: 8, icon: '🛒', tone: 'info', title: `${n} big cart${n === 1 ? '' : 's'} abandoned${n ? ' · ' + H.inr(v) : ''}`, detail: n ? 'High-value carts left unpaid. Have the rep call and recover them.' : 'No high-value abandoned carts.', page: 'carts', cta: 'View carts' }); }
   const fr = (window.CRM_FRANCHISE || []).filter((r) => r.status === 'new');
-  if (fr.length) A.push({ w: 9, icon: '🤝', tone: 'info', title: `${fr.length} franchise request${fr.length > 1 ? 's' : ''}`, detail: 'New partnership enquiries from the Sales App — respond while interest is high.', page: 'franchise', cta: 'View requests' });
+  A.push({ w: 9, icon: '🤝', tone: 'info', title: `${fr.length} franchise request${fr.length === 1 ? '' : 's'}`, detail: fr.length ? 'New partnership enquiries from the Sales App — respond while interest is high.' : 'No new franchise enquiries.', page: 'franchise', cta: 'View requests' });
   A.sort((a, b) => a.w - b.w);
   return A;
 }
@@ -974,15 +997,15 @@ function AdminCoachDigest({ st }) {
               <div className="crm-muted" style={{ fontSize: 12.5, marginTop: 1 }}>{behind.slice(0, 4).map((x) => `${x.rep.name} (${x.pct}%)`).join(', ')} — prioritise in your calls.</div></div>
             <button className="cbtn cbtn-ghost cbtn-sm" style={{ flex: '0 0 auto' }} onClick={() => go('reps')}>Open reps →</button>
           </div>}
-          {topDue.length > 0 &&
+          {/* Always visible — a clear queue shows ₹0 instead of hiding the card. */}
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 0', borderTop: behind.length ? '1px solid var(--divider)' : 'none' }}>
-            <div style={{ width: 30, height: 30, borderRadius: 8, background: toneBg.urgent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flex: '0 0 30px' }}>💰</div>
-            <div style={{ flex: 1 }}><div style={{ fontWeight: 700, fontSize: 13.5, color: toneFg.urgent }}>Collections to push</div>
-              <div className="crm-muted" style={{ fontSize: 12.5, marginTop: 1 }}>{topDue.slice(0, 3).map((x) => `${x.rep.name} · ${H.inr(x.duesTotal)} (${x.dues})`).join(' · ')}</div></div>
+            <div style={{ width: 30, height: 30, borderRadius: 8, background: topDue.length ? toneBg.urgent : toneBg.info, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flex: '0 0 30px' }}>💰</div>
+            <div style={{ flex: 1 }}><div style={{ fontWeight: 700, fontSize: 13.5, color: topDue.length ? toneFg.urgent : toneFg.info }}>Collections to push</div>
+              <div className="crm-muted" style={{ fontSize: 12.5, marginTop: 1 }}>{topDue.length ? topDue.slice(0, 3).map((x) => `${x.rep.name} · ${H.inr(x.duesTotal)} (${x.dues})`).join(' · ') : '₹0 outstanding — no overdue customer balances right now.'}</div></div>
             <button className="cbtn cbtn-ghost cbtn-sm" style={{ flex: '0 0 auto' }} onClick={() => go('reports')}>Outstanding →</button>
-          </div>}
+          </div>
           {top &&
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 0', borderTop: (behind.length || topDue.length) ? '1px solid var(--divider)' : 'none' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 0', borderTop: '1px solid var(--divider)' }}>
             <div style={{ width: 30, height: 30, borderRadius: 8, background: toneBg.win, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flex: '0 0 30px' }}>🏆</div>
             <div style={{ flex: 1 }}><div style={{ fontWeight: 700, fontSize: 13.5, color: toneFg.win }}>Top performer · {top.rep.name}</div>
               <div className="crm-muted" style={{ fontSize: 12.5, marginTop: 1 }}>{H.inr(top.d.sales)} MTD. Recognise the win and ask what's working.</div></div>
@@ -2323,6 +2346,11 @@ function CRM() {
   const [leaders, setLeaders] = useState((window.CRM_LEADERS || []).map((l) => ({ ...l })));
   // Dashboard headline metrics, computed server-side from real orders/carts.
   const [summary, setSummary] = useState(() => ({ ...(window.CRM_SUMMARY || {}) }));
+  // True when the CRM could not load data because the session is dead. Without
+  // this every widget renders 0/empty, which reads as "no data" when it really
+  // means "not signed in" — exactly how a confirmed order looked like it
+  // vanished from Orders.
+  const [authDead, setAuthDead] = useState(false);
 
   // shared state across all screens
   const [customers, setCustomers] = useState(CRM_CUSTOMERS.map((c) => ({ ...c, active: c.active !== false, terms: c.terms || 'cash' })));
@@ -2341,6 +2369,28 @@ function CRM() {
     return (window.CRM_SAMPLE_PAYMENTS || []).map((p) => ({ ...p }));
   });
   const [visits, setVisits] = useState((window.CRM_VISITS || []).map((v) => ({ ...v })));
+
+  // Sign out: revoke the refresh token server-side (so it cannot be reused),
+  // clear the local session, then reload — the login gate takes over.
+  const signOut = () => {
+    if (!confirm('Sign out of the CRM?')) return;
+    const API = window.EUROSTAR_API || location.origin;
+    let rt = '';
+    try { rt = localStorage.getItem('eurostar-admin-refresh') || ''; } catch (e) {}
+    const done = () => {
+      try {
+        localStorage.removeItem('eurostar-admin-token');
+        localStorage.removeItem('eurostar-admin-refresh');
+        sessionStorage.clear();
+      } catch (e) {}
+      location.reload();
+    };
+    if (!rt) return done();
+    fetch(API + '/auth/logout', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ refreshToken: rt }),
+    }).catch(() => {}).then(done);
+  };
 
   // Persist a staff action to the server (fire-and-forget; local state already
   // updated optimistically). Without this, verifying a payment or confirming an
@@ -2361,16 +2411,62 @@ function CRM() {
   // arrays are only ever a first-paint/offline fallback, never what persists.
   React.useEffect(() => {
     const API = window.EUROSTAR_API || location.origin;
-    let tok = '';
-    try { tok = localStorage.getItem('eurostar-admin-token') || ''; } catch (e) {}
-    if (!tok) return;
+    const getTok = () => { try { return localStorage.getItem('eurostar-admin-token') || ''; } catch (e) { return ''; } };
     const dateOnly = (x) => { if (!x) return ''; const d = typeof x === 'number' ? new Date(x) : new Date(String(x)); return isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10); };
-    fetch(API + '/orders', { headers: { authorization: 'Bearer ' + tok } })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((rows) => {
+
+    // Mint a fresh access token from the stored refresh token. Without this, a
+    // tab opened after the access token expired (e.g. next morning) had every
+    // direct fetch 401 silently and the screens sat on the seed fallback.
+    let refreshing = null;
+    const refreshTok = () => {
+      if (refreshing) return refreshing;
+      let rt = '';
+      try { rt = localStorage.getItem('eurostar-admin-refresh') || ''; } catch (e) {}
+      if (!rt) return Promise.resolve(false);
+      refreshing = fetch(API + '/auth/refresh', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ refreshToken: rt }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          refreshing = null;
+          if (d && d.accessToken) { try { localStorage.setItem('eurostar-admin-token', d.accessToken); } catch (e) {} return true; }
+          return false;
+        })
+        .catch(() => { refreshing = null; return false; });
+      return refreshing;
+    };
+    const authedGet = (path, retry) => {
+      const tok = getTok();
+      if (!tok) { setAuthDead(true); return Promise.resolve(null); }
+      return fetch(API + path, { headers: { authorization: 'Bearer ' + tok } })
+        .then((r) => {
+          if (r.status === 401 || r.status === 403) {
+            if (retry !== false) {
+              return refreshTok().then((ok2) => {
+                if (ok2) return authedGet(path, false);
+                setAuthDead(true); // refresh failed — the session is genuinely dead
+                return null;
+              });
+            }
+            setAuthDead(true);
+            return null;
+          }
+          if (r.ok) { setAuthDead(false); return r.json(); }
+          return null;
+        })
+        .catch(() => null);
+    };
+
+    const loadAll = () => {
+      authedGet('/orders').then((rows) => {
         if (!Array.isArray(rows) || !rows.length) return; // keep fallback if empty/unreachable
         const mapped = rows.map((o) => ({
           id: o.id, cust: o.code || o.customerId || '', date: dateOnly(o.ts || o.createdAt),
+          // Keep the business name and city the API already returns. Without
+          // these the CRM could only show the raw customer code.
+          custName: o.customer || o.customerName || '', custCity: o.city || '',
+          repName: o.rep || o.repName || '',
           status: o.status === 'pending' ? 'new' : (o.status || 'new'),
           value: o.grand || o.value || 0, items: Array.isArray(o.items) ? o.items.length : 0,
           courier: o.courier || '', track: o.track || '', discount: 0,
@@ -2379,43 +2475,35 @@ function CRM() {
         // Some dashboard cards (Total sales, Sales-by-rep) read the CRM_ORDERS
         // global directly, so replace its contents in place too.
         try { if (Array.isArray(window.CRM_ORDERS)) { window.CRM_ORDERS.length = 0; mapped.forEach((o) => window.CRM_ORDERS.push(o)); } } catch (e) {}
-      })
-      .catch(() => {});
-
-    // Dashboard headline metrics — every card computed from the database.
-    fetch(API + '/reports/summary', { headers: { authorization: 'Bearer ' + tok } })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((s) => {
+      });
+      // Dashboard headline metrics — every card computed from the database.
+      authedGet('/reports/summary').then((s) => {
         if (!s || typeof s !== 'object') return;
         setSummary(s);
         try { if (window.CRM_SUMMARY) Object.assign(window.CRM_SUMMARY, s); } catch (e) {}
-      })
-      .catch(() => {});
-
-    // Customers + carts, straight from the DB, so their counts/tables are live.
-    fetch(API + '/customers', { headers: { authorization: 'Bearer ' + tok } })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((rows) => {
+      });
+      // Customers + carts, straight from the DB, so their counts/tables are live.
+      authedGet('/customers').then((rows) => {
         if (!Array.isArray(rows) || !rows.length) return;
         setCustomers(rows.map((c) => ({ id: c.code || c.id, name: c.name, city: c.city || '', gst: c.gstin || '', mobile: c.phone || '', rep: c.rep || '', terms: c.terms || 'cash', tier: '', since: '', credit: 0, cartViewsNoOrder: 0, active: true })));
-      })
-      .catch(() => {});
-    fetch(API + '/carts', { headers: { authorization: 'Bearer ' + tok } })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((rows) => {
+      });
+      authedGet('/carts').then((rows) => {
         if (!Array.isArray(rows)) return;
         setCarts(rows.map((c) => ({ id: c.id, cust: c.customerId || '', updated: dateOnly(c.updatedAt), status: c.status || 'active', value: (c.totals && c.totals.grand) || 0, items: Array.isArray(c.lines) ? c.lines.length : 0, age: '', note: '' })));
-      })
-      .catch(() => {});
-    // Payment log — straight from the Payments table. 'failed' is the API term
-    // for the CRM's 'rejected' tab.
-    fetch(API + '/payments', { headers: { authorization: 'Bearer ' + tok } })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((rows) => {
+      });
+      // Payment log — straight from the Payments table. 'failed' is the API term
+      // for the CRM's 'rejected' tab.
+      authedGet('/payments').then((rows) => {
         if (!Array.isArray(rows) || !rows.length) return;
         setPayments(rows.map((p) => (p.status === 'failed' ? { ...p, status: 'rejected' } : p)));
-      })
-      .catch(() => {});
+      });
+    };
+
+    loadAll();
+    // Keep the CRM in sync while it sits open: a customer order placed in the
+    // Sales App shows up here within half a minute, no manual reload.
+    const timer = setInterval(loadAll, 30000);
+    return () => clearInterval(timer);
   }, []);
 
   const st = {
@@ -2596,6 +2684,7 @@ function CRM() {
         </nav>
         <div className="crm-side-foot">
           <a className="crm-applink" href="Eurostar Sales website.html">↗ Open Sales App</a>
+          <button className="crm-applink crm-signout" onClick={signOut}>↩ Sign out</button>
         </div>
       </aside>
 
@@ -2621,6 +2710,18 @@ function CRM() {
           {role === 'admin' && <CrmNotifications st={st} />}
           <CrmLangSwitcher />
         </header>
+        {authDead &&
+        <div style={{ margin: '14px 20px 0', padding: '12px 16px', background: 'var(--ruby-soft)', border: '1px solid var(--ruby)', borderRadius: 'var(--r-md)', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 18 }}>⚠️</span>
+          <div style={{ flex: 1, fontSize: 13.5, color: 'var(--ruby)' }}>
+            <strong>Your session has expired — the figures below are not live.</strong>
+            <div style={{ fontSize: 12.5, marginTop: 2 }}>Counts show 0 because the CRM cannot reach the database, not because there is no data. Sign in again to reload.</div>
+          </div>
+          <button className="cbtn cbtn-accent cbtn-sm" style={{ flex: '0 0 auto' }}
+            onClick={() => { try { localStorage.removeItem('eurostar-admin-token'); localStorage.removeItem('eurostar-admin-refresh'); } catch (e) {} location.reload(); }}>
+            Sign in again
+          </button>
+        </div>}
         {screen}
       </main>
       {editTarget && (() => {const entity = editTarget.kind === 'order' ? orders.find((o) => o.id === editTarget.id) : carts.find((c) => c.id === editTarget.id);

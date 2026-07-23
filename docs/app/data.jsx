@@ -2918,6 +2918,28 @@ function alexSku(shape, size) {
 }
 window.alexSizes = alexSizes; window.alexSku = alexSku;
 
+// Rajkot mass zirconia · per grade+colour round price sheet (HO tier). Packet = 1000 pcs;
+// row price is ₹/piece (= HO ÷ 1000). White uses the 'white-shampoo' sub-grade.
+const RAJKOT_SHEETS = {
+  'white-shampoo|white': { 'round': [['1.00 mm',1000,0.0412],['1.10 mm',1000,0.047],['1.20 mm',1000,0.0547],['1.30 mm',1000,0.0595],['1.40 mm',1000,0.0767],['1.50 mm',1000,0.0921],['1.60 mm',1000,0.1074],['1.70 mm',1000,0.1208],['1.80 mm',1000,0.1458],['1.90 mm',1000,0.1726],['2.00 mm',1000,0.188]] },
+  'color|ruby5aa': { 'round': [['1.00 mm',1000,0.0832],['1.10 mm',1000,0.1479],['1.20 mm',1000,0.1572],['1.30 mm',1000,0.1719],['1.40 mm',1000,0.1849],['1.50 mm',1000,0.2126],['1.60 mm',1000,0.2496],['1.70 mm',1000,0.2958],['1.80 mm',1000,0.3236],['1.90 mm',1000,0.3605],['2.00 mm',1000,0.4252]] },
+  'color|pinkcz': { 'round': [['1.00 mm',1000,0.0575],['1.10 mm',1000,0.0633],['1.20 mm',1000,0.0767],['1.30 mm',1000,0.0844],['1.40 mm',1000,0.1017],['1.50 mm',1000,0.1113],['1.60 mm',1000,0.1343],['1.70 mm',1000,0.1535],['1.80 mm',1000,0.1765],['1.90 mm',1000,0.2206],['2.00 mm',1000,0.2302],['2.50 mm',1000,0.3836],['3.00 mm',1000,0.5563]] },
+  'color|nanogreen': { 'round': [['1.00 mm',1000,0.0397],['1.10 mm',1000,0.0437],['1.20 mm',1000,0.0496],['1.30 mm',1000,0.0516],['1.40 mm',1000,0.0635],['1.50 mm',1000,0.0675],['1.60 mm',1000,0.0774],['1.70 mm',1000,0.0973],['1.80 mm',1000,0.1092],['1.90 mm',1000,0.1291],['2.00 mm',1000,0.147]] },
+  'color|nanoblue113': { 'round': [['1.00 mm',1000,0.0437],['1.10 mm',1000,0.0477],['1.20 mm',1000,0.0556],['1.30 mm',1000,0.0635],['1.40 mm',1000,0.0675],['1.50 mm',1000,0.0715],['1.60 mm',1000,0.0854],['1.70 mm',1000,0.0993],['1.80 mm',1000,0.1192],['1.90 mm',1000,0.139],['2.00 mm',1000,0.1589]] },
+  'color|nanoblue114': { 'round': [['1.00 mm',1000,0.0437],['1.10 mm',1000,0.0477],['1.20 mm',1000,0.0556],['1.30 mm',1000,0.0635],['1.40 mm',1000,0.0675],['1.50 mm',1000,0.0715],['1.60 mm',1000,0.0854],['1.70 mm',1000,0.0993],['1.80 mm',1000,0.1192],['1.90 mm',1000,0.139],['2.00 mm',1000,0.1589]] },
+};
+function rajkotSizes(gradeId, colorId, shape) {
+  const g = RAJKOT_SHEETS[gradeId + '|' + colorId];
+  return g && g[shape] ? g[shape].map((r) => r[0]) : [];
+}
+function rajkotSku(gradeId, colorId, shape, size) {
+  const g = RAJKOT_SHEETS[gradeId + '|' + colorId];
+  const row = g && g[shape] ? g[shape].find((r) => r[0] === size) : null;
+  if (!row) return null;
+  return { id: 'rajkot-' + gradeId + '-' + colorId + '-' + shape + '-' + String(size).replace(/\s/g, ''), price: row[2], pcsPerPacket: row[1], moq: row[1], size, stock: 'in', stockCount: 0 };
+}
+window.rajkotSizes = rajkotSizes; window.rajkotSku = rajkotSku;
+
 // Bracelet: colours differ per style. Cartier = full 21-colour chart; Rolex = 6 metallic finishes.
 const BRACELET_BY_GRADE = {
   cartier: {

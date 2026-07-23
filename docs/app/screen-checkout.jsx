@@ -268,7 +268,10 @@ function PaymentScreen({ order, persona, onPaid, onBack }) {
       custName: (order.customer && order.customer.name) || persona.company || '',
       mode: method, amount: order.grand || 0, utr: 'ONLINE-' + Date.now().toString().slice(-8),
       date: new Date().toISOString().slice(0, 10), by: '', contact: '', img: null,
-      status: 'confirmed', source: 'Sales App', loggedAt: new Date().toISOString(),
+      // Every placed order's payment enters the back office as Pending
+      // Verification — the finance team confirms it, which then marks the order
+      // paid + confirmed. (No live gateway here to auto-verify.)
+      status: 'pending', source: 'Sales App', loggedAt: new Date().toISOString(),
     };
     // Keep the localStorage copy for the CRM's "incoming" panel …
     try {

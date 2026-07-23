@@ -227,7 +227,11 @@ function App() {
       screen = <CheckoutScreen cart={cart} persona={persona} isOnline={isOnline}
                   onBack={() => navigate({ name: 'orders', tab: 'cart' })}
                   onPlace={(details) => {
-                    const id = 'SO-' + (24900 + Math.floor(Math.random() * 90));
+                    // Unique order number. The old 'SO-' + (24900 + random(90))
+                    // had only 90 possible ids — new orders collided with
+                    // existing ones and the server upsert silently OVERWROTE
+                    // them. Timestamp-based ids cannot collide in practice.
+                    const id = 'SO-' + Date.now().toString().slice(-8);
                     const isCredit = ['15','30','45','60'].includes(String(persona.terms));
                     // Snapshot the lines before the cart is cleared — the
                     // confirmation screen stores them in "Your orders".

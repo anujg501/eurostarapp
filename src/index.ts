@@ -100,11 +100,21 @@ app.get('/favicon.ico', (_req, res) => res.sendFile(path.join(webDir, 'assets', 
 // hub, which listed the CRM, LMS, Mira and Admin panels — fine on a private demo
 // box, wrong on a public domain where it advertises the back office to every
 // visitor. Staff reach the hub at /portal, and each app keeps its own login.
-app.get('/', (_req, res) => res.sendFile(path.join(webDir, 'Eurostar Sales website.html')));
-app.get('/portal', (_req, res) => res.sendFile(path.join(webDir, 'index.html')));
-app.get('/login', (_req, res) => res.sendFile(path.join(webDir, 'Eurostar Login.html')));
-app.get('/site', (_req, res) => res.sendFile(path.join(webDir, 'Eurostar Sales website.html')));
-app.get('/mobile', (_req, res) => res.sendFile(path.join(webDir, 'Eurostar Sales website (Mobile).html')));
+// These entry pages are served with sendFile, which bypasses the static
+// middleware below that marks HTML/JS no-cache. Without this the browser can
+// hold a stale copy of the page — and the page is what carries the ?v= script
+// tags, so a cached page keeps loading yesterday's JS no matter how many times
+// the app is redeployed. Always revalidate the entry HTML.
+const sendPage = (res: express.Response, file: string) => {
+  res.setHeader('Cache-Control', 'no-cache');
+  return res.sendFile(file);
+};
+
+app.get('/', (_req, res) => sendPage(res, path.join(webDir, 'Eurostar Sales website.html')));
+app.get('/portal', (_req, res) => sendPage(res, path.join(webDir, 'index.html')));
+app.get('/login', (_req, res) => sendPage(res, path.join(webDir, 'Eurostar Login.html')));
+app.get('/site', (_req, res) => sendPage(res, path.join(webDir, 'Eurostar Sales website.html')));
+app.get('/mobile', (_req, res) => sendPage(res, path.join(webDir, 'Eurostar Sales website (Mobile).html')));
 
 // Serve the folder-apps' real entry HTML directly at their clean URL, the way
 // /admin is served above. Their docs/<app>/index.html is a meta-refresh loader
@@ -112,10 +122,10 @@ app.get('/mobile', (_req, res) => res.sendFile(path.join(webDir, 'Eurostar Sales
 // the clean URL, so the loader looped. Browsers cache a 301 permanently, so the
 // loop survived even after the redirect was removed. Serving the app here means
 // the loader is never reached, and the stale cached redirect is irrelevant.
-app.get(['/crm', '/crm/'], (_req, res) => res.sendFile(path.join(webDir, 'crm', 'Eurostar CRM.html')));
-app.get(['/lms', '/lms/'], (_req, res) => res.sendFile(path.join(webDir, 'lms', 'Eurostar LMS.html')));
+app.get(['/crm', '/crm/'], (_req, res) => sendPage(res, path.join(webDir, 'crm', 'Eurostar CRM.html')));
+app.get(['/lms', '/lms/'], (_req, res) => sendPage(res, path.join(webDir, 'lms', 'Eurostar LMS.html')));
 app.get(['/mira-admin', '/mira-admin/'], (_req, res) =>
-  res.sendFile(path.join(webDir, 'mira-admin', 'Eurostar Mira Admin.html')));
+  sendPage(res, path.join(webDir, 'mira-admin', 'Eurostar Mira Admin.html')));
 
 // The pages are files with spaces in their names ("Eurostar Sales website.html"),
 // and several in-app links still point at those filenames — a leftover from when

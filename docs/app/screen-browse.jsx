@@ -960,7 +960,8 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   const labopalHasWt = category.id === 'labopal' && grade && color && window.labopalHasWeight && window.labopalHasWeight(grade.id, color.id, shape);
   const polkiHasWt = category.id === 'polki' && grade && window.polkiHasWeight && window.polkiHasWeight(grade.id, shape);
   const cabHasWt = category.id === 'cabochon' && grade && color && window.cabHasWeight && window.cabHasWeight(grade.id, color.id, shape);
-  const showWt = catShowWeight(category.id) || alpHasWt || hdHasWt || czHasWt || labopalHasWt || polkiHasWt || cabHasWt;
+  const pearlHasWt = category.id === 'pearls' && grade && color && window.pearlSheetHasWeight && window.pearlSheetHasWeight(grade.id, color.id, shape);
+  const showWt = catShowWeight(category.id) || alpHasWt || hdHasWt || czHasWt || labopalHasWt || polkiHasWt || cabHasWt || pearlHasWt;
   const navMode = category.id === 'navratna'; // sold by packet, one flat price per packet, no pcs/packet
   // Natural Pearl Cabs: show a weight-per-piece (grams) column.
   const showPieceWt = category.id === 'pearls' && grade.id === 'natural' && shape === 'cabs';
@@ -971,7 +972,10 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   // Natural full-drilled pearls: ordered by STRING, with weight & price per string.
   const stringMode = category.id === 'pearls' && grade.id === 'natural' && shape === 'fulldrilled';
   // Natural undrilled & half-drilled pearls: each packet is a fixed 50 g lot, priced ₹250/gram.
-  const lotMode = category.id === 'pearls' && grade.id === 'natural' && (shape === 'undrilled' || shape === 'halfdrilled');
+  // Half-drilled / undrilled naturals normally sell as a fixed 50 g lot — unless an
+  // uploaded per-piece price sheet exists for this colour+shape, which prices per packet.
+  const hasPearlSheet = category.id === 'pearls' && grade && color && window.pearlSheetSizes && window.pearlSheetSizes(grade.id, color.id, shape).length > 0;
+  const lotMode = category.id === 'pearls' && grade.id === 'natural' && (shape === 'undrilled' || shape === 'halfdrilled') && !hasPearlSheet;
   const LOT_GRAMS = 50,LOT_RATE_G = 250,LOT_PRICE = LOT_GRAMS * LOT_RATE_G;
   // Opaque · Natural-look: each packet is a fixed 100 ct lot, priced per carat.
   // Opal-look is per-piece/packet (its own price sheet), so it uses the normal pad.
@@ -1009,7 +1013,9 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   const polkiSheet = category.id === 'polki' && grade && window.polkiSizes && window.polkiSizes(grade.id, shape).length ? window.polkiSizes(grade.id, shape) : null;
   const labopalSheet = category.id === 'labopal' && grade && color && window.labopalSizes && window.labopalSizes(grade.id, color.id, shape).length ? window.labopalSizes(grade.id, color.id, shape) : null;
   const cabSheet = category.id === 'cabochon' && grade && color && window.cabSizes && window.cabSizes(grade.id, color.id, shape).length ? window.cabSizes(grade.id, color.id, shape) : null;
-  let sizes = category.id === 'moissanite' ? (moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm']) : alpGreen ? alpGreen : alpBlue ? alpBlue : alpSheet ? alpSheet : hdSheet ? hdSheet : corSheet ? corSheet : wfSheet ? wfSheet : czSheet ? czSheet : colorCzSheet ? colorCzSheet : opaqueNatSheet ? opaqueNatSheet : opaqueSheet ? opaqueSheet : polkiSheet ? polkiSheet : labopalSheet ? labopalSheet : cabSheet ? cabSheet : skuSizes.length ? skuSizes.slice() : (SIZES_BY_CATEGORY && SIZES_BY_CATEGORY[category.id]) ? SIZES_BY_CATEGORY[category.id].slice() : ourosaMode ? OUROSA_SIZES.map((x) => x[0]) : mixedMoiss ? moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm'] : byStrip ? FULL_SIZES[shape] || ['4.00 mm'] : FULL_SIZES[shape] || ['4.00 mm'];
+  // Pearls · per grade+colour price sheet (e.g. fresh-water half-drilled).
+  const pearlSheet = category.id === 'pearls' && grade && color && window.pearlSheetSizes && window.pearlSheetSizes(grade.id, color.id, shape).length ? window.pearlSheetSizes(grade.id, color.id, shape) : null;
+  let sizes = category.id === 'moissanite' ? (moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm']) : alpGreen ? alpGreen : alpBlue ? alpBlue : alpSheet ? alpSheet : hdSheet ? hdSheet : corSheet ? corSheet : wfSheet ? wfSheet : czSheet ? czSheet : colorCzSheet ? colorCzSheet : opaqueNatSheet ? opaqueNatSheet : opaqueSheet ? opaqueSheet : polkiSheet ? polkiSheet : labopalSheet ? labopalSheet : cabSheet ? cabSheet : pearlSheet ? pearlSheet : skuSizes.length ? skuSizes.slice() : (SIZES_BY_CATEGORY && SIZES_BY_CATEGORY[category.id]) ? SIZES_BY_CATEGORY[category.id].slice() : ourosaMode ? OUROSA_SIZES.map((x) => x[0]) : mixedMoiss ? moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm'] : byStrip ? FULL_SIZES[shape] || ['4.00 mm'] : FULL_SIZES[shape] || ['4.00 mm'];
   // A colour may cap its size range (e.g. Alpanite Yellow / 162/2 → 1.00–2.00 mm only).
   if (color && color.sizeMax) {sizes = sizes.filter((s) => (parseFloat(s) || 0) <= color.sizeMax + 0.001);}
   // A colour may set a minimum size. Fancy NxN sizes (e.g. "3x4") are kept as-is
@@ -1102,6 +1108,11 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
     // Cabochons per grade+colour price sheet.
     if (category.id === 'cabochon' && grade && color && window.cabSku) {
       const a = window.cabSku(grade.id, color.id, shape, size);
+      if (a) return a;
+    }
+    // Pearls per grade+colour price sheet.
+    if (category.id === 'pearls' && grade && color && window.pearlSheetSku) {
+      const a = window.pearlSheetSku(grade.id, color.id, shape, size);
       if (a) return a;
     }
     return window.uploadedSkuFor ? uploadedSkuFor(category.id, shape, size, grade) : null;

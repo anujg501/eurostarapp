@@ -2689,6 +2689,14 @@ const OPAQUE_NAT_SHEETS = {
     'ballhole-plain': [['2 mm',10.12],['2.25 mm',10.12],['2.5 mm',10.12],['2.75 mm',10.12],['3 mm',10.12],['3.25 mm',8.36],['3.5 mm',8.36],['3.75 mm',8.36],['4 mm',8.36],['4.25 mm',8.36],['4.5 mm',8.36],['4.75 mm',8.36],['5 mm',8.36],['5.5 mm',8.36],['6 mm',8.36],['7 mm',8.14],['7.5 mm',8.14],['8 mm',8.14],['9 mm',8.14],['10 mm',8.14],['11 mm',8.14],['12 mm',8.14]],
     'trillion': [['4 mm',34.1],['5 mm',31.9],['6 mm',30.8]],
   },
+  'natural|green': {
+    'round': [['2.00 mm',12],['2.10 mm',12],['2.20 mm',12],['2.30 mm',12],['2.40 mm',12],['2.50 mm',12],['2.60 mm',12],['2.70 mm',12],['2.80 mm',12],['2.90 mm',12],['3.00 mm',12],['3.25 mm',12],['3.50 mm',12],['3.75 mm',12],['4.00 mm',12],['5.00 mm',10],['5.50 mm',10],['6.00 mm',10],['6.50 mm',10],['7.00 mm',9],['7.50 mm',9],['8.00 mm',9]],
+    'square': [['3 mm',20],['3.5 mm',20],['4 mm',16],['5 mm',10],['6 mm',10],['7 mm',9]],
+    'marquise': [['2×4 mm',21.5],['2.5×4.5 mm',21.5],['2.50×5 mm',16.5],['3×6 mm',14],['3.5×7 mm',14],['4×8 mm',10],['5×10 mm',10]],
+    'octagon-step': [['3×4 mm',16.5],['3.5×4.5 mm',16.5],['3×5 mm',16.5],['4×5 mm',16.5],['4×6 mm',10],['4.5×6.5 mm',10],['5×6 mm',10],['5×7 mm',10],['6×8 mm',9],['7×9 mm',9],['8×10 mm',9]],
+    'oval': [['3.25×4.25 mm',15],['3.75×4.75 mm',15],['4×3 mm',15],['5×3 mm',15],['3.50×4.50 mm',15],['4×5 mm',15],['6×4 mm',10],['4.5×5.5 mm',10],['4.5×6.5 mm',10],['5×6 mm',10],['7×5 mm',10],['8×6 mm',9],['7×9 mm',9],['8×10 mm',9]],
+    'pear': [['3.25×4.25 mm',15],['3.75×4.75 mm',15],['4×3 mm',15],['5×3 mm',15],['3.50×4.50 mm',15],['4×5 mm',15],['6×4 mm',10],['4.5×5.5 mm',10],['4.5×6.5 mm',10],['5×6 mm',10],['7×5 mm',10],['8×6 mm',9],['7×9 mm',9],['8×10 mm',9]],
+  },
 };
 function opaqueNatSizes(gradeId, colorId, shape) {
   const g = OPAQUE_NAT_SHEETS[gradeId + '|' + colorId];
@@ -2817,6 +2825,29 @@ function cabHasWeight(gradeId, colorId, shape) {
   return !!(g && g[shape] && g[shape].some((r) => r.length > 3 && r[3] != null));
 }
 window.cabSizes = cabSizes; window.cabSku = cabSku; window.cabHasWeight = cabHasWeight;
+
+// Pearls · per grade+colour price sheet (per-piece packet, with weight).
+// Fresh-water half-drilled ('bottom hole') round pearls priced from the NEW X18 column.
+const PEARL_SHEETS = {
+  'natural|white': {
+    'halfdrilled': [['2.00 mm',300,20.7,15],['2.25 mm',300,18,null],['2.50 mm',310,18,17],['2.75 mm',310,18,null],['3.00 mm',250,18,30],['3.50 mm',200,19.8,54],['3.75 mm',200,19.8,null],['4.00 mm',200,19.8,65],['4.50 mm',180,22.5,140],['5.00 mm',160,22.5,150],['5.50 mm',120,28.8,215],['6.00 mm',112,28.8,290],['6.50 mm',104,36.9,335],['7.00 mm',96,36.9,330],['7.50 mm',66,64.8,485],['8.00 mm',66,64.8,685],['8.50 mm',60,91.8,670],['9.00 mm',60,91.8,810],['10.00 mm',54,162,980],['11.00 mm',54,270,null],['12.00 mm',54,378,null],['13.00 mm',54,774,null],['14.00 mm',54,1224,null],['15.00 mm',54,2070,null],['16.00 mm',54,2160,null]],
+  },
+};
+function pearlSheetSizes(gradeId, colorId, shape) {
+  const g = PEARL_SHEETS[gradeId + '|' + colorId];
+  return g && g[shape] ? g[shape].map((r) => r[0]) : [];
+}
+function pearlSheetSku(gradeId, colorId, shape, size) {
+  const g = PEARL_SHEETS[gradeId + '|' + colorId];
+  const row = g && g[shape] ? g[shape].find((r) => r[0] === size) : null;
+  if (!row) return null;
+  return { id: 'pearl-' + gradeId + '-' + colorId + '-' + shape + '-' + String(size).replace(/\s/g, ''), price: row[2], pcsPerPacket: row[1], moq: row[1], size, stock: 'in', stockCount: 0, wtPer1000: row[3] != null ? row[3] : null };
+}
+function pearlSheetHasWeight(gradeId, colorId, shape) {
+  const g = PEARL_SHEETS[gradeId + '|' + colorId];
+  return !!(g && g[shape] && g[shape].some((r) => r[3] != null));
+}
+window.pearlSheetSizes = pearlSheetSizes; window.pearlSheetSku = pearlSheetSku; window.pearlSheetHasWeight = pearlSheetHasWeight;
 
 // Bracelet: colours differ per style. Cartier = full 21-colour chart; Rolex = 6 metallic finishes.
 const BRACELET_BY_GRADE = {

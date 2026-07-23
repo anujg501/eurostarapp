@@ -961,7 +961,8 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   const polkiHasWt = category.id === 'polki' && grade && window.polkiHasWeight && window.polkiHasWeight(grade.id, shape);
   const cabHasWt = category.id === 'cabochon' && grade && color && window.cabHasWeight && window.cabHasWeight(grade.id, color.id, shape);
   const pearlHasWt = category.id === 'pearls' && grade && color && window.pearlSheetHasWeight && window.pearlSheetHasWeight(grade.id, color.id, shape);
-  const showWt = catShowWeight(category.id) || alpHasWt || hdHasWt || czHasWt || labopalHasWt || polkiHasWt || cabHasWt || pearlHasWt;
+  const coralHasWt = category.id === 'coral' && grade && window.coralHasWeight && window.coralHasWeight(grade.id, shape);
+  const showWt = catShowWeight(category.id) || alpHasWt || hdHasWt || czHasWt || labopalHasWt || polkiHasWt || cabHasWt || pearlHasWt || coralHasWt;
   const navMode = category.id === 'navratna'; // sold by packet, one flat price per packet, no pcs/packet
   // Natural Pearl Cabs: show a weight-per-piece (grams) column.
   const showPieceWt = category.id === 'pearls' && grade.id === 'natural' && shape === 'cabs';
@@ -1021,7 +1022,9 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   const alexSheet = category.id === 'alex' && window.alexSizes && window.alexSizes(shape).length ? window.alexSizes(shape) : null;
   // Rajkot mass zirconia · per grade+colour round price sheet.
   const rajkotSheet = category.id === 'rajkot' && grade && color && window.rajkotSizes && window.rajkotSizes(grade.id, color.id, shape).length ? window.rajkotSizes(grade.id, color.id, shape) : null;
-  let sizes = category.id === 'moissanite' ? (moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm']) : alpGreen ? alpGreen : alpBlue ? alpBlue : alpSheet ? alpSheet : hdSheet ? hdSheet : corSheet ? corSheet : wfSheet ? wfSheet : czSheet ? czSheet : colorCzSheet ? colorCzSheet : opaqueNatSheet ? opaqueNatSheet : opaqueSheet ? opaqueSheet : polkiSheet ? polkiSheet : labopalSheet ? labopalSheet : cabSheet ? cabSheet : pearlSheet ? pearlSheet : hmopSheet ? hmopSheet : alexSheet ? alexSheet : rajkotSheet ? rajkotSheet : skuSizes.length ? skuSizes.slice() : (SIZES_BY_CATEGORY && SIZES_BY_CATEGORY[category.id]) ? SIZES_BY_CATEGORY[category.id].slice() : ourosaMode ? OUROSA_SIZES.map((x) => x[0]) : mixedMoiss ? moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm'] : byStrip ? FULL_SIZES[shape] || ['4.00 mm'] : FULL_SIZES[shape] || ['4.00 mm'];
+  // Milky Corals & Olives · per-grade cab price sheet.
+  const coralSheet = category.id === 'coral' && grade && window.coralSizes && window.coralSizes(grade.id, shape).length ? window.coralSizes(grade.id, shape) : null;
+  let sizes = category.id === 'moissanite' ? (moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm']) : alpGreen ? alpGreen : alpBlue ? alpBlue : alpSheet ? alpSheet : hdSheet ? hdSheet : corSheet ? corSheet : wfSheet ? wfSheet : czSheet ? czSheet : colorCzSheet ? colorCzSheet : opaqueNatSheet ? opaqueNatSheet : opaqueSheet ? opaqueSheet : polkiSheet ? polkiSheet : labopalSheet ? labopalSheet : cabSheet ? cabSheet : pearlSheet ? pearlSheet : hmopSheet ? hmopSheet : alexSheet ? alexSheet : rajkotSheet ? rajkotSheet : coralSheet ? coralSheet : skuSizes.length ? skuSizes.slice() : (SIZES_BY_CATEGORY && SIZES_BY_CATEGORY[category.id]) ? SIZES_BY_CATEGORY[category.id].slice() : ourosaMode ? OUROSA_SIZES.map((x) => x[0]) : mixedMoiss ? moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm'] : byStrip ? FULL_SIZES[shape] || ['4.00 mm'] : FULL_SIZES[shape] || ['4.00 mm'];
   // A colour may cap its size range (e.g. Alpanite Yellow / 162/2 → 1.00–2.00 mm only).
   if (color && color.sizeMax) {sizes = sizes.filter((s) => (parseFloat(s) || 0) <= color.sizeMax + 0.001);}
   // A colour may set a minimum size. Fancy NxN sizes (e.g. "3x4") are kept as-is
@@ -1134,6 +1137,11 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
     // Rajkot mass zirconia per grade+colour price sheet.
     if (category.id === 'rajkot' && grade && color && window.rajkotSku) {
       const a = window.rajkotSku(grade.id, color.id, shape, size);
+      if (a) return a;
+    }
+    // Milky Corals & Olives per-grade cab price sheet.
+    if (category.id === 'coral' && grade && window.coralSku) {
+      const a = window.coralSku(grade.id, shape, size);
       if (a) return a;
     }
     return window.uploadedSkuFor ? uploadedSkuFor(category.id, shape, size, grade) : null;

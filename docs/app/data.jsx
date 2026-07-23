@@ -2940,6 +2940,23 @@ function rajkotSku(gradeId, colorId, shape, size) {
 }
 window.rajkotSizes = rajkotSizes; window.rajkotSku = rajkotSku;
 
+// Milky Corals & Olives · per-grade cab price sheet (one price across all 4 colours).
+// Round from RD CAB (with g/1000 weight); oval from the 100% CABS block. Row [size,pcs,₹/pc,g per 1000].
+const CORAL_SHEETS = {
+  'a': {
+    'round': [['2.00 mm',1,5.6,38.9],['2.25 mm',1,5.67,49],['2.50 mm',1,6.61,68],['2.75 mm',1,8.88,101],['3.00 mm',1,9.44,110],['3.25 mm',1,11.33,148],['3.50 mm',1,13.22,205],['3.75 mm',1,15.11,220],['4.00 mm',1,17.57,272],['4.25 mm',1,22.67,327],['4.50 mm',1,24.56,360]],
+    'oval': [['3×2.5 mm',500,11,null],['4×3 mm',500,16,160],['5×3 mm',200,19,150],['4.5×3.5 mm',200,24,null],['6×4 mm',200,33.06,null]],
+  },
+};
+function coralSizes(gradeId, shape) { const g = CORAL_SHEETS[gradeId]; return g && g[shape] ? g[shape].map((r) => r[0]) : []; }
+function coralSku(gradeId, shape, size) {
+  const g = CORAL_SHEETS[gradeId]; const row = g && g[shape] ? g[shape].find((r) => r[0] === size) : null;
+  if (!row) return null;
+  return { id: 'coral-' + gradeId + '-' + shape + '-' + String(size).replace(/\s/g, ''), price: row[2], pcsPerPacket: row[1], moq: row[1], size, stock: 'in', stockCount: 0, wtPer1000: row[3] != null ? row[3] : null };
+}
+function coralHasWeight(gradeId, shape) { const g = CORAL_SHEETS[gradeId]; return !!(g && g[shape] && g[shape].some((r) => r[3] != null)); }
+window.coralSizes = coralSizes; window.coralSku = coralSku; window.coralHasWeight = coralHasWeight;
+
 // Bracelet: colours differ per style. Cartier = full 21-colour chart; Rolex = 6 metallic finishes.
 const BRACELET_BY_GRADE = {
   cartier: {

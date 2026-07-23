@@ -1144,6 +1144,11 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
       const a = window.coralSku(grade.id, shape, size);
       if (a) return a;
     }
+    // Ourosa per-colour round price sheet (PP-size labels).
+    if (category.id === 'ourosa' && color && window.ourosaSku) {
+      const a = window.ourosaSku(color.id, shape, size);
+      if (a) return a;
+    }
     return window.uploadedSkuFor ? uploadedSkuFor(category.id, shape, size, grade) : null;
   };
   const skuPriced = (size) => {

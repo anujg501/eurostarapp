@@ -2787,6 +2787,20 @@ const CABOCHON_SHEETS = {
     'marquise': [['1.5×3 mm',1000,0.75],['4×2 mm',1000,0.75],['5×2.5 mm',1000,1.05],['6×3 mm',500,1.5],['3.5×7 mm',500,2.5],['8×4 mm',200,3.25],['5×10 mm',200,6]],
     'square': [['2 mm',1000,0.65],['2.5 mm',1000,0.8],['3 mm',1000,1.05],['4 mm',500,1.6],['5 mm',500,3],['6 mm',200,4.25]],
   },
+  'aaa|green': {
+    'round': [['2.00 mm',1000,0.41,10.41],['2.25 mm',1000,0.65,15.16],['2.50 mm',1000,0.73,20.43],['3.00 mm',1000,1.06,null],['3.25 mm',1000,1.22,null],['3.50 mm',1000,1.38,null],['4.00 mm',500,2.11,80.06],['4.50 mm',500,3.24,111.98],['5.00 mm',500,3.41,135.42],['6.00 mm',200,4.87,169.75],['7.00 mm',200,9.75,null]],
+    'square': [['2 mm',1000,0.82,13.25],['2.5 mm',1000,1.26,22],['3 mm',1000,1.39,39],['3.5 mm',500,2.16,66.22],['4 mm',200,2.44,100.5],['5 mm',200,4.89,181.7]],
+    'oval': [['3×2 mm',1000,1.05,null],['3×2.5 mm',1000,1.21,null],['3.5×2.5 mm',1000,1.38,null],['4×3 mm',500,1.4,47],['4.5×3.5 mm',500,1.54,null],['5×3 mm',500,1.54,null],['5×4 mm',500,2.76,null],['6×4 mm',500,2.92,117.14],['7×5 mm',200,6.17,190],['8×6 mm',200,7.79,null],['9×7 mm',200,8.64,null]],
+    'pear': [['3×2 mm',1000,1.05,null],['3×2.5 mm',1000,1.21,24.25],['3.5×2.5 mm',1000,1.38,null],['4×3 mm',500,1.4,46.1],['4.5×3.5 mm',500,1.54,63.26],['5×3 mm',500,1.54,49.76],['5×4 mm',500,2.76,92.42],['6×4 mm',500,2.92,113.1],['7×5 mm',200,6.17,null],['8×6 mm',200,7.79,336],['9×7 mm',200,8.64,null]],
+    'marquise': [['4×2 mm',1000,1.05,15.93],['5×2.5 mm',1000,1.38,34.75],['6×3 mm',500,2.28,null]],
+  },
+  'aaa|red': {
+    'round': [['2.00 mm',1000,0.63,null],['2.50 mm',1000,1.36,26.25],['2.75 mm',1000,1.8,34.58],['3.00 mm',1000,2.18,41.9],['3.25 mm',1000,2.94,53.8],['3.50 mm',1000,2.7,66.5],['3.75 mm',1000,4.66,77.94],['4.00 mm',500,4.83,104],['4.25 mm',500,6.23,128],['4.50 mm',500,7.39,146],['4.75 mm',500,8.9,183],['5.00 mm',500,9.94,196],['5.50 mm',200,9.9,null],['7.00 mm',200,9.8,null]],
+    'square': [['2 mm',1000,1.44,null],['3 mm',1000,2.07,null],['4 mm',200,4.5,null],['5 mm',200,9.54,null]],
+    'oval': [['3×2 mm',1000,1.8,null],['3×2.5 mm',1000,2.16,34.38],['3.5×2.5 mm',1000,2.7,37.13],['4×3 mm',500,2.84,60.64],['5×3 mm',500,3.42,null],['5×4 mm',500,5.4,114.64],['6×4 mm',500,5.76,null],['7×5 mm',200,9.54,null],['8×6 mm',200,15.12,426.2],['9×7 mm',200,21.78,null]],
+    'pear': [['3×2 mm',1000,1.8,null],['3×2.5 mm',1000,2.16,null],['3.5×2.5 mm',1000,2.7,32],['4×3 mm',500,2.84,68.36],['5×3 mm',500,3.42,null],['5×4 mm',500,5.4,64],['6×4 mm',500,5.76,null],['7×5 mm',200,9.54,145],['8×6 mm',200,15.12,null],['9×7 mm',200,21.78,null]],
+    'marquise': [['4×2 mm',1000,1.67,26.9],['5×2.5 mm',1000,2.7,null],['6×3 mm',500,4.32,80]],
+  },
 };
 function cabSizes(gradeId, colorId, shape) {
   const g = CABOCHON_SHEETS[gradeId + '|' + colorId];
@@ -2796,9 +2810,13 @@ function cabSku(gradeId, colorId, shape, size) {
   const g = CABOCHON_SHEETS[gradeId + '|' + colorId];
   const row = g && g[shape] ? g[shape].find((r) => r[0] === size) : null;
   if (!row) return null;
-  return { id: 'cab-' + gradeId + '-' + colorId + '-' + shape + '-' + String(size).replace(/\s/g, ''), price: row[2], pcsPerPacket: row[1], moq: row[1], size, stock: 'in', stockCount: 0 };
+  return { id: 'cab-' + gradeId + '-' + colorId + '-' + shape + '-' + String(size).replace(/\s/g, ''), price: row[2], pcsPerPacket: row[1], moq: row[1], size, stock: 'in', stockCount: 0, wtPer1000: row.length > 3 && row[3] != null ? row[3] : null };
 }
-window.cabSizes = cabSizes; window.cabSku = cabSku;
+function cabHasWeight(gradeId, colorId, shape) {
+  const g = CABOCHON_SHEETS[gradeId + '|' + colorId];
+  return !!(g && g[shape] && g[shape].some((r) => r.length > 3 && r[3] != null));
+}
+window.cabSizes = cabSizes; window.cabSku = cabSku; window.cabHasWeight = cabHasWeight;
 
 // Bracelet: colours differ per style. Cartier = full 21-colour chart; Rolex = 6 metallic finishes.
 const BRACELET_BY_GRADE = {

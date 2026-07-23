@@ -959,7 +959,8 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   const czHasWt = category.id === 'whitecz' && grade && window.czHasWeight && window.czHasWeight(grade.id, shape);
   const labopalHasWt = category.id === 'labopal' && grade && color && window.labopalHasWeight && window.labopalHasWeight(grade.id, color.id, shape);
   const polkiHasWt = category.id === 'polki' && grade && window.polkiHasWeight && window.polkiHasWeight(grade.id, shape);
-  const showWt = catShowWeight(category.id) || alpHasWt || hdHasWt || czHasWt || labopalHasWt || polkiHasWt;
+  const cabHasWt = category.id === 'cabochon' && grade && color && window.cabHasWeight && window.cabHasWeight(grade.id, color.id, shape);
+  const showWt = catShowWeight(category.id) || alpHasWt || hdHasWt || czHasWt || labopalHasWt || polkiHasWt || cabHasWt;
   const navMode = category.id === 'navratna'; // sold by packet, one flat price per packet, no pcs/packet
   // Natural Pearl Cabs: show a weight-per-piece (grams) column.
   const showPieceWt = category.id === 'pearls' && grade.id === 'natural' && shape === 'cabs';

@@ -80,19 +80,44 @@ usersRouter.post(
     const existing = await prisma.user.findUnique({ where: { userId: d.username } });
     if (existing) return fail(res, 409, 'That username is already taken.');
 
+    // phone is unique across ALL users, including customers (who sign in with
+    // phone + OTP). Reusing one used to surface as a generic 500 — say so plainly.
+    const phone = d.phone?.trim() || null;
+    if (phone) {
+      const phoneOwner = await prisma.user.findUnique({ where: { phone } });
+      if (phoneOwner) {
+        return fail(
+          res,
+          409,
+          phoneOwner.role === 'customer'
+            ? `That phone number already belongs to the customer account "${phoneOwner.name}". Use a different number.`
+            : `That phone number is already used by ${phoneOwner.name} (${phoneOwner.userId}).`
+        );
+      }
+    }
+
     const plain = d.password || generatePassword();
-    const user = await prisma.user.create({
-      data: {
-        role: d.role,
-        name: d.name,
-        userId: d.username,
-        phone: d.phone || null,
-        active: d.active ?? true,
-        passwordHash: await hashPassword(plain),
-        ...(d.role === 'rep' ? { repId: d.username } : {}),
-      },
-    });
-    return ok(res, { ...serialiseUser(user), password: plain }, 201);
+    try {
+      const user = await prisma.user.create({
+        data: {
+          role: d.role,
+          name: d.name,
+          userId: d.username,
+          phone,
+          active: d.active ?? true,
+          passwordHash: await hashPassword(plain),
+          ...(d.role === 'rep' ? { repId: d.username } : {}),
+        },
+      });
+      return ok(res, { ...serialiseUser(user), password: plain }, 201);
+    } catch (e: any) {
+      // Lost a race on a unique field — report which one instead of a 500.
+      if (e?.code === 'P2002') {
+        const field = Array.isArray(e?.meta?.target) ? e.meta.target[0] : e?.meta?.target;
+        return fail(res, 409, field === 'phone' ? 'That phone number is already registered.' : 'That username is already taken.');
+      }
+      throw e;
+    }
   })
 );
 
@@ -116,8 +141,24 @@ usersRouter.put(
     if (target.userId === OWNER_USERNAME && (parsed.data.active === false || (parsed.data.role && parsed.data.role !== 'admin'))) {
       return fail(res, 400, 'The owner account cannot be disabled or changed.');
     }
-    const user = await prisma.user.update({ where: { id: target.id }, data: parsed.data });
-    return ok(res, serialiseUser(user));
+    // Same unique-phone rule as create: report the clash rather than 500.
+    const newPhone = parsed.data.phone?.trim();
+    if (newPhone && newPhone !== target.phone) {
+      const phoneOwner = await prisma.user.findUnique({ where: { phone: newPhone } });
+      if (phoneOwner && phoneOwner.id !== target.id) {
+        return fail(res, 409, `That phone number is already used by ${phoneOwner.name}${phoneOwner.role === 'customer' ? ' (customer account)' : ''}.`);
+      }
+    }
+    try {
+      const user = await prisma.user.update({
+        where: { id: target.id },
+        data: { ...parsed.data, ...(newPhone !== undefined ? { phone: newPhone || null } : {}) },
+      });
+      return ok(res, serialiseUser(user));
+    } catch (e: any) {
+      if (e?.code === 'P2002') return fail(res, 409, 'That phone number is already registered.');
+      throw e;
+    }
   })
 );
 

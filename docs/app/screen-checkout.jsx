@@ -60,7 +60,12 @@ function CheckoutScreen({ cart, persona, onBack, onPlace, isOnline }) {
         if (Array.isArray(list)) {
           const mapped = list.map((c) => ({ id: c.id, code: c.code, name: c.name, city: c.city || '', phone: c.phone || '' }));
           setBookCustomers(mapped);
-          setCustId((prev) => (mapped.some((m) => m.id === prev) ? prev : (mapped[0] ? mapped[0].id : '')));
+          // The CRM's "Take an order" names the customer it was started from
+          // (by code or id). Consume it once so a later visit isn't stuck on it.
+          let wanted = '';
+          try { wanted = localStorage.getItem('eurostar_order_for') || ''; localStorage.removeItem('eurostar_order_for'); } catch (e) {}
+          const preset = wanted && mapped.find((m) => m.id === wanted || m.code === wanted);
+          setCustId((prev) => (preset ? preset.id : mapped.some((m) => m.id === prev) ? prev : (mapped[0] ? mapped[0].id : '')));
         }
         setBookLoading(false);
       })

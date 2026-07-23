@@ -49,8 +49,14 @@ customersRouter.get(
         name: c.name,
         phone: c.phone,
         city: c.city,
+        pincode: c.pincode,
         gstin: c.gstin,
         terms: c.terms,
+        geo: c.geo,
+        // The shopfront photo is a data URL — too heavy to send for every row.
+        // The list only needs to know whether there is one.
+        hasPhoto: !!c.shopPhoto,
+        createdAt: c.createdAt,
         rep: c.rep?.repId ?? null, // the checkout customer picker keys on this
       }))
     );
@@ -63,9 +69,14 @@ const createSchema = z.object({
   name: z.string().min(1),
   phone: z.string().min(6),
   city: z.string().optional(),
+  pincode: z.string().optional(),
   gstin: z.string().optional(),
   terms: z.enum(['cash', '15', '30', '45', '60']).optional(),
   repId: z.string().optional(), // office may assign to a specific rep
+  // Field capture from the rep's phone. The photo is a data URL; cap it so a
+  // full-resolution camera dump cannot be posted into the customer master.
+  shopPhoto: z.string().max(3_000_000).optional(),
+  geo: z.string().max(64).optional(),
 });
 
 customersRouter.post(
@@ -98,8 +109,11 @@ customersRouter.post(
           name: existing.name,
           phone: existing.phone,
           city: existing.city,
+          pincode: existing.pincode,
           gstin: existing.gstin,
           terms: existing.terms,
+          createdAt: existing.createdAt,
+          rep: null,
           deduped: true,
         });
       }
@@ -112,21 +126,32 @@ customersRouter.post(
         name: d.name,
         phone: d.phone,
         city: d.city,
+        pincode: d.pincode,
         gstin: d.gstin,
         gstinNorm,
         terms: d.terms ?? 'cash',
+        shopPhoto: d.shopPhoto,
+        geo: d.geo,
         repUserId,
       },
     });
 
+    // Echo the same shape GET /customers returns, so the caller can drop the
+    // new row straight into its list without a second round trip.
+    const repRow = repUserId ? await prisma.user.findUnique({ where: { id: repUserId }, select: { repId: true } }) : null;
     return ok(res, {
       id: customer.id,
       code: customer.code,
       name: customer.name,
       phone: customer.phone,
       city: customer.city,
+      pincode: customer.pincode,
       gstin: customer.gstin,
       terms: customer.terms,
+      geo: customer.geo,
+      hasPhoto: !!customer.shopPhoto,
+      createdAt: customer.createdAt,
+      rep: repRow?.repId ?? null,
     }, 201);
   })
 );
@@ -175,8 +200,12 @@ const updateSchema = z.object({
   phone: z.string().min(6).optional(),
   city: z.string().optional(),
   gstin: z.string().optional(),
+  pincode: z.string().optional(),
   shipAddress: z.string().optional(),
   billAddress: z.string().nullable().optional(), // null = same as shipping
+  // Rep ownership. "" de-links the customer (leaves it open for any rep to
+  // claim); staff-only — a customer editing their own profile cannot set it.
+  repId: z.string().optional(),
 });
 
 customersRouter.put(
@@ -199,6 +228,34 @@ customersRouter.put(
       if (clash) return res.status(409).json({ error: `That GSTIN already belongs to ${clash.name} (${clash.code})` });
     }
 
+    // Rep ownership is a back-office decision, not something a customer can
+    // change about their own record.
+    let repChange: { repUserId: string | null } | Record<string, never> = {};
+    if (d.repId !== undefined) {
+      if (!['rep', 'office', 'admin'].includes(req.user!.role)) {
+        return res.status(403).json({ error: 'Only staff can reassign a customer' });
+      }
+      // A rep may only claim a customer nobody owns, and only for themselves —
+      // otherwise one rep could take another's account off their book.
+      if (req.user!.role === 'rep') {
+        if (c.repUserId && c.repUserId !== req.user!.sub) {
+          return res.status(403).json({ error: 'That customer already belongs to another rep' });
+        }
+        const meRep = await prisma.user.findUnique({ where: { id: req.user!.sub }, select: { repId: true } });
+        if (d.repId !== meRep?.repId && d.repId !== req.user!.sub) {
+          return res.status(403).json({ error: 'A rep can only claim a customer for themselves' });
+        }
+      }
+
+      if (d.repId === '') {
+        repChange = { repUserId: null };
+      } else {
+        const rep = await prisma.user.findFirst({ where: { role: 'rep', OR: [{ repId: d.repId }, { id: d.repId }] } });
+        if (!rep) return res.status(404).json({ error: `No rep with id ${d.repId}` });
+        repChange = { repUserId: rep.id };
+      }
+    }
+
     const updated = await prisma.customer.update({
       where: { id: c.id },
       data: {
@@ -207,16 +264,20 @@ customersRouter.put(
         ...(d.email !== undefined ? { email: d.email || null } : {}),
         ...(d.phone !== undefined ? { phone: d.phone } : {}),
         ...(d.city !== undefined ? { city: d.city } : {}),
+        ...(d.pincode !== undefined ? { pincode: d.pincode } : {}),
         ...(d.gstin !== undefined ? { gstin: d.gstin, gstinNorm } : {}),
         ...(d.shipAddress !== undefined ? { shipAddress: d.shipAddress } : {}),
         ...(d.billAddress !== undefined ? { billAddress: d.billAddress } : {}),
+        ...repChange,
       },
+      include: { rep: true },
     });
 
     return ok(res, {
       id: updated.id, code: updated.code, name: updated.name, contact: updated.contact,
-      email: updated.email, phone: updated.phone, city: updated.city, gstin: updated.gstin,
-      terms: updated.terms, shipAddress: updated.shipAddress, billAddress: updated.billAddress,
+      email: updated.email, phone: updated.phone, city: updated.city, pincode: updated.pincode,
+      gstin: updated.gstin, terms: updated.terms, shipAddress: updated.shipAddress,
+      billAddress: updated.billAddress, rep: updated.rep?.repId ?? null,
     });
   })
 );

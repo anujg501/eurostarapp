@@ -79,9 +79,14 @@ model Customer {
   phone       String?
   city        String?
   gstin       String?
+  pincode     String? // field capture: the shop's PIN code
   shipAddress String? // delivery address (profile "Addresses" tab)
   billAddress String? // billing address; null = same as shipping
   gstinNorm String? // normalised GSTIN for dedupe (CRM customer master)
+  // Filled by a rep signing up a shop in person (CRM → My customers → Add):
+  // a photo of the shopfront and the lat,lng where it was taken.
+  shopPhoto   String? // data URL of the shopfront photo
+  geo         String? // "18.52040, 73.85670"
   terms     String   @default("cash") // "cash" | "15" | "30" | "45" | "60"
   repUserId String? // which rep owns this customer
   rep       User?    @relation("RepCustomers", fields: [repUserId], references: [id])

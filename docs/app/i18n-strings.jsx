@@ -87,6 +87,15 @@ const I18N = {
   crm_orderdesk:  { en:'Order desk',   hi:'ऑर्डर डेस्क',   mr:'ऑर्डर डेस्क',  gu:'ઓર્ડર ડેસ્ક', ta:'ஆர்டர் desk', te:'ఆర్డర్ desk',  kn:'ಆರ್ಡರ್ desk' },
 
   // ---- CRM roles ----
+  qa_take_order:  { en:'Take an order', hi:'ऑर्डर लें', mr:'ऑर्डर घ्या', gu:'ઓર્ડર લો', ta:'ஆர்டர் எடுக்க', te:'ఆర్డర్ తీసుకోండి', kn:'ಆರ್ಡರ್ ತೆಗೆದುಕೊಳ್ಳಿ' },
+  qa_take_order_sub:{ en:'Pick a customer', hi:'ग्राहक चुनें', mr:'ग्राहक निवडा', gu:'ગ્રાહક પસંદ કરો', ta:'வாடிக்கையாளரைத் தேர்வு', te:'కస్టమర్‌ను ఎంచుకోండి', kn:'ಗ್ರಾಹಕರನ್ನು ಆರಿಸಿ' },
+  take_order_sub: { en:'Who is this order for?', hi:'यह ऑर्डर किसके लिए है?', mr:'ही ऑर्डर कोणासाठी?', gu:'આ ઓર્ડર કોના માટે?', ta:'இந்த ஆர்டர் யாருக்கு?', te:'ఈ ఆర్డర్ ఎవరి కోసం?', kn:'ಈ ಆರ್ಡರ್ ಯಾರಿಗಾಗಿ?' },
+  search_customers:{ en:'Search your customers…', hi:'अपने ग्राहक खोजें…', mr:'तुमचे ग्राहक शोधा…', gu:'તમારા ગ્રાહકો શોધો…', ta:'உங்கள் வாடிக்கையாளர்களைத் தேடு…', te:'మీ కస్టమర్లను వెతకండి…', kn:'ನಿಮ್ಮ ಗ್ರಾಹಕರನ್ನು ಹುಡುಕಿ…' },
+  no_match:       { en:'No customer matches that.', hi:'कोई ग्राहक नहीं मिला।', mr:'कोणताही ग्राहक सापडला नाही.', gu:'કોઈ ગ્રાહક મળ્યો નથી.', ta:'பொருந்தும் வாடிக்கையாளர் இல்லை.', te:'సరిపోలే కస్టమర్ లేరు.', kn:'ಹೊಂದುವ ಗ್ರಾಹಕರಿಲ್ಲ.' },
+  no_customers_yet:{ en:'No customers on your book yet — add one first.', hi:'अभी आपके पास कोई ग्राहक नहीं — पहले जोड़ें।', mr:'तुमच्याकडे अजून ग्राहक नाहीत — आधी जोडा.', gu:'હજુ કોઈ ગ્રાહક નથી — પહેલા ઉમેરો.', ta:'இன்னும் வாடிக்கையாளர் இல்லை — முதலில் சேர்க்கவும்.', te:'ఇంకా కస్టమర్లు లేరు — ముందు జోడించండి.', kn:'ಇನ್ನೂ ಗ್ರಾಹಕರಿಲ್ಲ — ಮೊದಲು ಸೇರಿಸಿ.' },
+  cta_add_customer:{ en:'+ Add customer', hi:'+ ग्राहक जोड़ें', mr:'+ ग्राहक जोडा', gu:'+ ગ્રાહક ઉમેરો', ta:'+ வாடிக்கையாளர் சேர்', te:'+ కస్టమర్ జోడించు', kn:'+ ಗ್ರಾಹಕ ಸೇರಿಸಿ' },
+  browse_wo_customer:{ en:'Just browse the catalog', hi:'सिर्फ़ कैटलॉग देखें', mr:'फक्त कॅटलॉग पहा', gu:'ફક્ત કેટલોગ જુઓ', ta:'கேட்டலாக் மட்டும் பார்', te:'కేటలాగ్ మాత్రమే చూడండి', kn:'ಕ್ಯಾಟಲಾಗ್ ಮಾತ್ರ ನೋಡಿ' },
+  crm_signed_in_as:{ en:'Signed in as', hi:'इस रूप में साइन इन', mr:'म्हणून साइन इन', gu:'તરીકે સાઇન ઇન', ta:'இவ்வாறு உள்நுழைந்துள்ளீர்கள்', te:'ఇలా సైన్ ఇన్ అయ్యారు', kn:'ಇಂತೆ ಸೈನ್ ಇನ್' },
   crm_title_admin:{ en:'Administration', hi:'प्रशासन', mr:'प्रशासन', gu:'વહીવટ', ta:'நிர்வாகம்', te:'పరిపాలన', kn:'ಆಡಳಿತ' },
   crm_role_admin:  { en:'Admin',       hi:'एडमिन',        mr:'अ‍ॅडमिन',     gu:'એડમિન',      ta:'Admin',      te:'Admin',       kn:'Admin' },
   crm_role_office: { en:'Back Office', hi:'बैक ऑफ़िस',    mr:'बॅक ऑफिस',    gu:'બેક ઓફિસ',   ta:'Back Office', te:'Back Office', kn:'Back Office' },
@@ -179,8 +188,14 @@ function t(key, lang) {
 function currentLang() { try { return localStorage.getItem('eurostar-lang') || 'en'; } catch (e) { return 'en'; } }
 
 // Same as t(), but fills {placeholders}: tf('w_leads', lang, { n: 3 }).
+//
+// Looks the row up itself rather than calling t(). Every <script type="text/babel">
+// on the page shares one global scope, so a one-letter global like `t` is easy
+// for another script to shadow — and when that happened the whole CRM went
+// blank on "t is not a function". The dictionary is the only dependency here.
 function tf(key, lang, vars) {
-  let s = t(key, lang);
+  const row = I18N[key];
+  let s = row ? (row[lang] || row.en) : key;
   if (vars) Object.keys(vars).forEach((k) => { s = s.split('{' + k + '}').join(vars[k]); });
   return s;
 }

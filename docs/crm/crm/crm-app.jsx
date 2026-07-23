@@ -3,7 +3,7 @@ const { useState } = React;
 const H = window.CRM_HELPERS;
 // Bump with every deploy. Logged on boot so "which build is this browser
 // running?" is answerable in one glance instead of guessed at.
-const CRM_BUILD = 'v28';
+const CRM_BUILD = 'v34';
 try { console.log('[Eurostar CRM] build ' + CRM_BUILD + ' — orders load live from /orders'); } catch (e) {}
 
 const FLOW = ['new', 'confirmed', 'packed', 'shipped', 'out-for-delivery', 'delivered'];
@@ -150,7 +150,11 @@ function AdminCustomers({ st }) {
   const [nf, setNf] = useState({ name: '', city: '', mobile: '', gst: '', rep: '' });
   const setv = (k, v) => setNf((p) => ({ ...p, [k]: v }));
   const ninp = { padding: '9px 11px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', fontSize: 13, fontFamily: 'inherit', color: 'var(--fg)' };
-  const saveCust = () => {if (!nf.name || !nf.mobile) {alert('Name and mobile are required.');return;}st.addCustomer(nf.rep, { name: nf.name, city: nf.city, mobile: nf.mobile, gst: nf.gst || '—' });setNf({ name: '', city: '', mobile: '', gst: '', rep: '' });setAdding(false);};
+  const saveCust = () => {if (!nf.name || !nf.mobile) {alert('Name and mobile are required.');return;}
+    st.addCustomer(nf.rep, { name: nf.name, city: nf.city, mobile: nf.mobile, gst: nf.gst || '—' }).
+    then((saved) => {if (saved && saved.deduped) alert(`That GST number already belongs to ${saved.name} (${saved.code}).`);
+      setNf({ name: '', city: '', mobile: '', gst: '', rep: '' });setAdding(false);}).
+    catch((ex) => alert(ex.message || 'Could not save the customer.'));};
   const cities = [...new Set(customers.map((c) => c.city))].sort();
   const list = cityF ? customers.filter((c) => c.city === cityF) : customers;
   const MISUSE = 10;
@@ -834,7 +838,12 @@ function repData(st, repId) {
   const target = st.repTargets[repId] != null ? st.repTargets[repId] : rep.target || 0;
   const minTarget = 50;
   const effTarget = Math.max(target, minTarget);
-  const added = st.newAdds[repId] || 0;
+  // "New added this month" counts the rep's customers whose account was opened
+  // in the current month (customer.since is "MM/YYYY" from createdAt). The
+  // newAdds counter is only a floor for accounts added before this data existed.
+  const thisMonth = ('0' + (today.getMonth() + 1)).slice(-2) + '/' + today.getFullYear();
+  const addedThisMonth = myCust.filter((c) => c.since === thisMonth).length;
+  const added = Math.max(addedThisMonth, st.newAdds[repId] || 0);
   const pending = Math.max(0, effTarget - added);
   return { rep, myCust, myOrders, myCarts, sales, rate, comm, commBreakdown, dueAlerts, target: effTarget, added, pending };
 }
@@ -912,6 +921,51 @@ function CT(key, fb, vars) {
 
 // Table column header, keyed by its English label (see TH_I18N in i18n-strings).
 function TH(label) { return window.th ? window.th(label, crmLang()) : label; }
+
+/* Open the Sales App as the person already signed in to the CRM.
+ *
+ * "Take an order" used to be <a href="Eurostar Sales website.html">, which is
+ * relative to /crm/ and 404s — and even at the right URL the shop would have
+ * bounced straight to its login screen, because the two apps keep their
+ * sessions under different localStorage keys (eurostar-admin-token here,
+ * eurostar_token there).
+ *
+ * So hand the session across: same tokens, plus the login mode the checkout
+ * reads to decide whether to show the "who is this order for?" customer picker
+ * (rep/office order on behalf of a customer; a customer orders for themselves).
+ * Optionally preselect the customer, for "take an order" started from a row.
+ *
+ * The token is the same one the CRM already holds — nothing new is granted,
+ * and the API re-checks its role on every request.
+ */
+function openSalesApp(opts) {
+  const o = opts || {};
+  const API = window.EUROSTAR_API || location.origin;
+  const go = () => { location.href = '/site'; };
+  let tok = '';
+  try {
+    tok = localStorage.getItem('eurostar-admin-token') || '';
+    const rt = localStorage.getItem('eurostar-admin-refresh') || '';
+    const claims = crmClaims();
+    localStorage.setItem('eurostar_token', tok);
+    if (rt) localStorage.setItem('eurostar_refresh', rt); else localStorage.removeItem('eurostar_refresh');
+    localStorage.setItem('eurostar_authed', '1');
+    localStorage.setItem('eurostar_login_mode', claims.role === 'rep' ? 'rep-cash' : 'office');
+    // A best-effort user record now, replaced below by the server's own.
+    localStorage.setItem('eurostar_user', JSON.stringify({ id: claims.sub, role: claims.role, name: claims.name, repId: claims.repId }));
+    if (o.customerId) localStorage.setItem('eurostar_order_for', o.customerId);
+    else localStorage.removeItem('eurostar_order_for');
+    sessionStorage.setItem('eurostar_enter', '1'); // one-time pass the shop's gate consumes
+  } catch (e) {}
+  if (!tok) return go();
+  // Take the authoritative user record with us so the shop shows the right
+  // name; don't hold up the hand-off if the call is slow or fails.
+  fetch(API + '/auth/me', { headers: { authorization: 'Bearer ' + tok } }).
+  then((r) => r.ok ? r.json() : null).
+  then((u) => { if (u) { try { localStorage.setItem('eurostar_user', JSON.stringify(u)); } catch (e) {} } }).
+  catch(() => {}).
+  then(go, go);
+}
 
 function adminAttention(st) {
   const T = COACH_TODAY;
@@ -1299,15 +1353,17 @@ function RepDesk({ st, repId }) {
   const payForOrder = (ordId) => myPays.find((p) => p.orderId === ordId);
   const asm = (st.leaders || []).find((l) => {const rep = (st.reps || []).find((r) => r.id === repId) || {};return l.id === rep.asm;});
   const quickPay = () => {const t = d.dueAlerts[0] ? { order: d.dueAlerts[0].order, cust: d.dueAlerts[0].cust } : d.myOrders[0] ? { order: d.myOrders[0], cust: H.cust(d.myOrders[0].cust) } : null;if (t) setLogPayTarget(t);else alert('No orders to log a payment against yet.');};
+  const [takeOrder, setTakeOrder] = useState(false);
   return (
     <div className="crm-body">
+      {takeOrder && <TakeOrderPicker customers={d.myCust} onClose={() => setTakeOrder(false)} onAdd={() => {setTakeOrder(false);st.goAddCustomer && st.goAddCustomer();}} />}
       <RepCheckIn st={st} repId={repId} />
       <div className="rep-quick-actions">
-        <a className="rep-qa rep-qa-primary" href="Eurostar Sales website.html">
+        <button className="rep-qa rep-qa-primary" onClick={() => setTakeOrder(true)}>
           <span className="rep-qa-icon">🛒</span>
-          <span className="rep-qa-label">Take an order</span>
-          <span className="rep-qa-sub">Open Sales App</span>
-        </a>
+          <span className="rep-qa-label">{CT('qa_take_order', 'Take an order')}</span>
+          <span className="rep-qa-sub">{CT('qa_take_order_sub', 'Pick a customer')}</span>
+        </button>
         <button className="rep-qa" onClick={() => st.goAddCustomer && st.goAddCustomer()}>
           <span className="rep-qa-icon">＋</span>
           <span className="rep-qa-label">Add customer</span>
@@ -1324,11 +1380,11 @@ function RepDesk({ st, repId }) {
               <span className="rep-qa-label">Call manager</span>
               <span className="rep-qa-sub">{asm.name}</span>
             </a> :
-        <a className="rep-qa" href="Eurostar Sales website.html">
+        <button className="rep-qa" onClick={() => openSalesApp()}>
               <span className="rep-qa-icon">📑</span>
               <span className="rep-qa-label">Browse catalog</span>
               <span className="rep-qa-sub">Prices &amp; sizes</span>
-            </a>}
+            </button>}
       </div>
       <RepVisits st={st} repId={repId} />
       <RepCoachCard st={st} repId={repId} onQuickPay={quickPay} />
@@ -1401,7 +1457,7 @@ function RepDesk({ st, repId }) {
       </div>
 
       {(() => {const stages = window.CRM_STAGES || [];const myLeads = (st.leads || []).filter((l) => l.rep === repId);
-        const today = '2026-06-17';const dueLeads = myLeads.filter((l) => l.stage < 6 && l.followUp <= today).sort((a, b) => a.followUp.localeCompare(b.followUp));
+        const today = new Date().toISOString().slice(0, 10);const dueLeads = myLeads.filter((l) => l.stage < 6 && l.followUp <= today).sort((a, b) => a.followUp.localeCompare(b.followUp));
         const stageMeta = (id) => stages.find((s) => s.id === id) || { label: '?' };
         if (myLeads.length === 0) return null;
         return (
@@ -1734,7 +1790,9 @@ function Pipeline({ st, repId }) {
   const [repFilter, setRepFilter] = useState('');
   const leads = (st.leads || []).filter((l) => (!repId || l.rep === repId) && !l.flagged && (repId || !repFilter || l.rep === repFilter)).slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   const stageMeta = (id) => stages.find((s) => s.id === id) || { label: '?', short: '?' };
-  const today = '2026-06-17';
+  // "Overdue" is measured against the actual date. This was pinned to
+  // 2026-06-17, so every follow-up looked on time however long it sat.
+  const today = new Date().toISOString().slice(0, 10);
   const [showAdd, setShowAdd] = useState(false);
   const fileRef = React.useRef(null);
   const onBulk = (e) => {const f = e.target.files && e.target.files[0];if (!f) return;
@@ -1858,9 +1916,23 @@ function RepCustomers({ st, repId }) {
     set('geo', 'Locating…');navigator.geolocation.getCurrentPosition(
       (p) => set('geo', p.coords.latitude.toFixed(5) + ', ' + p.coords.longitude.toFixed(5)),
       () => set('geo', '18.5204, 73.8567 (sample)'));};
-  const save = () => {if (!form.name || !form.mobile) {alert('Name and contact number are required.');return;}
-    st.addCustomer(repId, { name: form.name, city: form.city, mobile: form.mobile, gst: form.gst || '—', pincode: form.pincode, photo: form.photo, geo: form.geo });
-    setForm({ name: '', mobile: '', city: '', pincode: '', gst: '', photo: '', geo: '' });setAdding(false);};
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+  const save = () => {
+    if (!form.name.trim() || !form.mobile.trim()) { setErr('Name and contact number are required.'); return; }
+    if (form.mobile.replace(/\D+/g, '').length < 6) { setErr('That contact number is too short.'); return; }
+    setErr('');setSaving(true);
+    st.addCustomer(repId, { name: form.name.trim(), city: form.city.trim(), mobile: form.mobile.trim(), gst: form.gst.trim() || '—', pincode: form.pincode.trim(), photo: form.photo, geo: form.geo }).
+    then((saved) => {
+      setSaving(false);
+      // A matching GSTIN returns the existing master record instead of making
+      // a twin — say so rather than pretending a new account was created.
+      if (saved && saved.deduped) alert(`That GST number already belongs to ${saved.name} (${saved.code}). Opened that account instead of creating a duplicate.`);
+      setForm({ name: '', mobile: '', city: '', pincode: '', gst: '', photo: '', geo: '' });
+      setAdding(false);
+    }).
+    catch((ex) => {setSaving(false);setErr(ex.message || 'Could not save the customer.');});
+  };
 
   return (
     <div className="crm-body">
@@ -1888,9 +1960,10 @@ function RepCustomers({ st, repId }) {
                 <input type={t} value={form[k]} onChange={(e) => set(k, e.target.value)} style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', background: 'var(--surface-2)', fontSize: 14, fontFamily: 'inherit' }} />
               </label>
             )}
+            {err && <div style={{ gridColumn: '1 / -1', color: 'var(--ruby)', fontSize: 12.5, fontWeight: 600 }}>{err}</div>}
             <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
-              <button className="cbtn cbtn-ghost" onClick={() => setAdding(false)}>Cancel</button>
-              <button className="cbtn cbtn-accent" onClick={save}>Save customer</button>
+              <button className="cbtn cbtn-ghost" onClick={() => setAdding(false)} disabled={saving}>Cancel</button>
+              <button className="cbtn cbtn-accent" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save customer'}</button>
             </div>
           </div>
         </div>
@@ -1901,9 +1974,9 @@ function RepCustomers({ st, repId }) {
           <thead><tr><th>{TH("Customer")}</th><th>{TH("City")}</th><th>{TH("Pincode")}</th><th>{TH("GST")}</th><th>{TH("Mobile")}</th><th>{TH("Payment")}</th><th style={{ textAlign: 'right' }}>{TH("Since")}</th></tr></thead>
           <tbody>{d.myCust.map((c) => {const t = c.terms || 'cash';return (
                 <tr key={c.id}><td data-label="Customer">{c.name}<div className="crm-muted" style={{ fontSize: 11 }}>{c.id}</div></td><td className="crm-muted" data-label="City">{c.city}</td>
-            <td className="crm-muted" data-label="Pincode">{c.pincode || '—'}</td><td className="crm-id crm-muted" data-label="GST">{c.gst}</td><td className="crm-muted" data-label="Mobile" style={{ fontSize: 12 }}>{c.mobile}</td>
+            <td className="crm-muted" data-label="Pincode">{c.pincode || '—'}</td><td className="crm-id crm-muted" data-label="GST">{c.gst || '—'}</td><td className="crm-muted" data-label="Mobile" style={{ fontSize: 12 }}>{c.mobile}</td>
             <td data-label="Payment">{t === 'cash' ? <Pill s="delivered" label="Cash" /> : <Pill s="confirmed" label={t + ' days'} />}</td>
-            <td className="crm-muted" data-label="Since" style={{ textAlign: 'right' }}>{(c.since || '').includes('/') ? c.since : '01/' + (c.since || '')}</td></tr>);})}</tbody>
+            <td className="crm-muted" data-label="Since" style={{ textAlign: 'right' }}>{c.since || '—'}</td></tr>);})}</tbody>
         </table>
       </div>
       <PageHead title="My recent orders" sub="latest orders from your customers" />
@@ -1935,6 +2008,54 @@ function RepCustomers({ st, repId }) {
           </table>
         </div>
       </React.Fragment>}
+    </div>);
+
+}
+
+/* "Take an order" — pick which of the rep's customers the order is for, then
+ * hand off to the Sales App with that customer preselected at checkout. */
+function TakeOrderPicker({ customers, onClose, onAdd }) {
+  const [q, setQ] = useState('');
+  const needle = q.trim().toLowerCase();
+  const list = needle ?
+  customers.filter((c) => [c.name, c.city, c.mobile, c.id].some((v) => (v || '').toLowerCase().includes(needle))) :
+  customers;
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(21,19,15,0.52)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--surface)', borderRadius: 'var(--r-lg)', width: 'min(480px,96vw)', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: 'var(--shadow-lg)' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--divider)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontFamily: 'var(--font-serif)', fontWeight: 500, fontSize: 19 }}>{CT('qa_take_order', 'Take an order')}</div>
+            <div className="crm-muted" style={{ fontSize: 12.5 }}>{CT('take_order_sub', 'Who is this order for?')}</div>
+          </div>
+          <button className="cbtn cbtn-ghost cbtn-sm" onClick={onClose}>✕</button>
+        </div>
+        <div style={{ padding: '14px 20px 0' }}>
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={CT('search_customers', 'Search your customers…')}
+          style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', background: 'var(--surface-2)', fontSize: 14, fontFamily: 'inherit' }} />
+        </div>
+        <div style={{ flex: 1, overflow: 'auto', padding: '10px 12px 6px' }}>
+          {list.length === 0 &&
+          <div className="crm-muted" style={{ padding: '18px 8px', fontSize: 13 }}>
+              {customers.length ? CT('no_match', 'No customer matches that.') : CT('no_customers_yet', 'No customers on your book yet — add one first.')}
+            </div>}
+          {list.map((c) =>
+          <button key={c.id} className="lrow" onClick={() => openSalesApp({ customerId: c.id })}
+          style={{ width: '100%', textAlign: 'left', border: 'none', background: 'transparent', cursor: 'pointer', font: 'inherit' }}>
+              <div className="lrow-main">
+                <div className="lrow-title">{c.name}</div>
+                <div className="lrow-sub">{[c.city, c.mobile].filter(Boolean).join(' · ') || c.id}</div>
+              </div>
+              <span className="crm-muted" style={{ fontSize: 18 }}>→</span>
+            </button>
+          )}
+        </div>
+        <div style={{ padding: '12px 20px 16px', borderTop: '1px solid var(--divider)', display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+          <button className="cbtn cbtn-ghost" onClick={onAdd}>{CT('cta_add_customer', '+ Add customer')}</button>
+          {/* Browsing without a customer is fine — the checkout still asks. */}
+          <button className="cbtn cbtn-accent" onClick={() => openSalesApp()}>{CT('browse_wo_customer', 'Just browse the catalog')}</button>
+        </div>
+      </div>
     </div>);
 
 }
@@ -2212,9 +2333,68 @@ const NAV = {
 };
 const ROLE_TITLE = { admin: 'Administration', office: 'Back Office', rep: 'Sales Rep' };
 const ROLE_TITLE_KEY = { admin: 'crm_title_admin', office: 'crm_role_office', rep: 'crm_role_rep' };
+// Short form for the "signed in as" chip in the top bar.
+const ROLE_CHIP = { admin: 'Admin', office: 'Back Office', rep: 'Sales Rep' };
+const ROLE_CHIP_KEY = { admin: 'crm_role_admin', office: 'crm_role_office', rep: 'crm_role_rep' };
 function roleTitle(role) { return CT(ROLE_TITLE_KEY[role], ROLE_TITLE[role]); }
 const DEFAULT_PAGE = { admin: 'dashboard', office: 'orders', rep: 'desk' };
-const REP_ID = 'REP-204';
+
+/* Who is signed in, read from the CRM access token's own claims.
+ *
+ * The console used to take its role from a ?role= query param and offer three
+ * buttons to switch between Admin / Back Office / Sales Rep, so a rep could
+ * open the admin console just by clicking. The role now comes from the token
+ * the server issued at login and cannot be changed from the UI — to work as a
+ * different role you sign out and sign in as that user.
+ *
+ * This only decides what the console *shows*. The API is the real boundary: it
+ * checks the same token's role on every request, so a forged claim here buys
+ * nothing.
+ */
+function crmClaims() {
+  try {
+    const tok = localStorage.getItem('eurostar-admin-token') || '';
+    const part = tok.split('.')[1];
+    if (!part) return {};
+    const b64 = part.replace(/-/g, '+').replace(/_/g, '/');
+    const raw = atob(b64);
+    // atob gives bytes; re-decode as UTF-8 so non-ASCII names survive.
+    const json = decodeURIComponent(raw.split('').map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+    return JSON.parse(json) || {};
+  } catch (e) { return {}; }
+}
+function crmAuthRole() {
+  const r = crmClaims().role;
+  return ['admin', 'office', 'rep'].includes(r) ? r : null;
+}
+const REP_ID = crmClaims().repId || 'REP-204';
+
+// One API customer row -> the shape every CRM screen reads. Used both by the
+// initial /customers load and by the row POST /customers echoes back, so a
+// just-added customer looks identical to a reloaded one.
+function mapCustomer(c) {
+  const since = c.createdAt ? new Date(c.createdAt) : null;
+  return {
+    id: c.code || c.id,
+    name: c.name,
+    city: c.city || '',
+    pincode: c.pincode || '',
+    gst: c.gstin || '',
+    mobile: c.phone || '',
+    rep: c.rep || '',
+    terms: c.terms || 'cash',
+    geo: c.geo || '',
+    hasPhoto: !!c.hasPhoto,
+    tier: '',
+    // "MM/YYYY" — the customer tables show the month the account was opened.
+    since: since && !isNaN(since.getTime())
+      ? ('0' + (since.getMonth() + 1)).slice(-2) + '/' + since.getFullYear()
+      : '',
+    credit: 0,
+    cartViewsNoOrder: 0,
+    active: true,
+  };
+}
 
 // 7-language globe switcher (matches the Sales App).
 // Admin notifications bell — new orders, RFQs, overdue payments, abandoned carts.
@@ -2361,8 +2541,9 @@ function CRM() {
     window.addEventListener('eurostar-lang', f);
     return () => window.removeEventListener('eurostar-lang', f);
   }, []);
-  const CRM_INIT_ROLE = (() => { try { const r = new URLSearchParams(location.search).get('role'); return ['admin', 'office', 'rep'].includes(r) ? r : 'admin'; } catch (e) { return 'admin'; } })();
-  const [role, setRole] = useState(CRM_INIT_ROLE);
+  // The signed-in user's role — not a choice. See crmAuthRole().
+  const CRM_INIT_ROLE = crmAuthRole() || 'admin';
+  const role = CRM_INIT_ROLE;
   const [page, setPage] = useState(DEFAULT_PAGE[CRM_INIT_ROLE]);
   const [editTarget, setEditTarget] = useState(null);
   const [addCustOpen, setAddCustOpen] = useState(false);
@@ -2428,6 +2609,17 @@ function CRM() {
       if (body !== undefined && body !== null) opts.body = JSON.stringify(body);
       fetch(API + path, opts).catch(() => {});
     } catch (e) {}
+  };
+
+  // Same call, but you get the parsed response back. Use this where the screen
+  // has to show what the server decided (a new customer code, a GST clash).
+  const crmApiJson = (method, path, body) => {
+    const API = window.EUROSTAR_API || location.origin;
+    let tok = '';
+    try { tok = localStorage.getItem('eurostar-admin-token') || ''; } catch (e) {}
+    const opts = { method, headers: { 'content-type': 'application/json', authorization: 'Bearer ' + tok } };
+    if (body !== undefined && body !== null) opts.body = JSON.stringify(body);
+    return fetch(API + path, opts).then((r) => r.json().then((d) => ({ ok: r.ok, status: r.status, data: d })));
   };
 
   // Load orders straight from the database on mount, independent of the
@@ -2510,7 +2702,19 @@ function CRM() {
       // Customers + carts, straight from the DB, so their counts/tables are live.
       authedGet('/customers').then((rows) => {
         if (!Array.isArray(rows) || !rows.length) return;
-        setCustomers(rows.map((c) => ({ id: c.code || c.id, name: c.name, city: c.city || '', gst: c.gstin || '', mobile: c.phone || '', rep: c.rep || '', terms: c.terms || 'cash', tier: '', since: '', credit: 0, cartViewsNoOrder: 0, active: true })));
+        setCustomers(rows.map(mapCustomer));
+      });
+      // The pipeline. This was the one screen still reading its rows from the
+      // CRM_LEADS seed: stage changes were POSTed to the API but the list on
+      // screen never came back from it, so a reload showed the seed again.
+      authedGet('/leads').then((rows) => {
+        if (!Array.isArray(rows)) return;
+        setLeads(rows.map((l) => ({
+          id: l.id, name: l.name, city: l.city || '', mobile: l.mobile || '', gst: l.gst || '',
+          rep: l.rep || '', stage: typeof l.stage === 'number' ? l.stage : 1, followUp: l.followUp || '',
+          assigned: !!l.assigned, note: l.note || '', flagged: !!l.flagged,
+          flagName: l.flagName || '', flagBy: l.flagBy || '',
+        })));
       });
       authedGet('/carts').then((rows) => {
         if (!Array.isArray(rows)) return;
@@ -2537,10 +2741,37 @@ function CRM() {
     toggleSuspend: (id) => setCustomers((cs) => cs.map((c) => c.id === id ? { ...c, active: !c.active } : c)),
     setRate: (id, v) => setRepRates((m) => ({ ...m, [id]: Math.max(0, parseFloat(v) || 0) / 100 })),
     setTarget: (id, v) => setRepTargets((m) => ({ ...m, [id]: Math.max(50, parseInt(v, 10) || 50) })),
-    addCustomer: (rep, c) => {setCustomers((cs) => [{ ...c, id: 'EUR-' + (10800 + cs.length), rep, active: true, terms: 'cash', since: '06/2026', credit: 100000 }, ...cs]);if (rep) setNewAdds((m) => ({ ...m, [rep]: (m[rep] || 0) + 1 }));},
+    // Writes the customer to the database and puts the server's row (real
+    // customer code, real created-at) at the top of the list. It used to only
+    // push a made-up "EUR-108xx" row into React state, so the customer was gone
+    // on the next reload and never reached the master.
+    addCustomer: (rep, c) =>
+    crmApiJson('POST', '/customers', {
+      name: c.name,
+      phone: c.mobile,
+      city: c.city || undefined,
+      pincode: c.pincode || undefined,
+      gstin: c.gst && c.gst !== '—' ? c.gst : undefined,
+      shopPhoto: c.photo || undefined,
+      geo: c.geo || undefined,
+      repId: rep || undefined, // ignored for a rep token — the API scopes to self
+    }).
+    then((res) => {
+      if (!res.ok) throw new Error((res.data && res.data.error) || 'Could not save the customer.');
+      const row = mapCustomer(res.data);
+      setCustomers((cs) => [row, ...cs.filter((x) => x.id !== row.id)]);
+      if (rep && !res.data.deduped) setNewAdds((m) => ({ ...m, [rep]: (m[rep] || 0) + 1 }));
+      return res.data;
+    }),
     addRep: (f) => {const id = 'REP-' + (300 + reps.length);setReps((rs) => [...rs, { id, name: f.name, region: f.region || '—', phone: f.phone || '', rate: (parseFloat(f.rate) || 4) / 100, target: 50 }]);
       setRepRates((m) => ({ ...m, [id]: (parseFloat(f.rate) || 4) / 100 }));setRepTargets((m) => ({ ...m, [id]: 50 }));setNewAdds((m) => ({ ...m, [id]: 0 }));},
-    claimCustomer: (id, rep) => {setCustomers((cs) => cs.map((c) => c.id === id ? { ...c, rep } : c));setNewAdds((m) => ({ ...m, [rep]: (m[rep] || 0) + 1 }));},
+    claimCustomer: (id, rep) => {
+      crmApiJson('PUT', '/customers/' + id, { repId: rep }).
+      then((res) => {if (!res.ok) throw new Error((res.data && res.data.error) || 'Could not claim that customer.');
+        setCustomers((cs) => cs.map((c) => c.id === id ? { ...c, rep } : c));
+        setNewAdds((m) => ({ ...m, [rep]: (m[rep] || 0) + 1 }));}).
+      catch((ex) => alert(ex.message));
+    },
     advance: (id) => {
       const o = (orders || []).find((x) => x.id === id);
       if (!o) return;
@@ -2563,8 +2794,21 @@ function CRM() {
     doCheckin: (id, photo) => setCheckin((m) => ({ ...m, [id]: { photo, time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) } })),
     leads,
     importSummary,
-    setStage: (id, stage) => { setLeads((ls) => ls.map((l) => l.id === id ? { ...l, stage } : l)); crmApi('PUT', '/leads/' + id, { stage }); },
-    setFollowUp: (id, followUp) => { setLeads((ls) => ls.map((l) => l.id === id ? { ...l, followUp } : l)); crmApi('PUT', '/leads/' + id, { followUp }); },
+    // Optimistic, but not blind: if the write is refused the row snaps back to
+    // what the server still holds, so the pipeline on screen never disagrees
+    // with the database.
+    patchLead: (id, patch) => {
+      let before = null;
+      setLeads((ls) => {before = ls.find((l) => l.id === id) || null;return ls.map((l) => l.id === id ? { ...l, ...patch } : l);});
+      return crmApiJson('PUT', '/leads/' + id, patch).
+      then((res) => {if (!res.ok) throw new Error((res.data && res.data.error) || 'Could not save that change.');return res.data;}).
+      catch((ex) => {
+        if (before) setLeads((ls) => ls.map((l) => l.id === id ? before : l));
+        alert(ex.message || 'Could not save that change.');
+      });
+    },
+    setStage: (id, stage) => st.patchLead(id, { stage }),
+    setFollowUp: (id, followUp) => st.patchLead(id, { followUp }),
     addLead: (f) => {const flagMatch = masterMatch(f.gst, f.name, f.city, f.mobile);
       const newId = 'LD-' + Date.now();
       if (flagMatch) {const lead = { id: newId, name: f.name, city: f.city, mobile: f.mobile, gst: f.gst || '', rep: '', stage: 1, followUp: '2026-06-18', assigned: false, note: f.note || '', flagged: true, flagName: flagMatch.name, flagBy: flagMatch._by };
@@ -2656,8 +2900,13 @@ function CRM() {
     offboardRep: (id, name) => {if (!confirm('Block ' + name + '\u2019s login and de-link all their customers? Their customers become open for any rep to solicit.')) return;
       setRepBlocked((m) => ({ ...m, [id]: true }));setCustomers((cs) => cs.map((c) => c.rep === id ? { ...c, rep: '' } : c));},
     restoreRep: (id) => setRepBlocked((m) => ({ ...m, [id]: false })),
-    delinkCustomer: (id) => setCustomers((cs) => cs.map((c) => c.id === id ? { ...c, rep: '' } : c)),
-    reassignLead: (id, rep) => { setLeads((ls) => ls.map((l) => l.id === id ? { ...l, rep, assigned: !!rep } : l)); crmApi('PUT', '/leads/' + id, { rep, assigned: !!rep }); },
+    delinkCustomer: (id) => {
+      crmApiJson('PUT', '/customers/' + id, { repId: '' }).
+      then((res) => {if (!res.ok) throw new Error((res.data && res.data.error) || 'Could not de-link that customer.');
+        setCustomers((cs) => cs.map((c) => c.id === id ? { ...c, rep: '' } : c));}).
+      catch((ex) => alert(ex.message));
+    },
+    reassignLead: (id, rep) => st.patchLead(id, { rep, assigned: !!rep }),
     leaders,
     addLeader: (lr) => setLeaders((ls) => [...ls, { ...lr, id: 'L' + (ls.length + 1 + Date.now() % 1000) }]),
     removeLeader: (id) => setLeaders((ls) => ls.filter((l) => l.id !== id)),
@@ -2667,8 +2916,6 @@ function CRM() {
     const sales = orders.filter((o) => ids.includes(o.cust)).reduce((a, o) => a + o.value, 0);
     const rate = repRates[r.id] != null ? repRates[r.id] : r.rate;return { ...r, sales, rate, comm: Math.round(sales * rate) };}).sort((a, b) => b.sales - a.sales);
   st.byRep = byRep;st.maxSales = Math.max(...byRep.map((r) => r.sales), 1);
-
-  const switchRole = (r) => {setRole(r);setPage(DEFAULT_PAGE[r]);};
 
   React.useEffect(() => { if (window.MiraStaff) window.MiraStaff.setContext('crm', role); }, [role]);
 
@@ -2709,7 +2956,7 @@ function CRM() {
             </button>);})}
         </nav>
         <div className="crm-side-foot">
-          <a className="crm-applink" href="Eurostar Sales website.html">↗ {CT('open_sales_app','Open Sales App')}</a>
+          <button className="crm-applink" onClick={() => openSalesApp()}>↗ {CT('open_sales_app','Open Sales App')}</button>
           <button className="crm-applink crm-signout" onClick={signOut}>↩ {CT('sign_out','Sign out')}</button>
         </div>
       </aside>
@@ -2729,9 +2976,9 @@ function CRM() {
               </div> :
           <h1>{roleTitle(role)} <span className="crm-muted" style={{ fontWeight: 400, fontSize: 15 }}>· {curLabel}</span></h1>}
           <div className="crm-role">
-            <button className={role === 'admin' ? 'active' : ''} onClick={() => switchRole('admin')}>{CT('crm_role_admin','Admin')}</button>
-            <button className={role === 'office' ? 'active' : ''} onClick={() => switchRole('office')}>{CT('crm_role_office','Back Office')}</button>
-            <button className={role === 'rep' ? 'active' : ''} onClick={() => switchRole('rep')}>{CT('crm_role_rep','Sales Rep')}</button>
+            {/* Shows who you are signed in as. Not a switch — the role comes
+                from the token; to work as another role, sign out and back in. */}
+            <button className="active" disabled title={CT('crm_signed_in_as', 'Signed in as')}>{CT(ROLE_CHIP_KEY[role], ROLE_CHIP[role])}</button>
           </div>
           {role === 'admin' && <CrmNotifications st={st} />}
           <CrmLangSwitcher />

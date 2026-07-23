@@ -215,7 +215,10 @@
               if (res.d.refreshToken) localStorage.setItem('eurostar-admin-refresh', res.d.refreshToken);
               if (remember) localStorage.setItem(AUTH_KEY, username); else localStorage.removeItem(AUTH_KEY);
             } catch (e) {}
-            unlock();
+            // The console reads its role from the token's claims, and it mounted
+            // before this token existed. Reload so it boots as the right role
+            // instead of showing whatever the previous session was.
+            location.reload();
           })
           .catch(function (ex) {
             btn.disabled = false; btn.textContent = 'Sign in';
@@ -253,12 +256,12 @@
   <script src="../vendor/react-dom.development.js"></script>
   <script src="../vendor/babel.min.js"></script>
   <!-- Phase 3: hydrate the CRM from the live back room (no UI change). -->
-  <script src="crm/api-bridge.js?v=28"></script>
+  <script src="crm/api-bridge.js?v=34"></script>
   <!-- Shared UI translations (same dictionary as the Sales App). -->
-  <script type="text/babel" src="../app/i18n-strings.jsx?v=4"></script>
+  <script type="text/babel" src="../app/i18n-strings.jsx?v=7"></script>
   <script src="assets/logo-data.js"></script>
-  <script type="text/babel" src="crm/crm-data.jsx?v=28"></script>
-  <script type="text/babel" src="crm/crm-app.jsx?v=28"></script>
+  <script type="text/babel" src="crm/crm-data.jsx?v=34"></script>
+  <script type="text/babel" src="crm/crm-app.jsx?v=34"></script>
   <script src="app/mira-claude-shim.js"></script>
   <script src="app/mira-staff.js"></script>
 

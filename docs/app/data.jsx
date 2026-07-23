@@ -120,7 +120,7 @@ const SHAPES = [
   { id: 'shell', name: 'Shell', note: 'Carved shell' },
   { id: 'bellflower', name: 'Bell Flower', note: 'Floral motif' },
   { id: 'bulgari', name: 'Bulgari Motif', note: 'Signature motif' },
-  { id: 'cutstones',      name: 'Cut Stones',               note: 'Oval, pear, marquise, round, etc.', subShapes: ['round','oval','pear','marquise','cushion','heart'] },
+  { id: 'cutstones',      name: 'Cut Stones',               note: 'Oval, pear, marquise, round, etc.', subShapes: ['round','oval','pear','marquise','square','octagon-step','heart','trillion'] },
   { id: 'maniya',         name: 'Maniya',                   note: 'Oval ball with hole' },
   { id: 'tyre-plain',     name: 'Tyre Beads (Batti) · Plain',    note: 'Batti · plain finish' },
   { id: 'tyre-fac',       name: 'Tyre Beads (Batti) · Faceted',  note: 'Batti · faceted finish' },
@@ -2669,6 +2669,37 @@ function opaqueSku(gradeId, shape, size) {
 }
 window.opaqueSizes = opaqueSizes;
 window.opaqueSku = opaqueSku;
+
+// Opaque · Natural-look — per-size ₹/ct rates (carat-lot pricing), per grade+colour.
+// Row: [size, ₹/ct]. The 100-ct lot MOQ is applied by the pad. Round's tiny 'per-pc'
+// sizes are converted to an equivalent ₹/ct so every size prices on one basis.
+const OPAQUE_NAT_SHEETS = {
+  'natural|red': {
+    'oval': [['3×2 mm',28.16],['3×2.5 mm',23.1],['3.25×2.25 mm',22.66],['3.5×2.5 mm',20.46],['3.75×2.75 mm',20.46],['4×3 mm',19.58],['5×3 mm',19.58],['4.25×3.25 mm',19.58],['4.5×3.5 mm',19.14],['4.75×3.75 mm',19.14],['5×4 mm',18.7],['5.25×4.25 mm',18.04],['5.5×4.50 mm',18.04],['5.75×4.75 mm',18.04],['6×4 mm',18.04],['6.5×4.5 mm',16.94],['6×5 mm',16.94],['6.5×5.5 mm',16.94],['7×5 mm',16.94],['7.5×5.5 mm',16.5],['8×6 mm',16.5],['9×7 mm',16.5],['12×10 mm',16.5]],
+    'pear': [['3×2 mm',28.16],['3×2.5 mm',23.1],['3.25×2.25 mm',22.66],['3.5×2.5 mm',20.46],['3.75×2.75 mm',20.46],['4×3 mm',19.58],['5×3 mm',19.58],['4.25×3.25 mm',19.58],['4.5×3.5 mm',19.14],['4.75×3.75 mm',19.14],['5×4 mm',18.7],['5.25×4.25 mm',18.04],['5.5×4.50 mm',18.04],['5.75×4.75 mm',18.04],['6×4 mm',18.04],['6.5×4.5 mm',16.94],['6×5 mm',16.94],['6.5×5.5 mm',16.94],['7×5 mm',16.94],['7.5×5.5 mm',16.5],['8×6 mm',16.5],['9×7 mm',16.5],['12×10 mm',16.5]],
+    'marquise': [['3×1.5 mm',29.7],['3.5×1.75 mm',28.6],['3×2 mm',27.94],['3.5×2 mm',26.4],['4×2 mm',23.1],['4.25×2.25 mm',22.66],['4×2.5 mm',22],['4.5×2 mm',22],['4.5×2.5 mm',20.46],['5×2.5 mm',19.8],['5.5×2.75 mm',19.36],['5×3 mm',19.36],['6×3 mm',18.7],['7×3.5 mm',18.7],['8×4 mm',18.7],['10×5 mm',18.04]],
+    'round': [['1.00 mm',22],['1.10 mm',22],['1.20 mm',22],['1.30 mm',22],['1.40 mm',22],['1.50 mm',22],['1.60 mm',22],['1.70 mm',22.44],['1.80 mm',22.44],['1.90 mm',22.44],['2.00 mm',22.44],['2.10 mm',20.02],['2.20 mm',20.02],['2.30 mm',20.02],['2.40 mm',20.02],['2.50 mm',20.02],['2.60 mm',20.02],['2.70 mm',20.02],['2.80 mm',20.02],['2.90 mm',20.02],['3.00 mm',20.02],['3.10 mm',18.7],['3.20 mm',18.7],['3.30 mm',18.7],['3.40 mm',18.7],['3.50 mm',18.7],['3.60 mm',18.7],['3.70 mm',18.7],['3.80 mm',18.7],['3.90 mm',18.7],['4.00 mm',18.7],['4.25 mm',17.6],['4.50 mm',17.6],['4.75 mm',17.6],['5.00 mm',17.6],['5.25 mm',17.16],['5.50 mm',17.16],['5.75 mm',17.16],['6.00 mm',17.16],['6.25 mm',16.72],['6.50 mm',16.72],['6.75 mm',16.72],['7.00 mm',16.72],['7.25 mm',16.72],['7.50 mm',16.72],['7.75 mm',16.72],['8.00 mm',16.72],['8.25 mm',16.72],['8.50 mm',16.72],['8.75 mm',16.72],['9.00 mm',16.72],['9.50 mm',16.72],['9.25 mm',16.72],['10.00 mm',16.72]],
+    'tyre-fac': [['2 mm',19.36],['2.25 mm',18.7],['2.5 mm',17.6],['2.75 mm',16.28],['3 mm',14.96],['3.5 mm',13.2],['4 mm',8.14]],
+    'octagon-step': [['4×3 mm',22.66],['5×3 mm',22.66],['4.5×3.5 mm',22],['5×4 mm',22],['5.5×4.5 mm',20.9],['6×4 mm',20.9],['6.5×4.5 mm',20.24],['6×5 mm',20.24],['6.5×5.5 mm',19.36],['7×5 mm',18.7],['8×6 mm',18.7],['7.5×5.5 mm',18.7],['7×6 mm',18.7],['8.5×6.5 mm',18.7],['8×7 mm',18.7],['9×7 mm',18.26],['9.5×7.5 mm',18.26],['10×8 mm',18.26],['11×9 mm',17.6],['12×10 mm',17.6],['14×10 mm',17.6],['14×12 mm',17.6]],
+    'maniya': [['5×3 mm',17.47],['6×4 mm',16.94],['7×5 mm',16.85],['8×6 mm',16.63],['9×7 mm',16.54],['10×8 mm',16.46],['11×9 mm',16.46],['4×3 mm',18.04],['4×2.5 mm',18.92]],
+    'square': [['2 mm',28.6],['2.25 mm',28.6],['2.5 mm',28.6],['2.75 mm',28.6],['3 mm',26.4],['3.25 mm',26.4],['3.5 mm',24.86],['3.75 mm',24.86],['4 mm',23.1],['4.25 mm',23.1],['4.5 mm',23.1],['4.75 mm',22],['5 mm',22],['5.5 mm',22],['6 mm',19.8],['6.5 mm',19.8],['7 mm',19.8],['7.5 mm',19.14],['8 mm',19.14],['9 mm',19.14],['10 mm',19.14]],
+    'ballhole-fac': [['2 mm',18.92],['3 mm',14.52],['4 mm',11],['5 mm',11.88],['6 mm',12.32]],
+    'heart': [['4 mm',37.4],['5 mm',36.3],['6 mm',34.1],['8 mm',31.9]],
+    'ballhole-plain': [['2 mm',10.12],['2.25 mm',10.12],['2.5 mm',10.12],['2.75 mm',10.12],['3 mm',10.12],['3.25 mm',8.36],['3.5 mm',8.36],['3.75 mm',8.36],['4 mm',8.36],['4.25 mm',8.36],['4.5 mm',8.36],['4.75 mm',8.36],['5 mm',8.36],['5.5 mm',8.36],['6 mm',8.36],['7 mm',8.14],['7.5 mm',8.14],['8 mm',8.14],['9 mm',8.14],['10 mm',8.14],['11 mm',8.14],['12 mm',8.14]],
+    'trillion': [['4 mm',34.1],['5 mm',31.9],['6 mm',30.8]],
+  },
+};
+function opaqueNatSizes(gradeId, colorId, shape) {
+  const g = OPAQUE_NAT_SHEETS[gradeId + '|' + colorId];
+  return g && g[shape] ? g[shape].map((r) => r[0]) : [];
+}
+function opaqueNatRate(gradeId, colorId, shape, size) {
+  const g = OPAQUE_NAT_SHEETS[gradeId + '|' + colorId];
+  const row = g && g[shape] ? g[shape].find((r) => r[0] === size) : null;
+  return row ? row[1] : null;
+}
+window.opaqueNatSizes = opaqueNatSizes;
+window.opaqueNatRate = opaqueNatRate;
 
 // Bracelet: colours differ per style. Cartier = full 21-colour chart; Rolex = 6 metallic finishes.
 const BRACELET_BY_GRADE = {

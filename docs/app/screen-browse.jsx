@@ -968,9 +968,12 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   // Natural undrilled & half-drilled pearls: each packet is a fixed 50 g lot, priced ₹250/gram.
   const lotMode = category.id === 'pearls' && grade.id === 'natural' && (shape === 'undrilled' || shape === 'halfdrilled');
   const LOT_GRAMS = 50,LOT_RATE_G = 250,LOT_PRICE = LOT_GRAMS * LOT_RATE_G;
-  // Opaque: each packet is a fixed 100 ct lot, priced per carat.
-  const ctLotMode = category.id === 'opaque';
+  // Opaque · Natural-look: each packet is a fixed 100 ct lot, priced per carat.
+  // Opal-look is per-piece/packet (its own price sheet), so it uses the normal pad.
+  const ctLotMode = category.id === 'opaque' && grade && grade.id !== 'opal';
   const OP_LOT_CT = 100,OP_RATE_CT = product.price,OP_PRICE = OP_LOT_CT * OP_RATE_CT;
+  // Per-size ₹/ct from an uploaded natural-opaque sheet, falling back to the flat rate.
+  const opRowRate = (size) => (window.opaqueNatRate && color ? window.opaqueNatRate(grade.id, color.id, shape, size) : null) || OP_RATE_CT;
   const ourosaMode = category.id === 'ourosa';
   // Sizes actually uploaded for this category + shape win over the built-in
   // charts: a bulk-uploaded category has no chart entry, which is why every
@@ -995,7 +998,9 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   const colorCzSheet = category.id === 'cz' && grade && color && window.colorCzSizes && window.colorCzSizes(grade.id, color.id, shape).length ? window.colorCzSizes(grade.id, color.id, shape) : null;
   // Opaque · Opal-look Pastel: one price table per grade, shared across colours.
   const opaqueSheet = category.id === 'opaque' && grade && window.opaqueSizes && window.opaqueSizes(grade.id, shape).length ? window.opaqueSizes(grade.id, shape) : null;
-  let sizes = category.id === 'moissanite' ? (moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm']) : alpGreen ? alpGreen : alpBlue ? alpBlue : alpSheet ? alpSheet : hdSheet ? hdSheet : corSheet ? corSheet : wfSheet ? wfSheet : czSheet ? czSheet : colorCzSheet ? colorCzSheet : opaqueSheet ? opaqueSheet : skuSizes.length ? skuSizes.slice() : (SIZES_BY_CATEGORY && SIZES_BY_CATEGORY[category.id]) ? SIZES_BY_CATEGORY[category.id].slice() : ourosaMode ? OUROSA_SIZES.map((x) => x[0]) : mixedMoiss ? moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm'] : byStrip ? FULL_SIZES[shape] || ['4.00 mm'] : FULL_SIZES[shape] || ['4.00 mm'];
+  // Opaque · Natural-look: per grade+colour ₹/ct sheet (carat-lot pricing).
+  const opaqueNatSheet = category.id === 'opaque' && grade && color && window.opaqueNatSizes && window.opaqueNatSizes(grade.id, color.id, shape).length ? window.opaqueNatSizes(grade.id, color.id, shape) : null;
+  let sizes = category.id === 'moissanite' ? (moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm']) : alpGreen ? alpGreen : alpBlue ? alpBlue : alpSheet ? alpSheet : hdSheet ? hdSheet : corSheet ? corSheet : wfSheet ? wfSheet : czSheet ? czSheet : colorCzSheet ? colorCzSheet : opaqueNatSheet ? opaqueNatSheet : opaqueSheet ? opaqueSheet : skuSizes.length ? skuSizes.slice() : (SIZES_BY_CATEGORY && SIZES_BY_CATEGORY[category.id]) ? SIZES_BY_CATEGORY[category.id].slice() : ourosaMode ? OUROSA_SIZES.map((x) => x[0]) : mixedMoiss ? moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm'] : byStrip ? FULL_SIZES[shape] || ['4.00 mm'] : FULL_SIZES[shape] || ['4.00 mm'];
   // A colour may cap its size range (e.g. Alpanite Yellow / 162/2 → 1.00–2.00 mm only).
   if (color && color.sizeMax) {sizes = sizes.filter((s) => (parseFloat(s) || 0) <= color.sizeMax + 0.001);}
   // A colour may set a minimum size. Fancy NxN sizes (e.g. "3x4") are kept as-is
@@ -1094,7 +1099,7 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
     if (s) return rowUnit(size) === 'ct' ? Math.round(s.price * pcsPerCt(size)) : rowUnit(size) === 'pkt' ? s.price * rowPacketPcs(size) : s.price;
     return stringMode ? pearlStringPrice(size) :
     lotMode ? LOT_PRICE :
-    ctLotMode ? OP_PRICE :
+    ctLotMode ? OP_LOT_CT * opRowRate(size) :
     natStrip ? stripCarats(size) * product.price :
     byStrip ? product.price :
     unitRate(product, size, rowUnit(size), category.id);
@@ -1347,7 +1352,8 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
         </div>
         {sizes.map((s) => {
           const q = qtyBySize[s] || 0;
-          const lineTotal = q * OP_PRICE;
+          const rowRate = opRowRate(s);
+          const lineTotal = q * OP_LOT_CT * rowRate;
           const isFilled = q > 0;
           const so = sizeSoldOut(s);
           return (
@@ -1357,7 +1363,7 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
               <div className="size-pad-unit">{s.includes('mm') ? 'mm' : ''}</div>
             </div>
             <div className="size-pad-pcs">{OP_LOT_CT} <span className="size-pad-unit-sfx">ct</span></div>
-            <div className="size-pad-price">{formatINR(OP_RATE_CT)}<span className="size-pad-unit-sfx"> /ct</span></div>
+            <div className="size-pad-price">{formatINR(rowRate)}<span className="size-pad-unit-sfx"> /ct</span></div>
             <div className="size-pad-input-wrap">
               <div className="size-pad-stepper">
                 <button onClick={() => bumpQty(s, -stepUnits)} disabled={q <= 0} aria-label="decrease">

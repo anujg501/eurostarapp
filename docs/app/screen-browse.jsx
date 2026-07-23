@@ -57,6 +57,8 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
   NAVRATNA_SHAPES_BY_GRADE[grade.id] :
   route.cat === 'whitefancy' && grade && window.WHITEFANCY_SHAPES_BY_GRADE && window.WHITEFANCY_SHAPES_BY_GRADE[grade.id] ?
   window.WHITEFANCY_SHAPES_BY_GRADE[grade.id] :
+  route.cat === 'polki' && grade && window.POLKI_SHAPES_BY_GRADE && window.POLKI_SHAPES_BY_GRADE[grade.id] ?
+  window.POLKI_SHAPES_BY_GRADE[grade.id] :
   baseShapeIds;
   // Some shapes (e.g. Opaque · Cut Stones) open a second grid of cut shapes.
   const baseShapeMeta = shape ? findShape(shape) : null;
@@ -955,7 +957,9 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   const alpHasWt = category.id === 'alpanite' && color && window.alpSheetHasWeight && window.alpSheetHasWeight(color.id, shape);
   const hdHasWt = category.id === 'highdensity' && grade && window.hdHasWeight && window.hdHasWeight(grade.id, shape);
   const czHasWt = category.id === 'whitecz' && grade && window.czHasWeight && window.czHasWeight(grade.id, shape);
-  const showWt = catShowWeight(category.id) || alpHasWt || hdHasWt || czHasWt;
+  const labopalHasWt = category.id === 'labopal' && grade && color && window.labopalHasWeight && window.labopalHasWeight(grade.id, color.id, shape);
+  const polkiHasWt = category.id === 'polki' && grade && window.polkiHasWeight && window.polkiHasWeight(grade.id, shape);
+  const showWt = catShowWeight(category.id) || alpHasWt || hdHasWt || czHasWt || labopalHasWt || polkiHasWt;
   const navMode = category.id === 'navratna'; // sold by packet, one flat price per packet, no pcs/packet
   // Natural Pearl Cabs: show a weight-per-piece (grams) column.
   const showPieceWt = category.id === 'pearls' && grade.id === 'natural' && shape === 'cabs';
@@ -1000,7 +1004,11 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   const opaqueSheet = category.id === 'opaque' && grade && window.opaqueSizes && window.opaqueSizes(grade.id, shape).length ? window.opaqueSizes(grade.id, shape) : null;
   // Opaque · Natural-look: per grade+colour ₹/ct sheet (carat-lot pricing).
   const opaqueNatSheet = category.id === 'opaque' && grade && color && window.opaqueNatSizes && window.opaqueNatSizes(grade.id, color.id, shape).length ? window.opaqueNatSizes(grade.id, color.id, shape) : null;
-  let sizes = category.id === 'moissanite' ? (moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm']) : alpGreen ? alpGreen : alpBlue ? alpBlue : alpSheet ? alpSheet : hdSheet ? hdSheet : corSheet ? corSheet : wfSheet ? wfSheet : czSheet ? czSheet : colorCzSheet ? colorCzSheet : opaqueNatSheet ? opaqueNatSheet : opaqueSheet ? opaqueSheet : skuSizes.length ? skuSizes.slice() : (SIZES_BY_CATEGORY && SIZES_BY_CATEGORY[category.id]) ? SIZES_BY_CATEGORY[category.id].slice() : ourosaMode ? OUROSA_SIZES.map((x) => x[0]) : mixedMoiss ? moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm'] : byStrip ? FULL_SIZES[shape] || ['4.00 mm'] : FULL_SIZES[shape] || ['4.00 mm'];
+  // Polki (Kundan foil / Flat regular), Lab Opals, Cabochons: per-sheet size lists.
+  const polkiSheet = category.id === 'polki' && grade && window.polkiSizes && window.polkiSizes(grade.id, shape).length ? window.polkiSizes(grade.id, shape) : null;
+  const labopalSheet = category.id === 'labopal' && grade && color && window.labopalSizes && window.labopalSizes(grade.id, color.id, shape).length ? window.labopalSizes(grade.id, color.id, shape) : null;
+  const cabSheet = category.id === 'cabochon' && grade && color && window.cabSizes && window.cabSizes(grade.id, color.id, shape).length ? window.cabSizes(grade.id, color.id, shape) : null;
+  let sizes = category.id === 'moissanite' ? (moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm']) : alpGreen ? alpGreen : alpBlue ? alpBlue : alpSheet ? alpSheet : hdSheet ? hdSheet : corSheet ? corSheet : wfSheet ? wfSheet : czSheet ? czSheet : colorCzSheet ? colorCzSheet : opaqueNatSheet ? opaqueNatSheet : opaqueSheet ? opaqueSheet : polkiSheet ? polkiSheet : labopalSheet ? labopalSheet : cabSheet ? cabSheet : skuSizes.length ? skuSizes.slice() : (SIZES_BY_CATEGORY && SIZES_BY_CATEGORY[category.id]) ? SIZES_BY_CATEGORY[category.id].slice() : ourosaMode ? OUROSA_SIZES.map((x) => x[0]) : mixedMoiss ? moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm'] : byStrip ? FULL_SIZES[shape] || ['4.00 mm'] : FULL_SIZES[shape] || ['4.00 mm'];
   // A colour may cap its size range (e.g. Alpanite Yellow / 162/2 → 1.00–2.00 mm only).
   if (color && color.sizeMax) {sizes = sizes.filter((s) => (parseFloat(s) || 0) <= color.sizeMax + 0.001);}
   // A colour may set a minimum size. Fancy NxN sizes (e.g. "3x4") are kept as-is
@@ -1078,6 +1086,21 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
     // Opaque · Opal-look Pastel: per-grade price table (shared across colours).
     if (category.id === 'opaque' && grade && window.opaqueSku) {
       const a = window.opaqueSku(grade.id, shape, size);
+      if (a) return a;
+    }
+    // Polki (Kundan foil / Flat regular) per-grade price sheet.
+    if (category.id === 'polki' && grade && window.polkiSku) {
+      const a = window.polkiSku(grade.id, shape, size);
+      if (a) return a;
+    }
+    // Lab Opals per grade+colour price sheet (with weight).
+    if (category.id === 'labopal' && grade && color && window.labopalSku) {
+      const a = window.labopalSku(grade.id, color.id, shape, size);
+      if (a) return a;
+    }
+    // Cabochons per grade+colour price sheet.
+    if (category.id === 'cabochon' && grade && color && window.cabSku) {
+      const a = window.cabSku(grade.id, color.id, shape, size);
       if (a) return a;
     }
     return window.uploadedSkuFor ? uploadedSkuFor(category.id, shape, size, grade) : null;

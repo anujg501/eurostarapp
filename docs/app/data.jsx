@@ -1237,7 +1237,8 @@ const COLORS_BY_CATEGORY = {
     { id: 'ruby8',  name: 'Ruby 8',  hex: '#6E1422' },
   ],
   labopal: [
-    { id: 'white', name: 'White Opal Rainbow Fire', hex: '#EDE9DF' },
+    { id: 'white', name: 'White Opal Rainbow Fire', hex: '#EDE9DF',
+      shapes: ['round','oval','pear','heart','marquise'] },
   ],
   opaque: [
     { id: 'red',   name: 'Red',   hex: '#C0432E' },
@@ -2700,6 +2701,104 @@ function opaqueNatRate(gradeId, colorId, shape, size) {
 }
 window.opaqueNatSizes = opaqueNatSizes;
 window.opaqueNatRate = opaqueNatRate;
+
+// Polki · per grade price sheets (grade id = 'kundan' or 'white-regular').
+// Kundan foil rows [size,pcs,₹/piece] (uses the base PRICE column); Flat/Regular
+// rows [size,pcs,₹/piece,g per 1000] carry weight. Square maps to Cushion.
+const POLKI_SHEETS = {
+  'kundan': {
+    'round': [['2.00 mm',500,0.99],['2.25 mm',500,1.04],['2.50 mm',500,1.08],['2.75 mm',500,1.17],['3.00 mm',500,1.17],['3.25 mm',200,1.53],['3.50 mm',200,1.53],['3.75 mm',200,1.62],['4.00 mm',200,1.62],['4.50 mm',200,1.98],['5.00 mm',200,2.43],['5.50 mm',200,3.42],['6.00 mm',200,3.42],['6.50 mm',100,5.4],['7.00 mm',100,5.4],['8.00 mm',100,8.1],['9.00 mm',50,13],['10.00 mm',50,16]],
+    'cushion': [['2 mm',500,1.35],['2.5 mm',500,1.53],['3 mm',500,1.62],['3.5 mm',200,1.98],['4 mm',200,2.07],['4.5 mm',200,3.06],['5 mm',200,3.24],['5.5 mm',200,4.32],['6 mm',200,4.68],['6.5 mm',100,7.2],['7 mm',100,9.54],['8 mm',100,13.5]],
+    'oval': [['3×2 mm',500,1.44],['3×2.5 mm',500,1.44],['4×3 mm',500,1.53],['3.5×2.5 mm',500,1.53],['5×3 mm',500,1.62],['4.5×3.5 mm',500,1.98],['5×4 mm',200,2.07],['6×4 mm',200,2.43],['6×5 mm',200,3.75],['7×5 mm',200,3.42],['8×6 mm',100,5.4],['9×7 mm',100,8.1],['10×8 mm',50,11.7],['11×9 mm',50,14.68]],
+    'pear': [['3×2 mm',500,1.44],['3×2.5 mm',500,1.44],['4×3 mm',500,1.53],['3.5×2.5 mm',500,1.53],['5×3 mm',500,1.62],['4.5×3.5 mm',500,1.98],['5×4 mm',200,2.07],['6×4 mm',200,2.43],['6×5 mm',200,3.75],['7×5 mm',200,3.42],['8×6 mm',100,5.4],['9×7 mm',100,8.1],['10×8 mm',50,11.7],['11×9 mm',50,14.68]],
+    'marquise': [['3×1.5 mm',500,1.44],['4×2 mm',500,1.35],['5×2.5 mm',500,1.53],['6×3 mm',200,2.34],['7×3.5 mm',200,4.14],['8×4 mm',200,4.68],['10×5 mm',100,7]],
+    'octagon-step': [['5×2.5 mm',200,2.7],['5×3 mm',200,3.24],['6×4 mm',200,4.5],['7×5 mm',100,5.4],['8×6 mm',100,7.2]],
+  },
+  'white-regular': {
+    'round': [['2.00 mm',1000,1.33,17],['2.25 mm',1000,1.4],['2.50 mm',1000,1.47,20],['2.75 mm',1000,1.61,25],['3.00 mm',1000,1.68,27],['3.25 mm',500,2.1],['3.50 mm',500,2.1,35],['3.75 mm',500,2.24],['4.00 mm',500,2.24,45],['4.50 mm',500,2.8,55],['5.00 mm',500,3.5,65],['5.50 mm',500,4.2,100],['6.00 mm',500,4.69,100],['7.00 mm',500,7.35,140],['8.00 mm',200,11.2,250],['9.00 mm',200,18.2,400],['10.00 mm',100,22.4,650]],
+    'cushion': [['2 mm',1000,1.96],['2.5 mm',1000,2.1],['3 mm',1000,2.24,45],['3.5 mm',500,2.8],['4 mm',500,2.94,65],['4.5 mm',500,4.41],['5 mm',500,4.69,95],['6 mm',200,6.3,130],['7 mm',100,8.4,350],['8 mm',100,14.7,550],['10 mm',100,18.2,800]],
+    'oval': [['2×3 mm',1000,2.1,50],['2.5×3 mm',1000,2.24,50],['2.5×3.5 mm',1000,2.24,55],['3×4 mm',1000,2.24,50],['3.5×4.5 mm',1000,2.24,55],['3×5 mm',1000,2.45,55],['4×5 mm',500,2.94,65],['4×6 mm',500,3.5,75],['5×7 mm',500,4.9,115],['6×8 mm',200,7,160],['7×9 mm',200,11.2,280],['8×10 mm',200,15.4,360]],
+    'pear': [['2×3 mm',1000,2.1,50],['2.5×3 mm',1000,2.24,50],['2.5×3.5 mm',1000,2.24,55],['3×4 mm',1000,2.24,50],['3.5×4.5 mm',1000,2.24,55],['3×5 mm',1000,2.45,55],['4×5 mm',500,2.94,65],['4×6 mm',500,3.5,75],['5×7 mm',500,4.9,115],['6×8 mm',200,7,160],['7×9 mm',200,11.2,280],['8×10 mm',200,15.4,360]],
+    'marquise': [['1.5×3 mm',1000,1.96],['2×4 mm',1000,1.96,45],['2.5×5 mm',500,2.24,48],['3×6 mm',500,2.94,65],['3.5×7 mm',200,4.9,100],['4×8 mm',200,6.3,130],['5×10 mm',200,9.8,300]],
+  },
+};
+const POLKI_SHAPES_BY_GRADE = {
+  'kundan': ['round','cushion','oval','pear','marquise','octagon-step'],
+  'white-regular': ['round','cushion','oval','pear','marquise'],
+};
+function polkiSizes(gradeId, shape) {
+  const g = POLKI_SHEETS[gradeId];
+  return g && g[shape] ? g[shape].map((r) => r[0]) : [];
+}
+function polkiSku(gradeId, shape, size) {
+  const g = POLKI_SHEETS[gradeId];
+  const row = g && g[shape] ? g[shape].find((r) => r[0] === size) : null;
+  if (!row) return null;
+  return { id: 'polki-' + gradeId + '-' + shape + '-' + String(size).replace(/\s/g, ''), price: row[2], pcsPerPacket: row[1], moq: row[1], size, stock: 'in', stockCount: 0, wtPer1000: row[3] != null ? row[3] : null };
+}
+function polkiHasWeight(gradeId, shape) {
+  const g = POLKI_SHEETS[gradeId];
+  return !!(g && g[shape] && g[shape].some((r) => r[3] != null));
+}
+window.polkiSizes = polkiSizes; window.polkiSku = polkiSku;
+window.polkiHasWeight = polkiHasWeight; window.POLKI_SHAPES_BY_GRADE = POLKI_SHAPES_BY_GRADE;
+
+// Lab Opals · per grade+colour price sheet WITH weight. Row [size,pcs,₹/piece,g per 1000].
+const LABOPAL_SHEETS = {
+  'a|white': {
+    'round': [['2.00 mm',100,8.1,3.86],['2.50 mm',100,10.8,7.01],['3.00 mm',100,11.7,9.47],['3.50 mm',100,18,15.02],['4.00 mm',100,19.8,20.04],['5.00 mm',50,27,30.05],['6.00 mm',50,36,43.89],['7.00 mm',50,50.4,67.71],['8.00 mm',25,75.6,97.9],['9.00 mm',25,90,154.2],['10.00 mm',25,108,190.42]],
+    'oval': [['3×2 mm',100,10.8,7.84],['4×3 mm',100,18,14.29],['5×3 mm',100,21.6,19.72],['6×4 mm',50,27,29.69],['7×5 mm',50,36,53.75],['8×6 mm',50,50.4,41.88],['9×7 mm',50,75.6,107.44],['10×8 mm',25,90,164.8],['11×9 mm',25,120,190.2],['12×10 mm',25,140,282.8],['14×10 mm',25,160,315.3],['16×12 mm',25,232,536.5]],
+    'heart': [['3 mm',100,13.5,9.14],['4 mm',100,21.6,16.34],['5 mm',50,28.8,31.3],['6 mm',50,37.8,40.8],['7 mm',50,52.2,66.2],['8 mm',50,77.4,97.61],['9 mm',25,91.8,140.57],['10 mm',25,109.8,196.6]],
+    'pear': [['3×2 mm',100,10.8,6.73],['4×3 mm',100,18,13.42],['5×3 mm',100,21.6,17.69],['6×4 mm',50,27,32.71],['7×5 mm',50,36,48.33],['8×6 mm',50,50.4,75.52],['9×7 mm',50,75.6,98.76],['10×8 mm',25,90,147.72]],
+    'marquise': [['3×1.5 mm',100,14.4,4.97],['4×2 mm',100,16.2,8.56],['6×3 mm',50,25.2,23.57],['7×3.5 mm',50,32.4,28.56],['8×4 mm',25,39.6,38.86],['10×5 mm',25,82.8,86.63]],
+  },
+};
+function labopalSizes(gradeId, colorId, shape) {
+  const g = LABOPAL_SHEETS[gradeId + '|' + colorId];
+  return g && g[shape] ? g[shape].map((r) => r[0]) : [];
+}
+function labopalSku(gradeId, colorId, shape, size) {
+  const g = LABOPAL_SHEETS[gradeId + '|' + colorId];
+  const row = g && g[shape] ? g[shape].find((r) => r[0] === size) : null;
+  if (!row) return null;
+  return { id: 'labo-' + gradeId + '-' + colorId + '-' + shape + '-' + String(size).replace(/\s/g, ''), price: row[2], pcsPerPacket: row[1], moq: row[1], size, stock: 'in', stockCount: 0, wtPer1000: row[3] != null ? row[3] : null };
+}
+function labopalHasWeight(gradeId, colorId, shape) {
+  const g = LABOPAL_SHEETS[gradeId + '|' + colorId];
+  return !!(g && g[shape] && g[shape].some((r) => r[3] != null));
+}
+window.labopalSizes = labopalSizes; window.labopalSku = labopalSku; window.labopalHasWeight = labopalHasWeight;
+
+// Cabochons · per grade+colour price sheet. Row [size,pcs,₹/piece]. OS/PS fills oval, pear and pear-oval.
+const CABOCHON_SHEETS = {
+  'aa|red': {
+    'round': [['1.50 mm',1000,0.35],['1.70 mm',1000,0.48],['1.75 mm',1000,0.53],['1.80 mm',1000,0.53],['2.00 mm',1000,0.48],['2.25 mm',1000,0.58],['2.50 mm',1000,0.69],['2.75 mm',1000,0.77],['3.00 mm',1000,0.97],['3.25 mm',500,1.26],['3.50 mm',500,1.6],['3.75 mm',500,1.96],['4.00 mm',500,2.04],['4.25 mm',200,2.38],['4.50 mm',200,3.37],['4.75 mm',200,3.57],['5.00 mm',200,3.99],['5.50 mm',200,6.12],['6.00 mm',200,6.97],['6.50 mm',200,8.1],['7.00 mm',200,11.56],['8.00 mm',200,15.3]],
+    'oval': [['3×2 mm',1000,1.24],['3×2.5 mm',1000,1.53],['4×3 mm',1000,1.56],['3.5×2.5 mm',1000,1.56],['5×3 mm',1000,1.9],['4.5×3.5 mm',500,2.81],['5×4 mm',500,2.89],['6×4 mm',500,3.23],['7×5 mm',500,5.61],['8×6 mm',200,9.69],['9×7 mm',200,14.62],['10×8 mm',100,18.7]],
+    'pear': [['3×2 mm',1000,1.24],['3×2.5 mm',1000,1.53],['4×3 mm',1000,1.56],['3.5×2.5 mm',1000,1.56],['5×3 mm',1000,1.9],['4.5×3.5 mm',500,2.81],['5×4 mm',500,2.89],['6×4 mm',500,3.23],['7×5 mm',500,5.61],['8×6 mm',200,9.69],['9×7 mm',200,14.62],['10×8 mm',100,18.7]],
+    'pearoval': [['3×2 mm',1000,1.24],['3×2.5 mm',1000,1.53],['4×3 mm',1000,1.56],['3.5×2.5 mm',1000,1.56],['5×3 mm',1000,1.9],['4.5×3.5 mm',500,2.81],['5×4 mm',500,2.89],['6×4 mm',500,3.23],['7×5 mm',500,5.61],['8×6 mm',200,9.69],['9×7 mm',200,14.62],['10×8 mm',100,18.7]],
+    'marquise': [['3×1.5 mm',1000,0.97],['4×2 mm',1000,1.02],['5×2.5 mm',1000,1.55],['6×3 mm',1000,2.46],['7×3.5 mm',1000,4.42],['8×4 mm',500,5.27],['10×5 mm',500,12.75]],
+    'square': [['2 mm',1000,0.78],['2.5 mm',1000,0.88],['3 mm',1000,1.26],['3.5 mm',1000,2.07],['4 mm',1000,2.52],['5 mm',500,5.27],['6 mm',500,9.01]],
+  },
+  'aa|green': {
+    'round': [['1.50 mm',1000,0.18],['1.75 mm',1000,0.2],['2.00 mm',1000,0.25],['2.25 mm',1000,0.35],['2.50 mm',1000,0.45],['2.75 mm',1000,0.6],['3.00 mm',1000,0.65],['3.50 mm',500,0.9],['3.75 mm',500,1.1],['4.00 mm',500,1.25],['4.25 mm',500,2],['4.50 mm',500,2.25],['4.75 mm',500,2.5],['5.00 mm',500,3],['5.50 mm',500,4],['6.00 mm',200,4],['7.00 mm',200,6],['8.00 mm',200,8],['9.00 mm',200,13]],
+    'oval': [['2×3 mm',1000,0.75],['3×2.5 mm',1000,0.8],['2.5×3.5 mm',1000,1.1],['4×3 mm',1000,1.1],['5×3 mm',1000,1.2],['4×5 mm',500,1.8],['6×4 mm',500,2],['7×5 mm',500,3.75],['8×6 mm',200,6],['9×7 mm',200,9],['8×10 mm',200,11.5]],
+    'pear': [['2×3 mm',1000,0.75],['3×2.5 mm',1000,0.8],['2.5×3.5 mm',1000,1.1],['4×3 mm',1000,1.1],['5×3 mm',1000,1.2],['4×5 mm',500,1.8],['6×4 mm',500,2],['7×5 mm',500,3.75],['8×6 mm',200,6],['9×7 mm',200,9],['8×10 mm',200,11.5]],
+    'pearoval': [['2×3 mm',1000,0.75],['3×2.5 mm',1000,0.8],['2.5×3.5 mm',1000,1.1],['4×3 mm',1000,1.1],['5×3 mm',1000,1.2],['4×5 mm',500,1.8],['6×4 mm',500,2],['7×5 mm',500,3.75],['8×6 mm',200,6],['9×7 mm',200,9],['8×10 mm',200,11.5]],
+    'marquise': [['1.5×3 mm',1000,0.75],['4×2 mm',1000,0.75],['5×2.5 mm',1000,1.05],['6×3 mm',500,1.5],['3.5×7 mm',500,2.5],['8×4 mm',200,3.25],['5×10 mm',200,6]],
+    'square': [['2 mm',1000,0.65],['2.5 mm',1000,0.8],['3 mm',1000,1.05],['4 mm',500,1.6],['5 mm',500,3],['6 mm',200,4.25]],
+  },
+};
+function cabSizes(gradeId, colorId, shape) {
+  const g = CABOCHON_SHEETS[gradeId + '|' + colorId];
+  return g && g[shape] ? g[shape].map((r) => r[0]) : [];
+}
+function cabSku(gradeId, colorId, shape, size) {
+  const g = CABOCHON_SHEETS[gradeId + '|' + colorId];
+  const row = g && g[shape] ? g[shape].find((r) => r[0] === size) : null;
+  if (!row) return null;
+  return { id: 'cab-' + gradeId + '-' + colorId + '-' + shape + '-' + String(size).replace(/\s/g, ''), price: row[2], pcsPerPacket: row[1], moq: row[1], size, stock: 'in', stockCount: 0 };
+}
+window.cabSizes = cabSizes; window.cabSku = cabSku;
 
 // Bracelet: colours differ per style. Cartier = full 21-colour chart; Rolex = 6 metallic finishes.
 const BRACELET_BY_GRADE = {

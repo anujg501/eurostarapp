@@ -3,7 +3,7 @@ const { useState } = React;
 const H = window.CRM_HELPERS;
 // Bump with every deploy. Logged on boot so "which build is this browser
 // running?" is answerable in one glance instead of guessed at.
-const CRM_BUILD = 'v25';
+const CRM_BUILD = 'v28';
 try { console.log('[Eurostar CRM] build ' + CRM_BUILD + ' — orders load live from /orders'); } catch (e) {}
 
 const FLOW = ['new', 'confirmed', 'packed', 'shipped', 'out-for-delivery', 'delivered'];
@@ -102,17 +102,17 @@ function AdminDashboard({ st }) {
     <div className="crm-body">
       <AdminCoachDigest st={st} />
       <div className="kpi-grid">
-        <div className="kpi"><div className="kpi-label">Total sales (MTD)</div><div className="kpi-value">{H.inr(totalSales)}</div><div className="kpi-sub">{mom === null ? <span className="crm-muted">—</span> : <span className={mom >= 0 ? 'up' : 'down'}>{mom >= 0 ? '▲' : '▼'} {Math.abs(mom)}%</span>} vs last month</div></div>
-        <div className="kpi"><div className="kpi-label">Orders</div><div className="kpi-value">{ordersCount}</div><div className="kpi-sub">{pendingCount} awaiting review</div></div>
-        <div className="kpi"><div className="kpi-label">Open carts</div><div className="kpi-value">{openCartsCount}</div><div className="kpi-sub">{H.inr(openCartsValue)} in play</div></div>
-        <div className="kpi"><div className="kpi-label">Abandoned value</div><div className="kpi-value">{H.inr(abandoned.reduce((a, c) => a + c.value, 0))}</div><div className="kpi-sub"><span className="down">{abandoned.length} carts</span> to recover</div></div>
-        <div className="kpi"><div className="kpi-label">Active customers</div><div className="kpi-value">{activeCustCount}</div><div className="kpi-sub">across {CRM_REPS.length} reps</div></div>
+        <div className="kpi"><div className="kpi-label">{CT('kpi_total_sales','Total sales (MTD)')}</div><div className="kpi-value">{H.inr(totalSales)}</div><div className="kpi-sub">{mom === null ? <span className="crm-muted">—</span> : <span className={mom >= 0 ? 'up' : 'down'}>{mom >= 0 ? '▲' : '▼'} {Math.abs(mom)}%</span>} {CT('kpi_vs_last','vs last month')}</div></div>
+        <div className="kpi"><div className="kpi-label">{CT('kpi_orders','Orders')}</div><div className="kpi-value">{ordersCount}</div><div className="kpi-sub">{pendingCount} {CT('kpi_awaiting','awaiting review')}</div></div>
+        <div className="kpi"><div className="kpi-label">{CT('kpi_open_carts','Open carts')}</div><div className="kpi-value">{openCartsCount}</div><div className="kpi-sub">{H.inr(openCartsValue)} {CT('kpi_in_play','in play')}</div></div>
+        <div className="kpi"><div className="kpi-label">{CT('kpi_abandoned','Abandoned value')}</div><div className="kpi-value">{H.inr(abandoned.reduce((a, c) => a + c.value, 0))}</div><div className="kpi-sub"><span className="down">{CT('kpi_carts_recover', abandoned.length + ' carts to recover', { n: abandoned.length })}</span></div></div>
+        <div className="kpi"><div className="kpi-label">{CT('kpi_active_cust','Active customers')}</div><div className="kpi-value">{activeCustCount}</div><div className="kpi-sub">{CT('kpi_across_reps', 'across ' + CRM_REPS.length + ' reps', { n: CRM_REPS.length })}</div></div>
       </div>
       <div className="crm-cols">
         <div className="crm-card">
-          <SecHead title="Recent orders" meta="All reps" />
+          <SecHead title={CT('sec_recent_orders','Recent orders')} meta={CT('sec_all_reps','All reps')} />
           <table className="crm-table">
-            <thead><tr><th>Order</th><th>Customer</th><th>Rep</th><th>Status</th><th style={{ textAlign: 'right' }}>Value</th></tr></thead>
+            <thead><tr><th>{TH("Order")}</th><th>{TH("Customer")}</th><th>{TH("Rep")}</th><th>{TH("Status")}</th><th style={{ textAlign: 'right' }}>{TH("Value")}</th></tr></thead>
             <tbody>{st.orders.slice(0, 6).map((o) => {const c = H.cust(o.cust);
               const name = (c.name && c.name !== o.cust) ? c.name : (o.custName || o.cust || '—');
               const sub = o.cust && o.cust !== name ? o.cust : (c.city || o.custCity || '');
@@ -124,7 +124,7 @@ function AdminDashboard({ st }) {
           </table>
         </div>
         <div className="crm-card" style={{ padding: 18 }}>
-          <div className="crm-sec-head"><h2>Sales by rep</h2><span className="meta">MTD</span></div>
+          <div className="crm-sec-head"><h2>{CT('sec_sales_by_rep','Sales by rep')}</h2><span className="meta">MTD</span></div>
           <div className="barchart">
             {byRep.map((r) =>
             <div key={r.id} className="bar-row">
@@ -135,7 +135,7 @@ function AdminDashboard({ st }) {
             )}
           </div>
           <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--divider)', fontSize: 12.5, color: 'var(--fg-muted)' }}>
-            Commission payable: <strong style={{ color: 'var(--fg)' }}>{H.inr(byRep.reduce((a, r) => a + r.comm, 0))}</strong>
+            {CT('commission_payable','Commission payable')}: <strong style={{ color: 'var(--fg)' }}>{H.inr(byRep.reduce((a, r) => a + r.comm, 0))}</strong>
           </div>
         </div>
       </div>
@@ -204,7 +204,7 @@ function AdminCustomers({ st }) {
       </div>
       <div className="crm-card">
         <table className="crm-table">
-          <thead><tr><th>Code</th><th>Customer</th><th>City</th><th>GST</th><th>Mobile</th><th>Rep</th><th style={{ textAlign: 'center' }}>Cart views<br />(no order)</th><th>Payment terms</th><th>Login</th><th></th></tr></thead>
+          <thead><tr><th>{TH("Code")}</th><th>{TH("Customer")}</th><th>{TH("City")}</th><th>{TH("GST")}</th><th>{TH("Mobile")}</th><th>{TH("Rep")}</th><th style={{ textAlign: 'center' }}>{TH("Cart views")}<br />{TH("(no order)")}</th><th>{TH("Payment terms")}</th><th>{TH("Login")}</th><th></th></tr></thead>
           <tbody>{list.map((c) => {const flag = (c.cartViewsNoOrder || 0) >= MISUSE;return (
                 <tr key={c.id} style={{ opacity: c.active ? 1 : 0.6 }}><td className="crm-id">{c.id}</td><td>{c.name}</td><td className="crm-muted">{c.city}</td>
             <td className="crm-id crm-muted">{c.gst}</td><td className="crm-muted" style={{ fontSize: 12 }}>{c.mobile}</td><td className="crm-muted">{H.rep(c.rep).name}</td>
@@ -258,7 +258,7 @@ function OrdersTable({ orders, advance, showRep, setCourier }) {
   return (
     <div className="crm-card">
       <table className="crm-table">
-        <thead><tr><th>Order</th><th>Customer</th>{showRep && <th>Rep</th>}<th>Date</th><th>Items</th><th>Status</th><th>Courier / Tracking</th><th style={{ textAlign: 'right' }}>Value</th>{advance && <th></th>}</tr></thead>
+        <thead><tr><th>{TH("Order")}</th><th>{TH("Customer")}</th>{showRep && <th>{TH("Rep")}</th>}<th>{TH("Date")}</th><th>{TH("Items")}</th><th>{TH("Status")}</th><th>{TH("Courier / Tracking")}</th><th style={{ textAlign: 'right' }}>{TH("Value")}</th>{advance && <th></th>}</tr></thead>
         <tbody>{orders.map((o) => {const c = H.cust(o.cust);const next = FLOW[FLOW.indexOf(o.status) + 1];return (
               <tr key={o.id}><td className="crm-id">{o.id}</td><td>{c.name}<div className="crm-muted" style={{ fontSize: 11 }}>{c.city}</div></td>
           {showRep && <td className="crm-muted">{H.rep(c.rep).name}</td>}<td className="crm-muted" style={{ fontSize: 12 }}>{o.date}</td>
@@ -274,10 +274,10 @@ function OrdersTable({ orders, advance, showRep, setCourier }) {
 function AdminOrders({ st }) {
   return (
     <div className="crm-body">
-      <PageHead title="Orders" sub={`${st.orders.length} orders across all reps`} />
+      <PageHead title={CT('page_orders', 'Orders')} sub={`${st.orders.length} ${CT('orders_across_reps', 'orders across all reps')}`} />
       <div className="crm-card">
         <table className="crm-table">
-          <thead><tr><th>Order</th><th>Customer</th><th>Rep</th><th>Date</th><th>Items</th><th style={{ textAlign: 'right' }}>Value</th></tr></thead>
+          <thead><tr><th>{TH("Order")}</th><th>{TH("Customer")}</th><th>{TH("Rep")}</th><th>{TH("Date")}</th><th>{TH("Items")}</th><th style={{ textAlign: 'right' }}>{TH("Value")}</th></tr></thead>
           <tbody>{st.orders.map((o) => {const c = H.cust(o.cust);
             // Business name first, customer code underneath. H.cust falls back to
             // returning the id as the name when the customer isn't in the master
@@ -369,7 +369,7 @@ function AdminReports({ st }) {
         </div>
         <div className="crm-card">
           <table className="crm-table">
-            <thead><tr><th>Code</th><th>Customer</th><th>City</th><th>Terms</th><th style={{ textAlign: 'right' }}>Billed</th><th style={{ textAlign: 'right' }}>Received</th><th style={{ textAlign: 'right' }}>Balance</th><th style={{ textAlign: 'center' }}>Days</th><th>Status</th></tr></thead>
+            <thead><tr><th>{TH("Code")}</th><th>{TH("Customer")}</th><th>{TH("City")}</th><th>{TH("Terms")}</th><th style={{ textAlign: 'right' }}>{TH("Billed")}</th><th style={{ textAlign: 'right' }}>{TH("Received")}</th><th style={{ textAlign: 'right' }}>{TH("Balance")}</th><th style={{ textAlign: 'center' }}>{TH("Days")}</th><th>{TH("Status")}</th></tr></thead>
             <tbody>{outstanding.map((c) =>
               <tr key={c.id}><td className="crm-id">{c.id}</td><td>{c.name}</td><td className="crm-muted">{c.city}</td><td className="crm-muted">{c.terms} days</td>
               <td className="crm-muted" style={{ textAlign: 'right' }}>{H.inr(c.billed)}</td>
@@ -395,9 +395,9 @@ function AdminAttendance({ st }) {
       <PageHead title="Attendance" sub="June 2026 · full month · daily check-ins" />
       <div className="crm-card">
         <table className="crm-table" style={{ minWidth: 1100 }}>
-          <thead><tr><th style={{ position: 'sticky', left: 0, background: 'var(--paper-2)', zIndex: 1 }}>Rep</th>
+          <thead><tr><th style={{ position: 'sticky', left: 0, background: 'var(--paper-2)', zIndex: 1 }}>{TH("Rep")}</th>
             {days.map((x) => <th key={x.d} style={{ textAlign: 'center', padding: '10px 5px', color: x.sunday ? 'var(--ink-4)' : 'var(--fg-meta)' }}>{x.d}</th>)}
-            <th style={{ textAlign: 'right' }}>Worked</th></tr></thead>
+            <th style={{ textAlign: 'right' }}>{TH("Worked")}</th></tr></thead>
           <tbody>{CRM_REPS.map((r) => {const a = (window.CRM_ATTENDANCE || {})[r.id] || { present: [], leave: [], absent: [] };
               const isCheckedToday = st.checkin && st.checkin[r.id];const present = [...a.present];if (isCheckedToday && !present.includes(TODAY)) present.push(TODAY);
               const worked = present.length;
@@ -454,7 +454,7 @@ function RepDetail({ st, repId, onBack }) {
         <div className="crm-card">
           <SecHead title="Linked customers" meta="De-link to free a customer for any rep" />
           <table className="crm-table">
-            <thead><tr><th>Code</th><th>Customer</th><th>City</th><th>Mobile</th><th></th></tr></thead>
+            <thead><tr><th>{TH("Code")}</th><th>{TH("Customer")}</th><th>{TH("City")}</th><th>{TH("Mobile")}</th><th></th></tr></thead>
             <tbody>{myCust.map((c) =>
               <tr key={c.id}><td className="crm-id">{c.id}</td><td>{c.name}</td><td className="crm-muted">{c.city}</td>
               <td className="crm-muted" style={{ fontSize: 12 }}>{c.mobile}</td>
@@ -481,7 +481,7 @@ function RepDetail({ st, repId, onBack }) {
       <div className="crm-card">
         <SecHead title="Orders & commission" meta={`${(rate * 100).toFixed(1)}% per order`} />
         <table className="crm-table">
-          <thead><tr><th>Order</th><th>Customer</th><th>Date</th><th>Status</th><th style={{ textAlign: 'right' }}>Value</th><th style={{ textAlign: 'right' }}>Commission</th></tr></thead>
+          <thead><tr><th>{TH("Order")}</th><th>{TH("Customer")}</th><th>{TH("Date")}</th><th>{TH("Status")}</th><th style={{ textAlign: 'right' }}>{TH("Value")}</th><th style={{ textAlign: 'right' }}>{TH("Commission")}</th></tr></thead>
           <tbody>{myOrders.map((o) => {const c = H.cust(o.cust);return (
                 <tr key={o.id}><td className="crm-id">{o.id}</td><td>{c.name}</td><td className="crm-muted" style={{ fontSize: 12 }}>{o.date}</td><td><Pill s={o.status} label={statusLabel(o.status)} /></td>
             <td className="crm-amt" style={{ textAlign: 'right' }}>{H.inr(o.value)}</td>
@@ -528,7 +528,7 @@ function AdminReps({ st }) {
       </div>}
       <div className="crm-card">
         <table className="crm-table">
-          <thead><tr><th>Rep</th><th>ID</th><th>Region</th><th>Customers</th><th>ASM</th><th>Sales Head</th><th>New adds (min 50 / month)</th><th style={{ textAlign: 'right' }}>Sales (MTD)</th><th>Commission %</th><th style={{ textAlign: 'right' }}>Payable</th><th>Access</th><th></th></tr></thead>
+          <thead><tr><th>{TH("Rep")}</th><th>{TH("ID")}</th><th>{TH("Region")}</th><th>{TH("Customers")}</th><th>{TH("ASM")}</th><th>{TH("Sales Head")}</th><th>{TH("New adds (min 50 / month)")}</th><th style={{ textAlign: 'right' }}>{TH("Sales (MTD)")}</th><th>{TH("Commission %")}</th><th style={{ textAlign: 'right' }}>{TH("Payable")}</th><th>{TH("Access")}</th><th></th></tr></thead>
           <tbody>{byRep.map((r) => {const nc = st.customers.filter((c) => c.rep === r.id).length;
               const target = Math.max(50, st.repTargets[r.id] != null ? st.repTargets[r.id] : r.target || 50);const added = st.newAdds[r.id] || 0;const pending = Math.max(0, target - added);
               const asms = (st.leaders || []).filter((l) => l.role === 'asm');const heads = (st.leaders || []).filter((l) => l.role === 'head');
@@ -574,7 +574,7 @@ function LeadersPanel({ st }) {
     <div className="crm-card" id="leadersPanel" style={{ padding: 18, marginTop: 8 }}>
       <div className="crm-sec-head"><h2>Escalation contacts — ASM &amp; Sales Head</h2><span className="meta">Shown to reps in their escalation list</span></div>
       <table className="crm-table" style={{ minWidth: 0, marginBottom: 14 }}>
-        <thead><tr><th>Name</th><th>Role</th><th>Phone</th><th></th></tr></thead>
+        <thead><tr><th>{TH("Name")}</th><th>{TH("Role")}</th><th>{TH("Phone")}</th><th></th></tr></thead>
         <tbody>{leaders.map((l) =>
           <tr key={l.id}><td>{l.name}</td><td><Pill s={l.role === 'head' ? 'active' : 'confirmed'} label={l.role === 'head' ? 'Sales Head' : 'Area Sales Manager'} /></td>
           <td className="crm-muted">{l.phone}</td>
@@ -616,7 +616,7 @@ function CartsView({ carts, orders, editItems, removeCart, setDisc, editOrder, r
         <button className="cbtn cbtn-ghost cbtn-sm" onClick={() => editOrder && editOrder(c.id)}>Edit</button>{' '}
         <button className="cbtn cbtn-ghost cbtn-sm" onClick={() => removeOrder && removeOrder(c.id)}>Remove</button></td>}
     </tr>);};
-  const Head = () => <thead><tr><th>Ref</th><th>Customer</th><th>City</th><th>Mobile</th><th>Rep</th><th>Status</th><th>Items</th><th style={{ textAlign: 'right' }}>Value</th><th></th></tr></thead>;
+  const Head = () => <thead><tr><th>{TH("Ref")}</th><th>{TH("Customer")}</th><th>{TH("City")}</th><th>{TH("Mobile")}</th><th>{TH("Rep")}</th><th>{TH("Status")}</th><th>{TH("Items")}</th><th style={{ textAlign: 'right' }}>{TH("Value")}</th><th></th></tr></thead>;
   return (
     <div className="crm-body">
       <PageHead title={title} sub={sub} />
@@ -670,7 +670,7 @@ function OfficeOrders({ st }) {
         {incoming.length === 0 ?
         <div className="crm-muted" style={{ padding: '18px 16px', fontSize: 13 }}>No app orders yet. When a rep places an order in the Sales App, it appears here instantly with the rep &amp; customer trail.</div> :
         <table className="crm-table">
-          <thead><tr><th>Order</th><th>Customer</th><th>Placed by</th><th>When</th><th style={{ textAlign: 'right' }}>Value</th><th></th></tr></thead>
+          <thead><tr><th>{TH("Order")}</th><th>{TH("Customer")}</th><th>{TH("Placed by")}</th><th>{TH("When")}</th><th style={{ textAlign: 'right' }}>{TH("Value")}</th><th></th></tr></thead>
           <tbody>{incoming.map((o) => (
             <tr key={o.id}>
               <td className="crm-id">{o.id}{o.paid ? <div><span className="crm-id" style={{ fontSize: 9.5, background: 'var(--emerald-soft,#e6f1ec)', color: 'var(--emerald-ink)', padding: '1px 6px', borderRadius: 99, fontWeight: 700 }}>PAID</span></div> : ''}</td>
@@ -755,7 +755,7 @@ function OfficeQueries({ st }) {
       </div>
       <div className="crm-card">
         <table className="crm-table" style={{ minWidth: 900 }}>
-          <thead><tr><th>Ref</th><th>Customer</th><th>Product</th><th>Size</th><th>Qty</th><th>City</th><th>Assigned rep</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>{TH("Ref")}</th><th>{TH("Customer")}</th><th>{TH("Product")}</th><th>{TH("Size")}</th><th>{TH("Qty")}</th><th>{TH("City")}</th><th>{TH("Assigned rep")}</th><th>{TH("Status")}</th><th></th></tr></thead>
           <tbody>{st.queries.map((q) => {const cu = H.cust(q.cust);return (
                 <React.Fragment key={q.id}>
             <tr><td className="crm-id">{q.id}</td><td>{cu.name || q.custName || '—'}</td><td>{q.product}</td><td className="crm-muted">{q.size}</td>
@@ -901,6 +901,18 @@ function RepCoachCard({ st, repId, onQuickPay }) {
 
 // Everything across the business that needs the owner's attention today,
 // ranked most-urgent first. Each item can jump to the relevant admin tab.
+// Interface copy follows the language picker; trade terms stay English.
+function crmLang() { return window.currentLang ? window.currentLang() : 'en'; }
+function CT(key, fb, vars) {
+  const l = crmLang();
+  if (window.tf) { const s = window.tf(key, l, vars || {}); if (s && s !== key) return s; }
+  if (vars) { let s = fb; Object.keys(vars).forEach((k) => { s = s.split('{' + k + '}').join(vars[k]); }); return s; }
+  return fb;
+}
+
+// Table column header, keyed by its English label (see TH_I18N in i18n-strings).
+function TH(label) { return window.th ? window.th(label, crmLang()) : label; }
+
 function adminAttention(st) {
   const T = COACH_TODAY;
   const A = [];
@@ -909,28 +921,28 @@ function adminAttention(st) {
   // dashboard keeps the same structure regardless of data.
   const pays = (st.payments || []).filter((p) => p.status === 'pending');
   { const v = pays.reduce((a, p) => a + (p.amount || 0), 0); const n = pays.length;
-    A.push({ w: 1, icon: '💳', tone: n ? 'urgent' : 'info', title: `${n} payment${n === 1 ? '' : 's'} to verify${n ? ' · ' + H.inr(v) : ''}`, detail: n ? 'Reps logged these — verify so customer balances update and reminders stop.' : 'No payments waiting for verification — all clear.', page: 'payments', cta: 'Verify payments' }); }
+    A.push({ w: 1, icon: '💳', tone: n ? 'urgent' : 'info', title: CT('w_pay_verify', `${n} payments to verify`, { n }) + (n ? ' · ' + H.inr(v) : ''), detail: n ? CT('w_pay_verify_sub', 'Reps logged these — verify so customer balances update and reminders stop.') : CT('w_pay_clear', 'No payments waiting for verification — all clear.'), page: 'payments', cta: CT('cta_verify_pay', 'Verify payments') }); }
   const newOrders = (st.orders || []).filter((o) => o.status === 'new');
   { const v = newOrders.reduce((a, o) => a + o.value, 0); const n = newOrders.length;
-    A.push({ w: 2, icon: '📦', tone: n ? 'urgent' : 'info', title: `${n} new order${n === 1 ? '' : 's'} to confirm${n ? ' · ' + H.inr(v) : ''}`, detail: n ? 'Confirm and assign a courier so they move to packing.' : 'No orders waiting for confirmation.', page: 'orders', cta: 'Open orders' }); }
+    A.push({ w: 2, icon: '📦', tone: n ? 'urgent' : 'info', title: CT('w_new_orders', `${n} new orders to confirm`, { n }) + (n ? ' · ' + H.inr(v) : ''), detail: n ? CT('w_new_orders_sub', 'Confirm and assign a courier so they move to packing.') : CT('w_new_orders_none', 'No orders waiting for confirmation.'), page: 'orders', cta: CT('cta_open_orders', 'Open orders') }); }
   const openVisits = (st.visits || []).filter((v) => !v.checkOut);
   if (openVisits.length) A.push({ w: 3, icon: '📍', tone: 'warn', title: `${openVisits.length} field visit${openVisits.length > 1 ? 's' : ''} not checked out`, detail: 'Check-out needs the customer OTP. Unvalidated by 11:59pm = failed visit — follow up with the rep.', page: 'visits', cta: 'View field visits' });
   const flagged = (st.leads || []).filter((l) => l.flagged);
   const unassigned = (st.leads || []).filter((l) => !l.flagged && !l.rep);
   const toAssign = flagged.length + unassigned.length;
-  A.push({ w: 4, icon: '🧲', tone: toAssign ? 'warn' : 'info', title: `${toAssign} lead${toAssign === 1 ? '' : 's'} to assign`, detail: toAssign ? `${flagged.length ? flagged.length + ' flagged as existing · ' : ''}${unassigned.length} waiting for a rep. Assign by city so nobody sits idle.` : 'No unassigned leads right now.', page: 'leads', cta: 'Assign leads' });
+  A.push({ w: 4, icon: '🧲', tone: toAssign ? 'warn' : 'info', title: CT('w_leads', `${toAssign} leads to assign`, { n: toAssign }), detail: toAssign ? `${flagged.length ? flagged.length + ' flagged as existing · ' : ''}${unassigned.length} waiting for a rep. Assign by city so nobody sits idle.` : CT('w_leads_none', 'No unassigned leads right now.'), page: 'leads', cta: CT('cta_assign_leads', 'Assign leads') });
   const overdueLeads = (st.leads || []).filter((l) => l.rep && l.stage >= 1 && l.stage < 6 && l.followUp <= T);
-  A.push({ w: 5, icon: '⏰', tone: overdueLeads.length ? 'warn' : 'info', title: `${overdueLeads.length} follow-up${overdueLeads.length === 1 ? '' : 's'} overdue across reps`, detail: overdueLeads.length ? 'Customers waiting on a rep call. Check the pipeline and nudge the owners.' : 'No overdue follow-ups — the pipeline is on schedule.', page: 'pipeline', cta: 'Open pipeline' });
+  A.push({ w: 5, icon: '⏰', tone: overdueLeads.length ? 'warn' : 'info', title: CT('w_followups', `${overdueLeads.length} follow-ups overdue across reps`, { n: overdueLeads.length }), detail: overdueLeads.length ? CT('w_followups_sub', 'Customers waiting on a rep call. Check the pipeline and nudge the owners.') : CT('w_followups_none', 'No overdue follow-ups — the pipeline is on schedule.'), page: 'pipeline', cta: CT('cta_open_pipeline', 'Open pipeline') });
   const openRfq = (st.queries || []).filter((q) => q.status === 'open');
-  A.push({ w: 6, icon: '📝', tone: 'info', title: `${openRfq.length} RFQ enquir${openRfq.length === 1 ? 'y' : 'ies'} open`, detail: openRfq.length ? 'Custom-item requests waiting for a quote. Slow replies lose the deal.' : 'No open RFQ enquiries.', page: 'rfq', cta: 'Open RFQs' });
+  A.push({ w: 6, icon: '📝', tone: 'info', title: CT('w_rfq', `${openRfq.length} RFQ enquiries open`, { n: openRfq.length }), detail: openRfq.length ? CT('w_rfq_sub', 'Custom-item requests waiting for a quote. Slow replies lose the deal.') : CT('w_rfq_none', 'No open RFQ enquiries.'), page: 'rfq', cta: CT('cta_open_rfq', 'Open RFQs') });
   const quotes = (st.carts || []).filter((c) => c.status === 'quote-requested');
   { const v = quotes.reduce((a, c) => a + c.value, 0); const n = quotes.length;
-    A.push({ w: 7, icon: '💬', tone: 'info', title: `${n} quote request${n === 1 ? '' : 's'}${n ? ' · ' + H.inr(v) : ''}`, detail: n ? 'Customers asked for pricing on their cart — respond before it cools.' : 'No carts waiting on a quote.', page: 'carts', cta: 'View carts' }); }
+    A.push({ w: 7, icon: '💬', tone: 'info', title: CT('w_quotes', `${n} quote requests`, { n }) + (n ? ' · ' + H.inr(v) : ''), detail: n ? CT('w_quotes_sub', 'Customers asked for pricing on their cart — respond before it cools.') : CT('w_quotes_none', 'No carts waiting on a quote.'), page: 'carts', cta: CT('cta_view_carts', 'View carts') }); }
   const bigAband = (st.carts || []).filter((c) => c.status === 'abandoned' && c.value >= 100000);
   { const v = bigAband.reduce((a, c) => a + c.value, 0); const n = bigAband.length;
-    A.push({ w: 8, icon: '🛒', tone: 'info', title: `${n} big cart${n === 1 ? '' : 's'} abandoned${n ? ' · ' + H.inr(v) : ''}`, detail: n ? 'High-value carts left unpaid. Have the rep call and recover them.' : 'No high-value abandoned carts.', page: 'carts', cta: 'View carts' }); }
+    A.push({ w: 8, icon: '🛒', tone: 'info', title: CT('w_abandoned', `${n} big carts abandoned`, { n }) + (n ? ' · ' + H.inr(v) : ''), detail: n ? CT('w_abandoned_sub', 'High-value carts left unpaid. Have the rep call and recover them.') : CT('w_abandoned_none', 'No high-value abandoned carts.'), page: 'carts', cta: CT('cta_view_carts', 'View carts') }); }
   const fr = (window.CRM_FRANCHISE || []).filter((r) => r.status === 'new');
-  A.push({ w: 9, icon: '🤝', tone: 'info', title: `${fr.length} franchise request${fr.length === 1 ? '' : 's'}`, detail: fr.length ? 'New partnership enquiries from the Sales App — respond while interest is high.' : 'No new franchise enquiries.', page: 'franchise', cta: 'View requests' });
+  A.push({ w: 9, icon: '🤝', tone: 'info', title: CT('w_franchise', `${fr.length} franchise requests`, { n: fr.length }), detail: fr.length ? CT('w_franchise_sub', 'New partnership enquiries from the Sales App — respond while interest is high.') : CT('w_franchise_none', 'No new franchise enquiries.'), page: 'franchise', cta: CT('cta_view_requests', 'View requests') });
   A.sort((a, b) => a.w - b.w);
   return A;
 }
@@ -968,8 +980,8 @@ function AdminCoachDigest({ st }) {
     <div className="crm-card" style={{ marginBottom: 20, overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '13px 16px', background: 'var(--emerald)', color: '#FDFAF2' }}>
         <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(255,255,255,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, flex: '0 0 34px' }}>💎</div>
-        <div style={{ flex: 1 }}><div style={{ fontWeight: 700, fontSize: 14.5 }}>Mira Coach · What needs your attention</div><div style={{ fontSize: 11.5, color: 'rgba(253,250,242,0.82)' }}>Business to action today + reps to control</div></div>
-        <button className="cbtn cbtn-sm" onClick={askMira} disabled={busy} style={{ background: 'rgba(255,255,255,0.16)', color: '#fff', border: '1px solid rgba(255,255,255,0.3)' }}>{busy ? 'Thinking…' : '💬 Brief me'}</button>
+        <div style={{ flex: 1 }}><div style={{ fontWeight: 700, fontSize: 14.5 }}>{CT('coach_title','Mira Coach · What needs your attention')}</div><div style={{ fontSize: 11.5, color: 'rgba(253,250,242,0.82)' }}>{CT('coach_sub','Business to action today + reps to control')}</div></div>
+        <button className="cbtn cbtn-sm" onClick={askMira} disabled={busy} style={{ background: 'rgba(255,255,255,0.16)', color: '#fff', border: '1px solid rgba(255,255,255,0.3)' }}>{busy ? 'Thinking…' : '💬 ' + CT('coach_brief','Brief me')}</button>
       </div>
       <div style={{ padding: '6px 16px 14px' }}>
         {attention.length === 0 &&
@@ -989,26 +1001,26 @@ function AdminCoachDigest({ st }) {
           </div>)}
 
         <div style={{ marginTop: 14, paddingTop: 12, borderTop: '2px solid var(--divider)' }}>
-          <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--fg-meta)', fontWeight: 700, marginBottom: 4 }}>Your reps</div>
+          <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--fg-meta)', fontWeight: 700, marginBottom: 4 }}>{CT('coach_yourreps','Your reps')}</div>
           {behind.length > 0 &&
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 0' }}>
             <div style={{ width: 30, height: 30, borderRadius: 8, background: toneBg.warn, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flex: '0 0 30px' }}>🎯</div>
-            <div style={{ flex: 1 }}><div style={{ fontWeight: 700, fontSize: 13.5, color: toneFg.warn }}>{behind.length} rep{behind.length > 1 ? 's' : ''} behind target</div>
-              <div className="crm-muted" style={{ fontSize: 12.5, marginTop: 1 }}>{behind.slice(0, 4).map((x) => `${x.rep.name} (${x.pct}%)`).join(', ')} — prioritise in your calls.</div></div>
-            <button className="cbtn cbtn-ghost cbtn-sm" style={{ flex: '0 0 auto' }} onClick={() => go('reps')}>Open reps →</button>
+            <div style={{ flex: 1 }}><div style={{ fontWeight: 700, fontSize: 13.5, color: toneFg.warn }}>{CT('w_behind', behind.length + ' rep behind target', { n: behind.length })}</div>
+              <div className="crm-muted" style={{ fontSize: 12.5, marginTop: 1 }}>{CT('w_behind_sub', '{names} — prioritise in your calls.', { names: behind.slice(0, 4).map((x) => `${x.rep.name} (${x.pct}%)`).join(', ') })}</div></div>
+            <button className="cbtn cbtn-ghost cbtn-sm" style={{ flex: '0 0 auto' }} onClick={() => go('reps')}>{CT('cta_open_reps','Open reps')} →</button>
           </div>}
           {/* Always visible — a clear queue shows ₹0 instead of hiding the card. */}
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 0', borderTop: behind.length ? '1px solid var(--divider)' : 'none' }}>
             <div style={{ width: 30, height: 30, borderRadius: 8, background: topDue.length ? toneBg.urgent : toneBg.info, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flex: '0 0 30px' }}>💰</div>
-            <div style={{ flex: 1 }}><div style={{ fontWeight: 700, fontSize: 13.5, color: topDue.length ? toneFg.urgent : toneFg.info }}>Collections to push</div>
-              <div className="crm-muted" style={{ fontSize: 12.5, marginTop: 1 }}>{topDue.length ? topDue.slice(0, 3).map((x) => `${x.rep.name} · ${H.inr(x.duesTotal)} (${x.dues})`).join(' · ') : '₹0 outstanding — no overdue customer balances right now.'}</div></div>
-            <button className="cbtn cbtn-ghost cbtn-sm" style={{ flex: '0 0 auto' }} onClick={() => go('reports')}>Outstanding →</button>
+            <div style={{ flex: 1 }}><div style={{ fontWeight: 700, fontSize: 13.5, color: topDue.length ? toneFg.urgent : toneFg.info }}>{CT('w_collections','Collections to push')}</div>
+              <div className="crm-muted" style={{ fontSize: 12.5, marginTop: 1 }}>{topDue.length ? topDue.slice(0, 3).map((x) => `${x.rep.name} · ${H.inr(x.duesTotal)} (${x.dues})`).join(' · ') : CT('w_collections_none','₹0 outstanding — no overdue customer balances right now.')}</div></div>
+            <button className="cbtn cbtn-ghost cbtn-sm" style={{ flex: '0 0 auto' }} onClick={() => go('reports')}>{CT('cta_outstanding','Outstanding')} →</button>
           </div>
           {top &&
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 0', borderTop: '1px solid var(--divider)' }}>
             <div style={{ width: 30, height: 30, borderRadius: 8, background: toneBg.win, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flex: '0 0 30px' }}>🏆</div>
-            <div style={{ flex: 1 }}><div style={{ fontWeight: 700, fontSize: 13.5, color: toneFg.win }}>Top performer · {top.rep.name}</div>
-              <div className="crm-muted" style={{ fontSize: 12.5, marginTop: 1 }}>{H.inr(top.d.sales)} MTD. Recognise the win and ask what's working.</div></div>
+            <div style={{ flex: 1 }}><div style={{ fontWeight: 700, fontSize: 13.5, color: toneFg.win }}>{CT('w_top','Top performer')} · {top.rep.name}</div>
+              <div className="crm-muted" style={{ fontSize: 12.5, marginTop: 1 }}>{CT('w_top_sub', H.inr(top.d.sales) + ' MTD. Recognise the win and ask what’s working.', { amt: H.inr(top.d.sales) })}</div></div>
           </div>}
         </div>
 
@@ -1111,7 +1123,7 @@ function CustomerMaster({ st }) {
       </div>
       <div className="crm-card">
         <table className="crm-table">
-          <thead><tr><th>Business</th><th>GST</th><th>City</th><th>Address</th><th>Mobile</th><th>Source</th><th></th></tr></thead>
+          <thead><tr><th>{TH("Business")}</th><th>{TH("GST")}</th><th>{TH("City")}</th><th>{TH("Address")}</th><th>{TH("Mobile")}</th><th>{TH("Source")}</th><th></th></tr></thead>
           <tbody>{filtered.map((r) =>
             <tr key={r.gst}><td>{r.name}</td><td className="crm-id crm-muted">{r.gst}</td><td className="crm-muted">{r.city || '—'}</td>
             <td className="crm-muted" style={{ fontSize: 12, maxWidth: 220 }}>{r.address || '—'}</td><td className="crm-muted" style={{ fontSize: 12 }}>{r.mobile || '—'}</td>
@@ -1425,7 +1437,7 @@ function RepDesk({ st, repId }) {
 function OrdersTableInner({ orders, rate }) {
   return (
     <table className="crm-table">
-      <thead><tr><th>Order</th><th>Customer</th><th>City</th><th>Status</th><th style={{ textAlign: 'right' }}>Value</th><th style={{ textAlign: 'right' }}>Commission</th></tr></thead>
+      <thead><tr><th>{TH("Order")}</th><th>{TH("Customer")}</th><th>{TH("City")}</th><th>{TH("Status")}</th><th style={{ textAlign: 'right' }}>{TH("Value")}</th><th style={{ textAlign: 'right' }}>{TH("Commission")}</th></tr></thead>
       <tbody>{orders.map((o) => {const c = H.cust(o.cust);return (
             <tr key={o.id}><td className="crm-id">{o.id}</td><td>{c.name}</td><td className="crm-muted">{c.city}</td><td><Pill s={o.status} label={statusLabel(o.status)} /></td>
         <td className="crm-amt" style={{ textAlign: 'right' }}>{H.inr(o.value)}</td>
@@ -1666,7 +1678,7 @@ function OfficeLeads({ st }) {
         {flagged.length === 0 ?
         <div className="crm-muted" style={{ padding: '4px 18px 20px', fontSize: 13 }}>✓ Nothing to review — no leads matched your existing customers.</div> :
         <table className="crm-table">
-          <thead><tr><th>Lead</th><th>City</th><th>GST</th><th>Matches existing</th><th style={{ textAlign: 'right' }}>Decision</th></tr></thead>
+          <thead><tr><th>{TH("Lead")}</th><th>{TH("City")}</th><th>{TH("GST")}</th><th>{TH("Matches existing")}</th><th style={{ textAlign: 'right' }}>{TH("Decision")}</th></tr></thead>
           <tbody>{flagged.map((l) => {const cr = cityRepOf(l.city);return (
             <tr key={l.id}><td>{l.name}<div className="crm-muted" style={{ fontSize: 11 }}>{l.mobile}</div></td>
               <td className="crm-muted">{l.city}</td><td className="crm-id crm-muted">{l.gst || '—'}</td>
@@ -1698,7 +1710,7 @@ function OfficeLeads({ st }) {
           <div style={{ marginBottom: 8 }}><button className="cbtn cbtn-accent cbtn-sm" onClick={() => {if (confirm('Auto-forward all ' + clean.length + ' clean lead(s) to their city reps?')) st.autoForwardLeads();}}>⚡ Auto-forward all by city</button></div>}
         </div>
         <table className="crm-table">
-          <thead><tr><th>Lead</th><th>City</th><th>Mobile</th><th style={{ textAlign: 'right' }}>Assign to</th></tr></thead>
+          <thead><tr><th>{TH("Lead")}</th><th>{TH("City")}</th><th>{TH("Mobile")}</th><th style={{ textAlign: 'right' }}>{TH("Assign to")}</th></tr></thead>
           <tbody>{clean.map((l) => {const cr = cityRepOf(l.city);return (
             <tr key={l.id}><td>{l.name}</td><td className="crm-muted">{l.city}</td><td className="crm-muted" style={{ fontSize: 12 }}>{l.mobile}</td>
               <td style={{ textAlign: 'right' }}>
@@ -1766,7 +1778,7 @@ function Pipeline({ st, repId }) {
 
       <div className="crm-card">
         <table className="crm-table" style={{ minWidth: 920 }}>
-          <thead><tr><th>Lead</th><th>City</th>{!repId && <th>Rep</th>}<th>Source</th><th style={{ minWidth: 230 }}>Stage</th><th>Next follow-up</th><th></th></tr></thead>
+          <thead><tr><th>{TH("Lead")}</th><th>{TH("City")}</th>{!repId && <th>{TH("Rep")}</th>}<th>{TH("Source")}</th><th style={{ minWidth: 230 }}>{TH("Stage")}</th><th>{TH("Next follow-up")}</th><th></th></tr></thead>
           <tbody>{leads.map((l) => {const overdue = l.stage < 6 && l.stage > 0 && l.followUp < today;const closed = l.stage === 0;return (
                 <tr key={l.id} style={{ opacity: closed ? 0.55 : 1 }}>
               <td>{l.name}<div className="crm-muted" style={{ fontSize: 11 }}>{l.mobile}</div></td>
@@ -1822,7 +1834,7 @@ function RepRfq({ st, repId }) {
       <PageHead title="My RFQs" sub={`${mine.filter((q) => q.status === 'open').length} open · enquiries assigned to you`} />
       <div className="crm-card">
         <table className="crm-table" style={{ minWidth: 820 }}>
-          <thead><tr><th>Ref</th><th>Customer</th><th>Product</th><th>Size</th><th>Qty</th><th>City</th><th>Contact</th><th>Status</th></tr></thead>
+          <thead><tr><th>{TH("Ref")}</th><th>{TH("Customer")}</th><th>{TH("Product")}</th><th>{TH("Size")}</th><th>{TH("Qty")}</th><th>{TH("City")}</th><th>{TH("Contact")}</th><th>{TH("Status")}</th></tr></thead>
           <tbody>{mine.map((q) => {const cu = H.cust(q.cust);return (
                 <tr key={q.id}><td className="crm-id" data-label="Ref">{q.id}</td><td data-label="Customer">{cu.name}</td><td data-label="Product">{q.product}<div className="crm-muted" style={{ fontSize: 11 }}>{q.special}</div></td>
             <td className="crm-muted" data-label="Size">{q.size}</td><td className="crm-muted" data-label="Qty">{q.qty}</td><td className="crm-muted" data-label="City">{q.city}</td>
@@ -1886,7 +1898,7 @@ function RepCustomers({ st, repId }) {
 
       <div className="crm-card">
         <table className="crm-table">
-          <thead><tr><th>Customer</th><th>City</th><th>Pincode</th><th>GST</th><th>Mobile</th><th>Payment</th><th style={{ textAlign: 'right' }}>Since</th></tr></thead>
+          <thead><tr><th>{TH("Customer")}</th><th>{TH("City")}</th><th>{TH("Pincode")}</th><th>{TH("GST")}</th><th>{TH("Mobile")}</th><th>{TH("Payment")}</th><th style={{ textAlign: 'right' }}>{TH("Since")}</th></tr></thead>
           <tbody>{d.myCust.map((c) => {const t = c.terms || 'cash';return (
                 <tr key={c.id}><td data-label="Customer">{c.name}<div className="crm-muted" style={{ fontSize: 11 }}>{c.id}</div></td><td className="crm-muted" data-label="City">{c.city}</td>
             <td className="crm-muted" data-label="Pincode">{c.pincode || '—'}</td><td className="crm-id crm-muted" data-label="GST">{c.gst}</td><td className="crm-muted" data-label="Mobile" style={{ fontSize: 12 }}>{c.mobile}</td>
@@ -1914,7 +1926,7 @@ function RepCustomers({ st, repId }) {
         <PageHead title="Unassigned customers" sub="De-linked accounts — claim one to add it to your book" />
         <div className="crm-card">
           <table className="crm-table">
-            <thead><tr><th>Customer</th><th>City</th><th>GST</th><th>Mobile</th><th></th></tr></thead>
+            <thead><tr><th>{TH("Customer")}</th><th>{TH("City")}</th><th>{TH("GST")}</th><th>{TH("Mobile")}</th><th></th></tr></thead>
             <tbody>{st.customers.filter((c) => !c.rep).map((c) =>
               <tr key={c.id}><td>{c.name}<div className="crm-muted" style={{ fontSize: 11 }}>{c.id}</div></td><td className="crm-muted">{c.city}</td>
               <td className="crm-id crm-muted">{c.gst}</td><td className="crm-muted" style={{ fontSize: 12 }}>{c.mobile}</td>
@@ -1943,7 +1955,7 @@ function RepCommission({ st, repId }) {
       <div className="crm-card">
         <SecHead title="How your commission is worked out" meta="higher slabs pay more" />
         <table className="crm-table">
-          <thead><tr><th>Monthly sales slab</th><th style={{ textAlign: 'right' }}>Rate</th><th style={{ textAlign: 'right' }}>Your sales in slab</th><th style={{ textAlign: 'right' }}>Commission</th></tr></thead>
+          <thead><tr><th>{TH("Monthly sales slab")}</th><th style={{ textAlign: 'right' }}>{TH("Rate")}</th><th style={{ textAlign: 'right' }}>{TH("Your sales in slab")}</th><th style={{ textAlign: 'right' }}>{TH("Commission")}</th></tr></thead>
           <tbody>{bd.map((s, i) => (
             <tr key={i}>
               <td data-label="Slab">{s.to == null ? `${H.inr(s.from)} and above` : `${H.inr(s.from)} – ${H.inr(s.to)}`}</td>
@@ -1961,7 +1973,7 @@ function RepCommission({ st, repId }) {
       <div className="crm-card">
         <SecHead title="All orders" meta="Full order history" />
         <table className="crm-table">
-          <thead><tr><th>Order</th><th>Customer</th><th>Date</th><th>Status</th><th style={{ textAlign: 'right' }}>Value</th></tr></thead>
+          <thead><tr><th>{TH("Order")}</th><th>{TH("Customer")}</th><th>{TH("Date")}</th><th>{TH("Status")}</th><th style={{ textAlign: 'right' }}>{TH("Value")}</th></tr></thead>
           <tbody>{d.myOrders.map((o) => {const c = H.cust(o.cust);return (
                 <tr key={o.id}><td className="crm-id" data-label="Order">{o.id}</td><td data-label="Customer">{c.name}</td><td className="crm-muted" data-label="Date" style={{ fontSize: 12 }}>{o.date}</td><td data-label="Status"><Pill s={o.status} label={statusLabel(o.status)} /></td>
             <td className="crm-amt" data-label="Value" style={{ textAlign: 'right' }}>{H.inr(o.value)}</td></tr>);})}</tbody>
@@ -1973,7 +1985,7 @@ function RepCommission({ st, repId }) {
       <PageHead title="Dispatch & courier slips" sub="Your customers' shipments only" />
       <div className="crm-card">
         <table className="crm-table">
-          <thead><tr><th>Order</th><th>Customer</th><th>Status</th><th>Courier / Tracking</th><th>Slip</th></tr></thead>
+          <thead><tr><th>{TH("Order")}</th><th>{TH("Customer")}</th><th>{TH("Status")}</th><th>{TH("Courier / Tracking")}</th><th>{TH("Slip")}</th></tr></thead>
           <tbody>{dispatched.map((o) => {const c = H.cust(o.cust);return (
                 <tr key={o.id}><td className="crm-id" data-label="Order">{o.id}</td><td data-label="Customer">{c.name}</td><td data-label="Status"><Pill s={o.status} label={statusLabel(o.status)} /></td>
             <td className="crm-muted" data-label="Courier / Tracking" style={{ fontSize: 12 }}>{o.courier || '—'} {o.track || ''}</td>
@@ -1995,7 +2007,7 @@ function FranchiseRequests({ st }) {
       <PageHead title="Franchise Requests" sub={`${list.filter((r) => r.status === 'new').length} new · from the app "Join Franchise" form`} />
       <div className="crm-card">
         <table className="crm-table" style={{ minWidth: 840 }}>
-          <thead><tr><th>Ref</th><th>Name</th><th>Firm</th><th>City</th><th>Mobile</th><th>Investment</th><th>Experience</th><th>Date</th><th>Status</th></tr></thead>
+          <thead><tr><th>{TH("Ref")}</th><th>{TH("Name")}</th><th>{TH("Firm")}</th><th>{TH("City")}</th><th>{TH("Mobile")}</th><th>{TH("Investment")}</th><th>{TH("Experience")}</th><th>{TH("Date")}</th><th>{TH("Status")}</th></tr></thead>
           <tbody>{list.map((r) =>
             <tr key={r.id}><td className="crm-id">{r.id}</td><td>{r.name}</td><td className="crm-muted">{r.firm}</td><td className="crm-muted">{r.city}</td>
             <td className="crm-muted" style={{ fontSize: 12 }}>{r.mobile}</td><td className="crm-muted">{r.invest}</td><td className="crm-muted" style={{ fontSize: 12 }}>{r.exp}</td>
@@ -2163,7 +2175,7 @@ function AdminVisits({ st }) {
       </div>}
       <div className="crm-card">
         <table className="crm-table">
-          <thead><tr><th>Rep</th><th>Customer</th><th>City</th><th>Check-in</th><th>Check-out</th><th>Duration</th><th>Location</th></tr></thead>
+          <thead><tr><th>{TH("Rep")}</th><th>{TH("Customer")}</th><th>{TH("City")}</th><th>{TH("Check-in")}</th><th>{TH("Check-out")}</th><th>{TH("Duration")}</th><th>{TH("Location")}</th></tr></thead>
           <tbody>
             {shown.map((v) => {const cu = H.cust(v.custId);const rep = H.rep(v.rep);
               const dur = (v.checkOut ? new Date(v.checkOut) : new Date()) - new Date(v.checkIn);return (
@@ -2185,19 +2197,22 @@ function AdminVisits({ st }) {
 }
 
 const NAV = {
+  // k = i18n key; the label is the English fallback when a translation is absent.
   admin: [
-  { id: 'dashboard', label: 'Dashboard' }, { id: 'customers', label: 'Customers & Payment Terms' },
-  { id: 'reps', label: 'Reps & commission' }, { id: 'pipeline', label: 'Relation-Pipeline' }, { id: 'rfq', label: 'RFQ Enquiries' }, { id: 'franchise', label: 'Franchise Requests' }, { id: 'reports', label: 'Reports' }, { id: 'attendance', label: 'Attendance' }, { id: 'visits', label: 'Field Visits' }, { id: 'leads', label: 'Leads' }, { id: 'master', label: 'Customer Database' }, { id: 'broadcast', label: 'Rep Broadcast' }, { id: 'carts', label: 'All carts' }, { id: 'payments', label: 'Payments' }],
+  { id: 'dashboard', label: 'Dashboard', k: 'crm_dashboard' }, { id: 'customers', label: 'Customers & Payment Terms', k: 'crm_customers' },
+  { id: 'reps', label: 'Reps & commission', k: 'crm_reps' }, { id: 'pipeline', label: 'Relation-Pipeline', k: 'crm_pipeline' }, { id: 'rfq', label: 'RFQ Enquiries', k: 'crm_rfq' }, { id: 'franchise', label: 'Franchise Requests', k: 'crm_franchise' }, { id: 'reports', label: 'Reports', k: 'crm_reports' }, { id: 'attendance', label: 'Attendance', k: 'crm_attendance' }, { id: 'visits', label: 'Field Visits', k: 'crm_visits' }, { id: 'leads', label: 'Leads', k: 'crm_leads' }, { id: 'master', label: 'Customer Database', k: 'crm_custdb' }, { id: 'broadcast', label: 'Rep Broadcast', k: 'crm_broadcast' }, { id: 'carts', label: 'All carts', k: 'crm_carts' }, { id: 'payments', label: 'Payments', k: 'crm_payments' }],
 
   office: [
-  { id: 'orders', label: 'Order desk' }, { id: 'leads', label: 'Leads' }, { id: 'pipeline', label: 'Relation-Pipeline' },
-  { id: 'abandoned', label: 'Abandoned carts' }, { id: 'queries', label: 'RFQ Enquiries' }],
+  { id: 'orders', label: 'Order desk', k: 'crm_orderdesk' }, { id: 'leads', label: 'Leads', k: 'crm_leads' }, { id: 'pipeline', label: 'Relation-Pipeline', k: 'crm_pipeline' },
+  { id: 'abandoned', label: 'Abandoned carts' }, { id: 'queries', label: 'RFQ Enquiries', k: 'crm_rfq' }],
 
   rep: [
   { id: 'desk', label: 'My desk' }, { id: 'pipeline', label: 'Pipeline & follow-ups' }, { id: 'rfq', label: 'My RFQs' }, { id: 'customers', label: 'My customers' }, { id: 'commission', label: 'My commission' }]
 
 };
 const ROLE_TITLE = { admin: 'Administration', office: 'Back Office', rep: 'Sales Rep' };
+const ROLE_TITLE_KEY = { admin: 'crm_title_admin', office: 'crm_role_office', rep: 'crm_role_rep' };
+function roleTitle(role) { return CT(ROLE_TITLE_KEY[role], ROLE_TITLE[role]); }
 const DEFAULT_PAGE = { admin: 'dashboard', office: 'orders', rep: 'desk' };
 const REP_ID = 'REP-204';
 
@@ -2252,7 +2267,10 @@ function CrmLangSwitcher() {
   const ref = React.useRef(null);
   React.useEffect(() => {const f = (e) => {if (ref.current && !ref.current.contains(e.target)) setOpen(false);};document.addEventListener('click', f);return () => document.removeEventListener('click', f);}, []);
   const cur = LANGS.find((l) => l.id === lang) || LANGS[0];
-  const pick = (id) => {setLang(id);setOpen(false);try {localStorage.setItem('eurostar-lang', id);} catch (e) {}};
+  // Broadcast the change so the whole console re-renders in the new language —
+  // previously this only wrote to localStorage and nothing was listening.
+  const pick = (id) => {setLang(id);setOpen(false);try {localStorage.setItem('eurostar-lang', id);} catch (e) {}
+    try { window.dispatchEvent(new Event('eurostar-lang')); } catch (e) {}};
   return (
     <div style={{ position: 'relative' }} ref={ref}>
       <button className="cbtn cbtn-ghost" onClick={() => setOpen((o) => !o)} style={{ gap: 7 }}>
@@ -2309,7 +2327,7 @@ function CartEditor({ kind, entity, onSave, onClose }) {
         </div>
         <div style={{ padding: '14px 22px' }}>
           <table className="crm-table" style={{ minWidth: 560 }}>
-            <thead><tr><th>Product</th><th>Size</th><th style={{ width: 70 }}>Qty</th><th style={{ width: 80 }}>Rate ₹</th><th style={{ width: 70 }}>Disc %</th><th style={{ textAlign: 'right' }}>Amount</th><th></th></tr></thead>
+            <thead><tr><th>{TH("Product")}</th><th>{TH("Size")}</th><th style={{ width: 70 }}>{TH("Qty")}</th><th style={{ width: 80 }}>{TH("Rate ₹")}</th><th style={{ width: 70 }}>{TH("Disc %")}</th><th style={{ textAlign: 'right' }}>{TH("Amount")}</th><th></th></tr></thead>
             <tbody>{lines.map((l, i) => {const amt = l.qty * l.rate * (1 - (l.disc || 0) / 100);return (
                   <tr key={i}>
                 <td data-label="Product"><input className="disc-input" style={{ width: '100%', minWidth: 150, textAlign: 'left' }} value={l.name} onChange={(e) => setL(i, 'name', e.target.value)} /></td>
@@ -2336,6 +2354,13 @@ function CartEditor({ kind, entity, onSave, onClose }) {
 }
 
 function CRM() {
+  // Re-render the console whenever the language picker fires.
+  const [, setLangTick] = React.useState(0);
+  React.useEffect(() => {
+    const f = () => setLangTick((n) => n + 1);
+    window.addEventListener('eurostar-lang', f);
+    return () => window.removeEventListener('eurostar-lang', f);
+  }, []);
   const CRM_INIT_ROLE = (() => { try { const r = new URLSearchParams(location.search).get('role'); return ['admin', 'office', 'rep'].includes(r) ? r : 'admin'; } catch (e) { return 'admin'; } })();
   const [role, setRole] = useState(CRM_INIT_ROLE);
   const [page, setPage] = useState(DEFAULT_PAGE[CRM_INIT_ROLE]);
@@ -2665,7 +2690,8 @@ function CRM() {
   if (role === 'office') screen = { orders: <OfficeOrders st={st} />, leads: <OfficeLeads st={st} />, pipeline: <Pipeline st={st} />, abandoned: <OfficeAbandoned st={st} />, queries: <OfficeQueries st={st} /> }[page];else
   screen = { desk: <RepDesk st={st} repId={REP_ID} />, pipeline: <Pipeline st={st} repId={REP_ID} />, rfq: <RepRfq st={st} repId={REP_ID} />, customers: <RepCustomers key={addCustOpen ? 'add' : 'list'} st={st} repId={REP_ID} />, commission: <RepCommission st={st} repId={REP_ID} /> }[page];
 
-  const curLabel = (NAV[role].find((n) => n.id === page) || {}).label;
+  const curNav = NAV[role].find((n) => n.id === page) || {};
+  const curLabel = curNav.k ? CT(curNav.k, curNav.label) : curNav.label;
 
   return (
     <div className="crm-shell">
@@ -2676,15 +2702,15 @@ function CRM() {
           <div><b>Eurostar</b><small>CRM</small></div>
         </div>
         <nav className="crm-nav">
-          <div className="crm-nav-label">{ROLE_TITLE[role]}</div>
+          <div className="crm-nav-label">{roleTitle(role)}</div>
           {NAV[role].map((n) => {const b = navBadge(n.id);return (
               <button key={n.id} className={`crm-nav-item ${page === n.id ? 'active' : ''}`} onClick={() => setPage(n.id)}>
-              {n.label}{b ? <span className="badge">{b}</span> : null}
+              {CT(n.k || '', n.label)}{b ? <span className="badge">{b}</span> : null}
             </button>);})}
         </nav>
         <div className="crm-side-foot">
-          <a className="crm-applink" href="Eurostar Sales website.html">↗ Open Sales App</a>
-          <button className="crm-applink crm-signout" onClick={signOut}>↩ Sign out</button>
+          <a className="crm-applink" href="Eurostar Sales website.html">↗ {CT('open_sales_app','Open Sales App')}</a>
+          <button className="crm-applink crm-signout" onClick={signOut}>↩ {CT('sign_out','Sign out')}</button>
         </div>
       </aside>
 
@@ -2701,11 +2727,11 @@ function CRM() {
                 <div><h1 style={{ margin: 0 }}>{H.rep(REP_ID).name}</h1><div className="crm-id crm-muted" style={{ fontSize: 13, marginTop: 2 }}>Sales Rep · {REP_ID} · {curLabel}</div></div>
                 <button className="cbtn cbtn-accent" onClick={() => st.goAddCustomer()}>+ Add customer</button>
               </div> :
-          <h1>{ROLE_TITLE[role]} <span className="crm-muted" style={{ fontWeight: 400, fontSize: 15 }}>· {curLabel}</span></h1>}
+          <h1>{roleTitle(role)} <span className="crm-muted" style={{ fontWeight: 400, fontSize: 15 }}>· {curLabel}</span></h1>}
           <div className="crm-role">
-            <button className={role === 'admin' ? 'active' : ''} onClick={() => switchRole('admin')}>Admin</button>
-            <button className={role === 'office' ? 'active' : ''} onClick={() => switchRole('office')}>Back Office</button>
-            <button className={role === 'rep' ? 'active' : ''} onClick={() => switchRole('rep')}>Sales Rep</button>
+            <button className={role === 'admin' ? 'active' : ''} onClick={() => switchRole('admin')}>{CT('crm_role_admin','Admin')}</button>
+            <button className={role === 'office' ? 'active' : ''} onClick={() => switchRole('office')}>{CT('crm_role_office','Back Office')}</button>
+            <button className={role === 'rep' ? 'active' : ''} onClick={() => switchRole('rep')}>{CT('crm_role_rep','Sales Rep')}</button>
           </div>
           {role === 'admin' && <CrmNotifications st={st} />}
           <CrmLangSwitcher />

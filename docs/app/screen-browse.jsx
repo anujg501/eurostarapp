@@ -2,6 +2,10 @@
 // Category → Grade → Colour → Shape → Size/Carat pad
 
 function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, persona }) {
+  // Interface copy follows the language picker. Trade terms (grade names, DEF,
+  // carat, mm …) intentionally stay in English — see i18n-strings.jsx.
+  const lang = (window.currentLang ? window.currentLang() : 'en');
+  const T = (k, fb) => (window.t ? window.t(k, lang) : fb);
   const custCode = persona && persona.code || '';
   const custCompany = persona && persona.company || '';
   const category = findCategory(route.cat);
@@ -155,10 +159,10 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
         const showColor = colors.length > 1;
         const showShape = shapeIds.length > 1;
         const railSteps = [
-        !skipGrade && { label: 'Grade', n: 1 },
-        showColor && { label: 'Colour', n: 2 },
-        showShape && { label: 'Shape', n: 3 },
-        { label: grade && grade.unit === 'strip' ? 'Strips' : 'Sizes & carats', n: 4 }].
+        !skipGrade && { label: T('step_grade', 'Grade'), n: 1 },
+        showColor && { label: T('step_colour', 'Colour'), n: 2 },
+        showShape && { label: T('step_shape', 'Shape'), n: 3 },
+        { label: grade && grade.unit === 'strip' ? T('step_strips', 'Strips') : T('step_sizes', 'Sizes & carats'), n: 4 }].
         filter(Boolean);
         return (
           <div className={`step-rail step-rail-${railSteps.length}`}>
@@ -321,7 +325,7 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
           <div className="page-head" style={{ marginBottom: 20 }}>
             <div>
               <div className="crumb">{category.short} · {grade.name}{needsSubShade ? ' · ' + baseColor.name : ''}</div>
-              <h1>{needsSubShade ? (category.id === 'icecut' ? 'Choose your G-code' : 'Choose a shade') : 'Choose a colour'}</h1>
+              <h1>{needsSubShade ? (category.id === 'icecut' ? 'Choose your G-code' : T('choose_shade', 'Choose a shade')) : T('choose_colour', 'Choose a colour')}</h1>
               <p>{needsSubShade ?
               (category.id === 'icecut'
               ? <React.Fragment>Select the specific G-code for <strong>{baseColor.name}</strong> from the colour chart above.</React.Fragment>
@@ -332,8 +336,8 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
               'Multiple colours to choose from. Castable premium cubic zirconia.' :
               category.id === 'icecut' ?
               'Pick the price tier for your colour — use the colour card above to find which tier it falls in.' :
-              <React.Fragment>{colors.length} colour{colors.length > 1 ? 's' : ''} available in this grade.
-                 Select the tone you want to order.</React.Fragment>}</p>
+              <React.Fragment>{colors.length} {T('colours_available', 'colours available in this grade.')}{' '}
+                 {T('pick_colour_hint', 'Select the tone you want to order.')}</React.Fragment>}</p>
             </div>
             <button className="btn btn-ghost" onClick={() => needsSubShade ? pickColor(null) : pickGrade(null)}>
               <IconArrowLeft size={16} /> {needsSubShade ? 'Change colour' : 'Change grade'}
@@ -421,7 +425,7 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
               <img src="assets/products/laser-packet.png" alt="Genuine Eurostar sealed laser-engraved packet — Cubic Zirconia White Round" />
             </div>
             <div className="laser-auth-body">
-              <div className="laser-auth-eyebrow">What you'll receive</div>
+              <div className="laser-auth-eyebrow">{T('what_receive', "What you'll receive")}</div>
               <h3>Genuine sealed Eurostar packets</h3>
               <p>Every order ships in factory-sealed, barcoded Eurostar packets — each stone
                  laser-marked and graded for <em>Pure Brilliance</em>. Made in Austria.</p>
@@ -440,7 +444,7 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
           <div className="page-head" style={{ marginBottom: 20 }}>
             <div>
               <div className="crumb">{category.short} · {grade.name} · {color.name}{needsSubShape ? ' · ' + (baseShapeMeta && baseShapeMeta.name || '') : ''}</div>
-              <h1>{needsSubShape ? 'Choose a cut shape' : 'Choose a shape'}</h1>
+              <h1>{needsSubShape ? T('choose_cut', 'Choose a cut shape') : T('choose_shape', 'Choose a shape')}</h1>
               <p>{needsSubShape
                 ? 'Pick the exact cut — then choose your sizes and quantities.'
                 : 'Pick a shape to see its sizes and pricing.'}</p>

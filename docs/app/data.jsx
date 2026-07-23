@@ -2987,6 +2987,20 @@ function ourosaSku(colorId, shape, size) {
 }
 window.ourosaSku = ourosaSku;
 
+// Evil Eye · Real MOP evil-eye stones (round / heart / marquise), per piece. Row [size,pcs,₹/pc].
+const EVILEYE_SHEETS = {
+  'round': [['4 mm',25,24],['5 mm',25,24],['6 mm',25,24],['7 mm',25,32],['8 mm',25,36],['9 mm',15,40],['10 mm',15,40],['11 mm',15,40],['12 mm',15,46],['13 mm',15,48],['14 mm',15,56],['15 mm',15,70],['16 mm',15,70],['18 mm',15,110],['20 mm',15,130]],
+  'heart': [['6 mm',25,36],['8 mm',25,36],['9 mm',15,40],['10 mm',15,46],['11 mm',15,48],['12 mm',15,44],['13 mm',15,56],['14 mm',15,64],['16 mm',15,70],['18 mm',15,110],['20 mm',15,130]],
+  'marquise': [['6×3 mm',25,24],['8×4 mm',25,26],['10×5 mm',25,26],['12×6 mm',25,34],['14×7 mm',25,44],['16×8 mm',25,46],['18×9 mm',25,60],['20×10 mm',25,66]],
+};
+function evileyeSizes(shape) { const g = EVILEYE_SHEETS[shape]; return g ? g.map((r) => r[0]) : []; }
+function evileyeSku(shape, size) {
+  const g = EVILEYE_SHEETS[shape]; const row = g ? g.find((r) => r[0] === size) : null;
+  if (!row) return null;
+  return { id: 'evileye-' + shape + '-' + String(size).replace(/\s/g, ''), price: row[2], pcsPerPacket: row[1], moq: row[1], size, stock: 'in', stockCount: 0 };
+}
+window.evileyeSizes = evileyeSizes; window.evileyeSku = evileyeSku;
+
 // Bracelet: colours differ per style. Cartier = full 21-colour chart; Rolex = 6 metallic finishes.
 const BRACELET_BY_GRADE = {
   cartier: {

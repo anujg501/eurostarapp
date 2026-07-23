@@ -2900,6 +2900,24 @@ function hollowmopSku(gradeId, shape, size) {
 }
 window.hollowmopSizes = hollowmopSizes; window.hollowmopSku = hollowmopSku;
 
+// Lab Alexandrite (Syn Corundum Alex) · single-grade price sheet. Row [size,pcs,₹/piece].
+// Uses the '46' price column from the RIVEN (a '45' column also exists). SQ -> Cushion.
+const ALEX_SHEETS = {
+  'round': [['1.00 mm',500,1.2],['1.25 mm',500,1.44],['1.50 mm',500,1.92],['2.00 mm',500,3.84],['2.25 mm',200,6.72],['2.50 mm',200,7.2],['2.75 mm',200,9.6],['3.00 mm',200,10.8],['3.25 mm',100,14.16],['3.50 mm',100,15.6],['3.75 mm',100,18.48],['4.00 mm',100,19.68],['4.50 mm',50,25.68],['5.00 mm',50,32.4],['5.50 mm',50,42.72],['6.00 mm',50,46.8],['6.50 mm',25,58.3],['7.00 mm',25,63.8],['8.00 mm',25,94.6]],
+  'cushion': [['1.5 mm',200,8.64],['2 mm',200,8.64],['2.5 mm',200,11.04],['3 mm',100,13.44],['4 mm',50,28.8],['5 mm',50,42],['6 mm',50,60.72],['7 mm',25,77]],
+  'heart': [['3 mm',200,15.6],['4 mm',100,24],['5 mm',100,36],['6 mm',50,51.6],['7 mm',50,70.4],['8 mm',25,101.2],['10 mm',25,198]],
+  'oval': [['3×2 mm',200,10.32],['4×3 mm',200,16.8],['5×3 mm',100,19.2],['5×4 mm',100,26.88],['6×4 mm',50,30.48],['7×5 mm',50,26.29],['8×6 mm',25,66],['9×7 mm',25,94.6],['10×8 mm',25,129.8]],
+  'pear': [['3×2 mm',200,10.32],['4×3 mm',200,16.8],['5×3 mm',100,19.2],['5×4 mm',100,26.88],['6×4 mm',50,30.48],['7×5 mm',50,26.29],['8×6 mm',25,66],['9×7 mm',25,94.6],['10×8 mm',25,129.8]],
+  'marquise': [['3×1.5 mm',100,12],['4×2 mm',100,12],['5×2.5 mm',100,15.6],['6×3 mm',100,24],['7×3.5 mm',50,55.66],['8×4 mm',50,44],['10×5 mm',25,71.5]],
+};
+function alexSizes(shape) { const g = ALEX_SHEETS[shape]; return g ? g.map((r) => r[0]) : []; }
+function alexSku(shape, size) {
+  const g = ALEX_SHEETS[shape]; const row = g ? g.find((r) => r[0] === size) : null;
+  if (!row) return null;
+  return { id: 'alex-' + shape + '-' + String(size).replace(/\s/g, ''), price: row[2], pcsPerPacket: row[1], moq: row[1], size, stock: 'in', stockCount: 0 };
+}
+window.alexSizes = alexSizes; window.alexSku = alexSku;
+
 // Bracelet: colours differ per style. Cartier = full 21-colour chart; Rolex = 6 metallic finishes.
 const BRACELET_BY_GRADE = {
   cartier: {

@@ -1017,7 +1017,9 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   const pearlSheet = category.id === 'pearls' && grade && color && window.pearlSheetSizes && window.pearlSheetSizes(grade.id, color.id, shape).length ? window.pearlSheetSizes(grade.id, color.id, shape) : null;
   // Hollow MOP · per grade (White MOP / Black Onyx) price sheet.
   const hmopSheet = category.id === 'hollowmop' && grade && window.hollowmopSizes && window.hollowmopSizes(grade.id, shape).length ? window.hollowmopSizes(grade.id, shape) : null;
-  let sizes = category.id === 'moissanite' ? (moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm']) : alpGreen ? alpGreen : alpBlue ? alpBlue : alpSheet ? alpSheet : hdSheet ? hdSheet : corSheet ? corSheet : wfSheet ? wfSheet : czSheet ? czSheet : colorCzSheet ? colorCzSheet : opaqueNatSheet ? opaqueNatSheet : opaqueSheet ? opaqueSheet : polkiSheet ? polkiSheet : labopalSheet ? labopalSheet : cabSheet ? cabSheet : pearlSheet ? pearlSheet : hmopSheet ? hmopSheet : skuSizes.length ? skuSizes.slice() : (SIZES_BY_CATEGORY && SIZES_BY_CATEGORY[category.id]) ? SIZES_BY_CATEGORY[category.id].slice() : ourosaMode ? OUROSA_SIZES.map((x) => x[0]) : mixedMoiss ? moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm'] : byStrip ? FULL_SIZES[shape] || ['4.00 mm'] : FULL_SIZES[shape] || ['4.00 mm'];
+  // Lab Alexandrite · single-grade price sheet.
+  const alexSheet = category.id === 'alex' && window.alexSizes && window.alexSizes(shape).length ? window.alexSizes(shape) : null;
+  let sizes = category.id === 'moissanite' ? (moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm']) : alpGreen ? alpGreen : alpBlue ? alpBlue : alpSheet ? alpSheet : hdSheet ? hdSheet : corSheet ? corSheet : wfSheet ? wfSheet : czSheet ? czSheet : colorCzSheet ? colorCzSheet : opaqueNatSheet ? opaqueNatSheet : opaqueSheet ? opaqueSheet : polkiSheet ? polkiSheet : labopalSheet ? labopalSheet : cabSheet ? cabSheet : pearlSheet ? pearlSheet : hmopSheet ? hmopSheet : alexSheet ? alexSheet : skuSizes.length ? skuSizes.slice() : (SIZES_BY_CATEGORY && SIZES_BY_CATEGORY[category.id]) ? SIZES_BY_CATEGORY[category.id].slice() : ourosaMode ? OUROSA_SIZES.map((x) => x[0]) : mixedMoiss ? moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm'] : byStrip ? FULL_SIZES[shape] || ['4.00 mm'] : FULL_SIZES[shape] || ['4.00 mm'];
   // A colour may cap its size range (e.g. Alpanite Yellow / 162/2 → 1.00–2.00 mm only).
   if (color && color.sizeMax) {sizes = sizes.filter((s) => (parseFloat(s) || 0) <= color.sizeMax + 0.001);}
   // A colour may set a minimum size. Fancy NxN sizes (e.g. "3x4") are kept as-is
@@ -1120,6 +1122,11 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
     // Hollow MOP per grade price sheet.
     if (category.id === 'hollowmop' && grade && window.hollowmopSku) {
       const a = window.hollowmopSku(grade.id, shape, size);
+      if (a) return a;
+    }
+    // Lab Alexandrite single-grade price sheet.
+    if (category.id === 'alex' && window.alexSku) {
+      const a = window.alexSku(shape, size);
       if (a) return a;
     }
     return window.uploadedSkuFor ? uploadedSkuFor(category.id, shape, size, grade) : null;

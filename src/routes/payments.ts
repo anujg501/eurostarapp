@@ -38,10 +38,11 @@ async function markOrderPaid(orderId: string) {
   await prisma.order.update({
     where: { id: orderId },
     data: {
-      // Mark paid, but do NOT auto-confirm. A newly placed order stays 'pending'
-      // so it lands in the CRM's "new order to confirm" queue for the back office
-      // to review and assign a courier. Confirming is the office's action.
+      // Payment verified: the order enters the office's "new order to confirm"
+      // queue (status 'pending' renders as New in the CRM). Never regress an
+      // order the office already moved further along the pipeline.
       paid: true,
+      ...(order.status === 'awaiting-payment' ? { status: 'pending' } : {}),
       ...(dispatch ? { dispatchBy: dispatch.date, dispatchByLabel: dispatch.label } : {}),
     },
   });
@@ -134,6 +135,16 @@ paymentsRouter.post(
     });
 
     if (status === 'confirmed' && orderId) await markOrderPaid(orderId);
+    // A payment awaiting verification parks its order at 'awaiting-payment' so
+    // it does NOT sit in the "new order to confirm" queue until the finance
+    // team verifies the money. Only a still-'pending' order is moved — never an
+    // order the office already progressed.
+    if (status === 'pending' && orderId) {
+      await prisma.order.updateMany({
+        where: { id: orderId, status: 'pending' },
+        data: { status: 'awaiting-payment' },
+      });
+    }
 
     return ok(res, serialisePayment(payment), 201);
   })
@@ -192,19 +203,23 @@ paymentsRouter.put(
     }
     const payment = await prisma.payment.update({ where: { id: existing.id }, data });
 
-    // Propagate to the order.
+    // Propagate to the order. Verified payment → the order enters the office's
+    // "new order to confirm" queue (status 'pending' = New in the CRM); the
+    // office then confirms it into packing. Rejected payment → back to
+    // awaiting-payment and no longer treated as paid.
     if (existing.orderId) {
       const order = await prisma.order.findUnique({ where: { id: existing.orderId } });
       if (order) {
         if (parsed.data.status === 'confirmed') {
-          // Verified → order is paid and moves into the confirmed pipeline.
           await prisma.order.update({
             where: { id: order.id },
-            data: { paid: true, ...(order.status === 'pending' ? { status: 'confirmed' } : {}) },
+            data: { paid: true, ...(order.status === 'awaiting-payment' ? { status: 'pending' } : {}) },
           });
         } else if (parsed.data.status === 'failed') {
-          // Rejected → payment failed; the order is no longer treated as paid.
-          await prisma.order.update({ where: { id: order.id }, data: { paid: false } });
+          await prisma.order.update({
+            where: { id: order.id },
+            data: { paid: false, ...(order.status === 'pending' || order.status === 'awaiting-payment' ? { status: 'awaiting-payment' } : {}) },
+          });
         }
       }
     }

@@ -111,7 +111,7 @@ reportsRouter.get(
 // GET /reports/summary — every dashboard headline counter, computed live from
 // the database. No static values: each field is a real query.
 const CANCELLED_STATUSES = ['cancelled', 'rejected', 'returned', 'refunded'];
-const OPEN_ORDER_STATUSES = ['pending', 'confirmed', 'packed', 'shipped', 'dispatched', 'out-for-delivery'];
+const OPEN_ORDER_STATUSES = ['awaiting-payment', 'pending', 'confirmed', 'packed', 'shipped', 'dispatched', 'out-for-delivery'];
 
 reportsRouter.get(
   '/summary',

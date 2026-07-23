@@ -244,9 +244,20 @@ ordersRouter.post(
     const paid = d.paid ?? false;
     const status = d.status ?? (paid ? 'confirmed' : 'pending');
 
+    // Link the order to the rep's User row. A customer-placed order carries the
+    // rep only as a repId string ("REP-204"), so resolve that to the User id —
+    // without it repUserId stayed null on every customer order and the
+    // rep-scoped GET /orders (where repUserId = me.sub) returned nothing.
+    const repIdForOrder = d.repId ?? (staff ? me?.repId ?? null : null);
+    let repUserId: string | null = staff ? me!.sub : null;
+    if (!repUserId && repIdForOrder) {
+      const repUser = await prisma.user.findFirst({ where: { role: 'rep', repId: repIdForOrder }, select: { id: true } });
+      repUserId = repUser?.id ?? null;
+    }
+
     const data = {
       customerId: customer?.id,
-      repUserId: staff ? me!.sub : null,
+      repUserId,
       customerName: customer?.name ?? customerNameFromPayload ?? me?.name,
       customerCode: customer?.code ?? customerObj?.code ?? d.code,
       city,
@@ -342,7 +353,14 @@ ordersRouter.get(
     if (me?.role === 'customer') {
       where.OR = [{ customerId: me.sub }, { repUserId: null, customerName: me.name }];
     } else if (me?.role === 'rep' && scope !== 'all') {
-      where.repUserId = me.sub;
+      // A rep sees their own orders — matched either by the User FK or by their
+      // repId string, since customer-placed orders historically only carried the
+      // string. Matching both means a rep never sees an empty list purely
+      // because the FK was missing.
+      const meRepId = me.repId ?? null;
+      where.OR = meRepId
+        ? [{ repUserId: me.sub }, { repId: meRepId }]
+        : [{ repUserId: me.sub }];
     }
     // office, no session (CRM), and rep scope=all see everything.
 

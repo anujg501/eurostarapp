@@ -1329,6 +1329,7 @@ const PACKET_PCS_BY_CATEGORY = {};
 // Pieces in one packet for a given category + size.
 const packetPcs = (catId, size) => {
   if (catId === 'hotfix') return PIECES_PER_PACKET; // fixed gross
+  if (catId === 'navratna') return 9; // a navratna set is 9 matched stones
   if (catId === 'ourosa') return 1440; // 10 gross per packet
   const over = PACKET_PCS_BY_CATEGORY[catId];
   if (over && over[size]) return over[size];

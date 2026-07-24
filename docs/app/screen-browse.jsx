@@ -1206,6 +1206,7 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
     return isFinite(n) && n > 0 ? n : packetPcs(category.id, size);
   };
   const rate = (size) => {
+    if (navMode) return navUnit(size); // per-packet price (RIVEN sheet or base) — keeps order total in sync with line totals
     const s = skuPriced(size);
     if (s) return rowUnit(size) === 'ct' ? Math.round(s.price * pcsPerCt(size)) : rowUnit(size) === 'pkt' ? s.price * rowPacketPcs(size) : s.price;
     return stringMode ? pearlStringPrice(size) :
@@ -1548,7 +1549,7 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
       </div> :
 
       <div className={`size-pad ${showWt || showPieceWt ? 'has-wt' : ''} ${navMode ? 'unit-nav' : 'unit-' + unit}`} style={{ marginTop: 4 }}>
-        <div className="size-pad-head" style={navMode ? { gridTemplateColumns: 'minmax(0,1.4fr) 1fr 130px 130px' } : undefined}>
+        <div className="size-pad-head" style={navMode ? { gridTemplateColumns: '140px 150px minmax(0,1fr) 130px' } : undefined}>
           <span>Size</span>
           {!navMode &&
           <span style={{ textAlign: 'center' }}>
@@ -1581,7 +1582,7 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
           const so = sizeSoldOut(s);
           return (
             <div key={s} className={`size-pad-row ${isFilled ? 'filled' : ''} ${belowMoq ? 'below' : ''} ${so ? 'soldout' : ''}`}
-            style={navMode ? { gridTemplateColumns: 'minmax(0,1.4fr) 1fr 130px 130px' } : undefined}>
+            style={navMode ? { gridTemplateColumns: '140px 150px minmax(0,1fr) 130px' } : undefined}>
               <div className="size-pad-size">
                 <div className="size-pad-mm">{ourosaMode ? s : s.replace(' mm', '')}</div>
                 <div className="size-pad-unit">{ourosaMode ? ourosaMM(s) : s.includes('mm') ? 'mm' : ''}</div>

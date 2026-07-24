@@ -20,17 +20,25 @@ When the user uploads a price-list spreadsheet for a colour/grade:
 - Never fabricate prices. Parse the sheet programmatically and spot-check a few values before committing.
 - **Autonomy: when the user gives an Excel price file, just do it — parse (RIVEN), spot-check, commit and deploy to `sunny-branch` without asking permission.** Don't ask routine confirmations (which sheet when the rule already answers it, whether to deploy, minor shape/size trimming that follows "keep exactly what's in the file"). Report what was deployed afterwards.
   - **Only pause to ask on a genuine anomaly**, e.g.: data that won't parse or is internally contradictory; prices that look mis-read/implausible (esp. from a *screenshot* — non-monotonic, out-of-sequence); two price sources that materially disagree with no rule to pick between them; or a change that would clearly misprice/mislead if the guess is wrong. Screenshots (not files) still get a quick "show me before deploy".
-- **Default MOQ / pieces-per-box standard (authoritative — from `moq_standard.xlsx`)** — use whenever a sheet gives price but no pcs-per-box. Pick the block by shape, then the size. Sizes are mm; `a*b`/`a x b` = length×width. Only fill this in when the file has no other packing info; if a size falls outside a block and isn't in the file, use the nearest larger listed size (or ask on a real anomaly).
-  - **ROUND** (by diameter): 0.80–2.00 → **1000**; 2.10–3.00 → **500**; 3.25–4.00 → **200**; 4.25–5.00 → **100**; 5.25–8.00 → **50**.
-  - **SQR PRIN** (square princess): 1.5–3.5 → **200**; 4.0–4.5 → **100**; 5.0–7.5 → **50**; 8–9 → **25**; 10–14 → **15**.
-  - **OCTO PRIN** (octagon princess): 4*3,5*3 → **200**; 5*4,6*4 → **100**; 7*5,8*6 → **50**; 9*7,10*8 → **25**; 11*9,12*10,16*12 → **15**.
-  - **OS / PS** (oval/pear step): 3*2,3*2.5,3.5*2.5 → **200**; 4*3,5*3,5*4,6*4 → **100**; 7*5,8*6,9*7 → **50**; 10*8,11*9 → **25**; 12*10,14*10 → **15**.
-  - **MAQ** (marquise): 3*1.5,4*2,5*2.5,6*3 → **200**; 7*3.5,8*4 → **100**; 10*5 → **50**; 12*6,14*7 → **15**.
-  - **BAGUETTE**: 3*1.5,4*2,5*2.5 → **200**; 6*3 → **100**; 7*3.5,8*4 → **50**.
-  - **TRIANGLE**: 3x3 → **200**; 4x4 → **100**; 5x5 → **50**; 6x6,7x7,8x8 → **25**.
-  - **TRILLION / SQ RADIANT / CUSHION**: 3x3,4x4 → **200**; 5x5 → **100**; 6x6,7x7,8x8 → **50**; 9x9 → **25**; 10x10,11x11 → **15**.
-  - **ASSCHER**: 3x3,4x4 → **200**; 5x5,6x6 → **100**; 7x7,8x8 → **50**; 9x9,10x10 → **25**.
-  - **HEART**: 3x3 → **200**; 4x4,5x5,6x6,7x7 → **100**; 8x8 → **50**; 9x9,10x10 → **25**.
+- **Default MOQ / pieces-per-box standard (authoritative — from `moq.xlsx` Deccan packing list; supersedes the older `moq_standard.xlsx`)** — use whenever a sheet gives price but no pcs-per-box. Pick the block by shape, then the size (mm; `a*b` = length×width, `a*b*c` = tapered/3-dim). If a size falls outside a block and isn't in the file, use the nearest larger listed size (or ask on a real anomaly).
+  - **Round**: 0.8–2→1000; 2.1–3→500; 3.1–4.75→200; 5–7.5→100; 8–10→50; 11–15→25; 16–20→15.
+  - **Square**: 1–2→1000; 2.25–3→500; 3.5–4.5→200; 5–7.5→100; 8–9→50; 10–12→25.
+  - **Oval / Pear**: 3*2–4.5*3.5→500; 5*3–6*4→200; 7*5–8*6→100; 9*7–11*9→50; 12*8–16*12→25; 18*13→15; 11*7→50.
+  - **Special Sizes Os / Ps**: 2*1–4.5*3→500; 4.75*3.75–6.5*4.5→200; 6.75*4.75–8*7→100; 8.5*6.5→50.
+  - **Marquise**: 3*1.5–4*2→500; 5*2.5–7*3.5→200; 8*4–9*4.5→100; 10*5→50; 14*7–16*8→25.
+  - **Special Sizes Maq**: 2*1–4.5*2.5→500; 4.75*2.5–5.73*3→200.
+  - **Octo Prince**: 4*3→500; 5*3–6*4→200; 7*5–8*6→100; 9*7–10*8→50; 11*9–14*12→25; 16*12–18*12→15.
+  - **Octo Step**: 4*3–4.5*3→500; 5*3–5*4→200; 7*5–8*6→100; 9*7–11*9→50; 12*9–14*10→25.
+  - **Tapper**: 0.8*1*1.1–3*2*1.5→1000; 3.25*1.5*1–4.5*2.5*1.5→500; 5*3*1–6*3*2→200.
+  - **St Baguette Step**: 0.8*1.1–2.5*3→1000; 3.25*1.5–4.5*3→500; 5*2.5–2.75*1.75→200.
+  - **Cushion / Trillion**: 3–4→200; 5–6→100; 7–9→50; 10→25.
+  - **Asscher**: 3–4→200; 5–6→100; 7–9→50; 10→25.
+  - **Heart**: 2→500; 3–4→200; 5–7→100; 8–9→50; 9.5–15→25.
+  - **Triangle**: 2–3.5→500; 4→200; 5–6→100; 7–9→50; 10–12→25.
+  - **Star Shape**: 3–4→200; 5–6→100; 7–9→50; 10→25.
+  - **Lily**: 3–6→200; 7–8→100.
+  - **Bridge Cut**: 5*2.5→500; 9*4→100; 9*6→50; 12*8–14*9→25.
+  - **Plum**: 3→500.
 
 ## Product images (per-grade)
 - Photos are stored via the backend (`PUT /admin/product-images`), keyed `cat|colour|shape`, or `cat|grade|colour|shape` for grade-scoped categories.

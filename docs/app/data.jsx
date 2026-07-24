@@ -710,7 +710,9 @@ const SHAPES_BY_CATEGORY = {
 
 // Navratna: Natural has many shapes; Created is round only.
 const NAVRATNA_SHAPES_BY_GRADE = {
-  natural: ['round','oval','pear','cushion','emerald','marquise','heart'],
+  // Natural navratna restricted to the shapes priced in the RIVEN sheet
+  // (round, oval, pear, square→cushion, maq→marquise). Emerald/Heart have no price.
+  natural: ['round','oval','pear','cushion','marquise'],
   created: ['round'],
 };
 
@@ -3024,6 +3026,29 @@ function opaqueNatRate(gradeId, colorId, shape, size) {
 }
 window.opaqueNatSizes = opaqueNatSizes;
 window.opaqueNatRate = opaqueNatRate;
+
+// Navratna · per-grade price sheet (RIVEN 'B' quality tier; hidden AA/A/C tiers
+// ignored). One flat price per 9-stone packet. Row: [size, ₹/packet]. Square→cushion, Maq→marquise.
+const NAVRATNA_SHEETS = {
+  'natural': {
+    'round': [['1.50 mm',330.75],['1.60 mm',294],['1.70 mm',257.25],['1.80 mm',220.5],['1.90 mm',191.1],['2.00 mm',145.24],['2.10 mm',122.89],['2.20 mm',134.06],['2.30 mm',145.24],['2.40 mm',156.41],['2.50 mm',167.58],['2.60 mm',178.75],['2.70 mm',195.51],['2.80 mm',217.85],['2.90 mm',240.2],['3.00 mm',307.23],['3.10 mm',296.06],['3.20 mm',335.16],['3.30 mm',379.85],['3.40 mm',424.54],['3.50 mm',469.22],['3.60 mm',513.91],['3.70 mm',558.6],['3.80 mm',614.46],['3.90 mm',670.32],['4.00 mm',754.11],['4.10 mm',865.83],['4.20 mm',977.55],['4.30 mm',1089.27],['4.40 mm',1256.85],['4.50 mm',1424.43],['4.60 mm',1675.8],['4.70 mm',1815.45],['4.80 mm',1955.1],['4.90 mm',2234.4],['5.00 mm',2513.7],['5.10 mm',2793],['5.20 mm',3072.3],['5.30 mm',3351.6],['5.40 mm',3630.9],['5.50 mm',3910.2],['5.60 mm',4468.8],['5.70 mm',5027.4],['5.80 mm',5586],['5.90 mm',6144.6],['6.00 mm',7541.1],['6.10 mm',8937.6],['6.20 mm',10334.1],['6.30 mm',11730.6],['6.40 mm',13127.1],['6.50 mm',14523.6],['6.60 mm',15920.1],['6.70 mm',17875.2],['6.80 mm',19830.3],['6.90 mm',21785.4],['7.00 mm',24578.4]],
+    'oval': [['3×4 mm',837.9],['3×5 mm',1284.78],['4×5 mm',1955.1],['4×6 mm',2793],['5×6 mm',3351.6],['5×7 mm',4189.5],['6×8 mm',6703.2],['7×9 mm',13406.4],['8×10 mm',22344]],
+    'pear': [['3×4 mm',1284.78],['3×5 mm',1955.1],['4×5 mm',2513.7],['4×6 mm',3910.2],['5×6 mm',5027.4],['5×7 mm',6703.2],['6×8 mm',11172],['7×9 mm',17875.2],['8×10 mm',25137]],
+    'cushion': [['2 mm',2513.7],['2.5 mm',2234.4],['3 mm',2793],['3.5 mm',3351.6],['4 mm',3630.9],['4.5 mm',3910.2],['5 mm',4189.5],['5.5 mm',5306.7],['6 mm',6703.2],['6.5 mm',8379],['7 mm',10054.8]],
+    'marquise': [['2×4 mm',1117.2],['2.5×5 mm',1675.8],['3×6 mm',2793],['3.5×7 mm',4189.5],['4×8 mm',5586],['5×10 mm',10054.8]],
+  },
+};
+function navSizes(gradeId, shape) {
+  const g = NAVRATNA_SHEETS[gradeId];
+  return g && g[shape] ? g[shape].map((r) => r[0]) : [];
+}
+function navPrice(gradeId, shape, size) {
+  const g = NAVRATNA_SHEETS[gradeId];
+  const row = g && g[shape] ? g[shape].find((r) => r[0] === size) : null;
+  return row ? row[1] : null;
+}
+window.navSizes = navSizes;
+window.navPrice = navPrice;
 
 // Polki · per grade price sheets (grade id = 'kundan' or 'white-regular').
 // Kundan foil rows [size,pcs,₹/piece] (uses the base PRICE column); Flat/Regular

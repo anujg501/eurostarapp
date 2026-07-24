@@ -484,6 +484,7 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
               category.id === 'whitefancy' && window.wfSizes ? window.wfSizes(_gid, s) :
               category.id === 'highdensity' && window.hdSizes ? window.hdSizes(_gid, s) :
               category.id === 'alpanite' && window.alpSheetSizes && window.alpSheetSizes(_cid, s).length ? window.alpSheetSizes(_cid, s) :
+              category.id === 'navratna' && window.navSizes ? window.navSizes(_gid, s) :
               [];
             const sizes = sheetSizesForCard.length ? sheetSizesForCard : skuSizesForCard.length ? skuSizesForCard : category.id === 'mop' ? window.MOP_PRICES[s] || [] : FULL_SIZES[s] || ['4.00 mm'];
             const shapeImg = productImageFor(category.id, color.id, s, grade && grade.id);
@@ -989,6 +990,11 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   const coralHasWt = category.id === 'coral' && grade && window.coralHasWeight && window.coralHasWeight(grade.id, shape);
   const showWt = catShowWeight(category.id) || alpHasWt || hdHasWt || czHasWt || labopalHasWt || polkiHasWt || cabHasWt || pearlHasWt || coralHasWt;
   const navMode = category.id === 'navratna'; // sold by packet, one flat price per packet, no pcs/packet
+  // Navratna packet price: prefer the RIVEN sheet ('B' tier) when present, else the base multiplier.
+  const navUnit = (s) => {
+    if (navMode && grade && window.navPrice) { const p = window.navPrice(grade.id, shape, s); if (p != null) return p; }
+    return sizeUnitPrice(product, s);
+  };
   const showPieceWt = false;
   // Pearls are per-packet priced, EXCEPT Natural Cabs which are priced per piece (ordered in packets).
   const packetPriced = (catPacketPriced(category.id) || grade.packetPriced) &&
@@ -1053,7 +1059,9 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   const coralSheet = category.id === 'coral' && grade && window.coralSizes && window.coralSizes(grade.id, shape).length ? window.coralSizes(grade.id, shape) : null;
   // Evil Eye stones price sheet.
   const evileyeSheet = category.id === 'evileye' && window.evileyeSizes && window.evileyeSizes(shape).length ? window.evileyeSizes(shape) : null;
-  let sizes = category.id === 'moissanite' ? (moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm']) : alpGreen ? alpGreen : alpBlue ? alpBlue : alpSheet ? alpSheet : hdSheet ? hdSheet : corSheet ? corSheet : wfSheet ? wfSheet : czSheet ? czSheet : colorCzSheet ? colorCzSheet : opaqueNatSheet ? opaqueNatSheet : opaqueSheet ? opaqueSheet : polkiSheet ? polkiSheet : labopalSheet ? labopalSheet : cabSheet ? cabSheet : pearlSheet ? pearlSheet : hmopSheet ? hmopSheet : alexSheet ? alexSheet : rajkotSheet ? rajkotSheet : coralSheet ? coralSheet : evileyeSheet ? evileyeSheet : skuSizes.length ? skuSizes.slice() : (SIZES_BY_CATEGORY && SIZES_BY_CATEGORY[category.id]) ? SIZES_BY_CATEGORY[category.id].slice() : ourosaMode ? OUROSA_SIZES.map((x) => x[0]) : mixedMoiss ? moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm'] : byStrip ? FULL_SIZES[shape] || ['4.00 mm'] : FULL_SIZES[shape] || ['4.00 mm'];
+  // Navratna · per-grade RIVEN price sheet (per 9-stone packet).
+  const navSheet = category.id === 'navratna' && grade && window.navSizes && window.navSizes(grade.id, shape).length ? window.navSizes(grade.id, shape) : null;
+  let sizes = category.id === 'moissanite' ? (moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm']) : alpGreen ? alpGreen : alpBlue ? alpBlue : alpSheet ? alpSheet : hdSheet ? hdSheet : corSheet ? corSheet : wfSheet ? wfSheet : czSheet ? czSheet : colorCzSheet ? colorCzSheet : opaqueNatSheet ? opaqueNatSheet : opaqueSheet ? opaqueSheet : polkiSheet ? polkiSheet : labopalSheet ? labopalSheet : cabSheet ? cabSheet : pearlSheet ? pearlSheet : hmopSheet ? hmopSheet : alexSheet ? alexSheet : rajkotSheet ? rajkotSheet : coralSheet ? coralSheet : evileyeSheet ? evileyeSheet : navSheet ? navSheet : skuSizes.length ? skuSizes.slice() : (SIZES_BY_CATEGORY && SIZES_BY_CATEGORY[category.id]) ? SIZES_BY_CATEGORY[category.id].slice() : ourosaMode ? OUROSA_SIZES.map((x) => x[0]) : mixedMoiss ? moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm'] : byStrip ? FULL_SIZES[shape] || ['4.00 mm'] : FULL_SIZES[shape] || ['4.00 mm'];
   // A colour may cap its size range (e.g. Alpanite Yellow / 162/2 → 1.00–2.00 mm only).
   if (color && color.sizeMax) {sizes = sizes.filter((s) => (parseFloat(s) || 0) <= color.sizeMax + 0.001);}
   // A colour may set a minimum size. Fancy NxN sizes (e.g. "3x4") are kept as-is
@@ -1260,11 +1268,11 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
         qty: navMode ? q : rowPcs(size, q),
         ct: billedCt(size, q),
         unitMode: navMode ? 'pkt' : mixedMoiss ? 'ct' : stringMode ? 'string' : lotMode ? 'pkt' : ctLotMode ? 'pkt' : rowUnit(size),
-        unitPrice: navMode ? sizeUnitPrice(product, size) : mixedMoiss ? moissPerCt(size) : rate(size),
-        perCtPrice: navMode ? sizeUnitPrice(product, size) : mixedMoiss ? moissPerCt(size) : rate(size),
+        unitPrice: navMode ? navUnit(size) : mixedMoiss ? moissPerCt(size) : rate(size),
+        perCtPrice: navMode ? navUnit(size) : mixedMoiss ? moissPerCt(size) : rate(size),
         certFee: certForLine(size, q),
         foilFee: foilForLine(size, q),
-        lineTotal: navMode ? q * sizeUnitPrice(product, size) + foilForLine(size, q) : stoneAmount(size, q) + certForLine(size, q) + foilForLine(size, q),
+        lineTotal: navMode ? q * navUnit(size) + foilForLine(size, q) : stoneAmount(size, q) + certForLine(size, q) + foilForLine(size, q),
         tone: product.tone,
         toneHex: hex
       });
@@ -1565,7 +1573,7 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
           const _wtSku = skuFor(s);
           if (_wtSku && _wtSku.wtPer1000 != null) { gPer1000 = _wtSku.wtPer1000; ctPer1000 = gPer1000 / 0.2; }
           const q = qtyBySize[s] || 0;
-          const navUnitPrice = sizeUnitPrice(product, s);
+          const navUnitPrice = navUnit(s);
           const lineTotal = navMode ? q * navUnitPrice + foilForLine(s, q) : mixedMoiss ? stoneAmount(s, q) + certForLine(s, q) + foilForLine(s, q) : q * r + certForLine(s, q) + foilForLine(s, q);
           const linePcs = (mixedMoiss || ru === 'pkt') ? rowPcs(s, q) : unitToPcs(ru, s, q, category.id);
           const isFilled = q > 0;

@@ -989,11 +989,13 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   const coralHasWt = category.id === 'coral' && grade && window.coralHasWeight && window.coralHasWeight(grade.id, shape);
   const showWt = catShowWeight(category.id) || alpHasWt || hdHasWt || czHasWt || labopalHasWt || polkiHasWt || cabHasWt || pearlHasWt || coralHasWt;
   const navMode = category.id === 'navratna'; // sold by packet, one flat price per packet, no pcs/packet
-  // Natural Pearl Cabs: show a weight-per-piece (grams) column.
-  const showPieceWt = category.id === 'pearls' && grade.id === 'natural' && shape === 'cabs';
+  const showPieceWt = false;
   // Pearls are per-packet priced, EXCEPT Natural Cabs which are priced per piece (ordered in packets).
   const packetPriced = (catPacketPriced(category.id) || grade.packetPriced) &&
   !(category.id === 'pearls' && grade.id === 'natural' && shape === 'cabs');
+  // Packet-priced sheets that carry weight (e.g. full-drilled pearls) show weight PER PACKET,
+  // matching the price sheet, instead of the per-1000-pcs normalisation used elsewhere.
+  const packetWtMode = showWt && packetPriced && !navMode;
   const pearlHdr = category.id === 'pearls' ? PEARL_HEADERS[grade.id + '|' + shape] : null;
   // Natural full-drilled pearls: ordered by STRING, with weight & price per string.
   const stringMode = category.id === 'pearls' && grade.id === 'natural' && shape === 'fulldrilled';
@@ -1545,7 +1547,7 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
             {unit === 'ct' ? 'Pcs / ct' : unit === 'pkt' ? 'Pcs / packet' : 'Per pc'}
           </span>}
           <span style={{ textAlign: 'right' }}>{mixedMoiss ? 'Rate' : <React.Fragment>₹ / {navMode ? 'packet' : unit === 'pkt' ? packetPriced ? 'packet' : 'pc' : unitWord}</React.Fragment>}</span>
-          {showWt && <span style={{ textAlign: 'right' }}>Wt / 1000 pcs</span>}
+          {showWt && <span style={{ textAlign: 'right' }}>{packetWtMode ? 'Wt / packet' : 'Wt / 1000 pcs'}</span>}
           {showPieceWt && <span style={{ textAlign: 'right' }}>Wt / pc</span>}
           <span style={{ textAlign: 'center' }}>
             {mixedMoiss ? 'Order qty' : unit === 'ct' ? 'Carats' : unit === 'pkt' ? 'Packets' : 'Pieces'}
@@ -1583,8 +1585,15 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
               <div className="size-pad-price">{formatINR(navMode ? navUnitPrice : mixedMoiss ? moissPerCt(s) : unit === 'pkt' ? packetPriced ? r : piecePrice(s) : r)}{mixedMoiss && <span className="size-pad-unit-sfx"> /ct</span>}</div>
               {showWt &&
               <div className="size-pad-wt">
-                  <span className="size-pad-wt-g">{gPer1000 >= 100 ? Math.round(gPer1000) : gPer1000.toFixed(1)} g</span>
-                  <span className="size-pad-wt-ct">{ctPer1000 >= 100 ? Math.round(ctPer1000) : ctPer1000.toFixed(1)} ct</span>
+                  {(() => {
+                    const gShown = packetWtMode ? gPer1000 * each / 1000 : gPer1000;
+                    const ctShown = packetWtMode ? ctPer1000 * each / 1000 : ctPer1000;
+                    return (
+                      <React.Fragment>
+                        <span className="size-pad-wt-g">{gShown >= 100 ? Math.round(gShown) : gShown.toFixed(1)} g</span>
+                        <span className="size-pad-wt-ct">{ctShown >= 100 ? Math.round(ctShown) : ctShown.toFixed(1)} ct</span>
+                      </React.Fragment>);
+                  })()}
                 </div>
               }
               {showPieceWt &&

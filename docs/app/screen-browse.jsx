@@ -464,7 +464,28 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
             // to the built-in chart when nothing was uploaded, otherwise every
             // shape card reads a flat "1 sizes".
             const skuSizesForCard = (window.uploadedSizesFor ? uploadedSizesFor(category.id, s, grade) : []);
-            const sizes = skuSizesForCard.length ? skuSizesForCard : category.id === 'mop' ? window.MOP_PRICES[s] || [] : FULL_SIZES[s] || ['4.00 mm'];
+            // Reflect uploaded price-sheet sizes on the shape card count (else it reads the built-in chart).
+            const _gid = grade && grade.id, _cid = color && color.id;
+            const sheetSizesForCard =
+              category.id === 'pearls' && window.pearlSheetSizes ? window.pearlSheetSizes(_gid, _cid, s) :
+              category.id === 'cz' && window.colorCzSizes ? window.colorCzSizes(_gid, _cid, s) :
+              category.id === 'cabochon' && window.cabSizes ? window.cabSizes(_gid, _cid, s) :
+              category.id === 'coral' && window.coralSizes ? window.coralSizes(_gid, s) :
+              category.id === 'opaque' && window.opaqueNatSizes && window.opaqueNatSizes(_gid, _cid, s).length ? window.opaqueNatSizes(_gid, _cid, s) :
+              category.id === 'opaque' && window.opaqueSizes ? window.opaqueSizes(_gid, s) :
+              category.id === 'polki' && window.polkiSizes ? window.polkiSizes(_gid, s) :
+              category.id === 'labopal' && window.labopalSizes ? window.labopalSizes(_gid, _cid, s) :
+              category.id === 'hollowmop' && window.hollowmopSizes ? window.hollowmopSizes(_gid, s) :
+              category.id === 'rajkot' && window.rajkotSizes ? window.rajkotSizes(_gid, _cid, s) :
+              category.id === 'alex' && window.alexSizes ? window.alexSizes(s) :
+              category.id === 'evileye' && window.evileyeSizes ? window.evileyeSizes(s) :
+              category.id === 'corundum' && window.corSizes ? window.corSizes(_gid, _cid, s) :
+              category.id === 'whitecz' && window.czSizes ? window.czSizes(_gid, s) :
+              category.id === 'whitefancy' && window.wfSizes ? window.wfSizes(_gid, s) :
+              category.id === 'highdensity' && window.hdSizes ? window.hdSizes(_gid, s) :
+              category.id === 'alpanite' && window.alpSheetSizes && window.alpSheetSizes(_cid, s).length ? window.alpSheetSizes(_cid, s) :
+              [];
+            const sizes = sheetSizesForCard.length ? sheetSizesForCard : skuSizesForCard.length ? skuSizesForCard : category.id === 'mop' ? window.MOP_PRICES[s] || [] : FULL_SIZES[s] || ['4.00 mm'];
             const shapeImg = productImageFor(category.id, color.id, s, grade && grade.id);
             return (
               <button key={s} className="shape-pick-card" onClick={() => needsSubShape ? pickShapeSub(s) : pickShape(s)}>

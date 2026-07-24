@@ -27,12 +27,26 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 // not inflate the totals it was rolled back from.
 const REVENUE_STATUSES = ['pending', 'confirmed', 'packed', 'shipped', 'delivered'];
 
+// Translate the Reports screen's period dropdown into a createdAt date filter.
+// Returns undefined ("all time") for anything unrecognised.
+function periodRange(period?: string): { gte: Date; lt: Date } | undefined {
+  if (!period || period === 'all') return undefined;
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth();
+  if (period === 'month') return { gte: new Date(y, m, 1), lt: new Date(y, m + 1, 1) };
+  if (period === 'last') return { gte: new Date(y, m - 1, 1), lt: new Date(y, m, 1) };
+  if (period === 'quarter') { const q = Math.floor(m / 3) * 3; return { gte: new Date(y, q, 1), lt: new Date(y, q + 3, 1) }; }
+  if (period === 'ytd') return { gte: new Date(y, 0, 1), lt: new Date(y + 1, 0, 1) };
+  return undefined;
+}
+
 // GET /reports/sales-by-month — revenue and order count per calendar month, oldest first.
 reportsRouter.get(
   '/sales-by-month',
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
+    const range = periodRange(typeof req.query.period === 'string' ? req.query.period : undefined);
     const orders = await prisma.order.findMany({
-      where: { status: { in: REVENUE_STATUSES } },
+      where: { status: { in: REVENUE_STATUSES }, ...(range ? { createdAt: range } : {}) },
       select: { grand: true, createdAt: true, clientTs: true },
     });
 
@@ -59,9 +73,10 @@ reportsRouter.get(
 // GET /reports/sales-by-category — revenue and order count per category, richest first.
 reportsRouter.get(
   '/sales-by-category',
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
+    const range = periodRange(typeof req.query.period === 'string' ? req.query.period : undefined);
     const lines = await prisma.orderLine.findMany({
-      where: { order: { status: { in: REVENUE_STATUSES } } },
+      where: { order: { status: { in: REVENUE_STATUSES }, ...(range ? { createdAt: range } : {}) } },
       select: { categoryKey: true, lineTotal: true, orderId: true },
     });
 

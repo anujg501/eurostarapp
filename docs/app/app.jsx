@@ -276,6 +276,9 @@ function App() {
     case 'rfq':
       screen = <RfqStub setRoute={navigate} />;
       break;
+    case 'my-rfqs':
+      screen = <MyRfqsScreen setRoute={navigate} />;
+      break;
     case 'franchise':
       screen = <FranchiseScreen setRoute={navigate} />;
       break;
@@ -870,6 +873,100 @@ function ProfileScreen({ persona, setRoute }) {
   );
 }
 
+// The customer's own RFQ enquiries and the quotes the trade desk sent back.
+// Closes the loop: the office quotes in the CRM, and the price shows up here.
+function MyRfqsScreen({ setRoute }) {
+  const [rows, setRows] = React.useState(null); // null = loading
+  const [signedIn, setSignedIn] = React.useState(true);
+  const inr = (n) => '₹' + (Number(n) || 0).toLocaleString('en-IN');
+
+  const load = React.useCallback(() => {
+    let token;
+    try { token = localStorage.getItem('eurostar_token'); } catch (e) {}
+    if (!token) { setSignedIn(false); setRows([]); return; }
+    fetch((window.EUROSTAR_API || location.origin) + '/rfq', { headers: { authorization: 'Bearer ' + token } })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => setRows(Array.isArray(data) ? data : []))
+      .catch(() => setRows([]));
+  }, []);
+  React.useEffect(() => { load(); }, [load]);
+
+  const statusStyle = (s) => {
+    if (s === 'quoted') return { bg: 'var(--emerald-soft,#e6f1ec)', fg: 'var(--emerald,#0E5C4A)', label: 'Quoted' };
+    if (s === 'answered') return { bg: 'var(--amber-soft,#f7edcf)', fg: '#7A5214', label: 'Answered' };
+    if (s === 'closed') return { bg: 'var(--surface-2,#eee)', fg: 'var(--fg-meta,#777)', label: 'Closed' };
+    return { bg: 'var(--surface-2,#eee)', fg: 'var(--fg-meta,#777)', label: 'Awaiting quote' };
+  };
+  const fmtDate = (x) => { try { const d = new Date(x); return isNaN(d) ? '' : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }); } catch (e) { return ''; } };
+
+  return (
+    <div className="page" style={{ maxWidth: 760 }}>
+      <div className="page-head" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+        <div>
+          <div className="crumb">RFQ Enquiry</div>
+          <h1>My enquiries</h1>
+          <p>Your custom-quote requests and the price our trade desk sent back.</p>
+        </div>
+        <button className="btn btn-primary" style={{ whiteSpace: 'nowrap', flex: 'none' }} onClick={() => setRoute({ name: 'rfq' })}>+ New enquiry</button>
+      </div>
+
+      {rows === null &&
+        <div className="card card-pad" style={{ padding: 32, textAlign: 'center', color: 'var(--fg-muted)' }}>Loading your enquiries…</div>}
+
+      {rows && !signedIn &&
+        <div className="card card-pad" style={{ padding: 32, textAlign: 'center' }}>
+          <p style={{ color: 'var(--fg-muted)', margin: '0 0 16px' }}>Sign in to see your enquiries and quotes.</p>
+          <button className="btn btn-primary" onClick={() => setRoute({ name: 'home' })}>Go to home</button>
+        </div>}
+
+      {rows && signedIn && rows.length === 0 &&
+        <div className="card card-pad" style={{ padding: 32, textAlign: 'center' }}>
+          <p style={{ color: 'var(--fg-muted)', margin: '0 0 16px' }}>You have not raised any enquiries yet.</p>
+          <button className="btn btn-primary" onClick={() => setRoute({ name: 'rfq' })}>Request a custom quote</button>
+        </div>}
+
+      {rows && signedIn && rows.length > 0 &&
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {rows.map((q) => {
+            const d = q.detail || {};
+            const st = statusStyle(q.status);
+            return (
+              <div key={q.id} className="card card-pad" style={{ padding: 18 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 16 }}>{d.product || 'Custom enquiry'}</div>
+                    <div style={{ color: 'var(--fg-meta)', fontSize: 12.5, marginTop: 2 }}>
+                      {q.id}{fmtDate(q.createdAt) ? ' · ' + fmtDate(q.createdAt) : ''}
+                    </div>
+                  </div>
+                  <span style={{ background: st.bg, color: st.fg, fontWeight: 700, fontSize: 12, padding: '4px 12px', borderRadius: 99, whiteSpace: 'nowrap' }}>{st.label}</span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(90px,1fr))', gap: 10, marginTop: 12, fontSize: 13 }}>
+                  {d.size ? <div><div style={{ color: 'var(--fg-meta)', fontSize: 11 }}>Size</div>{d.size}</div> : null}
+                  {d.qty ? <div><div style={{ color: 'var(--fg-meta)', fontSize: 11 }}>Qty</div>{d.qty}</div> : null}
+                  {d.quality ? <div><div style={{ color: 'var(--fg-meta)', fontSize: 11 }}>Quality</div>{d.quality}</div> : null}
+                  {q.city ? <div><div style={{ color: 'var(--fg-meta)', fontSize: 11 }}>City</div>{q.city}</div> : null}
+                </div>
+
+                {q.quoteAmount ?
+                  <div style={{ marginTop: 14, padding: '14px 16px', background: 'var(--emerald-soft,#e6f1ec)', border: '1px solid #B8D4C6', borderRadius: 'var(--r-md)' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--emerald,#0E5C4A)' }}>Quoted price</div>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--emerald-ink,#0A3F33)', marginTop: 2 }}>{inr(q.quoteAmount)}</div>
+                    {q.quoteNote ? <div style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 4 }}>{q.quoteNote}</div> : null}
+                    <div style={{ fontSize: 11.5, color: 'var(--fg-meta)', marginTop: 8 }}>To place this order, reply on WhatsApp or call your rep.</div>
+                  </div> :
+                  <div style={{ marginTop: 14, fontSize: 13, color: 'var(--fg-meta)' }}>
+                    Our trade desk is preparing your quote — you'll see the price here.
+                  </div>}
+              </div>
+            );
+          })}
+        </div>}
+    </div>
+  );
+}
+
 function FranchiseScreen({ setRoute }) {
   const [submitted, setSubmitted] = React.useState(false);
   // The form used to capture nothing — Submit just flipped to the thank-you
@@ -1057,12 +1154,17 @@ function RfqStub({ setRoute }) {
           <h1 style={{ fontFamily: 'var(--font-serif)', fontWeight: 500, fontSize: 32,
                        letterSpacing: '-0.02em', margin: '0 0 10px' }}>RFQ submitted</h1>
           <p style={{ color: 'var(--fg-muted)', fontSize: 15, margin: '0 0 24px' }}>
-            Our trade desk has received your enquiry and will respond within 1 business day,
-            on WhatsApp or by phone.
+            Our trade desk has received your enquiry and will respond within 1 business day.
+            The quote appears under <strong>My enquiries</strong> as soon as they price it.
           </p>
-          <button className="btn btn-primary btn-lg" onClick={() => setRoute({ name: 'home' })}>
-            Back to home
-          </button>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <button className="btn btn-primary btn-lg" onClick={() => setRoute({ name: 'my-rfqs' })}>
+              View my enquiries
+            </button>
+            <button className="btn btn-lg" onClick={() => setRoute({ name: 'home' })}>
+              Back to home
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -1083,13 +1185,14 @@ function RfqStub({ setRoute }) {
 
   return (
     <div className="page" style={{ maxWidth: 760 }}>
-      <div className="page-head">
+      <div className="page-head" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
         <div>
           <div className="crumb">RFQ Enquiry</div>
           <h1>Request a custom quote</h1>
           <p>Tell us what you need — custom calibrations, non-stock colours, large lots.
              Attach a reference photo and our trade desk responds within 1 business day.</p>
         </div>
+        <button className="btn" style={{ whiteSpace: 'nowrap', flex: 'none' }} onClick={() => setRoute({ name: 'my-rfqs' })}>My enquiries →</button>
       </div>
 
       <div style={{

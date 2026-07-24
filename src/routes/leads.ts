@@ -3,10 +3,55 @@ import { z } from 'zod';
 import { prisma } from '../db';
 import { asyncHandler, ok, fail, failValidation } from '../util/http';
 import { authenticate, type AuthedRequest } from '../auth/middleware';
+import { nextCustomerCode } from '../services/ids';
 
 // Sales leads. The CRM "Leads" screen owns the whole flow (upload → match →
 // approve/assign → work the pipeline); this persists it. Staff only.
 export const leadsRouter = Router();
+
+// The pipeline stage at which a lead becomes a real customer. Stage 2 is
+// literally "Met & added customer" — reaching it means the rep has met the
+// shop and it belongs in the customer master, not just the lead list.
+const CUSTOMER_STAGE = 2;
+
+function normGst(gstin?: string | null): string | null {
+  if (!gstin) return null;
+  const n = gstin.replace(/\s+/g, '').toUpperCase();
+  return n.length ? n : null;
+}
+
+// Create (or find) the customer a lead graduates into once it reaches
+// "Met & added customer". Returns the customer's code, or '' if it could not
+// be created (e.g. the lead has no owning rep yet). Dedupes on GSTIN so a lead
+// that matches an existing customer links to it instead of making a twin.
+async function customerFromLead(lead: {
+  name: string; city: string; mobile: string; gst: string; rep: string;
+}): Promise<string> {
+  const rep = lead.rep
+    ? await prisma.user.findFirst({ where: { role: 'rep', repId: lead.rep }, select: { id: true } })
+    : null;
+
+  const gstinNorm = normGst(lead.gst);
+  if (gstinNorm) {
+    const existing = await prisma.customer.findFirst({ where: { gstinNorm } });
+    if (existing) return existing.code;
+  }
+
+  const code = await nextCustomerCode();
+  const created = await prisma.customer.create({
+    data: {
+      code,
+      name: lead.name,
+      phone: lead.mobile || null,
+      city: lead.city || null,
+      gstin: lead.gst || null,
+      gstinNorm,
+      terms: 'cash',
+      repUserId: rep?.id ?? null,
+    },
+  });
+  return created.code;
+}
 
 function staffOnly(req: AuthedRequest, res: any): boolean {
   if (req.user?.role === 'customer') {
@@ -119,8 +164,28 @@ leadsRouter.put(
       }
     }
 
-    const lead = await prisma.lead.update({ where: { id: existing.id }, data: parsed.data });
-    return ok(res, lead);
+    let lead = await prisma.lead.update({ where: { id: existing.id }, data: parsed.data });
+
+    // Graduate the lead into the customer master the first time it reaches
+    // "Met & added customer". Only once — customerCode records the link so
+    // moving the stage around later doesn't spawn duplicate customers.
+    let addedCustomer: string | null = null;
+    if (lead.stage >= CUSTOMER_STAGE && !lead.customerCode && lead.rep) {
+      try {
+        const code = await customerFromLead(lead);
+        if (code) {
+          lead = await prisma.lead.update({ where: { id: lead.id }, data: { customerCode: code } });
+          addedCustomer = code;
+        }
+      } catch (e) {
+        // Never fail the stage change because the customer couldn't be made;
+        // the pipeline move still stands and the office can add them by hand.
+        // eslint-disable-next-line no-console
+        console.warn(`[leads] could not create customer from lead ${lead.id}:`, (e as Error).message);
+      }
+    }
+
+    return ok(res, { ...lead, addedCustomer });
   })
 );
 

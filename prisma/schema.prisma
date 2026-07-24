@@ -29,6 +29,13 @@ model User {
   passwordHash String? // set for rep/office only
   repId        String? // if this user IS a rep, their public rep id
   active       Boolean  @default(true)
+  // Rep-only settings, managed from the CRM's "Reps & commission" screen.
+  region       String? // territory, e.g. "Gujarat"
+  phoneNote    String? // display phone shown in the reps table (phone is unique/login)
+  commissionPct Float?  @default(4) // blended commission %, e.g. 4 = 4%
+  monthlyTarget Int?    @default(50) // new-customers target per month (min 50)
+  asmId        String? // escalation contact (Area Sales Manager)
+  headId       String? // escalation contact (Sales Head)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -38,6 +45,7 @@ model User {
   ordersTaken    Order[]    @relation("OrderTakenBy")
   paymentsTaken  Payment[]  @relation("PaymentReceivedBy")
   paymentsVerified Payment[] @relation("PaymentVerifiedBy")
+  rfqsQuoted     Rfq[]      @relation("RfqQuotedBy")
 }
 
 // "Remember me" tokens — let a user stay logged in without retyping.
@@ -265,6 +273,12 @@ model Rfq {
   assignedRep String? // repId the CRM routed this enquiry to
   city       String?
   detail     String? // JSON: product/size/qty/weight/quality/contactName/contact/special/image
+  // The quote the office sends back for this enquiry (status becomes "quoted").
+  quoteAmount Int? // ₹ quoted, total for the requested quantity
+  quoteNote   String? // validity, terms, packing note shown with the quote
+  quotedAt    DateTime?
+  quotedById  String? // staff user who sent the quote
+  quotedBy    User?    @relation("RfqQuotedBy", fields: [quotedById], references: [id])
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -344,6 +358,16 @@ model Rep {
   updatedAt      DateTime @updatedAt
 }
 
+// Escalation contacts shown to reps (their ASM and Sales Head). Managed on the
+// CRM "Reps & commission" screen; a rep points at one via User.asmId/headId.
+model EscalationContact {
+  id        String   @id @default(cuid())
+  name      String
+  role      String // "asm" (Area Sales Manager) | "head" (Sales Head)
+  phone     String
+  createdAt DateTime @default(now())
+}
+
 // Field-sales attendance: a rep checks in/out with their phone's GPS.
 model CheckIn {
   id        String   @id @default(cuid())
@@ -358,6 +382,51 @@ model CheckIn {
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
+}
+
+// Morning attendance: a rep marks themselves present for the day with a photo.
+// Distinct from CheckIn (that is per-customer GPS field visits). One row per
+// rep per day; a day with no row is an absence.
+model Attendance {
+  id        String   @id @default(cuid())
+  userId    String // the rep's User.id
+  repId     String // public rep id (e.g. REP-204)
+  repName   String?
+  date      String // "YYYY-MM-DD" — the day marked present
+  status    String   @default("present") // "present" | "leave"
+  photo     String? // data URL of the check-in selfie/shopfront
+  time      String? // "09:14 am" display time
+  createdAt DateTime @default(now())
+
+  @@unique([repId, date])
+  @@index([date])
+}
+
+// A rep's customer visit: one row, opened at check-in and closed at check-out,
+// each with GPS. The admin Field Visits screen reads these. Distinct from
+// CheckIn (raw in/out points) and Attendance (daily present/absent).
+model FieldVisit {
+  id         String   @id @default(cuid())
+  userId     String // the rep's User.id
+  repId      String // public rep id
+  repName    String?
+  custId     String // customer code the rep visited
+  custName   String?
+  custCity   String?
+  custMobile String?
+  day        String // "YYYY-MM-DD" of the check-in
+  checkInAt  DateTime @default(now())
+  inLat      Float?
+  inLng      Float?
+  inAcc      Float?
+  inSource   String? // "gps" | "approx"
+  checkOutAt DateTime?
+  outLat     Float?
+  outLng     Float?
+  createdAt  DateTime @default(now())
+
+  @@index([repId, day])
+  @@index([day])
 }
 
 // LMS recruitment pipeline candidate.
@@ -438,6 +507,10 @@ model Lead {
   flagged   Boolean  @default(false) // matched an existing customer, held for review
   flagName  String   @default("")
   flagBy    String   @default("")
+  // Set when the lead reaches "Met & added customer" (stage 2) and a Customer
+  // record is created from it. Stops a second customer being made if the lead
+  // bounces back and forth across that stage.
+  customerCode String @default("")
   createdAt DateTime @default(now())
 
   @@index([flagged])

@@ -87,8 +87,19 @@ rfqRouter.get(
   authenticate,
   asyncHandler(async (req: AuthedRequest, res) => {
     const me = req.user!;
+    // A customer sees only their own enquiries. RFQ.customerId is a Customer id,
+    // but me.sub is the User id — resolve the master record by phone the same way
+    // POST /rfq and checkout do, otherwise the customer's list comes back empty.
+    let where = {};
+    if (me.role === 'customer') {
+      const u = await prisma.user.findUnique({ where: { id: me.sub } });
+      const c = u?.phone ? await prisma.customer.findFirst({ where: { phone: u.phone } }) : null;
+      // A customer with no resolvable master record has no RFQs to show; scope to
+      // a non-existent id rather than returning everyone's.
+      where = { customerId: c?.id ?? '__none__' };
+    }
     const rfqs = await prisma.rfq.findMany({
-      where: me.role === 'customer' ? { customerId: me.sub } : {},
+      where,
       orderBy: { createdAt: 'desc' },
       take: 200,
       include: { customer: { select: { code: true, name: true, city: true } } },
@@ -106,6 +117,9 @@ rfqRouter.get(
         assignedRep: r.assignedRep ?? '',
         city: r.city ?? r.customer?.city ?? '',
         detail: safeParse(r.detail ?? '{}'),
+        quoteAmount: r.quoteAmount ?? null,
+        quoteNote: r.quoteNote ?? '',
+        quotedAt: r.quotedAt ?? null,
         createdAt: r.createdAt,
       }))
     );
@@ -120,18 +134,39 @@ rfqRouter.put(
   asyncHandler(async (req: AuthedRequest, res) => {
     if (req.user!.role === 'customer') return fail(res, 403, 'Staff only');
     const parsed = z
-      .object({ status: z.string().optional(), assignedRep: z.string().optional() })
+      .object({
+        status: z.string().optional(),
+        assignedRep: z.string().optional(),
+        quoteAmount: z.number().int().positive().optional(),
+        quoteNote: z.string().optional(),
+      })
       .safeParse(req.body);
     if (!parsed.success) return failValidation(res, parsed.error);
     const existing = await prisma.rfq.findUnique({ where: { id: req.params.id } });
     if (!existing) return fail(res, 404, 'RFQ not found');
+    const d = parsed.data;
+
+    // Sending a quote is a distinct action: it records the price/note, stamps
+    // who quoted and when, and moves the enquiry to "quoted" unless the caller
+    // set a status explicitly.
+    const quoting = d.quoteAmount !== undefined;
     const rfq = await prisma.rfq.update({
       where: { id: existing.id },
       data: {
-        ...(parsed.data.status !== undefined ? { status: parsed.data.status } : {}),
-        ...(parsed.data.assignedRep !== undefined ? { assignedRep: parsed.data.assignedRep } : {}),
+        ...(d.status !== undefined ? { status: d.status } : quoting ? { status: 'quoted' } : {}),
+        ...(d.assignedRep !== undefined ? { assignedRep: d.assignedRep } : {}),
+        ...(quoting
+          ? { quoteAmount: d.quoteAmount, quoteNote: d.quoteNote ?? '', quotedAt: new Date(), quotedById: req.user!.sub }
+          : {}),
       },
     });
-    return ok(res, { id: rfq.id, status: rfq.status, assignedRep: rfq.assignedRep ?? '' });
+    return ok(res, {
+      id: rfq.id,
+      status: rfq.status,
+      assignedRep: rfq.assignedRep ?? '',
+      quoteAmount: rfq.quoteAmount ?? null,
+      quoteNote: rfq.quoteNote ?? '',
+      quotedAt: rfq.quotedAt ?? null,
+    });
   })
 );

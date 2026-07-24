@@ -3,7 +3,7 @@ const { useState } = React;
 const H = window.CRM_HELPERS;
 // Bump with every deploy. Logged on boot so "which build is this browser
 // running?" is answerable in one glance instead of guessed at.
-const CRM_BUILD = 'v34';
+const CRM_BUILD = 'v47';
 try { console.log('[Eurostar CRM] build ' + CRM_BUILD + ' — orders load live from /orders'); } catch (e) {}
 
 const FLOW = ['new', 'confirmed', 'packed', 'shipped', 'out-for-delivery', 'delivered'];
@@ -62,7 +62,7 @@ function statusLabel(s) {
   return { 'new': 'New', 'awaiting-payment': 'Awaiting payment', 'confirmed': 'Confirmed', 'packed': 'Packed', 'shipped': 'Dispatched', 'dispatched': 'Dispatched',
     'out-for-delivery': 'Out for delivery', 'delivered': 'Delivered',
     'cancelled': 'Cancelled', 'rejected': 'Rejected', 'returned': 'Returned', 'refunded': 'Refunded',
-    'active': 'Open cart', 'abandoned': 'Abandoned', 'quote-requested': 'Quote requested', 'open': 'Open', 'answered': 'Answered' }[s] || s;
+    'active': 'Open cart', 'abandoned': 'Abandoned', 'quote-requested': 'Quote requested', 'open': 'Open', 'answered': 'Answered', 'quoted': 'Quoted' }[s] || s;
 }
 function SecHead({ title, meta }) {
   return <div className="crm-sec-head" style={{ padding: '16px 16px 0' }}><h2>{title}</h2>{meta && <span className="meta">{meta}</span>}</div>;
@@ -303,12 +303,29 @@ function AdminOrders({ st }) {
 function AdminReports({ st }) {
   const [tab, setTab] = React.useState('category');
   const [period, setPeriod] = React.useState('month');
-  const byCat = window.CRM_SALES_BY_CATEGORY || [];
-  const byMonth = window.CRM_SALES_BY_MONTH || [];
+  // Sales by category / month, fetched live from the database for the chosen
+  // period. Previously these read the seed globals and the period did nothing.
+  const [byCat, setByCat] = React.useState([]);
+  const [byMonth, setByMonth] = React.useState([]);
+  React.useEffect(() => {
+    const API = window.EUROSTAR_API || location.origin;
+    let tok = ''; try { tok = localStorage.getItem('eurostar-admin-token') || ''; } catch (e) {}
+    const get = (path) => fetch(API + path, { headers: { authorization: 'Bearer ' + tok } }).then((r) => (r.ok ? r.json() : [])).catch(() => []);
+    get('/reports/sales-by-category?period=' + period).then((d) => { if (Array.isArray(d)) setByCat(d); });
+    get('/reports/sales-by-month?period=' + period).then((d) => { if (Array.isArray(d)) setByMonth(d); });
+  }, [period]);
   const creditCusts = st.customers.filter((c) => ['15', '30', '45', '60'].includes(String(c.terms)));
-  // outstanding: billed (from orders) minus confirmed payments = live balance
+  const todayMs = Date.now();
+  // outstanding: billed (from orders) minus confirmed payments = live balance.
+  // Days outstanding is the age of the oldest unpaid order — it used to be a
+  // fake value hashed from the customer id.
   const outstanding = creditCusts.map((c) => {const os = st.orders.filter((o) => o.cust === c.id);
-    const billed = os.reduce((a, o) => a + o.value, 0);const paid = st.paidByCust(c.id);const due = Math.max(0, billed - paid);const days = [12, 28, 41, 55][(c.id.charCodeAt(6) || 0) % 4];
+    const billed = os.reduce((a, o) => a + o.value, 0);const paid = st.paidByCust(c.id);const due = Math.max(0, billed - paid);
+    let days = 0;
+    if (due > 0) {
+      const dates = os.map((o) => o.date).filter(Boolean).map((d) => new Date(d).getTime()).filter((t) => !isNaN(t));
+      if (dates.length) days = Math.max(0, Math.floor((todayMs - Math.min(...dates)) / 86400000));
+    }
     return { ...c, billed, paid, due, days, overdue: due > 0 && days > parseInt(c.terms, 10) };}).filter((c) => c.billed > 0);
   const maxCat = Math.max(...byCat.map((x) => x.revenue), 1);
   const maxMonth = Math.max(...byMonth.map((x) => x.revenue), 1);
@@ -340,6 +357,7 @@ function AdminReports({ st }) {
 
       {tab === 'category' &&
       <div className="crm-card" style={{ padding: 18 }}>
+        {byCat.length === 0 && <div className="crm-muted" style={{ padding: '8px 4px', fontSize: 13 }}>No sales in this period.</div>}
         <div className="barchart">
           {byCat.slice().sort((a, b) => b.revenue - a.revenue).map((x) =>
           <div key={x.cat} className="bar-row" style={{ gridTemplateColumns: '180px 1fr 110px' }}>
@@ -353,6 +371,7 @@ function AdminReports({ st }) {
 
       {tab === 'month' &&
       <div className="crm-card" style={{ padding: 18 }}>
+        {byMonth.length === 0 && <div className="crm-muted" style={{ padding: '8px 4px', fontSize: 13 }}>No sales in this period.</div>}
         <div className="barchart">
           {byMonth.map((x) =>
           <div key={x.m} className="bar-row" style={{ gridTemplateColumns: '110px 1fr 110px' }}>
@@ -390,19 +409,25 @@ function AdminReports({ st }) {
 }
 
 function AdminAttendance({ st }) {
-  // Full month: June 2026 (30 days). Today = the 16th (rest of month still upcoming).
-  const TODAY = 16,DIM = 30;
-  const days = [];for (let d = 1; d <= DIM; d++) {const wd = new Date(2026, 5, d).getDay();days.push({ d, sunday: wd === 0 });}
+  // The real current month, so the grid tracks today — it used to be pinned to
+  // "June 2026, day 16". Attendance marks come from the database.
+  const now = new Date();
+  const YEAR = now.getFullYear(), MONTH = now.getMonth(); // 0-based
+  const TODAY = now.getDate();
+  const DIM = new Date(YEAR, MONTH + 1, 0).getDate();
+  const monthLabel = now.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+  const days = [];for (let d = 1; d <= DIM; d++) {const wd = new Date(YEAR, MONTH, d).getDay();days.push({ d, sunday: wd === 0 });}
   const workingTotal = days.filter((x) => !x.sunday).length;
+  const att = st.attendance || {}; // repId -> { present:[days], leave:[days] } from the DB
   return (
     <div className="crm-body">
-      <PageHead title="Attendance" sub="June 2026 · full month · daily check-ins" />
+      <PageHead title="Attendance" sub={`${monthLabel} · full month · daily check-ins`} />
       <div className="crm-card">
         <table className="crm-table" style={{ minWidth: 1100 }}>
           <thead><tr><th style={{ position: 'sticky', left: 0, background: 'var(--paper-2)', zIndex: 1 }}>{TH("Rep")}</th>
             {days.map((x) => <th key={x.d} style={{ textAlign: 'center', padding: '10px 5px', color: x.sunday ? 'var(--ink-4)' : 'var(--fg-meta)' }}>{x.d}</th>)}
             <th style={{ textAlign: 'right' }}>{TH("Worked")}</th></tr></thead>
-          <tbody>{CRM_REPS.map((r) => {const a = (window.CRM_ATTENDANCE || {})[r.id] || { present: [], leave: [], absent: [] };
+          <tbody>{CRM_REPS.map((r) => {const a = att[r.id] || { present: [], leave: [], absent: [] };
               const isCheckedToday = st.checkin && st.checkin[r.id];const present = [...a.present];if (isCheckedToday && !present.includes(TODAY)) present.push(TODAY);
               const worked = present.length;
               return (
@@ -508,7 +533,18 @@ function AdminReps({ st }) {
   if (viewRep) return <RepDetail st={st} repId={viewRep} onBack={() => setViewRep(null)} />;
   const setv = (k, v) => setF((p) => ({ ...p, [k]: v }));
   const inp = { padding: '9px 11px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', fontSize: 13, fontFamily: 'inherit', color: 'var(--fg)' };
-  const save = () => {if (!f.name) {alert('Rep name is required.');return;}st.addRep(f);setF({ name: '', region: '', phone: '', rate: 4 });setAdding(false);};
+  const [saving, setSaving] = useState(false);
+  const save = () => {
+    if (!f.name.trim()) { alert('Rep name is required.'); return; }
+    setSaving(true);
+    Promise.resolve(st.addRep(f)).
+    then((r) => {
+      setSaving(false);
+      if (r && r.password) alert('✓ Rep added.\n\nLogin ID: ' + r.repId + '\nPassword: ' + r.password + '\n\nShare these with the rep — the password is shown only once.');
+      setF({ name: '', region: '', phone: '', rate: 4 });setAdding(false);
+    }).
+    catch((ex) => { setSaving(false); alert((ex && ex.message) || 'Could not add the rep.'); });
+  };
   return (
     <div className="crm-body">
       <PageHead title="Reps & commission" sub="Set commission, targets, and offboard departing reps" />
@@ -526,8 +562,8 @@ function AdminReps({ st }) {
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><input style={{ ...inp, width: 64 }} type="number" min="0" step="0.5" value={f.rate} onChange={(e) => setv('rate', e.target.value)} /><span style={{ fontSize: 13, color: 'var(--fg-meta)' }}>% commission</span></span>
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end' }}>
-          <button className="cbtn cbtn-ghost cbtn-sm" onClick={() => setAdding(false)}>Cancel</button>
-          <button className="cbtn cbtn-accent cbtn-sm" onClick={save}>Add rep</button>
+          <button className="cbtn cbtn-ghost cbtn-sm" onClick={() => setAdding(false)} disabled={saving}>Cancel</button>
+          <button className="cbtn cbtn-accent cbtn-sm" onClick={save} disabled={saving}>{saving ? 'Adding…' : 'Add rep'}</button>
         </div>
       </div>}
       <div className="crm-card">
@@ -748,13 +784,68 @@ function OfficeAbandoned({ st }) {
 
 }
 
+// Compose and send a price quote for an RFQ enquiry. Records amount + note,
+// marks the enquiry "Quoted", persists.
+function SendQuoteModal({ q, onSend, onClose, onDone }) {
+  const [amount, setAmount] = useState(q.quoteAmount ? String(q.quoteAmount) : '');
+  const [note, setNote] = useState(q.quoteNote || '');
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+  const inp = { width: '100%', padding: '10px 12px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', fontSize: 14, fontFamily: 'inherit', color: 'var(--fg)', boxSizing: 'border-box' };
+  const lbl = { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--fg-meta)', display: 'block', marginBottom: 5 };
+  const submit = () => {
+    const amt = parseFloat(amount);
+    if (!amt || amt <= 0) { setErr('Enter the quoted amount (₹).'); return; }
+    setErr('');setSaving(true);
+    Promise.resolve(onSend(q.id, amt, note.trim())).
+    then(() => { setSaving(false); onClose(); if (onDone) onDone(amt); }).
+    catch((ex) => { setSaving(false); setErr((ex && ex.message) || 'Could not send the quote.'); });
+  };
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(21,19,15,0.52)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--surface)', borderRadius: 'var(--r-lg)', width: 'min(460px,96vw)', maxHeight: '90vh', overflow: 'auto', boxShadow: 'var(--shadow-lg)' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--divider)' }}>
+          <div style={{ fontFamily: 'var(--font-serif)', fontWeight: 500, fontSize: 19 }}>Send quote</div>
+          <div className="crm-muted" style={{ fontSize: 12.5 }}>{q.id} · {q.custName || q.cust} · {q.product} · {q.qty}</div>
+        </div>
+        <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <label style={lbl}>Quoted amount (₹) *</label>
+            <input style={inp} type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Total for the requested quantity" />
+          </div>
+          <div>
+            <label style={lbl}>Note (validity, terms, packing)</label>
+            <textarea style={{ ...inp, minHeight: 72, resize: 'vertical' }} value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Valid 7 days · ex-Mumbai · GST extra" />
+          </div>
+          {err && <div style={{ color: 'var(--ruby)', fontSize: 12.5, fontWeight: 600 }}>{err}</div>}
+        </div>
+        <div style={{ padding: '14px 20px', borderTop: '1px solid var(--divider)', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button className="cbtn cbtn-ghost" onClick={onClose} disabled={saving}>Cancel</button>
+          <button className="cbtn cbtn-accent" onClick={submit} disabled={saving}>{saving ? 'Sending…' : 'Send quote'}</button>
+        </div>
+      </div>
+    </div>);
+
+}
+
 function OfficeQueries({ st }) {
   const [openId, setOpenId] = useState(null);
+  const [quoteFor, setQuoteFor] = useState(null); // the RFQ being quoted
+  const [flash, setFlash] = useState('');
+  const say = (m) => { setFlash(m); setTimeout(() => setFlash(''), 4000); };
+  const autoAssign = () => {
+    const r = st.autoAssignRfq();
+    if (!r || (!r.routed && !r.noRep)) { say('Every enquiry already has a rep.'); return; }
+    say(r.routed ? `Routed ${r.routed} enquir${r.routed === 1 ? 'y' : 'ies'} by city` + (r.noRep ? ` · ${r.noRep} had no city rep — assign manually.` : '.') : `No city rep matched — assign the ${r.noRep} enquir${r.noRep === 1 ? 'y' : 'ies'} manually.`);
+  };
   return (
     <div className="crm-body">
       <PageHead title="RFQ Enquiries" sub={`${st.queries.filter((q) => q.status === 'open').length} open · custom-quote requests from customers (₹10,000 min order)`} />
+      {flash &&
+      <div style={{ position: 'fixed', left: '50%', bottom: 24, transform: 'translateX(-50%)', zIndex: 500, background: 'var(--emerald-ink,#0A3F33)', color: '#F5EFDD', padding: '12px 20px', borderRadius: 'var(--r-md)', boxShadow: 'var(--shadow-lg)', fontSize: 13.5, fontWeight: 600, maxWidth: '90vw' }}>{flash}</div>}
+      {quoteFor && <SendQuoteModal q={quoteFor} onSend={st.sendQuote} onClose={() => setQuoteFor(null)} onDone={(amt) => say('✓ Quote sent · ' + H.inr(amt) + '. Enquiry marked Quoted.')} />}
       <div style={{ display: 'flex', gap: 8, marginBottom: 14, alignItems: 'center', flexWrap: 'wrap' }}>
-        <button className="cbtn cbtn-primary cbtn-sm" onClick={() => st.autoAssignRfq()}>⚡ Auto-assign by city</button>
+        <button className="cbtn cbtn-primary cbtn-sm" onClick={autoAssign}>⚡ Auto-assign by city</button>
         <span className="crm-muted" style={{ fontSize: 12.5 }}>Routes each enquiry to the rep for that city, or pick a rep manually below.</span>
       </div>
       <div className="crm-card">
@@ -784,8 +875,12 @@ function OfficeQueries({ st }) {
                 <div style={{ gridColumn: '1 / -1' }}><div className="kpi-label">Reference image</div>
                   {q.image ? <img src={q.image} alt="RFQ ref" style={{ height: 80, borderRadius: 6, border: '1px solid var(--border)' }} /> : <span className="crm-muted">No image attached</span>}</div>
               </div>
+              {q.quoteAmount ?
+              <div style={{ marginTop: 12, padding: '10px 12px', background: 'var(--emerald-soft,#e6f1ec)', borderRadius: 'var(--r-sm)', fontSize: 13 }}>
+                <strong style={{ color: 'var(--emerald-ink)' }}>Quoted {H.inr(q.quoteAmount)}</strong>{q.quoteNote ? ' · ' + q.quoteNote : ''}
+              </div> : null}
               <div style={{ marginTop: 14, display: 'flex', gap: 8 }}>
-                <button className="cbtn cbtn-accent cbtn-sm">Send quote</button>
+                <button className="cbtn cbtn-accent cbtn-sm" onClick={() => setQuoteFor(q)}>{q.quoteAmount ? 'Revise quote' : 'Send quote'}</button>
                 {q.status === 'open' && <button className="cbtn cbtn-primary cbtn-sm" onClick={() => st.answer(q.id)}>Mark answered</button>}
               </div>
             </td></tr>}
@@ -1192,31 +1287,63 @@ function CustomerMaster({ st }) {
 
 }
 
+// Broadcast is now stored on the server (the Announcement row), not in the
+// browser: so an admin here and a rep on any other device see the same thing.
+// Every rep reads /announcements on open; this screen writes it.
+function annApiJson(method, body) {
+  const API = window.EUROSTAR_API || location.origin;
+  let tok = '';
+  try { tok = localStorage.getItem('eurostar-admin-token') || ''; } catch (e) {}
+  const opts = { method, headers: { 'content-type': 'application/json', authorization: 'Bearer ' + tok } };
+  if (body !== undefined) opts.body = JSON.stringify(body);
+  return fetch(API + '/announcements', opts).then((r) => r.json().then((d) => ({ ok: r.ok, data: d })));
+}
+// The server keeps window dates as ISO datetimes; the CRM edits plain dates.
+const isoToDate = (s) => (s ? String(s).slice(0, 10) : '');
+const dateToIso = (s) => (s ? new Date(s + 'T00:00:00').toISOString() : null);
+
 function RepBroadcastAdmin() {
-  const read = (k) => {try {return localStorage.getItem(k) || '';} catch (e) {return '';}};
-  const set = (k, v) => {try {localStorage.setItem(k, v);} catch (e) {}};
-  const [img, setImg] = useState(() => read('eurostar-rep-announce-image'));
-  const [active, setActive] = useState(() => read('eurostar-rep-announce-active') === '1');
-  const [title, setTitle] = useState(() => read('eurostar-rep-announce-title'));
-  const [msg, setMsg] = useState(() => read('eurostar-rep-announce-msg'));
-  const [badge, setBadge] = useState(() => read('eurostar-rep-announce-badge'));
-  const [start, setStart] = useState(() => read('eurostar-rep-announce-start'));
-  const [end, setEnd] = useState(() => read('eurostar-rep-announce-end'));
-  const [updated, setUpdated] = useState(() => read('eurostar-rep-announce-updated'));
+  const [img, setImg] = useState('');
+  const [active, setActive] = useState(false);
+  const [title, setTitle] = useState('');
+  const [msg, setMsg] = useState('');
+  const [badge, setBadge] = useState('');
+  const [start, setStart] = useState('');
+  const [end, setEnd] = useState('');
+  const [updated, setUpdated] = useState('');
   const fileRef = React.useRef(null);
-  const stamp = () => {const t = String(Date.now());setUpdated(t);set('eurostar-rep-announce-updated', t);};
+
+  // Load the current broadcast from the server on open.
+  React.useEffect(() => {
+    annApiJson('GET').then((res) => {
+      if (!res.ok || !res.data) return;
+      const a = res.data;
+      setImg(a.image || ''); setActive(!!a.active); setTitle(a.title || '');
+      setMsg(a.message || ''); setBadge(a.badge || '');
+      setStart(isoToDate(a.windowStart)); setEnd(isoToDate(a.windowEnd));
+      setUpdated(a.updatedAt || '');
+    }).catch(() => {});
+  }, []);
+
+  // Persist a patch and reflect the server's new updatedAt ("last pushed").
+  const push = (patch) => annApiJson('PUT', patch).then((res) => {
+    if (!res.ok) throw new Error((res.data && res.data.error) || 'Could not save the broadcast.');
+    if (res.data.updatedAt) setUpdated(res.data.updatedAt);
+    return res.data;
+  }).catch((ex) => alert(ex.message));
+
   const compress = (file) => new Promise((res, rej) => {const r = new FileReader();r.onload = () => {const im = new Image();im.onload = () => {let w = im.width,h = im.height;const max = 1100;if (w > max || h > max) {const s = max / Math.max(w, h);w = Math.round(w * s);h = Math.round(h * s);}const c = document.createElement('canvas');c.width = w;c.height = h;c.getContext('2d').drawImage(im, 0, 0, w, h);res(c.toDataURL('image/jpeg', 0.85));};im.onerror = rej;im.src = r.result;};r.onerror = rej;r.readAsDataURL(file);});
   const onFile = async (e) => {const f = e.target.files && e.target.files[0];if (!f) return;
-    try {const data = await compress(f);setImg(data);set('eurostar-rep-announce-image', data);stamp();}
+    try {const data = await compress(f);setImg(data);push({ image: data });}
     catch (err) {alert('Could not read that image — try a smaller file.');}};
-  const removeImg = () => {setImg('');set('eurostar-rep-announce-image', '');};
-  const toggle = () => {const v = !active;setActive(v);set('eurostar-rep-announce-active', v ? '1' : '0');if (v) stamp();};
-  const saveText = () => {set('eurostar-rep-announce-title', title);set('eurostar-rep-announce-msg', msg);set('eurostar-rep-announce-badge', badge);set('eurostar-rep-announce-start', start);set('eurostar-rep-announce-end', end);if (!active) {setActive(true);set('eurostar-rep-announce-active', '1');}stamp();alert('Saved & pushed. Reps will see this once a day between the start and end dates.');};
-  const saveSchedule = () => {set('eurostar-rep-announce-start', start);set('eurostar-rep-announce-end', end);stamp();alert('Schedule saved.');};
+  const removeImg = () => {setImg('');push({ image: null });};
+  const toggle = () => {const v = !active;setActive(v);push({ active: v });};
+  const saveText = () => {if (!active) setActive(true);push({ title, message: msg, badge, active: true }).then((r) => { if (r) alert('Saved & pushed. Reps will see this once a day between the start and end dates.'); });};
+  const saveSchedule = () => {push({ windowStart: dateToIso(start), windowEnd: dateToIso(end) }).then((r) => { if (r) alert('Schedule saved.'); });};
   const today = new Date().toISOString().slice(0, 10);
   const scheduleNote = (() => {if (start && today < start) return 'Scheduled — starts ' + start;if (end && today > end) return 'Ended ' + end;if (start || end) return 'Running' + (end ? ' until ' + end : '');return 'Runs daily until you turn it off';})();
-  const pushAgain = () => {stamp();alert('Pushed. Reps will see the broadcast again today.');};
-  const fmt = (t) => {if (!t) return '—';try {return new Date(Number(t)).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });} catch (e) {return '—';}};
+  const pushAgain = () => {push({ active: true }).then((r) => { if (r) alert('Pushed. Reps will see the broadcast again today.'); });};
+  const fmt = (t) => {if (!t) return '—';try {return new Date(t).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });} catch (e) {return '—';}};
   const inp = { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border,#d8d2c4)', fontFamily: 'inherit', fontSize: 14, background: 'var(--surface,#fff)', color: 'inherit', boxSizing: 'border-box' };
   const lbl = { display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--fg-meta,#8a8372)', marginBottom: 6 };
   const hasContent = !!img || !!title || !!msg || !!badge;
@@ -1305,28 +1432,32 @@ function RepBroadcastAdmin() {
 }
 
 function RepBroadcastPopup() {
-  const read = (k) => {try {return localStorage.getItem(k) || '';} catch (e) {return '';}};
-  const todayKey = () => new Date().toISOString().slice(0, 10);
-  const active = read('eurostar-rep-announce-active') === '1';
-  const img = read('eurostar-rep-announce-image');
-  const title = read('eurostar-rep-announce-title');
-  const msg = read('eurostar-rep-announce-msg');
-  const badge = read('eurostar-rep-announce-badge');
-  const updated = read('eurostar-rep-announce-updated');
-  const start = read('eurostar-rep-announce-start');
-  const end = read('eurostar-rep-announce-end');
-  const today = todayKey();
-  const inWindow = (!start || today >= start) && (!end || today <= end);
-  const token = today + '|' + updated; // changes daily, and whenever admin re-pushes
-  const hasContent = !!img || !!msg || !!title;
-  const [show, setShow] = useState(() => active && inWindow && hasContent && read('eurostar-rep-announce-seen') !== token);
-  if (!show) return null;
-  const dismiss = () => {try {localStorage.setItem('eurostar-rep-announce-seen', token);} catch (e) {}setShow(false);};
+  // The broadcast now comes from the server, so a rep on any device sees what
+  // the office pushed. The "seen once today" flag stays local to this browser.
+  const [ann, setAnn] = useState(null);
+  const [show, setShow] = useState(false);
+  React.useEffect(() => {
+    annApiJson('GET').then((res) => {
+      if (!res.ok || !res.data) return;
+      const a = res.data;
+      const today = new Date().toISOString().slice(0, 10);
+      const startD = isoToDate(a.windowStart), endD = isoToDate(a.windowEnd);
+      const inWindow = (!startD || today >= startD) && (!endD || today <= endD);
+      const hasContent = !!a.image || !!a.message || !!a.title;
+      const token = today + '|' + (a.updatedAt || ''); // new each day and on every re-push
+      let seen = '';
+      try { seen = localStorage.getItem('eurostar-rep-announce-seen') || ''; } catch (e) {}
+      if (a.active && inWindow && hasContent && seen !== token) { setAnn({ ...a, token }); setShow(true); }
+    }).catch(() => {});
+  }, []);
+  if (!show || !ann) return null;
+  const img = ann.image, title = ann.title, msg = ann.message, badge = ann.badge;
+  const dismiss = () => {try {localStorage.setItem('eurostar-rep-announce-seen', ann.token);} catch (e) {}setShow(false);};
   return (
     <div onClick={dismiss} style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(21,19,15,0.74)', backdropFilter: 'blur(5px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ position: 'relative', width: 'min(420px,92vw)', maxHeight: '90vh', overflowY: 'auto', background: 'var(--surface,#fff)', borderRadius: 18, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.4)' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ position: 'relative', width: 'min(420px,92vw)', maxHeight: '90vh', overflowX: 'hidden', overflowY: 'auto', background: 'var(--surface,#fff)', borderRadius: 18, boxShadow: '0 24px 64px rgba(0,0,0,0.4)' }}>
         <button onClick={dismiss} aria-label="Close" style={{ position: 'absolute', top: 12, right: 12, zIndex: 2, width: 38, height: 38, borderRadius: '50%', border: 'none', cursor: 'pointer', background: 'rgba(21,19,15,0.55)', color: '#fff', fontSize: 22, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
-        {img && <img src={img} alt="Announcement" style={{ width: '100%', display: 'block', maxHeight: '52vh', objectFit: 'cover', background: '#15130F' }} />}
+        {img && <img src={img} alt="Announcement" style={{ width: '100%', display: 'block', maxHeight: (title || msg || badge) ? '40vh' : '78vh', objectFit: 'contain', background: '#15130F', borderTopLeftRadius: 18, borderTopRightRadius: 18 }} />}
         {(title || msg || badge) &&
         <div style={{ background: 'linear-gradient(155deg,#0E5C4A,#0A3F33)', color: '#FDFAF2', padding: '30px 30px 26px' }}>
           <div style={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(245,231,196,0.9)', fontWeight: 700, marginBottom: 12 }}>📣 For the team</div>
@@ -1349,8 +1480,13 @@ function RepBroadcastPopup() {
 function RepDesk({ st, repId }) {
   const d = repData(st, repId);
   const [logPayTarget, setLogPayTarget] = useState(null);
-  const myPays = (st.payments || []).filter((p) => {const c = H.cust(p.custId);return c.rep === repId;});
-  const payForOrder = (ordId) => myPays.find((p) => p.orderId === ordId);
+  const [payFlash, setPayFlash] = useState('');
+  // Match a payment to an order by the order id. Every order shown on this
+  // desk is already the rep's own, so keying on orderId is enough — and it
+  // works for a payment just logged against a demo/credit order whose custId
+  // never resolved to a rep, which the old custId->rep match dropped (so a
+  // freshly logged payment showed no "Pending verification" and looked lost).
+  const payForOrder = (ordId) => (st.payments || []).filter((p) => p.orderId === ordId && p.status !== 'rejected').slice(-1)[0];
   const asm = (st.leaders || []).find((l) => {const rep = (st.reps || []).find((r) => r.id === repId) || {};return l.id === rep.asm;});
   const quickPay = () => {const t = d.dueAlerts[0] ? { order: d.dueAlerts[0].order, cust: d.dueAlerts[0].cust } : d.myOrders[0] ? { order: d.myOrders[0], cust: H.cust(d.myOrders[0].cust) } : null;if (t) setLogPayTarget(t);else alert('No orders to log a payment against yet.');};
   const [takeOrder, setTakeOrder] = useState(false);
@@ -1486,7 +1622,10 @@ function RepDesk({ st, repId }) {
             {dueLeads.length === 0 && <div className="lrow crm-muted">No follow-ups due — you're all caught up.</div>}
           </div>
         </React.Fragment>);})()}
-      {logPayTarget && <LogPaymentModal order={logPayTarget.order} cust={logPayTarget.cust} onLog={st.logPayment} onClose={() => setLogPayTarget(null)} />}
+      {logPayTarget && <LogPaymentModal order={logPayTarget.order} cust={logPayTarget.cust} onLog={st.logPayment} onClose={() => setLogPayTarget(null)}
+        onDone={() => { setPayFlash('✓ Payment logged — sent to the Back Office for verification.'); setTimeout(() => setPayFlash(''), 4000); }} />}
+      {payFlash &&
+      <div style={{ position: 'fixed', left: '50%', bottom: 24, transform: 'translateX(-50%)', zIndex: 500, background: 'var(--emerald-ink,#0A3F33)', color: '#F5EFDD', padding: '12px 20px', borderRadius: 'var(--r-md)', boxShadow: 'var(--shadow-lg)', fontSize: 13.5, fontWeight: 600 }}>{payFlash}</div>}
     </div>);
 
 }
@@ -1502,25 +1641,33 @@ function OrdersTableInner({ orders, rate }) {
 
 }
 
-function LogPaymentModal({ order, cust, onLog, onClose }) {
+function LogPaymentModal({ order, cust, onLog, onClose, onDone }) {
   const [mode, setMode] = useState('upi');
   const [amount, setAmount] = useState(String(order.value));
   const [utr, setUtr] = useState('');
-  const [date, setDate] = useState('2026-06-26');
+  // Default to today — the collection date. It was pinned to 2026-06-26, so
+  // every logged payment recorded that stale date whatever day it was entered.
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [by, setBy] = useState('');
   const [contact, setContact] = useState('');
   const [img, setImg] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
   const fileRef = React.useRef(null);
   const isCash = mode === 'cash';
   const inp = { width: '100%', padding: '9px 11px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', fontSize: 13, fontFamily: 'inherit', color: 'var(--fg)', boxSizing: 'border-box' };
   const lbl = { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--fg-meta)', display: 'block', marginBottom: 5 };
   const onFile = (e) => {const f = e.target.files && e.target.files[0];if (!f) return;const r = new FileReader();r.onload = () => setImg(r.result);r.readAsDataURL(f);};
   const submit = () => {
-    if (!amount || parseFloat(amount) <= 0) {alert('Enter a valid amount.');return;}
-    if (isCash && !by) {alert('Please enter who transferred the cash to Head Office.');return;}
-    if (!isCash && !utr) {alert('Please enter the UTR / reference number.');return;}
-    onLog({ orderId: order.id, custId: order.cust, custName: (cust && cust.name) || '', mode, amount: parseFloat(amount), utr: isCash ? '' : utr, date, by: isCash ? by : '', contact: isCash ? contact : '', img, status: 'pending', loggedAt: new Date().toISOString() });
-    onClose();
+    if (!amount || parseFloat(amount) <= 0) { setErr('Enter a valid amount.'); return; }
+    if (isCash && !by.trim()) { setErr('Enter who transferred the cash to Head Office.'); return; }
+    if (!isCash && !utr.trim()) { setErr('Enter the UTR / reference number.'); return; }
+    setErr('');setSaving(true);
+    Promise.resolve(
+      onLog({ orderId: order.id, custId: order.cust, custName: (cust && cust.name) || '', mode, amount: parseFloat(amount), utr: isCash ? '' : utr.trim(), date, by: isCash ? by.trim() : '', contact: isCash ? contact.trim() : '', img, status: 'pending', loggedAt: new Date().toISOString() })
+    ).
+    then(() => { setSaving(false); onClose(); if (onDone) onDone(); }).
+    catch((ex) => { setSaving(false); setErr((ex && ex.message) || 'Could not log the payment. Try again.'); });
   };
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(21,19,15,0.52)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
@@ -1578,9 +1725,10 @@ function LogPaymentModal({ order, cust, onLog, onClose }) {
             <button className="cbtn cbtn-ghost cbtn-sm" onClick={() => fileRef.current && fileRef.current.click()}>📎 Attach receipt image</button>}
           </div>
         </div>
-        <div style={{ padding: '14px 20px', borderTop: '1px solid var(--divider)', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-          <button className="cbtn cbtn-ghost" onClick={onClose}>Cancel</button>
-          <button className="cbtn cbtn-accent" onClick={submit}>Submit payment log</button>
+        <div style={{ padding: '14px 20px', borderTop: '1px solid var(--divider)', display: 'flex', gap: 10, justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap' }}>
+          {err && <div style={{ flex: 1, color: 'var(--ruby)', fontSize: 12.5, fontWeight: 600, minWidth: 160 }}>{err}</div>}
+          <button className="cbtn cbtn-ghost" onClick={onClose} disabled={saving}>Cancel</button>
+          <button className="cbtn cbtn-accent" onClick={submit} disabled={saving}>{saving ? 'Submitting…' : 'Submit payment log'}</button>
         </div>
       </div>
     </div>);
@@ -1648,9 +1796,28 @@ function AdminPayments({ st }) {
 
 function AddLeadForm({ st, onDone, noAssign }) {
   const [f, setF] = useState({ name: '', city: '', mobile: '', gst: '', rep: '', note: '' });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
-  const submit = () => {if (!f.name || !f.city || !f.mobile) {alert('Name, city and mobile are required.');return;}
-    st.addLead(noAssign ? { ...f, rep: '' } : f);onDone();};
+  const repName = (id) => { const r = CRM_REPS.find((x) => x.id === id); return r ? r.name : id; };
+  const submit = () => {
+    if (!f.name.trim() || !f.city.trim() || !f.mobile.trim()) { setErr('Name, city and mobile are required.'); return; }
+    if (f.mobile.replace(/\D+/g, '').length < 7) { setErr('That mobile number looks too short.'); return; }
+    setErr('');setSaving(true);
+    Promise.resolve(st.addLead(noAssign ? { ...f, rep: '' } : f)).
+    then((res) => {
+      setSaving(false);
+      if (res && res.flagged) {
+        alert('⚠ This lead matches your existing customer “' + res.flagName + '” (by ' + res.flagBy + '). Held in the Flagged queue for your approval — NOT assigned to a rep.');
+      } else if (res && res.rep) {
+        alert('✓ Lead added and routed to ' + repName(res.rep) + '.');
+      } else {
+        alert('✓ Lead added. No city rep matched — it is waiting in the pipeline for you to assign.');
+      }
+      onDone();
+    }).
+    catch((ex) => { setSaving(false); setErr((ex && ex.message) || 'Could not save the lead. Try again.'); });
+  };
   const inp = { width: '100%', padding: '9px 11px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', fontSize: 13, fontFamily: 'inherit', color: 'var(--fg)' };
   return (
     <div className="crm-card" style={{ padding: 18, marginBottom: 16 }}>
@@ -1667,9 +1834,10 @@ function AddLeadForm({ st, onDone, noAssign }) {
         </select>}
         <input style={inp} placeholder="Notes" value={f.note} onChange={(e) => set('note', e.target.value)} />
       </div>
+      {err && <div style={{ color: 'var(--ruby)', fontSize: 12.5, fontWeight: 600, marginTop: 10 }}>{err}</div>}
       <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end' }}>
-        <button className="cbtn cbtn-ghost cbtn-sm" onClick={onDone}>Cancel</button>
-        <button className="cbtn cbtn-accent cbtn-sm" onClick={submit}>Add lead</button>
+        <button className="cbtn cbtn-ghost cbtn-sm" onClick={onDone} disabled={saving}>Cancel</button>
+        <button className="cbtn cbtn-accent cbtn-sm" onClick={submit} disabled={saving}>{saving ? 'Adding…' : 'Add lead'}</button>
       </div>
     </div>);
 
@@ -1788,6 +1956,14 @@ function OfficeLeads({ st }) {
 function Pipeline({ st, repId }) {
   const stages = window.CRM_STAGES || [];
   const [repFilter, setRepFilter] = useState('');
+  const [flash, setFlash] = useState('');
+  // Move a lead's stage and, if that graduated it into a customer, say so.
+  const moveStage = (id, stage) => Promise.resolve(st.setStage(id, stage)).then((saved) => {
+    if (saved && saved.addedCustomer) {
+      setFlash('✓ Added to the customer book (' + saved.addedCustomer + '). Find them in My customers.');
+      setTimeout(() => setFlash(''), 4500);
+    }
+  });
   const leads = (st.leads || []).filter((l) => (!repId || l.rep === repId) && !l.flagged && (repId || !repFilter || l.rep === repFilter)).slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   const stageMeta = (id) => stages.find((s) => s.id === id) || { label: '?', short: '?' };
   // "Overdue" is measured against the actual date. This was pinned to
@@ -1800,6 +1976,8 @@ function Pipeline({ st, repId }) {
   return (
     <div className="crm-body">
       <PageHead title={repId ? 'My pipeline & follow-ups' : 'Customer pipeline'} sub={repId ? 'Track each lead through the lifecycle' : 'All reps · lifecycle stage of every lead'} />
+      {flash &&
+      <div style={{ position: 'fixed', left: '50%', bottom: 24, transform: 'translateX(-50%)', zIndex: 500, background: 'var(--emerald-ink,#0A3F33)', color: '#F5EFDD', padding: '12px 20px', borderRadius: 'var(--r-md)', boxShadow: 'var(--shadow-lg)', fontSize: 13.5, fontWeight: 600, maxWidth: '90vw' }}>{flash}</div>}
 
       {!repId &&
       <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center', padding: '12px 14px', background: 'var(--surface-2,#f6f3ec)', border: '1px solid var(--divider,#e6e0d2)', borderRadius: 10 }}>
@@ -1839,7 +2017,8 @@ function Pipeline({ st, repId }) {
           <thead><tr><th>{TH("Lead")}</th><th>{TH("City")}</th>{!repId && <th>{TH("Rep")}</th>}<th>{TH("Source")}</th><th style={{ minWidth: 230 }}>{TH("Stage")}</th><th>{TH("Next follow-up")}</th><th></th></tr></thead>
           <tbody>{leads.map((l) => {const overdue = l.stage < 6 && l.stage > 0 && l.followUp < today;const closed = l.stage === 0;return (
                 <tr key={l.id} style={{ opacity: closed ? 0.55 : 1 }}>
-              <td>{l.name}<div className="crm-muted" style={{ fontSize: 11 }}>{l.mobile}</div></td>
+              <td>{l.name}<div className="crm-muted" style={{ fontSize: 11 }}>{l.mobile}</div>
+                {l.customerCode && <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--emerald-ink)', marginTop: 2 }}>✓ In customer book · {l.customerCode}</div>}</td>
               <td className="crm-muted">{l.city}</td>
               {!repId && <td>
                 <select className="disc-input" style={{ width: 118, textAlign: 'left' }} value={l.rep || ''} onChange={(e) => st.reassignLead(l.id, e.target.value)}>
@@ -1852,7 +2031,7 @@ function Pipeline({ st, repId }) {
                 {closed ?
                     <Pill s="abandoned" label="Not interested — closed" /> :
                     <React.Fragment>
-                    <select className="disc-input" style={{ width: '100%', textAlign: 'left', maxWidth: 200 }} value={l.stage} onChange={(e) => st.setStage(l.id, parseInt(e.target.value, 10))}>
+                    <select className="disc-input" style={{ width: '100%', textAlign: 'left', maxWidth: 200 }} value={l.stage} onChange={(e) => moveStage(l.id, parseInt(e.target.value, 10))}>
                       {stages.map((s) => <option key={s.id} value={s.id}>{s.id}. {s.label}</option>)}
                     </select>
                     <div style={{ display: 'flex', gap: 3, marginTop: 6 }}>
@@ -1870,7 +2049,7 @@ function Pipeline({ st, repId }) {
                 {closed ?
                     <button className="cbtn cbtn-ghost cbtn-sm" onClick={() => st.setStage(l.id, 1)}>Reopen</button> :
                     <React.Fragment>
-                    {l.stage < 6 && <button className="cbtn cbtn-primary cbtn-sm" onClick={() => st.setStage(l.id, Math.min(6, l.stage + 1))}>Advance →</button>}
+                    {l.stage < 6 && <button className="cbtn cbtn-primary cbtn-sm" onClick={() => moveStage(l.id, Math.min(6, l.stage + 1))}>Advance →</button>}
                     {l.stage === 6 && <Pill s="active" label="Active buyer" />}
                     <button className="cbtn cbtn-ghost cbtn-sm" style={{ marginLeft: 6, color: 'var(--ruby)' }} onClick={() => {if (confirm('Mark ' + l.name + ' as Not interested and close this lead?')) st.setStage(l.id, 0);}}>Not interested</button>
                   </React.Fragment>}
@@ -2178,7 +2357,7 @@ function RepVisits({ st, repId }) {
   const [pendingOtp, setPendingOtp] = useState(null); // { otp, geo }
   const [otpInput, setOtpInput] = useState('');
   const [otpErr, setOtpErr] = useState(false);
-  const today = '2026-06-16';
+  const today = new Date().toISOString().slice(0, 10);
   const todays = visits.filter((v) => v.rep === repId && v.day === today).sort((a, b) => new Date(b.checkIn) - new Date(a.checkIn));
   const doCheckIn = async () => {
     const cid = selCust || myCust[0] && myCust[0].id;if (!cid) {alert('No customer to check into.');return;}
@@ -2262,8 +2441,11 @@ function AdminVisits({ st }) {
   const visits = st.visits || [];
   const anyOpen = visits.some((v) => !v.checkOut);
   useTick(anyOpen, 1000);
-  const days = [...new Set(visits.map((v) => v.day))].sort().reverse();
-  const [day, setDay] = useState(days[0] || '2026-06-16');
+  // Include today even before any visit is logged, so the filter defaults to the
+  // real current day instead of a fixed past date.
+  const today = new Date().toISOString().slice(0, 10);
+  const days = [...new Set([today, ...visits.map((v) => v.day)])].sort().reverse();
+  const [day, setDay] = useState(days[0] || today);
   const [repF, setRepF] = useState('');
   const reps = st.reps || [];
   const shown = visits.filter((v) => v.day === day && (!repF || v.rep === repF)).sort((a, b) => new Date(b.checkIn) - new Date(a.checkIn));
@@ -2548,6 +2730,7 @@ function CRM() {
   const [editTarget, setEditTarget] = useState(null);
   const [addCustOpen, setAddCustOpen] = useState(false);
   const [checkin, setCheckin] = useState({});
+  const [attendance, setAttendance] = useState({}); // repId -> { present:[days], leave:[days], absent:[] }
   const [leads, setLeads] = useState((window.CRM_LEADS || []).map((l) => ({ ...l })));
   const [leaders, setLeaders] = useState((window.CRM_LEADERS || []).map((l) => ({ ...l })));
   // Dashboard headline metrics, computed server-side from real orders/carts.
@@ -2699,6 +2882,96 @@ function CRM() {
         setSummary(s);
         try { if (window.CRM_SUMMARY) Object.assign(window.CRM_SUMMARY, s); } catch (e) {}
       });
+      // The rep directory, from the real accounts that can log in. The static
+      // CRM_REPS seed listed phantom reps and missed genuinely-hired ones (e.g.
+      // a second rep never showed in the "assign lead" dropdown). Merge the
+      // live reps in — keeping any richer static fields (rate, target, ASM)
+      // where a rep already existed, and adding the missing ones with sane
+      // defaults — so every assignable rep appears everywhere reps are listed.
+      authedGet('/reps').then((rows) => {
+        if (!Array.isArray(rows) || !rows.length) return;
+        setReps((prev) => {
+          const byId = {};
+          prev.forEach((r) => { byId[r.id] = { ...r }; });
+          rows.forEach((r) => {
+            const id = r.id || r.repId;
+            if (!id) return;
+            const ex = byId[id] || {};
+            // Commission comes from the server as a percent (4 = 4%); the CRM
+            // stores rate as a fraction. monthlyTarget/asm/head/region are the
+            // saved "Reps & commission" settings.
+            const pct = r.commissionPct != null ? r.commissionPct : (r.rate != null ? r.rate * 100 : 4);
+            byId[id] = {
+              ...ex,
+              id,
+              userId: r.userId || ex.userId || '',
+              name: r.name || ex.name || id,
+              region: r.region || ex.region || r.city || '',
+              rate: pct / 100,
+              target: r.monthlyTarget != null ? r.monthlyTarget : (ex.target != null ? ex.target : 50),
+              phone: r.phone || ex.phone || '',
+              asm: r.asmId != null ? r.asmId : ex.asm,
+              head: r.headId != null ? r.headId : ex.head,
+              active: r.active != null ? r.active : ex.active,
+              hasLogin: r.hasLogin != null ? r.hasLogin : ex.hasLogin,
+            };
+          });
+          const merged = Object.keys(byId).map((k) => byId[k]);
+          try { if (Array.isArray(window.CRM_REPS)) { window.CRM_REPS.length = 0; merged.forEach((r) => window.CRM_REPS.push(r)); } } catch (e) {}
+          return merged;
+        });
+        // Seed the per-rep commission/target/blocked maps from the saved values
+        // so the inputs and the Payable column show what is in the database.
+        const rates = {}, targets = {}, blocked = {};
+        rows.forEach((r) => {
+          const id = r.id || r.repId; if (!id) return;
+          if (r.commissionPct != null) rates[id] = r.commissionPct / 100;
+          if (r.monthlyTarget != null) targets[id] = r.monthlyTarget;
+          if (r.active === false) blocked[id] = true;
+        });
+        // Server values win over the seed defaults. An in-session edit was
+        // already PUT to the server, so the next poll returns that same value —
+        // no risk of a poll clobbering a fresh edit.
+        setRepRates((m) => ({ ...m, ...rates }));
+        setRepTargets((m) => ({ ...m, ...targets }));
+        setRepBlocked((m) => ({ ...m, ...blocked }));
+      });
+      // Escalation contacts (ASM / Sales Head) from the database.
+      authedGet('/reps/escalation').then((rows) => {
+        if (!Array.isArray(rows)) return;
+        setLeaders(rows.map((l) => ({ id: l.id, name: l.name, role: l.role, phone: l.phone })));
+      });
+      // This month's attendance marks, keyed by rep -> the day numbers they were
+      // present/on leave. The Attendance grid builds present/absent from this.
+      authedGet('/reps/attendance').then((rows) => {
+        if (!Array.isArray(rows)) return;
+        const byRep = {};
+        rows.forEach((r) => {
+          const day = parseInt((r.date || '').slice(8, 10), 10);
+          if (!day) return;
+          const e = byRep[r.repId] || (byRep[r.repId] = { present: [], leave: [], absent: [] });
+          (r.status === 'leave' ? e.leave : e.present).push(day);
+        });
+        setAttendance(byRep);
+        // If the signed-in rep already marked today, reflect the "checked in"
+        // state on their desk so the button flips without a fresh photo.
+        const meRep = crmClaims().repId;
+        const todayDay = new Date().getDate();
+        if (meRep && byRep[meRep] && byRep[meRep].present.includes(todayDay)) {
+          setCheckin((m) => (m[meRep] ? m : { ...m, [meRep]: { photo: null, time: '' } }));
+        }
+      });
+      // Field visits from the database — a rep's check-in/out now reaches the
+      // admin Field Visits screen and survives a reload.
+      authedGet('/reps/visits').then((rows) => {
+        if (!Array.isArray(rows)) return;
+        setVisits(rows.map((v) => ({
+          id: v.id, rep: v.rep, custId: v.custId, day: v.day,
+          checkIn: v.checkIn, checkOut: v.checkOut,
+          inLat: v.inLat, inLng: v.inLng, inAcc: v.inAcc, inSource: v.inSource,
+          outLat: v.outLat, outLng: v.outLng,
+        })));
+      });
       // Customers + carts, straight from the DB, so their counts/tables are live.
       authedGet('/customers').then((rows) => {
         if (!Array.isArray(rows) || !rows.length) return;
@@ -2713,12 +2986,28 @@ function CRM() {
           id: l.id, name: l.name, city: l.city || '', mobile: l.mobile || '', gst: l.gst || '',
           rep: l.rep || '', stage: typeof l.stage === 'number' ? l.stage : 1, followUp: l.followUp || '',
           assigned: !!l.assigned, note: l.note || '', flagged: !!l.flagged,
-          flagName: l.flagName || '', flagBy: l.flagBy || '',
+          flagName: l.flagName || '', flagBy: l.flagBy || '', customerCode: l.customerCode || '',
         })));
       });
       authedGet('/carts').then((rows) => {
         if (!Array.isArray(rows)) return;
         setCarts(rows.map((c) => ({ id: c.id, cust: c.customerId || '', updated: dateOnly(c.updatedAt), status: c.status || 'active', value: (c.totals && c.totals.grand) || 0, items: Array.isArray(c.lines) ? c.lines.length : 0, age: '', note: '' })));
+      });
+      // RFQ enquiries, live from the database. The screen read the seed/bridge
+      // copy before, so a quote sent or a rep assigned reverted on reload.
+      authedGet('/rfq').then((rows) => {
+        if (!Array.isArray(rows)) return;
+        setQueries(rows.map((r) => {
+          const d = r.detail || {};
+          return {
+            id: r.id, cust: r.custCode || r.customerId || '', custName: r.custName || '',
+            product: d.product || '', size: d.size || '', qty: d.qty || '', weight: d.weight || '',
+            quality: d.quality || '', city: r.city || '', contactName: d.contactName || '',
+            contact: d.contact || '', special: d.special || '', image: d.image || '',
+            assignedRep: r.assignedRep || '', status: r.status || 'open', value: r.value || 0,
+            quoteAmount: r.quoteAmount || null, quoteNote: r.quoteNote || '',
+          };
+        }));
       });
       // Payment log — straight from the Payments table. 'failed' is the API term
       // for the CRM's 'rejected' tab.
@@ -2739,8 +3028,10 @@ function CRM() {
     customers, orders, carts, queries, repRates, repTargets, newAdds, reps, leaders, payments, visits, summary,
     setTerms: (id, v) => setCustomers((cs) => cs.map((c) => c.id === id ? { ...c, terms: v } : c)),
     toggleSuspend: (id) => setCustomers((cs) => cs.map((c) => c.id === id ? { ...c, active: !c.active } : c)),
-    setRate: (id, v) => setRepRates((m) => ({ ...m, [id]: Math.max(0, parseFloat(v) || 0) / 100 })),
-    setTarget: (id, v) => setRepTargets((m) => ({ ...m, [id]: Math.max(50, parseInt(v, 10) || 50) })),
+    // Commission % and target are per-rep settings saved on the server, so an
+    // edit sticks across reloads (they were local-only before).
+    setRate: (id, v) => { const pct = Math.max(0, parseFloat(v) || 0); setRepRates((m) => ({ ...m, [id]: pct / 100 })); crmApi('PUT', '/reps/' + id, { commissionPct: pct }); },
+    setTarget: (id, v) => { const t = Math.max(50, parseInt(v, 10) || 50); setRepTargets((m) => ({ ...m, [id]: t })); crmApi('PUT', '/reps/' + id, { monthlyTarget: t }); },
     // Writes the customer to the database and puts the server's row (real
     // customer code, real created-at) at the top of the list. It used to only
     // push a made-up "EUR-108xx" row into React state, so the customer was gone
@@ -2763,8 +3054,29 @@ function CRM() {
       if (rep && !res.data.deduped) setNewAdds((m) => ({ ...m, [rep]: (m[rep] || 0) + 1 }));
       return res.data;
     }),
-    addRep: (f) => {const id = 'REP-' + (300 + reps.length);setReps((rs) => [...rs, { id, name: f.name, region: f.region || '—', phone: f.phone || '', rate: (parseFloat(f.rate) || 4) / 100, target: 50 }]);
-      setRepRates((m) => ({ ...m, [id]: (parseFloat(f.rate) || 4) / 100 }));setRepTargets((m) => ({ ...m, [id]: 50 }));setNewAdds((m) => ({ ...m, [id]: 0 }));},
+    // Add a rep = create a login account (so they can actually sign in and get
+    // leads/customers), then save their commission/region settings. It used to
+    // only push a fake "REP-3xx" row into state with no login behind it.
+    addRep: (f) => {
+      // Next free REP-<n> from the reps already loaded.
+      let maxN = 203;
+      (reps || []).forEach((r) => { const m = /REP-(\d+)/.exec(r.id || ''); if (m) maxN = Math.max(maxN, parseInt(m[1], 10)); });
+      const id = 'REP-' + (maxN + 1);
+      const pct = parseFloat(f.rate) || 4;
+      return crmApiJson('POST', '/users', { role: 'rep', name: f.name, username: id }).
+      then((res) => {
+        if (!res.ok) throw new Error((res.data && res.data.error) || 'Could not create the rep login.');
+        const pw = res.data.password;
+        // Save the rep's settings against the new login.
+        crmApi('PUT', '/reps/' + id, { commissionPct: pct, region: f.region || '', phoneNote: f.phone || '' });
+        setReps((rs) => [...rs, { id, userId: res.data.id, name: f.name, region: f.region || '—', phone: f.phone || '', rate: pct / 100, target: 50, active: true, hasLogin: true }]);
+        setRepRates((m) => ({ ...m, [id]: pct / 100 }));
+        setRepTargets((m) => ({ ...m, [id]: 50 }));
+        setNewAdds((m) => ({ ...m, [id]: 0 }));
+        try { if (Array.isArray(window.CRM_REPS)) window.CRM_REPS.push({ id, name: f.name, region: f.region || '—', rate: pct / 100, target: 50 }); } catch (e) {}
+        return { repId: id, password: pw };
+      });
+    },
     claimCustomer: (id, rep) => {
       crmApiJson('PUT', '/customers/' + id, { repId: rep }).
       then((res) => {if (!res.ok) throw new Error((res.data && res.data.error) || 'Could not claim that customer.');
@@ -2787,11 +3099,58 @@ function CRM() {
     removeCart: (id) => {if (confirm('Remove this cart? This cannot be undone.')) setCarts((cs) => cs.filter((c) => c.id !== id));},
     editOrder: (id) => setEditTarget({ kind: 'order', id }),
     removeOrder: (id) => {if (confirm('Remove this completed order? This cannot be undone.')) setOrders((os) => os.filter((o) => o.id !== id));},
-    answer: (id) => { setQueries((qs) => qs.map((q) => q.id === id ? { ...q, status: 'answered' } : q)); crmApi('PUT', '/rfq/' + id, { status: 'answered' }); },
+    answer: (id) => {
+      let before = null;
+      setQueries((qs) => { before = qs.find((q) => q.id === id) || null; return qs.map((q) => q.id === id ? { ...q, status: 'answered' } : q); });
+      return crmApiJson('PUT', '/rfq/' + id, { status: 'answered' }).
+      then((res) => { if (!res.ok) throw new Error((res.data && res.data.error) || 'Could not update the enquiry.'); return res.data; }).
+      catch((ex) => { if (before) setQueries((qs) => qs.map((q) => q.id === id ? before : q)); alert(ex.message); });
+    },
     assignRfq: (id, rep) => { setQueries((qs) => qs.map((q) => q.id === id ? { ...q, assignedRep: rep } : q)); crmApi('PUT', '/rfq/' + id, { assignedRep: rep }); },
-    autoAssignRfq: () => setQueries((qs) => qs.map((q) => {const cu = H.cust(q.cust);const byCity = (window.CRM_CITY_REP || {})[q.city || cu.city];if (byCity) crmApi('PUT', '/rfq/' + q.id, { assignedRep: byCity });return byCity ? { ...q, assignedRep: byCity } : q;})),
+    // Record the quote (price + note), stamp it "quoted", and persist. Returns
+    // the server row so the screen can confirm and show the amount.
+    sendQuote: (id, amount, note) => {
+      return crmApiJson('PUT', '/rfq/' + id, { quoteAmount: Math.round(amount), quoteNote: note || '' }).
+      then((res) => {
+        if (!res.ok) throw new Error((res.data && res.data.error) || 'Could not send the quote.');
+        const saved = res.data;
+        setQueries((qs) => qs.map((q) => q.id === id ? { ...q, status: saved.status || 'quoted', quoteAmount: saved.quoteAmount, quoteNote: saved.quoteNote } : q));
+        return saved;
+      });
+    },
+    // Route every still-unassigned enquiry to its city's rep. Skips ones already
+    // assigned and ones whose city has no rep; returns how many were routed so
+    // the screen can say so instead of silently doing nothing.
+    autoAssignRfq: () => {
+      const map = window.CRM_CITY_REP || {};
+      const plan = {}; // id -> repId to assign
+      let routed = 0, noRep = 0;
+      (queries || []).forEach((q) => {
+        if (q.assignedRep) return;
+        const cu = H.cust(q.cust);
+        const byCity = map[q.city || cu.city];
+        if (!byCity) { noRep++; return; }
+        plan[q.id] = byCity; routed++;
+      });
+      if (routed) {
+        setQueries((qs) => qs.map((q) => plan[q.id] ? { ...q, assignedRep: plan[q.id] } : q));
+        Object.keys(plan).forEach((id) => crmApi('PUT', '/rfq/' + id, { assignedRep: plan[id] }));
+      }
+      return { routed, noRep };
+    },
     checkin,
-    doCheckin: (id, photo) => setCheckin((m) => ({ ...m, [id]: { photo, time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) } })),
+    attendance,
+    // Mark today present and persist it, so the rep shows Present on the admin
+    // Attendance grid (it was local-only and vanished on reload). One row per
+    // rep per day on the server.
+    doCheckin: (id, photo) => {
+      const time = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+      const date = new Date().toISOString().slice(0, 10);
+      const day = new Date().getDate();
+      setCheckin((m) => ({ ...m, [id]: { photo, time } }));
+      setAttendance((a) => { const e = a[id] || { present: [], leave: [], absent: [] }; return e.present.includes(day) ? a : { ...a, [id]: { ...e, present: [...e.present, day] } }; });
+      crmApi('POST', '/reps/attendance', { date, status: 'present', photo: photo || undefined, time });
+    },
     leads,
     importSummary,
     // Optimistic, but not blind: if the write is refused the row snaps back to
@@ -2801,7 +3160,18 @@ function CRM() {
       let before = null;
       setLeads((ls) => {before = ls.find((l) => l.id === id) || null;return ls.map((l) => l.id === id ? { ...l, ...patch } : l);});
       return crmApiJson('PUT', '/leads/' + id, patch).
-      then((res) => {if (!res.ok) throw new Error((res.data && res.data.error) || 'Could not save that change.');return res.data;}).
+      then((res) => {
+        if (!res.ok) throw new Error((res.data && res.data.error) || 'Could not save that change.');
+        const saved = res.data || {};
+        // Reaching "Met & added customer" graduated this lead into the customer
+        // master. Record the link on the lead and pull the new customer into
+        // the book so "My customers" shows it without a manual reload.
+        if (saved.customerCode) setLeads((ls) => ls.map((l) => l.id === id ? { ...l, customerCode: saved.customerCode } : l));
+        if (saved.addedCustomer) {
+          crmApiJson('GET', '/customers').then((r) => { if (r.ok && Array.isArray(r.data)) setCustomers(r.data.map(mapCustomer)); });
+        }
+        return saved;
+      }).
       catch((ex) => {
         if (before) setLeads((ls) => ls.map((l) => l.id === id ? before : l));
         alert(ex.message || 'Could not save that change.');
@@ -2809,14 +3179,36 @@ function CRM() {
     },
     setStage: (id, stage) => st.patchLead(id, { stage }),
     setFollowUp: (id, followUp) => st.patchLead(id, { followUp }),
-    addLead: (f) => {const flagMatch = masterMatch(f.gst, f.name, f.city, f.mobile);
+    // Add one lead and persist it. Returns a promise resolving to
+    // { lead, flagged } so the form can confirm success, name the rep it was
+    // routed to, or warn on a duplicate — instead of firing blind and closing.
+    addLead: (f) => {
+      const flagMatch = masterMatch(f.gst, f.name, f.city, f.mobile);
       const newId = 'LD-' + Date.now();
-      if (flagMatch) {const lead = { id: newId, name: f.name, city: f.city, mobile: f.mobile, gst: f.gst || '', rep: '', stage: 1, followUp: '2026-06-18', assigned: false, note: f.note || '', flagged: true, flagName: flagMatch.name, flagBy: flagMatch._by };
-        setLeads((ls) => [lead, ...ls]); crmApi('POST', '/leads', lead);
-        alert('⚠ This lead matches your existing customer “' + flagMatch.name + '” (by ' + flagMatch._by + '). It has been held in the Flagged queue (Customer Master) for your approval — it was NOT assigned to a rep.');return;}
-      const rep = f.rep || (window.CRM_CITY_REP || {})[f.city] || '';const nf = '2026-06-18';
-      const lead = { id: newId, name: f.name, city: f.city, mobile: f.mobile, gst: f.gst || '', rep, stage: 1, followUp: nf, assigned: !!f.rep, note: f.note || '', flagged: false, flagName: '', flagBy: '' };
-      setLeads((ls) => [lead, ...ls]); crmApi('POST', '/leads', lead);},
+      // First follow-up: a few days out, so a brand-new lead isn't born
+      // "Overdue" (it used to default to the fixed past date 2026-06-18).
+      const followUp = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
+      // A lead whose GST/name matches an existing customer is held in the
+      // Flagged queue for review and never auto-assigned to a rep.
+      const rep = flagMatch ? '' : (f.rep || (window.CRM_CITY_REP || {})[f.city] || '');
+      const lead = {
+        id: newId, name: f.name.trim(), city: f.city.trim(), mobile: f.mobile.trim(),
+        gst: (f.gst || '').trim(), rep, stage: 1, followUp,
+        assigned: !flagMatch && !!f.rep, note: (f.note || '').trim(),
+        flagged: !!flagMatch, flagName: flagMatch ? flagMatch.name : '', flagBy: flagMatch ? flagMatch._by : '',
+      };
+      setLeads((ls) => [lead, ...ls]); // optimistic
+      return crmApiJson('POST', '/leads', lead).
+      then((res) => {
+        if (!res.ok) throw new Error((res.data && res.data.error) || 'Could not save the lead.');
+        // POST returns the created rows (array) — take the server's row so a
+        // reload agrees with what is on screen.
+        const saved = Array.isArray(res.data) ? res.data[0] : res.data;
+        if (saved && saved.id) setLeads((ls) => ls.map((l) => l.id === newId ? { ...l, ...saved } : l));
+        return { lead: saved || lead, flagged: !!flagMatch, flagName: flagMatch ? flagMatch.name : '', flagBy: flagMatch ? flagMatch._by : '', rep };
+      }).
+      catch((ex) => { setLeads((ls) => ls.filter((l) => l.id !== newId)); throw ex; }); // roll back the optimistic row
+    },
     bulkLeads: (file, noAssign) => {const ext = (file.name.split('.').pop() || '').toLowerCase();
       const load = (rows) => {const created = [];let flaggedN = 0;const base = Date.now();rows.forEach((r, i) => {if (i === 0) return;const name = r[0],city = r[1],mobile = r[2];if (!name || !city) return;
           const gst = String(r[3] || '').trim();const fm = masterMatch(gst, name, city, mobile);
@@ -2865,28 +3257,43 @@ function CRM() {
       }
       return merged;
     })),
+    // Persist a collected payment and put it in the Back Office's
+    // pending-verification queue. Returns a promise so the modal can confirm
+    // success or surface a real error instead of just vanishing. The server
+    // dedups by id (PAY-APP-<orderId>), so a double submit is one row.
     logPayment: (p) => {
-      // Show it immediately for the rep, and persist to the server so the Back
-      // Office sees it in the pending-verification queue (a real DB row, not
-      // just local state that vanishes on reload).
-      setPayments((ps) => [...ps, { ...p, id: 'PAY-' + (ps.length + 101), source: 'Rep collection' }]);
-      try {
-        const API = window.EUROSTAR_API || location.origin;
-        const tok = localStorage.getItem('eurostar-admin-token') || '';
-        fetch(API + '/payments', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json', authorization: 'Bearer ' + tok },
-          body: JSON.stringify({
-            orderId: p.orderId, custId: p.custId, custName: p.custName || '',
-            mode: p.mode, amount: Math.round(p.amount || 0), utr: p.utr || '',
-            date: p.date, by: p.by || '', contact: p.contact || '', img: p.img || null,
-            status: 'pending', source: 'Rep collection',
-          }),
-        }).catch(() => {});
-      } catch (e) {}
+      const id = p.orderId ? 'PAY-APP-' + p.orderId : 'PAY-' + Date.now();
+      const body = {
+        id, orderId: p.orderId, custId: p.custId, custName: p.custName || '',
+        mode: p.mode, amount: Math.round(p.amount || 0), utr: p.utr || '',
+        date: p.date, by: p.by || '', contact: p.contact || '', img: p.img || null,
+        status: 'pending', source: 'Rep collection',
+      };
+      return crmApiJson('POST', '/payments', body).
+      then((res) => {
+        if (!res.ok) throw new Error((res.data && res.data.error) || 'Could not log that payment.');
+        // Take the server's row (real id, resolved custId) so the desk shows a
+        // "Pending verification" pill immediately and a reload agrees with it.
+        const saved = res.data;
+        setPayments((ps) => [...ps.filter((x) => x.id !== saved.id), saved]);
+        return saved;
+      });
     },
-    checkInVisit: (rep, custId, geo) => setVisits((vs) => [...vs, { id: 'VST-' + (300 + vs.length), rep, custId, day: '2026-06-16', checkIn: new Date().toISOString(), inLat: geo.lat, inLng: geo.lng, inAcc: geo.acc, inSource: geo.source, checkOut: null, outLat: null, outLng: null }]),
-    checkOutVisit: (id, geo) => setVisits((vs) => vs.map((v) => v.id === id ? { ...v, checkOut: new Date().toISOString(), outLat: geo.lat, outLng: geo.lng } : v)),
+    // Field visits persist to the server now (were local-only, hardcoded to a
+    // fixed day, and never reached the admin Field Visits screen).
+    checkInVisit: (rep, custId, geo) => {
+      const cu = H.cust(custId);
+      const day = new Date().toISOString().slice(0, 10);
+      const tempId = 'VST-' + Date.now();
+      const optimistic = { id: tempId, rep, custId, day, checkIn: new Date().toISOString(), inLat: geo.lat, inLng: geo.lng, inAcc: geo.acc, inSource: geo.source, checkOut: null, outLat: null, outLng: null };
+      setVisits((vs) => [...vs, optimistic]);
+      crmApiJson('POST', '/reps/visits', { custId, custName: cu.name || '', custCity: cu.city || '', custMobile: cu.mobile || '', lat: geo.lat, lng: geo.lng, acc: geo.acc, source: geo.source }).
+      then((res) => { if (res.ok && res.data && res.data.id) setVisits((vs) => vs.map((v) => v.id === tempId ? { ...v, id: res.data.id } : v)); });
+    },
+    checkOutVisit: (id, geo) => {
+      setVisits((vs) => vs.map((v) => v.id === id ? { ...v, checkOut: new Date().toISOString(), outLat: geo.lat, outLng: geo.lng } : v));
+      crmApi('PUT', '/reps/visits/' + id + '/checkout', { lat: geo.lat, lng: geo.lng });
+    },
     verifyPayment: (id) => { setPayments((ps) => ps.map((p) => p.id === id ? { ...p, status: 'confirmed' } : p)); crmApi('PUT', '/payments/' + id, { status: 'confirmed' }); },
     rejectPayment: (id) => {
       const reason = prompt('Reason for rejecting this payment? (the customer and rep are notified)');
@@ -2897,9 +3304,21 @@ function CRM() {
     paidByCust: (custId) => payments.filter((p) => p.custId === custId && p.status === 'confirmed').reduce((a, p) => a + (p.amount || 0), 0),
     paidByOrder: (orderId) => payments.filter((p) => p.orderId === orderId && p.status === 'confirmed').reduce((a, p) => a + (p.amount || 0), 0),
     repBlocked,
-    offboardRep: (id, name) => {if (!confirm('Block ' + name + '\u2019s login and de-link all their customers? Their customers become open for any rep to solicit.')) return;
-      setRepBlocked((m) => ({ ...m, [id]: true }));setCustomers((cs) => cs.map((c) => c.rep === id ? { ...c, rep: '' } : c));},
-    restoreRep: (id) => setRepBlocked((m) => ({ ...m, [id]: false })),
+    // Blocking a rep disables their login (User.active=false) on the server and
+    // de-links their customers. It was local-only, so a blocked rep could still
+    // sign in and their customers came back on reload.
+    offboardRep: (id, name) => {
+      if (!confirm('Block ' + name + '\u2019s login and de-link all their customers? Their customers become open for any rep to solicit.')) return;
+      const rep = (reps || []).find((r) => r.id === id);
+      setRepBlocked((m) => ({ ...m, [id]: true }));
+      setCustomers((cs) => cs.map((c) => c.rep === id ? { ...c, rep: '' } : c));
+      if (rep && rep.userId) crmApi('PUT', '/users/' + rep.userId, { active: false });
+    },
+    restoreRep: (id) => {
+      const rep = (reps || []).find((r) => r.id === id);
+      setRepBlocked((m) => ({ ...m, [id]: false }));
+      if (rep && rep.userId) crmApi('PUT', '/users/' + rep.userId, { active: true });
+    },
     delinkCustomer: (id) => {
       crmApiJson('PUT', '/customers/' + id, { repId: '' }).
       then((res) => {if (!res.ok) throw new Error((res.data && res.data.error) || 'Could not de-link that customer.');
@@ -2908,9 +3327,23 @@ function CRM() {
     },
     reassignLead: (id, rep) => st.patchLead(id, { rep, assigned: !!rep }),
     leaders,
-    addLeader: (lr) => setLeaders((ls) => [...ls, { ...lr, id: 'L' + (ls.length + 1 + Date.now() % 1000) }]),
-    removeLeader: (id) => setLeaders((ls) => ls.filter((l) => l.id !== id)),
-    setRepLeader: (repId, which, leaderId) => setReps((rs) => rs.map((r) => r.id === repId ? { ...r, [which]: leaderId } : r))
+    // Escalation contacts persist to the server; the server assigns the real id.
+    addLeader: (lr) => {
+      return crmApiJson('POST', '/reps/escalation', { name: lr.name, role: lr.role, phone: lr.phone }).
+      then((res) => { if (!res.ok) throw new Error((res.data && res.data.error) || 'Could not add the contact.'); setLeaders((ls) => [...ls, { id: res.data.id, name: res.data.name, role: res.data.role, phone: res.data.phone }]); return res.data; }).
+      catch((ex) => alert(ex.message));
+    },
+    removeLeader: (id) => {
+      const before = leaders;
+      setLeaders((ls) => ls.filter((l) => l.id !== id));
+      // A removed contact was possibly assigned to reps — drop the reference locally too.
+      setReps((rs) => rs.map((r) => ({ ...r, asm: r.asm === id ? '' : r.asm, head: r.head === id ? '' : r.head })));
+      crmApiJson('DELETE', '/reps/escalation/' + id).then((res) => { if (!res.ok) { setLeaders(before); alert((res.data && res.data.error) || 'Could not remove the contact.'); } });
+    },
+    setRepLeader: (repId, which, leaderId) => {
+      setReps((rs) => rs.map((r) => r.id === repId ? { ...r, [which]: leaderId } : r));
+      crmApi('PUT', '/reps/' + repId, which === 'asm' ? { asmId: leaderId } : { headId: leaderId });
+    }
   };
   const byRep = reps.map((r) => {const ids = customers.filter((c) => c.rep === r.id).map((c) => c.id);
     const sales = orders.filter((o) => ids.includes(o.cust)).reduce((a, o) => a + o.value, 0);

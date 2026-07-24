@@ -122,10 +122,26 @@ app.get('/mobile', (_req, res) => sendPage(res, path.join(webDir, 'Eurostar Sale
 // the clean URL, so the loader looped. Browsers cache a 301 permanently, so the
 // loop survived even after the redirect was removed. Serving the app here means
 // the loader is never reached, and the stale cached redirect is irrelevant.
-app.get(['/crm', '/crm/'], (_req, res) => sendPage(res, path.join(webDir, 'crm', 'Eurostar CRM.html')));
-app.get(['/lms', '/lms/'], (_req, res) => sendPage(res, path.join(webDir, 'lms', 'Eurostar LMS.html')));
-app.get(['/mira-admin', '/mira-admin/'], (_req, res) =>
-  sendPage(res, path.join(webDir, 'mira-admin', 'Eurostar Mira Admin.html')));
+// These pages load their scripts with RELATIVE paths ("crm/crm-app.jsx"), which
+// only resolve when the address ends in a slash. Opening "/crm" (no slash) made
+// the browser fetch "/crm/crm-app.jsx" instead of "/crm/crm/crm-app.jsx" — every
+// script 404'd and the page rendered blank. So the no-slash form redirects to the
+// canonical slashed URL, then that serves the page.
+//
+// One handler per app, not two routes: Express runs with non-strict routing, so
+// a "/crm" route also matches "/crm/" — registering them separately made the
+// redirect swallow both and loop. Here we branch on the real path instead. The
+// redirect is 302 (never cached); a cached 301 once caused a loop here.
+const serveApp = (file: string) => (req: express.Request, res: express.Response) => {
+  if (!req.path.endsWith('/')) {
+    const q = req.originalUrl.indexOf('?');
+    return res.redirect(302, req.path + '/' + (q >= 0 ? req.originalUrl.slice(q) : ''));
+  }
+  return sendPage(res, file);
+};
+app.get(['/crm', '/crm/'], serveApp(path.join(webDir, 'crm', 'Eurostar CRM.html')));
+app.get(['/lms', '/lms/'], serveApp(path.join(webDir, 'lms', 'Eurostar LMS.html')));
+app.get(['/mira-admin', '/mira-admin/'], serveApp(path.join(webDir, 'mira-admin', 'Eurostar Mira Admin.html')));
 
 // The pages are files with spaces in their names ("Eurostar Sales website.html"),
 // and several in-app links still point at those filenames — a leftover from when

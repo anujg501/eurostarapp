@@ -1132,6 +1132,11 @@ img[src*="assets/products/"] {
 .polki-pad .size-pad-row {
   grid-template-columns: 290px 140px 110px 120px 1fr 120px;
 }
+/* The row cells carry inline grid-area names (design/dim/price/ppp/input/total);
+   define them explicitly on desktop so they place in columns instead of overlapping. */
+.polki-pad .size-pad-row {
+  grid-template-areas: "design dim price ppp input total";
+}
 .size-pad-wt {
   text-align: right;
   display: flex;

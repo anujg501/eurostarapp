@@ -484,6 +484,7 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
               category.id === 'hollowmop' && window.hollowmopSizes ? window.hollowmopSizes(_gid, s) :
               category.id === 'rajkot' && window.rajkotSizes ? window.rajkotSizes(_gid, _cid, s) :
               category.id === 'alex' && window.alexSizes ? window.alexSizes(s) :
+              category.id === 'labwhitecorundum' && window.lwcSizes ? window.lwcSizes(s) :
               category.id === 'evileye' && window.evileyeSizes ? window.evileyeSizes(s) :
               category.id === 'corundum' && window.corSizes ? window.corSizes(_gid, _cid, s) :
               category.id === 'whitecz' && window.czSizes ? window.czSizes(_gid, s) :
@@ -1081,6 +1082,7 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   const hmopSheet = category.id === 'hollowmop' && grade && window.hollowmopSizes && window.hollowmopSizes(grade.id, shape).length ? window.hollowmopSizes(grade.id, shape) : null;
   // Lab Alexandrite · single-grade price sheet.
   const alexSheet = category.id === 'alex' && window.alexSizes && window.alexSizes(shape).length ? window.alexSizes(shape) : null;
+  const lwcSheet = category.id === 'labwhitecorundum' && window.lwcSizes && window.lwcSizes(shape).length ? window.lwcSizes(shape) : null;
   // Rajkot mass zirconia · per grade+colour round price sheet.
   const rajkotSheet = category.id === 'rajkot' && grade && color && window.rajkotSizes && window.rajkotSizes(grade.id, color.id, shape).length ? window.rajkotSizes(grade.id, color.id, shape) : null;
   // Milky Corals & Olives · per-grade cab price sheet.
@@ -1092,7 +1094,7 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   // Lab Grown Beryl · per-colour size list (default target sizes + special-colour Excel sizes).
   const lgSheet = lgBeryl && color && window.lgSizes && window.lgSizes(color.id, shape).length ? window.lgSizes(color.id, shape)
     : lgCorundum && window.lgCorSizes && window.lgCorSizes(shape).length ? window.lgCorSizes(shape) : null;
-  let sizes = category.id === 'moissanite' ? (moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm']) : alpGreen ? alpGreen : alpBlue ? alpBlue : alpSheet ? alpSheet : hdSheet ? hdSheet : corSheet ? corSheet : wfSheet ? wfSheet : czSheet ? czSheet : colorCzSheet ? colorCzSheet : opaqueNatSheet ? opaqueNatSheet : opaqueSheet ? opaqueSheet : polkiSheet ? polkiSheet : labopalSheet ? labopalSheet : cabSheet ? cabSheet : pearlSheet ? pearlSheet : hmopSheet ? hmopSheet : alexSheet ? alexSheet : rajkotSheet ? rajkotSheet : coralSheet ? coralSheet : evileyeSheet ? evileyeSheet : navSheet ? navSheet : lgSheet ? lgSheet : skuSizes.length ? skuSizes.slice() : (SIZES_BY_CATEGORY && SIZES_BY_CATEGORY[category.id]) ? SIZES_BY_CATEGORY[category.id].slice() : ourosaMode ? OUROSA_SIZES.map((x) => x[0]) : mixedMoiss ? moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm'] : byStrip ? FULL_SIZES[shape] || ['4.00 mm'] : FULL_SIZES[shape] || ['4.00 mm'];
+  let sizes = category.id === 'moissanite' ? (moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm']) : alpGreen ? alpGreen : alpBlue ? alpBlue : alpSheet ? alpSheet : hdSheet ? hdSheet : corSheet ? corSheet : wfSheet ? wfSheet : czSheet ? czSheet : colorCzSheet ? colorCzSheet : opaqueNatSheet ? opaqueNatSheet : opaqueSheet ? opaqueSheet : polkiSheet ? polkiSheet : labopalSheet ? labopalSheet : cabSheet ? cabSheet : pearlSheet ? pearlSheet : hmopSheet ? hmopSheet : alexSheet ? alexSheet : lwcSheet ? lwcSheet : rajkotSheet ? rajkotSheet : coralSheet ? coralSheet : evileyeSheet ? evileyeSheet : navSheet ? navSheet : lgSheet ? lgSheet : skuSizes.length ? skuSizes.slice() : (SIZES_BY_CATEGORY && SIZES_BY_CATEGORY[category.id]) ? SIZES_BY_CATEGORY[category.id].slice() : ourosaMode ? OUROSA_SIZES.map((x) => x[0]) : mixedMoiss ? moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm'] : byStrip ? FULL_SIZES[shape] || ['4.00 mm'] : FULL_SIZES[shape] || ['4.00 mm'];
   // A colour may cap its size range (e.g. Alpanite Yellow / 162/2 → 1.00–2.00 mm only).
   if (color && color.sizeMax) {sizes = sizes.filter((s) => (parseFloat(s) || 0) <= color.sizeMax + 0.001);}
   // A colour may set a minimum size. Fancy NxN sizes (e.g. "3x4") are kept as-is
@@ -1198,6 +1200,10 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
       if (a) return a;
     }
     // Lab Alexandrite single-grade price sheet.
+    if (category.id === 'labwhitecorundum' && window.lwcSku) {
+      const a = window.lwcSku(shape, size);
+      if (a) return a;
+    }
     if (category.id === 'alex' && window.alexSku) {
       const a = window.alexSku(shape, size);
       if (a) return a;

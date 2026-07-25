@@ -701,7 +701,7 @@ const SHAPES_BY_CATEGORY = {
   evileye:    ['round','oval','pear','heart','marquise'],
   bracelet:   ['round'],
   hollowmop:  ['round','square','oval','baguette','pear','heart','clover','hexagon'],
-  labwhitecorundum: ['round','oval','pear','princess','cushion','emerald','marquise','heart','baguette'],
+  labwhitecorundum: ['round','oval','pear','princess','heart','cushion','marquise','baguette','triangle','octagon-step'],
   alex:       ['round','oval','pear','cushion','marquise','heart'],
 };
 
@@ -3378,6 +3378,29 @@ function alexSku(shape, size) {
   return { id: 'alex-' + shape + '-' + String(size).replace(/\s/g, ''), price: row[2], pcsPerPacket: row[1], moq: row[1], size, stock: 'in', stockCount: 0 };
 }
 window.alexSizes = alexSizes; window.alexSku = alexSku;
+
+// Lab White Corundum (Syn White Corundum) · single grade · per-piece price sheet
+// (RIVEN PDF). Row: [size, pcs/box, ₹/piece].
+const LABWHITECOR_SHEETS = {
+  round: [['0.80 mm',1000,0.31],['0.90 mm',1000,0.29],['1.00 mm',1000,0.19],['1.10 mm',1000,0.2],['1.20 mm',1000,0.22],['1.25 mm',1000,0.22],['1.30 mm',1000,0.24],['1.40 mm',1000,0.31],['1.50 mm',1000,0.31],['1.60 mm',1000,0.38],['1.70 mm',1000,0.41],['1.75 mm',1000,0.41],['1.80 mm',1000,0.53],['1.90 mm',1000,0.62],['2.00 mm',1000,0.6],['2.10 mm',500,0.96],['2.20 mm',500,1.2],['2.25 mm',500,1.2],['2.30 mm',500,1.44],['2.40 mm',500,1.56],['2.50 mm',500,1.39],['2.60 mm',500,1.92],['2.75 mm',500,2.4],['3.00 mm',500,2.64],['3.25 mm',200,4.32],['3.50 mm',200,4.56],['3.75 mm',200,5.94],['4.00 mm',200,6.72],['4.50 mm',50,11.04],['5.00 mm',25,12.72],['6.00 mm',25,21.6],['6.50 mm',25,25.3],['7.00 mm',25,26.4],['7.50 mm',25,35.2],['8.00 mm',20,41.8],['10.00 mm',20,70.4]],
+  oval: [['2×3 mm',100,9.12],['3×4 mm',100,9.12],['3×5 mm',100,10.8],['4×5 mm',100,12],['4×6 mm',100,14.4],['5×7 mm',50,22],['6×8 mm',50,27.5],['6×9 mm',20,40.7],['7×9 mm',20,45.1],['7×10 mm',20,50.6]],
+  pear: [['2×3 mm',100,9.12],['3×4 mm',100,9.12],['3×5 mm',100,10.8],['4×5 mm',100,12],['4×6 mm',100,14.4],['5×7 mm',50,22],['6×8 mm',50,27.5],['6×9 mm',20,40.7],['7×9 mm',20,45.1],['7×10 mm',20,50.6]],
+  princess: [['1.5 mm',200,7.2],['1.75 mm',200,7.2],['2 mm',200,6.72],['2.5 mm',200,8.64],['3 mm',200,9.6],['3.5 mm',100,14.4],['4 mm',100,15.6]],
+  heart: [['3 mm',100,12],['4 mm',100,15.6],['4.5 mm',100,21.6],['5 mm',100,31.2]],
+  cushion: [['4 mm',100,15.6],['5 mm',100,21.6],['6 mm',100,28.8]],
+  marquise: [['1.5×3 mm',100,6.48],['2×4 mm',100,7.68],['2.5×5 mm',100,10.08],['3×6 mm',100,13.2],['3.5×7 mm',50,19.8],['4×8 mm',20,24.2],['4.5×9 mm',20,48.4],['5×10 mm',20,50.6]],
+  baguette: [['1.5×3 mm',100,6.72],['2×3 mm',100,7.68],['2.5×5 mm',50,12],['3×5 mm',100,14.4],['4×5 mm',50,8.4]],
+  triangle: [['4 mm',10,19.2],['5 mm',50,36],['6 mm',20,48],['7 mm',20,66]],
+  'octagon-step': [['3×5 mm',50,15.4],['3×4 mm',50,16.5],['4×6 mm',50,19.8],['5×7 mm',50,30.8],['6×8 mm',25,39.6],['7×9 mm',25,88],['8×10 mm',25,121]],
+};
+
+function lwcSizes(shape) { const g = LABWHITECOR_SHEETS[shape]; return g ? g.map((r) => r[0]) : []; }
+function lwcSku(shape, size) {
+  const g = LABWHITECOR_SHEETS[shape]; const row = g ? g.find((r) => r[0] === size) : null;
+  if (!row) return null;
+  return { id: 'lwc-' + shape + '-' + String(size).replace(/\s/g, ''), price: row[2], pcsPerPacket: row[1], moq: row[1], size, stock: 'in', stockCount: 0 };
+}
+window.lwcSizes = lwcSizes; window.lwcSku = lwcSku;
 
 // Rajkot mass zirconia · per grade+colour round price sheet (HO tier). Packet = 1000 pcs;
 // row price is ₹/piece (= HO ÷ 1000). White uses the 'white-shampoo' sub-grade.

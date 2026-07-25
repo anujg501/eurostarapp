@@ -702,7 +702,7 @@ const SHAPES_BY_CATEGORY = {
   bracelet:   ['round'],
   hollowmop:  ['round','square','oval','baguette','pear','heart','clover','hexagon'],
   labwhitecorundum: ['round','oval','pear','princess','cushion','emerald','marquise','heart','baguette'],
-  alex:       ['round','oval','pear','cushion','emerald','marquise','heart'],
+  alex:       ['round','oval','pear','cushion','marquise','heart'],
 };
 
 // Navratna: Natural has many shapes; Created is round only.

@@ -4,198 +4,187 @@
 
 // Colour grades (the first choice). Prices vary by colour: w=White, m=Malachite, b=Black.
 const MOP_COLORS = [
-  { id: 'white',     name: 'White MOP',  tier: 'Natural',   desc: 'Classic white mother of pearl', hex: '#F2EFE8' },
-  { id: 'malachite', name: 'Malachite',  tier: 'Synthetic', desc: 'Rich green synthetic malachite', hex: '#1F7A52' },
-  { id: 'black',     name: 'Black MOP',  tier: 'Natural',   desc: 'Deep black mother of pearl',    hex: '#2A2A28' },
+  { id: 'white', name: 'White MOP', tier: 'Natural', desc: 'Classic white mother of pearl', hex: '#F2EFE8' },
+  { id: 'black', name: 'Black MOP', tier: 'Natural', desc: 'Deep black mother of pearl',    hex: '#2A2A28' },
 ];
-const MOP_COLOR_KEY = { white: 'w', malachite: 'm', black: 'b' };
+const MOP_COLOR_KEY = { white: 'w', black: 'b' };
 
 // Shapes offered (all per piece). note = short descriptor for the shape card.
 const MOP_SHAPES = [
-  { id: 'round',      name: 'Round',          note: 'Disc · by diameter' },
-  { id: 'square',     name: 'Square',         note: 'By corner-to-corner' },
-  { id: 'cube',       name: 'Cube',           note: '3-D cube' },
-  { id: 'pearoval',   name: 'Pear / Oval',    note: 'L × W' },
-  { id: 'marquise',   name: 'Marquise',       note: 'L × W' },
-  { id: 'triangle',   name: 'Triangle',       note: 'L × W' },
-  { id: 'heart',      name: 'Heart',          note: 'L × W' },
-  { id: 'baguette',   name: 'Baguette',       note: 'Rectangular L × W' },
-  { id: 'cabochon',   name: 'Cabochon',       note: 'Domed' },
-  { id: 'clover',     name: 'Clover',         note: 'Four-leaf motif' },
-  { id: 'shell',      name: 'Shell',          note: 'Carved shell' },
-  { id: 'bellflower', name: 'Bell Flower',    note: 'Floral motif' },
-  { id: 'bulgari',    name: 'Bulgari Motif',  note: 'Signature motif' },
-  { id: 'butterfly',  name: 'Butterfly',      note: 'Carved butterfly' },
-  { id: 'flower5',    name: '5-Petal Flower', note: 'Drilled flower' },
-  { id: 'star',       name: 'Star',           note: '14 mm star' },
-  { id: 'dholki',     name: 'Dholki',         note: 'Drum bead' },
-  { id: 'tile',       name: 'Tile',           note: 'Flat tile · per pc' },
+  { id: 'round',         name: 'Round',               note: 'Disc · by diameter' },
+  { id: 'pearoval',      name: 'Pear / Oval',         note: 'L × W' },
+  { id: 'square',        name: 'Square',              note: 'By side-to-side' },
+  { id: 'heart',         name: 'Heart',               note: 'L × W' },
+  { id: 'marquise',      name: 'Marquise',            note: 'L × W' },
+  { id: 'triangle',      name: 'Triangle',            note: 'By side' },
+  { id: 'baguette',      name: 'Baguette',            note: 'Rectangular L × W' },
+  { id: 'bellflower',    name: 'Bell Flower',         note: 'Floral motif' },
+  { id: 'bulgari',       name: 'Bulgari Motif',       note: 'Signature motif' },
+  { id: 'butterfly',     name: 'Butterfly',           note: 'Carved butterfly' },
+  { id: 'natrivershell', name: 'Natural River Shell', note: 'Large flat shell · white only' },
 ];
 
-// Price tables: per shape, rows of { s: corner-to-corner size label, w, m, b } (₹ per piece).
-// null = not available in that colour.
+// Price tables: per shape, rows of { s: size label, w: White, b: Black, ppp: pcs/packet (MOQ) }.
+// null price = not available in that colour. Sizes and MOQ per the MOP Flat Fancy Shapes sheet;
+// MOQ follows Round's size-tiering (<=4mm 50, <=15mm 25, <=19mm 15, >=20mm 10) by largest face dim.
 const MOP_PRICES = {
   round: [
-    { s: '3×2 mm', w: 14, m: 14, b: 14 },
-    { s: '3.5×2 mm', w: 14, m: 14, b: 14 },
-    { s: '4×2 mm', w: 14, m: 14, b: 14 },
-    { s: '4.5×2 mm', w: 14, m: 14, b: 14 },
-    { s: '5×2 mm', w: 14, m: 14, b: 14 },
-    { s: '5.5×2 mm', w: 14, m: 14, b: 16 },
-    { s: '6×2 mm', w: 16, m: 16, b: 18 },
-    { s: '6.5×2 mm', w: 18, m: 18, b: 20 },
-    { s: '7×2 mm', w: 20, m: 20, b: 20 },
-    { s: '7.5×2 mm', w: 22, m: 22, b: 22 },
-    { s: '8×2 mm', w: 24, m: 24, b: 24 },
-    { s: '9×2 mm', w: 26, m: 26, b: 26 },
-    { s: '10×2 mm', w: 30, m: 30, b: 26 },
-    { s: '11×2 mm', w: 32, m: 32, b: 32 },
-    { s: '12×2 mm', w: 36, m: 36, b: 40 },
-    { s: '13×2 mm', w: 44, m: 44, b: 44 },
-    { s: '14×2 mm', w: 46, m: 46, b: 46 },
-    { s: '15×2 mm', w: 50, m: 50, b: 50 },
-    { s: '16×2 mm', w: 56, m: 56, b: 56 },
-    { s: '17×2 mm', w: 90, m: 90, b: 64 },
-    { s: '18×2 mm', w: 96, m: 96, b: 70 },
-    { s: '19×2 mm', w: 100, m: 100, b: 76 },
-    { s: '20×2 mm', w: 110, m: 110, b: 80 },
-  ],
-  square: [
-    { s: '3×3×2 mm', w: 14, m: 12, b: 24 },
-    { s: '4×4×2 mm', w: 14, m: 12, b: 24 },
-    { s: '5×5×2 mm', w: 14, m: 12, b: 24 },
-    { s: '5.5×5.5×2 mm', w: 16, m: 14, b: 28 },
-    { s: '6×6×2 mm', w: 16, m: 14, b: 28 },
-    { s: '6.5×6.5×2 mm', w: 20, m: 16, b: 32 },
-    { s: '7×7×2 mm', w: 20, m: 16, b: 32 },
-    { s: '8×8×2 mm', w: 20, m: 16, b: 32 },
-    { s: '8.5×8.5×2 mm', w: 22, m: 18, b: 36 },
-    { s: '9×9×2 mm', w: 22, m: 18, b: 36 },
-    { s: '10×10×2 mm', w: 22, m: 18, b: 36 },
-    { s: '10.5×10.5×2 mm', w: 30, m: 20, b: 40 },
-    { s: '11×11×12 mm', w: 30, m: 20, b: 40 },
-    { s: '12×12×2 mm', w: 30, m: 20, b: 40 },
-    { s: '13×13×2 mm', w: 40, m: 30, b: 50 },
-    { s: '14×14×2 mm', w: 40, m: 30, b: 50 },
-    { s: '15×15×2 mm', w: 50, m: 36, b: 56 },
-    { s: '16×16×2 mm', w: 50, m: 36, b: 56 },
-    { s: '17×17×2 mm', w: 80, m: 44, b: 70 },
-    { s: '18×18×2 mm', w: 80, m: 44, b: 70 },
-    { s: '19×19×2 mm', w: 110, m: 60, b: 90 },
-    { s: '20×20×2 mm', w: 110, m: 60, b: 90 },
-    { s: '22×22×2 mm', w: 130, m: 64, b: 100 },
-    { s: '24×24×2 mm', w: 160, m: 70, b: 110 },
-    { s: '25×25×2 mm', w: 180, m: 70, b: 110 },
-    { s: '30×30×2 mm', w: 400, m: 80, b: 130 },
-    { s: '35×35×2 mm', w: 800, m: 100, b: 170 },
-  ],
-  cube: [
-    { s: '3 mm', w: 18, m: 18, b: 18 }, { s: '4 mm', w: 18, m: 18, b: 18 },
-    { s: '5 mm', w: 18, m: 18, b: 18 }, { s: '6 mm', w: 24, m: 24, b: 24 },
-    { s: '7 mm', w: 26, m: 26, b: 26 }, { s: '8 mm', w: 26, m: 26, b: 26 },
-    { s: '9 mm', w: 30, m: 30, b: 30 }, { s: '10 mm', w: 32, m: 32, b: 32 },
-    { s: '11 mm', w: 32, m: 32, b: 32 }, { s: '12 mm', w: 36, m: 36, b: 36 },
-    { s: '13 mm', w: 40, m: 40, b: 40 }, { s: '14 mm', w: 44, m: 44, b: 44 },
-    { s: '15 mm', w: 60, m: 60, b: 50 }, { s: '16 mm', w: 70, m: 70, b: 60 },
-    { s: '17 mm', w: 90, m: 90, b: 64 }, { s: '18 mm', w: 100, m: 100, b: 70 },
-    { s: '19 mm', w: 110, m: 110, b: 80 },
+    { s: '3×2 mm', w: 14, b: 14, ppp: 50 },
+    { s: '3.5×2 mm', w: 14, b: 14, ppp: 50 },
+    { s: '4×2 mm', w: 14, b: 14, ppp: 50 },
+    { s: '4.5×2 mm', w: 14, b: 14, ppp: 25 },
+    { s: '5×2 mm', w: 14, b: 14, ppp: 25 },
+    { s: '5.5×2 mm', w: 14, b: 16, ppp: 25 },
+    { s: '6×2 mm', w: 16, b: 18, ppp: 25 },
+    { s: '6.5×2 mm', w: 18, b: 20, ppp: 25 },
+    { s: '7×2 mm', w: 20, b: 20, ppp: 25 },
+    { s: '7.5×2 mm', w: 22, b: 22, ppp: 25 },
+    { s: '8×2 mm', w: 24, b: 24, ppp: 25 },
+    { s: '9×2 mm', w: 26, b: 26, ppp: 25 },
+    { s: '10×2 mm', w: 26, b: 26, ppp: 25 },
+    { s: '11×2 mm', w: 32, b: 32, ppp: 25 },
+    { s: '12×2 mm', w: 36, b: 40, ppp: 25 },
+    { s: '13×2 mm', w: 44, b: 44, ppp: 25 },
+    { s: '14×2 mm', w: 46, b: 46, ppp: 25 },
+    { s: '15×2 mm', w: 50, b: 50, ppp: 25 },
+    { s: '16×2 mm', w: 56, b: 56, ppp: 15 },
+    { s: '17×2 mm', w: 90, b: 64, ppp: 15 },
+    { s: '18×2 mm', w: 96, b: 70, ppp: 15 },
+    { s: '19×2 mm', w: 100, b: 76, ppp: 15 },
+    { s: '20×2 mm', w: 110, b: 80, ppp: 10 },
   ],
   pearoval: [
-    { s: '5×3×2 mm', w: 20, m: 20, b: 20 },
-    { s: '6×4×2 mm', w: 20, m: 20, b: 20 },
-    { s: '7×5×2 mm', w: 20, m: 20, b: 20 },
-    { s: '8×6×2 mm', w: 22, m: 22, b: 22 },
-    { s: '9×7×2 mm', w: 24, m: 24, b: 24 },
-    { s: '10×7×2 mm', w: 26, m: 26, b: 26 },
-    { s: '10×8×2 mm', w: 26, m: 26, b: 26 },
-    { s: '11×9×2 mm', w: 32, m: 32, b: 32 },
-    { s: '12×8×2 mm', w: 32, m: 32, b: 32 },
-    { s: '12×9×2 mm', w: 36, m: 36, b: 36 },
-    { s: '13×8×2 mm', w: 40, m: 40, b: 40 },
-    { s: '13×9×2 mm', w: 40, m: 40, b: 40 },
-    { s: '14×8×2 mm', w: 44, m: 44, b: 44 },
-    { s: '14×9×2 mm', w: 44, m: 44, b: 44 },
-    { s: '14×10×2 mm', w: 44, m: 44, b: 44 },
-    { s: '15×8×2 mm', w: 60, m: 60, b: 56 },
-    { s: '15×9×2 mm', w: 64, m: 64, b: 60 },
-    { s: '15×10×2 mm', w: 68, m: 68, b: 64 },
+    { s: '5×3×2 mm', w: 20, b: 20, ppp: 25 },
+    { s: '6×4×2 mm', w: 20, b: 20, ppp: 25 },
+    { s: '7×5×2 mm', w: 20, b: 20, ppp: 25 },
+    { s: '8×6×2 mm', w: 22, b: 22, ppp: 25 },
+    { s: '9×7×2 mm', w: 24, b: 24, ppp: 25 },
+    { s: '10×7×2 mm', w: 26, b: 26, ppp: 25 },
+    { s: '10×8×2 mm', w: 26, b: 26, ppp: 25 },
+    { s: '11×9×2 mm', w: 32, b: 32, ppp: 25 },
+    { s: '12×9×2 mm', w: 36, b: 36, ppp: 25 },
+    { s: '13×8×2 mm', w: 40, b: 40, ppp: 25 },
+    { s: '13×9×2 mm', w: 40, b: 40, ppp: 25 },
+    { s: '14×8×2 mm', w: 44, b: 44, ppp: 25 },
+    { s: '14×9×2 mm', w: 44, b: 44, ppp: 25 },
+    { s: '14×10×2 mm', w: 44, b: 44, ppp: 25 },
+    { s: '15×8×2 mm', w: 60, b: 60, ppp: 25 },
+    { s: '15×9×2 mm', w: 64, b: 60, ppp: 25 },
+    { s: '15×10×2 mm', w: 68, b: 64, ppp: 25 },
   ],
-  marquise: [
-    { s: '4×5 mm', w: 24, m: 24, b: 56 }, { s: '5×6 mm', w: 30, m: 30, b: 60 },
-    { s: '8×6 mm', w: 32, m: 32, b: 64 }, { s: '8×10 mm', w: 36, m: 36, b: 70 },
-    { s: '10×12 mm', w: 44, m: 44, b: 76 }, { s: '12×15 mm', w: 70, m: 70, b: 80 },
-  ],
-  triangle: [
-    { s: '3×2 mm', w: 14, m: 14, b: 14 }, { s: '4×2 mm', w: 14, m: 14, b: 14 },
-    { s: '5×2 mm', w: 14, m: 14, b: 14 }, { s: '6×2 mm', w: 16, m: 16, b: 18 },
-    { s: '7×2 mm', w: 20, m: 20, b: 20 }, { s: '8×2 mm', w: 24, m: 24, b: 24 },
+  square: [
+    { s: '3×3×2 mm', w: 14, b: 24, ppp: 50 },
+    { s: '4×4×2 mm', w: 14, b: 24, ppp: 50 },
+    { s: '5×5×2 mm', w: 14, b: 24, ppp: 25 },
+    { s: '5.5×5.5×2 mm', w: 16, b: 28, ppp: 25 },
+    { s: '6×6×2 mm', w: 16, b: 28, ppp: 25 },
+    { s: '6.5×6.5×2 mm', w: 20, b: 32, ppp: 25 },
+    { s: '7×7×2 mm', w: 20, b: 32, ppp: 25 },
+    { s: '8×8×2 mm', w: 20, b: 32, ppp: 25 },
+    { s: '8.5×8.5×2 mm', w: 22, b: 36, ppp: 25 },
+    { s: '9×9×2 mm', w: 22, b: 36, ppp: 25 },
+    { s: '10×10×2 mm', w: 22, b: 36, ppp: 25 },
+    { s: '10.5×10.5×2 mm', w: 30, b: 40, ppp: 25 },
+    { s: '11×11×2 mm', w: 30, b: 40, ppp: 25 },
+    { s: '12×12×2 mm', w: 30, b: 40, ppp: 25 },
+    { s: '13×13×2 mm', w: 40, b: 50, ppp: 25 },
+    { s: '14×14×2 mm', w: 40, b: 50, ppp: 25 },
+    { s: '15×15×2 mm', w: 50, b: 56, ppp: 25 },
+    { s: '16×16×2 mm', w: 50, b: 56, ppp: 15 },
+    { s: '17×17×2 mm', w: 80, b: 70, ppp: 15 },
+    { s: '18×18×2 mm', w: 80, b: 70, ppp: 15 },
+    { s: '19×19×2 mm', w: 110, b: 90, ppp: 15 },
+    { s: '20×20×2 mm', w: 110, b: 90, ppp: 10 },
+    { s: '22×22×2 mm', w: 130, b: 100, ppp: 10 },
+    { s: '24×24×2 mm', w: 160, b: 110, ppp: 10 },
+    { s: '25×25×2 mm', w: 180, b: 110, ppp: 10 },
+    { s: '30×30×2 mm', w: 400, b: 130, ppp: 10 },
+    { s: '35×35×2 mm', w: 800, b: 170, ppp: 10 },
   ],
   heart: [
-    { s: '3×2 mm', w: 20, m: 20, b: null },
-    { s: '4×2 mm', w: 20, m: 20, b: null },
-    { s: '5×2 mm', w: 20, m: 20, b: 20 },
-    { s: '6×2 mm', w: 20, m: 20, b: 20 },
-    { s: '7×2 mm', w: 20, m: 20, b: 20 },
-    { s: '8×2 mm', w: 22, m: 22, b: 22 },
-    { s: '9×2 mm', w: 28, m: 28, b: 28 },
-    { s: '10×2 mm', w: 32, m: 32, b: 32 },
-    { s: '11×2 mm', w: 36, m: 36, b: 36 },
-    { s: '12×2 mm', w: 36, m: 36, b: 36 },
-    { s: '13×2 mm', w: 48, m: 48, b: 48 },
-    { s: '14×2 mm', w: 50, m: 50, b: 50 },
-    { s: '15×2 mm', w: 54, m: 54, b: 54 },
-    { s: '16×2 mm', w: 56, m: 56, b: 56 },
-    { s: '17×2 mm', w: 84, m: 84, b: 64 },
-    { s: '18×2 mm', w: 90, m: 90, b: 70 },
-    { s: '19×2 mm', w: 110, m: 110, b: 80 },
-    { s: '20×2 mm', w: 130, m: 130, b: 90 },
+    { s: '3×2 mm', w: 20, b: null, ppp: 50 },
+    { s: '4×2 mm', w: 20, b: null, ppp: 50 },
+    { s: '5×2 mm', w: 20, b: 20, ppp: 25 },
+    { s: '6×2 mm', w: 20, b: 20, ppp: 25 },
+    { s: '7×2 mm', w: 20, b: 20, ppp: 25 },
+    { s: '8×2 mm', w: 22, b: 22, ppp: 25 },
+    { s: '9×2 mm', w: 28, b: 28, ppp: 25 },
+    { s: '10×2 mm', w: 32, b: 32, ppp: 25 },
+    { s: '11×2 mm', w: 36, b: 36, ppp: 25 },
+    { s: '12×2 mm', w: 36, b: 36, ppp: 25 },
+    { s: '13×2 mm', w: 48, b: 48, ppp: 25 },
+    { s: '14×2 mm', w: 50, b: 50, ppp: 25 },
+    { s: '15×2 mm', w: 54, b: 54, ppp: 25 },
+    { s: '16×2 mm', w: 56, b: 56, ppp: 15 },
+    { s: '17×2 mm', w: 84, b: 64, ppp: 15 },
+    { s: '18×2 mm', w: 90, b: 70, ppp: 15 },
+    { s: '19×2 mm', w: 110, b: 80, ppp: 15 },
+    { s: '20×2 mm', w: 130, b: 90, ppp: 10 },
+  ],
+  marquise: [
+    { s: '6×3 mm', w: 22, b: 20, ppp: 25 },
+    { s: '8×4 mm', w: 26, b: 20, ppp: 25 },
+    { s: '10×5 mm', w: 30, b: 20, ppp: 25 },
+    { s: '12×6 mm', w: 36, b: 30, ppp: 25 },
+    { s: '14×7 mm', w: 44, b: 30, ppp: 25 },
+    { s: '18×9 mm', w: 54, b: 40, ppp: 15 },
+    { s: '20×10 mm', w: 64, b: 40, ppp: 10 },
+  ],
+  triangle: [
+    { s: '3×3×3×2 mm', w: 18, b: 18, ppp: 50 },
+    { s: '4×4×4×2 mm', w: 18, b: 18, ppp: 50 },
+    { s: '5×5×5×2 mm', w: 18, b: 18, ppp: 25 },
+    { s: '6×6×6×2 mm', w: 24, b: 24, ppp: 25 },
+    { s: '7×7×7×2 mm', w: 26, b: 26, ppp: 25 },
+    { s: '8×8×8×2 mm', w: 26, b: 26, ppp: 25 },
+    { s: '9×9×9×2 mm', w: 30, b: 30, ppp: 25 },
+    { s: '10×10×10×2 mm', w: 32, b: 32, ppp: 25 },
+    { s: '11×11×11×2 mm', w: 32, b: 32, ppp: 25 },
+    { s: '12×12×12×2 mm', w: 36, b: 36, ppp: 25 },
+    { s: '13×13×13×2 mm', w: 40, b: 40, ppp: 25 },
+    { s: '14×14×14×2 mm', w: 44, b: 44, ppp: 25 },
+    { s: '15×15×15×2 mm', w: 60, b: 60, ppp: 25 },
+    { s: '16×16×16×2 mm', w: 70, b: 70, ppp: 15 },
+    { s: '17×17×17×2 mm', w: 90, b: 90, ppp: 15 },
+    { s: '18×18×18×2 mm', w: 90, b: 90, ppp: 15 },
+    { s: '19×19×19×2 mm', w: 110, b: 110, ppp: 15 },
   ],
   baguette: [
-    { s: '6×4 mm', w: 24, m: null, b: 26 },
-    { s: '7×5 mm', w: 26, m: null, b: 30 },
-    { s: '8×6 mm', w: 30, m: null, b: 34 },
-    { s: '9×7 mm', w: 32, m: null, b: 36 },
-    { s: '10×8 mm', w: 34, m: null, b: 40 },
+    { s: '6×4 mm', w: 24, b: 26, ppp: 25 },
+    { s: '7×5 mm', w: 26, b: 30, ppp: 25 },
+    { s: '8×6 mm', w: 30, b: 34, ppp: 25 },
+    { s: '9×7 mm', w: 32, b: 36, ppp: 25 },
+    { s: '10×8 mm', w: 34, b: 40, ppp: 25 },
   ],
-  cabochon: [
-    { s: '8×2 mm', w: 26, m: 26, b: 26 }, { s: '10×2 mm', w: 30, m: 30, b: 30 },
-    { s: '12×2 mm', w: 34, m: 34, b: 34 }, { s: '14×2 mm', w: 40, m: 40, b: 40 },
-  ],
-  tile: [
-    { s: '50×50×2 mm', w: 230, m: 230, b: 230 },
-    { s: '100×50×2 mm', w: 270, m: 270, b: 270 },
-    { s: '100×100×2 mm', w: 330, m: 330, b: 330 },
-  ],
-  // Motif shapes — starter rows (verify): per piece across colours.
-  clover:     [{ s: '6 mm', w: 26, m: 26, b: 26 }, { s: '8 mm', w: 30, m: 30, b: 30 }, { s: '10 mm', w: 36, m: 36, b: 36 }],
-  shell:      [{ s: '8 mm', w: 30, m: 30, b: 30 }, { s: '10 mm', w: 36, m: 36, b: 36 }, { s: '12 mm', w: 44, m: 44, b: 44 }],
   bellflower: [
-    { s: '8×2 mm', w: 26, m: 26, b: 26 },
-    { s: '10×2 mm', w: 30, m: 30, b: 30 },
-    { s: '12×2 mm', w: 34, m: 34, b: 34 },
-    { s: '14×2 mm', w: 40, m: 40, b: 40 },
+    { s: '8×2 mm', w: 26, b: 26, ppp: 25 },
+    { s: '10×2 mm', w: 30, b: 30, ppp: 25 },
+    { s: '12×2 mm', w: 34, b: 34, ppp: 25 },
+    { s: '14×2 mm', w: 40, b: 40, ppp: 25 },
   ],
   bulgari: [
-    { s: '4.5×7.5×2 mm', w: 30, m: 30, b: 56 },
-    { s: '5.5×7×2 mm', w: 30, m: 30, b: 56 },
-    { s: '6.5×8×2 mm', w: 30, m: 30, b: 56 },
-    { s: '8.5×10×2 mm', w: 30, m: 30, b: 64 },
-    { s: '10.5×12.5×2 mm', w: 32, m: 32, b: 70 },
+    { s: '4.5×7.5×2 mm', w: 30, b: 56, ppp: 25 },
+    { s: '5.5×7×2 mm', w: 30, b: 56, ppp: 25 },
+    { s: '6.5×8×2 mm', w: 30, b: 56, ppp: 25 },
+    { s: '8.5×10×2 mm', w: 30, b: 64, ppp: 25 },
+    { s: '10.5×12.5×2 mm', w: 32, b: 70, ppp: 25 },
   ],
   butterfly: [
-    { s: '4×5×2 mm', w: 24, m: 24, b: 56 },
-    { s: '5×6×2 mm', w: 30, m: 30, b: 60 },
-    { s: '8×6×2 mm', w: 32, m: 32, b: 64 },
-    { s: '8×10×2 mm', w: 36, m: 36, b: 70 },
-    { s: '10×12×2 mm', w: 44, m: 44, b: 76 },
-    { s: '12×15×2 mm', w: 70, m: 70, b: 80 },
-    { s: '18×11×2 mm', w: 110, m: 110, b: 90 },
+    { s: '4×5×2 mm', w: 24, b: 56, ppp: 25 },
+    { s: '5×6×2 mm', w: 30, b: 60, ppp: 25 },
+    { s: '8×6×2 mm', w: 32, b: 64, ppp: 25 },
+    { s: '8×10×2 mm', w: 36, b: 70, ppp: 25 },
+    { s: '10×12×2 mm', w: 44, b: 76, ppp: 25 },
+    { s: '12×15×2 mm', w: 70, b: 80, ppp: 25 },
+    { s: '18×11×2 mm', w: 110, b: 90, ppp: 15 },
   ],
-  flower5:    [{ s: '8 mm', w: 30, m: 30, b: 30 }, { s: '10 mm', w: 38, m: 38, b: 38 }, { s: '12 mm', w: 48, m: 48, b: 48 }],
-  star:       [{ s: '10 mm', w: 40, m: 40, b: 40 }, { s: '12 mm', w: 52, m: 52, b: 52 }, { s: '14 mm', w: 70, m: 70, b: 70 }],
-  dholki:     [{ s: '5×3 mm', w: 26, m: 26, b: 26 }, { s: '6×4 mm', w: 32, m: 32, b: 32 }, { s: '8×5 mm', w: 40, m: 40, b: 40 }],
+  natrivershell: [
+    { s: '40×40×1.5 mm', w: 260, b: null, ppp: 10 },
+    { s: '50×50×1.5 mm', w: 360, b: null, ppp: 10 },
+    { s: '60×60×1.5 mm', w: 900, b: null, ppp: 10 },
+    { s: '70×70×1.5 mm', w: 1100, b: null, ppp: 10 },
+  ],
 };
-
 const mopRows = (shape) => MOP_PRICES[shape] || [];
 const mopPrice = (shape, colorId, sizeLabel) => {
   const row = mopRows(shape).find((r) => r.s === sizeLabel);
@@ -205,10 +194,9 @@ const mopPrice = (shape, colorId, sizeLabel) => {
 
 // Measurement diagram — adapts to the shape (diameter / corner-to-corner / length×width).
 const MOP_MEASURE_TYPE = {
-  round: 'dia', star: 'dia', dholki: 'dia', clover: 'dia', shell: 'dia',
-  bellflower: 'dia', bulgari: 'dia', butterfly: 'dia', flower5: 'dia',
-  square: 'c2c', cube: 'c2c', tile: 'c2c',
-  pearoval: 'lw', marquise: 'lw', triangle: 'lw', heart: 'lw', baguette: 'lw', cabochon: 'lw',
+  round: 'dia', bellflower: 'dia', bulgari: 'dia', butterfly: 'dia',
+  square: 's2s', natrivershell: 's2s',
+  pearoval: 'lw', marquise: 'lw', triangle: 'lw', heart: 'lw', baguette: 'lw',
 };
 function MopMeasureDiagram({ shape }) {
   const type = MOP_MEASURE_TYPE[shape] || 'c2c';
@@ -232,6 +220,13 @@ function MopMeasureDiagram({ shape }) {
     </g>);
     title = 'How to measure — Length × Width';
     sub = 'Measure the full length, then the full width across the widest points.';
+  } else if (type === 's2s') {
+    art = (<g>
+      <rect x="22" y="22" width="48" height="48" rx="3" fill="var(--paper-2)" stroke="var(--border-strong)" strokeWidth="1.5" />
+      {ar(22, 46, 70, 46)}
+    </g>);
+    title = 'How to measure — Side to Side (S2S)';
+    sub = 'Measure flat side to flat side. All sizes on this page are side-to-side.';
   } else {
     art = (<g>
       <rect x="20" y="20" width="52" height="52" rx="3" fill="var(--paper-2)" stroke="var(--border-strong)" strokeWidth="1.5" />
@@ -339,7 +334,7 @@ function MopOrderPad({ grade, shape, category, qtyBySize, setQtyBySize, onBack, 
 
       <div className="size-pad pkt-pad" style={{ marginTop: 16 }}>
         <div className="size-pad-head" style={{ gridTemplateColumns: '1fr 110px 100px 1fr 130px' }}>
-          <span>Size{MOP_MEASURE_TYPE[shape] === 'dia' ? ' (diameter)' : MOP_MEASURE_TYPE[shape] === 'lw' ? ' (length × width)' : ' (corner-to-corner)'}</span>
+          <span>Size{MOP_MEASURE_TYPE[shape] === 'dia' ? ' (diameter)' : MOP_MEASURE_TYPE[shape] === 'lw' ? ' (length × width)' : MOP_MEASURE_TYPE[shape] === 's2s' ? ' (side to side)' : ' (corner-to-corner)'}</span>
           <span style={{ textAlign: 'center' }}>Pcs / packet</span>
           <span style={{ textAlign: 'right' }}>₹ / pc</span>
           <span style={{ textAlign: 'center' }}>Packets</span>
@@ -394,6 +389,13 @@ function MopOrderPad({ grade, shape, category, qtyBySize, setQtyBySize, onBack, 
   );
 }
 
+// A shape is available in a colour only if at least one size has a price there
+// (e.g. Natural River Shell is White-only, so it is hidden on the Black grade).
+const mopShapeAvailable = (shape, colorId) => {
+  const k = MOP_COLOR_KEY[colorId] || 'w';
+  return (MOP_PRICES[shape] || []).some((r) => r[k] != null);
+};
+
 Object.assign(window, {
-  MOP_COLORS, MOP_SHAPES, MOP_PRICES, MOP_COLOR_KEY, mopRows, mopPrice, MopOrderPad,
+  MOP_COLORS, MOP_SHAPES, MOP_PRICES, MOP_COLOR_KEY, mopRows, mopPrice, MopOrderPad, mopShapeAvailable,
 });

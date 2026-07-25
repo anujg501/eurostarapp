@@ -63,6 +63,8 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
   window.WHITEFANCY_SHAPES_BY_GRADE[grade.id] :
   route.cat === 'polki' && grade && window.POLKI_SHAPES_BY_GRADE && window.POLKI_SHAPES_BY_GRADE[grade.id] ?
   window.POLKI_SHAPES_BY_GRADE[grade.id] :
+  route.cat === 'mop' && grade && window.mopShapeAvailable ?
+  baseShapeIds.filter((s) => window.mopShapeAvailable(s, grade.id)) :
   baseShapeIds;
   // Some shapes (e.g. Opaque · Cut Stones) open a second grid of cut shapes.
   const baseShapeMeta = shape ? findShape(shape) : null;

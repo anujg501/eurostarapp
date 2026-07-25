@@ -3,7 +3,7 @@ const { useState } = React;
 const H = window.CRM_HELPERS;
 // Bump with every deploy. Logged on boot so "which build is this browser
 // running?" is answerable in one glance instead of guessed at.
-const CRM_BUILD = 'v52';
+const CRM_BUILD = 'v53';
 try { console.log('[Eurostar CRM] build ' + CRM_BUILD + ' — orders load live from /orders'); } catch (e) {}
 
 const FLOW = ['new', 'confirmed', 'packed', 'shipped', 'out-for-delivery', 'delivered'];
@@ -58,6 +58,47 @@ function Pill({ s, label }) {
   const cls = (s || '').replace(/-/g, '');
   return <span className={`pill ${cls}`}>{label || s}</span>;
 }
+// The columns a lead upload file uses, in order. Same for the CSV parser and
+// the downloadable template, so what a user downloads is exactly what parses.
+const LEAD_COLUMNS = ['Name', 'City', 'Mobile', 'GST (optional)', 'Rep ID (optional)', 'Note (optional)'];
+
+// A proper CSV parser — handles quoted fields with commas/newlines and escaped
+// quotes (""). The old code just split on commas, so "Shop, Ltd" broke the row.
+function parseCsvRows(text) {
+  const rows = []; let row = []; let cur = ''; let inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQ) {
+      if (ch === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else inQ = false; }
+      else cur += ch;
+    } else if (ch === '"') { inQ = true; }
+    else if (ch === ',') { row.push(cur); cur = ''; }
+    else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && text[i + 1] === '\n') i++;
+      row.push(cur); rows.push(row); row = []; cur = '';
+    } else cur += ch;
+  }
+  if (cur !== '' || row.length) { row.push(cur); rows.push(row); }
+  // Drop rows that are entirely blank (trailing newline etc.).
+  return rows.filter((r) => r.some((c) => (c || '').trim() !== ''));
+}
+
+// Generate + download a correctly-formatted CSV template (the old .xlsx link
+// 404'd). Header row + one example so the columns are unambiguous.
+function downloadLeadTemplate() {
+  const esc = (v) => (/[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v));
+  const rows = [
+    LEAD_COLUMNS,
+    ['Tanvi Gold Casting', 'Rajkot', '9876543210', '24ABCTC1234F1Z5', '', 'Interested in melee'],
+    ['Deepak Jewels', 'Ahmedabad', '9824030003', '', 'REP-204', 'Referred by existing customer'],
+  ];
+  const csv = rows.map((r) => r.map(esc).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'Eurostar Lead Upload Template.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
+
 function statusLabel(s) {
   return { 'new': 'New', 'awaiting-payment': 'Awaiting payment', 'confirmed': 'Confirmed', 'packed': 'Packed', 'shipped': 'Dispatched', 'dispatched': 'Dispatched',
     'out-for-delivery': 'Out for delivery', 'delivered': 'Delivered',
@@ -1929,7 +1970,7 @@ function OfficeLeads({ st }) {
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
           <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={onBulk} style={{ display: 'none' }} />
           <button className="cbtn cbtn-primary" onClick={() => fileRef.current && fileRef.current.click()}>⬆ Upload Excel / CSV</button>
-          <a className="cbtn cbtn-ghost cbtn-sm" href="templates/Eurostar Lead Upload Template.xlsx" download>↓ Template</a>
+          <button className="cbtn cbtn-ghost cbtn-sm" onClick={downloadLeadTemplate}>↓ Template</button>
           <button className="cbtn cbtn-ghost cbtn-sm" onClick={() => setShowAdd((s) => !s)}>＋ Add a single lead</button>
         </div>
         {summary &&
@@ -2044,7 +2085,7 @@ function Pipeline({ st, repId }) {
         <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={onBulk} style={{ display: 'none' }} />
         <button className="cbtn cbtn-ghost cbtn-sm" onClick={() => fileRef.current && fileRef.current.click()}>⬆ Bulk upload (Excel)</button>
         <button className="cbtn cbtn-ghost cbtn-sm" onClick={() => st.autoForwardLeads()}>⚡ Auto-forward by city</button>
-        <a className="cbtn cbtn-ghost cbtn-sm" href="templates/Eurostar Lead Upload Template.xlsx" download>↓ Template</a>
+        <button className="cbtn cbtn-ghost cbtn-sm" onClick={downloadLeadTemplate}>↓ Template</button>
       </div>}
 
       {!repId && showAdd &&
@@ -3269,22 +3310,66 @@ function CRM() {
       }).
       catch((ex) => { setLeads((ls) => ls.filter((l) => l.id !== newId)); throw ex; }); // roll back the optimistic row
     },
-    bulkLeads: (file, noAssign) => {const ext = (file.name.split('.').pop() || '').toLowerCase();
-      const load = (rows) => {const created = [];let flaggedN = 0;const base = Date.now();rows.forEach((r, i) => {if (i === 0) return;const name = r[0],city = r[1],mobile = r[2];if (!name || !city) return;
-          const gst = String(r[3] || '').trim();const fm = masterMatch(gst, name, city, mobile);
-          if (fm) {flaggedN++;created.push({ id: 'LD-' + (base + i), name: String(name).trim(), city: String(city).trim(), mobile: String(mobile || '').trim(), gst, rep: '', stage: 1, followUp: '2026-06-18', assigned: false, note: String(r[6] || '').trim(), flagged: true, flagName: fm.name, flagBy: fm._by });return;}
-          const repId = noAssign ? '' : (r[5] || '').trim();const rep = repId || (noAssign ? '' : (window.CRM_CITY_REP || {})[String(city).trim()] || '');
-          created.push({ id: 'LD-' + (base + i), name: String(name).trim(), city: String(city).trim(), mobile: String(mobile || '').trim(), gst, rep, stage: 1, followUp: '2026-06-18', assigned: !!repId, note: String(r[6] || '').trim() });});
-        if (created.length === 0) {alert('No valid rows found.');return;}
-        setLeads((ls) => [...created, ...ls]);
-        crmApi('POST', '/leads', created); // persist the whole batch
-        const clean = created.length - flaggedN;
-        setImportSummary({ total: created.length, clean, flagged: flaggedN, ts: Date.now() });
-        alert(clean + ' lead(s) imported' + (flaggedN ? ' · ⚠ ' + flaggedN + ' flagged as existing customers (held for your approval in Customer Master → Flagged queue)' : ' and forwarded by city.'));};
+    // Bulk lead upload (CSV or Excel). Columns: Name, City, Mobile, GST, Rep,
+    // Note (see LEAD_COLUMNS / the downloadable template). Rows matching an
+    // existing customer are flagged for review; the rest are created and, unless
+    // noAssign (Back Office holds them for the admin), routed to their city rep.
+    bulkLeads: (file, noAssign) => {
+      const ext = (file.name.split('.').pop() || '').toLowerCase();
+      const followUp = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
+      const load = (rows) => {
+        const created = []; let flaggedN = 0; const base = Date.now();
+        rows.forEach((r, i) => {
+          if (i === 0) return; // header row
+          const name = String(r[0] || '').trim();
+          const city = String(r[1] || '').trim();
+          if (!name || !city) return; // Name + City are the minimum
+          const mobile = String(r[2] || '').trim();
+          const gst = String(r[3] || '').trim();
+          const note = String(r[5] || '').trim();
+          const id = 'LD-' + (base + i);
+          const fm = masterMatch(gst, name, city, mobile);
+          if (fm) { flaggedN++; created.push({ id, name, city, mobile, gst, rep: '', stage: 1, followUp, assigned: false, note, flagged: true, flagName: fm.name, flagBy: fm._by }); return; }
+          const repId = noAssign ? '' : String(r[4] || '').trim();
+          const rep = repId || (noAssign ? '' : (window.CRM_CITY_REP || {})[city] || '');
+          created.push({ id, name, city, mobile, gst, rep, stage: 1, followUp, assigned: !!repId, note, flagged: false, flagName: '', flagBy: '' });
+        });
+        if (created.length === 0) { alert('No valid rows found. The file needs a header row, then Name + City (at least) in each row. Download the template for the exact format.'); return; }
+        setLeads((ls) => [...created, ...ls]); // optimistic
+        crmApiJson('POST', '/leads', created).
+        then((res) => {
+          if (!res.ok) { alert('Showing ' + created.length + ' on screen, but the server refused to save: ' + ((res.data && res.data.error) || 'error') + '. Reload to see what actually saved.'); return; }
+          const clean = created.length - flaggedN;
+          setImportSummary({ total: created.length, clean, flagged: flaggedN, ts: Date.now() });
+          alert('✓ ' + created.length + ' lead(s) imported' + (flaggedN ? ' · ⚠ ' + flaggedN + ' matched existing customers — held in Step 2 for review' : (noAssign ? ' — assign them in Step 3' : ' and routed by city')) + '.');
+        }).
+        catch(() => alert('Could not reach the server — the leads are not saved. Check your connection and try again.'));
+      };
       const reader = new FileReader();
-      if (ext === 'csv') {reader.onload = () => {const rows = reader.result.split(/\r?\n/).map((ln) => ln.split(','));load(rows);};reader.readAsText(file);} else
-      {if (!window.XLSX) {const s = document.createElement('script');s.src = 'https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js';s.onload = () => readX();document.head.appendChild(s);} else readX();
-        function readX() {reader.onload = () => {const wb = window.XLSX.read(new Uint8Array(reader.result), { type: 'array' });const sh = wb.Sheets[wb.SheetNames[wb.SheetNames.length - 1]];const rows = window.XLSX.utils.sheet_to_json(sh, { header: 1 });load(rows);};reader.readAsArrayBuffer(file);}}},
+      if (ext === 'csv') {
+        reader.onload = () => load(parseCsvRows(String(reader.result || '')));
+        reader.onerror = () => alert('Could not read that file.');
+        reader.readAsText(file);
+      } else {
+        const readX = () => {
+          reader.onload = () => {
+            try {
+              const wb = window.XLSX.read(new Uint8Array(reader.result), { type: 'array' });
+              const sh = wb.Sheets[wb.SheetNames[0]];
+              load(window.XLSX.utils.sheet_to_json(sh, { header: 1 }));
+            } catch (e) { alert('Could not read that Excel file. Save it as CSV and try again.'); }
+          };
+          reader.readAsArrayBuffer(file);
+        };
+        if (!window.XLSX) {
+          const s = document.createElement('script');
+          s.src = 'https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js';
+          s.onload = readX;
+          s.onerror = () => alert('Excel support could not load (offline?). Save the file as CSV and upload that.');
+          document.head.appendChild(s);
+        } else readX();
+      }
+    },
     autoForwardLeads: () => setLeads((ls) => ls.map((l) => {
       if (l.rep || l.flagged) return l;
       const rep = (window.CRM_CITY_REP || {})[l.city] || '';

@@ -65,6 +65,8 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
   window.POLKI_SHAPES_BY_GRADE[grade.id] :
   route.cat === 'mop' && grade && window.mopShapeAvailable ?
   baseShapeIds.filter((s) => window.mopShapeAvailable(s, grade.id)) :
+  route.cat === 'labgrown' && grade && grade.id === 'labgrown' && baseColor && window.LABGROWN_SHAPES && window.lgShapeAvailable ?
+  window.LABGROWN_SHAPES.filter((s) => window.lgShapeAvailable(baseColor.id, s)) :
   baseShapeIds;
   // Some shapes (e.g. Opaque · Cut Stones) open a second grid of cut shapes.
   const baseShapeMeta = shape ? findShape(shape) : null;
@@ -487,6 +489,7 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
               category.id === 'highdensity' && window.hdSizes ? window.hdSizes(_gid, s) :
               category.id === 'alpanite' && window.alpSheetSizes && window.alpSheetSizes(_cid, s).length ? window.alpSheetSizes(_cid, s) :
               category.id === 'navratna' && window.navSizes ? window.navSizes(_gid, s) :
+              category.id === 'labgrown' && _gid === 'labgrown' && window.lgSizes ? window.lgSizes(_cid, s) :
               [];
             const sizes = sheetSizesForCard.length ? sheetSizesForCard : skuSizesForCard.length ? skuSizesForCard : category.id === 'mop' ? window.MOP_PRICES[s] || [] : FULL_SIZES[s] || ['4.00 mm'];
             const shapeImg = productImageFor(category.id, color.id, s, grade && grade.id);
@@ -922,10 +925,13 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   const mixedMoiss = category.id === 'moissanite' || category.id === 'labgrown';
   // Moissanite: chart-driven. Below the per-shape threshold → carat input;
   // at/above → entered in PIECES but billed by carat.
-  const pieceInput = (size) => mixedMoiss && moissIsPiece(shape, size);
+  const lgBeryl = category.id === 'labgrown' && grade.id === 'labgrown';
+  // Lab Grown Beryl is ordered by PIECE at every size (priced per piece).
+  const pieceInput = (size) => mixedMoiss && (lgBeryl || moissIsPiece(shape, size));
   const rowUnit = (size) => pieceInput(size) ? 'pc' : unit;
   // An uploaded SKU carries its own MOQ from the CSV.
   const sizeMoq = (size) => {
+    if (lgBeryl && window.lgMoq) return window.lgMoq(shape, size);
     if (pieceInput(size)) return 1;
     const s = window.uploadedSkuFor ? uploadedSkuFor(category.id, shape, size, grade) : null;
     return s && Number(s.moq) > 0 ? Number(s.moq) : moqUnits;
@@ -938,12 +944,22 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   // sheet (window.moissRate). Falls back to the grade's flat basePrice when a
   // size/grade isn't in the sheet (and for Lab Grown, which has no sheet).
   const moissPerCt = (size) => {
+    if (lgBeryl) {
+      // Return the per-CARAT rate implied by the per-piece price, so the existing
+      // billedCt × rate math yields pieces × ₹/pc for the line total.
+      const pc = window.lgPricePc ? window.lgPricePc(color.id, shape, size) : null;
+      const w = moissCtEach(shape, size);
+      if (pc != null && w) return pc / w;
+      return product.price;
+    }
     if (category.id === 'moissanite') {
       const r = window.moissRate ? window.moissRate(shape, size, grade.id) : null;
       if (r != null) return r;
     }
     return product.price;
   };
+  // Lab Grown Beryl per-piece price (Excel machine-cut, else ₹/ct × weight).
+  const lgPiecePrice = (size) => (lgBeryl && window.lgPricePc) ? window.lgPricePc(color.id, shape, size) : null;
   const moissCt = (size) => moissCtEach(shape, size);
   const billedCt = (size, q) => pieceInput(size) ? q * moissCt(size) : q;
   const hex = color.hex;
@@ -1064,12 +1080,14 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   const evileyeSheet = category.id === 'evileye' && window.evileyeSizes && window.evileyeSizes(shape).length ? window.evileyeSizes(shape) : null;
   // Navratna · per-grade RIVEN price sheet (per 9-stone packet).
   const navSheet = category.id === 'navratna' && grade && window.navSizes && window.navSizes(grade.id, shape).length ? window.navSizes(grade.id, shape) : null;
-  let sizes = category.id === 'moissanite' ? (moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm']) : alpGreen ? alpGreen : alpBlue ? alpBlue : alpSheet ? alpSheet : hdSheet ? hdSheet : corSheet ? corSheet : wfSheet ? wfSheet : czSheet ? czSheet : colorCzSheet ? colorCzSheet : opaqueNatSheet ? opaqueNatSheet : opaqueSheet ? opaqueSheet : polkiSheet ? polkiSheet : labopalSheet ? labopalSheet : cabSheet ? cabSheet : pearlSheet ? pearlSheet : hmopSheet ? hmopSheet : alexSheet ? alexSheet : rajkotSheet ? rajkotSheet : coralSheet ? coralSheet : evileyeSheet ? evileyeSheet : navSheet ? navSheet : skuSizes.length ? skuSizes.slice() : (SIZES_BY_CATEGORY && SIZES_BY_CATEGORY[category.id]) ? SIZES_BY_CATEGORY[category.id].slice() : ourosaMode ? OUROSA_SIZES.map((x) => x[0]) : mixedMoiss ? moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm'] : byStrip ? FULL_SIZES[shape] || ['4.00 mm'] : FULL_SIZES[shape] || ['4.00 mm'];
+  // Lab Grown Beryl · per-colour size list (default target sizes + special-colour Excel sizes).
+  const lgSheet = lgBeryl && color && window.lgSizes && window.lgSizes(color.id, shape).length ? window.lgSizes(color.id, shape) : null;
+  let sizes = category.id === 'moissanite' ? (moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm']) : alpGreen ? alpGreen : alpBlue ? alpBlue : alpSheet ? alpSheet : hdSheet ? hdSheet : corSheet ? corSheet : wfSheet ? wfSheet : czSheet ? czSheet : colorCzSheet ? colorCzSheet : opaqueNatSheet ? opaqueNatSheet : opaqueSheet ? opaqueSheet : polkiSheet ? polkiSheet : labopalSheet ? labopalSheet : cabSheet ? cabSheet : pearlSheet ? pearlSheet : hmopSheet ? hmopSheet : alexSheet ? alexSheet : rajkotSheet ? rajkotSheet : coralSheet ? coralSheet : evileyeSheet ? evileyeSheet : navSheet ? navSheet : lgSheet ? lgSheet : skuSizes.length ? skuSizes.slice() : (SIZES_BY_CATEGORY && SIZES_BY_CATEGORY[category.id]) ? SIZES_BY_CATEGORY[category.id].slice() : ourosaMode ? OUROSA_SIZES.map((x) => x[0]) : mixedMoiss ? moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm'] : byStrip ? FULL_SIZES[shape] || ['4.00 mm'] : FULL_SIZES[shape] || ['4.00 mm'];
   // A colour may cap its size range (e.g. Alpanite Yellow / 162/2 → 1.00–2.00 mm only).
   if (color && color.sizeMax) {sizes = sizes.filter((s) => (parseFloat(s) || 0) <= color.sizeMax + 0.001);}
   // A colour may set a minimum size. Fancy NxN sizes (e.g. "3x4") are kept as-is
   // (they already start small); only plain mm round sizes below the min are dropped.
-  if (color && color.sizeMin) {sizes = sizes.filter((s) => /x/i.test(s) || (parseFloat(s) || 0) >= color.sizeMin - 0.001);}
+  if (!lgBeryl && color && color.sizeMin) {sizes = sizes.filter((s) => /x/i.test(s) || (parseFloat(s) || 0) >= color.sizeMin - 0.001);}
 
   const updateQty = (size, value) => {
     const v = capQty(size, Math.max(0, parseFloat(value) || 0));
@@ -1311,7 +1329,7 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
               <React.Fragment>Enter {unitName} quantities against any size below ·
                       MOQ {moqUnits} {unitWord} per size{category.id === 'beads' ? ' · in multiples of 100 ct' : ' · ±0.05 mm tolerance'}
                       {category.id === 'moissanite' && ' · 6.00 mm+ entered by piece, billed by carat · optional ₹80/pc certificate'}
-                      {category.id === 'labgrown' && grade.id === 'labgrown' && ' · larger sizes billed by carat · optional ₹2,000/pc IGI certificate'}</React.Fragment>}</React.Fragment>}
+                      {category.id === 'labgrown' && grade.id === 'labgrown' && ' · ordered & priced per piece · optional ₹2,000/pc IGI certificate'}</React.Fragment>}</React.Fragment>}
           </p>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1558,7 +1576,7 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
           <span style={{ textAlign: 'center' }}>
             {unit === 'ct' ? 'Pcs / ct' : unit === 'pkt' ? 'Pcs / packet' : 'Per pc'}
           </span>}
-          <span style={{ textAlign: 'right' }}>{mixedMoiss ? 'Rate' : <React.Fragment>₹ / {navMode ? 'packet' : unit === 'pkt' ? packetPriced ? 'packet' : 'pc' : unitWord}</React.Fragment>}</span>
+          <span style={{ textAlign: 'right' }}>{mixedMoiss ? (lgBeryl ? '₹ / pc' : 'Rate') : <React.Fragment>₹ / {navMode ? 'packet' : unit === 'pkt' ? packetPriced ? 'packet' : 'pc' : unitWord}</React.Fragment>}</span>
           {showWt && <span style={{ textAlign: 'right' }}>{packetWtMode ? 'Wt / packet' : 'Wt / 1000 pcs'}</span>}
           {showPieceWt && <span style={{ textAlign: 'right' }}>Wt / pc</span>}
           <span style={{ textAlign: 'center' }}>
@@ -1594,7 +1612,7 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
               <div className="size-pad-pcs">{mixedMoiss ?
                 pieceInput(s) ? `${moissCt(s)} ct/pc` : `${moissPcsPerCt(shape, s).toLocaleString('en-IN')} /ct` :
                 unit === 'pc' ? '1' : each.toLocaleString('en-IN')}</div>}
-              <div className="size-pad-price">{formatINR(navMode ? navUnitPrice : mixedMoiss ? moissPerCt(s) : unit === 'pkt' ? packetPriced ? r : piecePrice(s) : r)}{mixedMoiss && <span className="size-pad-unit-sfx"> /ct</span>}</div>
+              <div className="size-pad-price">{formatINR(navMode ? navUnitPrice : lgBeryl ? (lgPiecePrice(s) != null ? lgPiecePrice(s) : moissPerCt(s)) : mixedMoiss ? moissPerCt(s) : unit === 'pkt' ? packetPriced ? r : piecePrice(s) : r)}{mixedMoiss && <span className="size-pad-unit-sfx">{lgBeryl ? ' /pc' : ' /ct'}</span>}</div>
               {showWt &&
               <div className="size-pad-wt">
                   {(() => {

@@ -3,7 +3,7 @@ const { useState } = React;
 const H = window.CRM_HELPERS;
 // Bump with every deploy. Logged on boot so "which build is this browser
 // running?" is answerable in one glance instead of guessed at.
-const CRM_BUILD = 'v47';
+const CRM_BUILD = 'v52';
 try { console.log('[Eurostar CRM] build ' + CRM_BUILD + ' — orders load live from /orders'); } catch (e) {}
 
 const FLOW = ['new', 'confirmed', 'packed', 'shipped', 'out-for-delivery', 'delivered'];
@@ -258,7 +258,11 @@ function CourierCell({ o, setCourier }) {
 
 }
 
-function OrdersTable({ orders, advance, showRep, setCourier }) {
+// Every status the office can set an order to, in lifecycle order followed by
+// the exception states. Used by the row's status dropdown.
+const ORDER_STATUSES = ['new', 'confirmed', 'packed', 'shipped', 'out-for-delivery', 'delivered', 'cancelled', 'returned', 'refunded'];
+
+function OrdersTable({ orders, advance, showRep, setCourier, setStatus }) {
   return (
     <div className="crm-card">
       <table className="crm-table">
@@ -266,7 +270,15 @@ function OrdersTable({ orders, advance, showRep, setCourier }) {
         <tbody>{orders.map((o) => {const c = H.cust(o.cust);const next = FLOW[FLOW.indexOf(o.status) + 1];return (
               <tr key={o.id}><td className="crm-id">{o.id}</td><td>{c.name}<div className="crm-muted" style={{ fontSize: 11 }}>{c.city}</div></td>
           {showRep && <td className="crm-muted">{H.rep(c.rep).name}</td>}<td className="crm-muted" style={{ fontSize: 12 }}>{o.date}</td>
-          <td className="crm-muted">{o.items}</td><td><Pill s={o.status} label={statusLabel(o.status)} /></td>
+          <td className="crm-muted">{o.items}</td>
+          <td>{setStatus ?
+            // A dropdown so the office can correct or change an order to ANY
+            // status — including reopening a delivered one, or marking it
+            // returned/cancelled — not just advancing forward.
+            <select className="disc-input" style={{ width: 140, textAlign: 'left' }} value={o.status} onChange={(e) => setStatus(o.id, e.target.value)}>
+              {ORDER_STATUSES.map((s) => <option key={s} value={s}>{statusLabel(s)}</option>)}
+            </select> :
+            <Pill s={o.status} label={statusLabel(o.status)} />}</td>
           <td>{setCourier ? <CourierCell o={o} setCourier={setCourier} /> : <span className="crm-muted" style={{ fontSize: 12 }}>{o.courier ? `${o.courier} ${o.track || ''}` : '—'}</span>}</td>
           <td className="crm-amt" style={{ textAlign: 'right' }}>{H.inr(o.value)}{o.discount ? <div style={{ fontSize: 11, color: 'var(--emerald-ink)' }}>{o.discount}% off</div> : null}</td>
           {advance && <td style={{ textAlign: 'right' }}>{next ? <button className="cbtn cbtn-primary cbtn-sm" onClick={() => advance(o.id)}>Mark {statusLabel(next)} →</button> : <span className="crm-muted" style={{ fontSize: 12 }}>Done</span>}</td>}</tr>);})}</tbody>
@@ -690,7 +702,9 @@ function CartsView({ carts, orders, editItems, removeCart, setDisc, editOrder, r
 
 /* ===================== BACK OFFICE SCREENS ===================== */
 function OfficeOrders({ st }) {
-  const queue = st.orders.filter((o) => o.status !== 'delivered');
+  const queue = st.orders.filter((o) => !['delivered', 'cancelled', 'returned', 'refunded'].includes(o.status));
+  const delivered = st.orders.filter((o) => o.status === 'delivered').slice().reverse();
+  const [showDelivered, setShowDelivered] = useState(false);
   const incoming = (() => { try { return JSON.parse(localStorage.getItem('eurostar-crm-incoming-orders') || '[]') || []; } catch (e) { return []; } })();
   const fmtTs = (ts) => { try { return new Date(ts).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; } };
   return (
@@ -725,7 +739,36 @@ function OfficeOrders({ st }) {
       </div>
 
       <SecHeadBare title="Order queue — review & dispatch" meta="New → Confirmed → Packed → Shipped → Delivered" />
-      <OrdersTable orders={queue} advance={st.advance} showRep setCourier={st.setCourier} />
+      <OrdersTable orders={queue} advance={st.advance} showRep setCourier={st.setCourier} setStatus={st.setOrderStatus} />
+      {queue.length === 0 && <div className="crm-card"><div className="crm-muted" style={{ padding: '14px 16px' }}>Nothing to dispatch — every order is delivered or closed. 🎉</div></div>}
+
+      {/* Delivered orders don't vanish — they move here, and can be reopened if a
+          "Delivered" was tapped by mistake or the shipment comes back. */}
+      <div style={{ marginTop: 22 }}>
+        <button className="cbtn cbtn-ghost cbtn-sm" onClick={() => setShowDelivered((s) => !s)}>
+          {showDelivered ? '▾' : '▸'} Delivered &amp; completed ({delivered.length})
+        </button>
+        {showDelivered &&
+        <div className="crm-card" style={{ marginTop: 10 }}>
+          <table className="crm-table">
+            <thead><tr><th>{TH("Order")}</th><th>{TH("Customer")}</th><th>{TH("Date")}</th><th>{TH("Courier / Tracking")}</th><th style={{ textAlign: 'right' }}>{TH("Value")}</th><th></th></tr></thead>
+            <tbody>{delivered.map((o) => {const c = H.cust(o.cust);return (
+              <tr key={o.id}>
+                <td className="crm-id">{o.id}</td>
+                <td>{c.name}<div className="crm-muted" style={{ fontSize: 11 }}>{c.city}</div></td>
+                <td className="crm-muted" style={{ fontSize: 12 }}>{o.date}</td>
+                <td className="crm-muted" style={{ fontSize: 12 }}>{o.courier ? `${o.courier} ${o.track || ''}` : '—'}</td>
+                <td className="crm-amt" style={{ textAlign: 'right' }}>{H.inr(o.value)}</td>
+                <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  <Pill s="delivered" label="✓ Delivered" />
+                  <button className="cbtn cbtn-ghost cbtn-sm" style={{ marginLeft: 8 }} onClick={() => { if (confirm('Reopen ' + o.id + '? It goes back to Out for delivery.')) st.setOrderStatus(o.id, 'out-for-delivery'); }}>Reopen</button>
+                </td>
+              </tr>);})}
+              {delivered.length === 0 && <tr><td colSpan="6" className="crm-muted" style={{ padding: '14px 16px' }}>No delivered orders yet.</td></tr>}
+            </tbody>
+          </table>
+        </div>}
+      </div>
     </div>);
 
 }
@@ -1191,10 +1234,14 @@ function RepCheckIn({ st, repId }) {
     return (
       <div className="crm-card" style={{ borderColor: '#B8D4C6', background: 'var(--emerald-soft)', marginBottom: 20 }}>
         <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 14 }}>
-          <img src={done.photo} alt="check-in" style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--emerald-ink)' }} />
+          {done.photo ?
+            <img src={done.photo} alt="check-in" style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--emerald-ink)' }} /> :
+            // On reload the photo isn't re-fetched (it is heavy), so show a badge
+            // instead of a broken image.
+            <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--emerald-ink)', color: '#F5EFDD', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flex: '0 0 48px' }}>✓</div>}
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 700, color: 'var(--emerald-ink)', fontSize: 14 }}>✓ Checked in — present today</div>
-            <div className="crm-muted" style={{ fontSize: 12 }}>{done.time} · marked present for {now.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+            <div className="crm-muted" style={{ fontSize: 12 }}>{done.time ? done.time + ' · ' : ''}marked present for {now.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
           </div>
         </div>
       </div>);
@@ -2110,7 +2157,14 @@ function RepCustomers({ st, repId }) {
       setForm({ name: '', mobile: '', city: '', pincode: '', gst: '', photo: '', geo: '' });
       setAdding(false);
     }).
-    catch((ex) => {setSaving(false);setErr(ex.message || 'Could not save the customer.');});
+    catch((ex) => {
+      setSaving(false);
+      const m = ex.message || 'Could not save the customer.';
+      setErr(m);
+      // A duplicate (same GST or mobile, possibly under another rep) is worth a
+      // pop-up, not just an inline line — the rep should clearly see it exists.
+      if (/already exists/i.test(m)) alert('⚠ ' + m);
+    });
   };
 
   return (
@@ -3094,6 +3148,12 @@ function CRM() {
       // FLOW 'new' maps to the API's 'pending'; every later step matches the API.
       crmApi('PUT', '/orders/' + id, { status: next === 'new' ? 'pending' : next });
     },
+    // Set an order to a specific status — used to reopen a delivered order (a
+    // wrong "Delivered" tap, or a return). Persists like advance.
+    setOrderStatus: (id, status) => {
+      setOrders((os) => os.map((x) => x.id === id ? { ...x, status } : x));
+      crmApi('PUT', '/orders/' + id, { status: status === 'new' ? 'pending' : status });
+    },
     setDisc: (id, v) => setCarts((cs) => cs.map((c) => c.id === id ? { ...c, appliedDisc: Math.max(0, Math.min(100, parseInt(v, 10) || 0)) } : c)),
     editItems: (id) => setEditTarget({ kind: 'cart', id }),
     removeCart: (id) => {if (confirm('Remove this cart? This cannot be undone.')) setCarts((cs) => cs.filter((c) => c.id !== id));},
@@ -3240,23 +3300,40 @@ function CRM() {
     goAddCustomer: () => {setAddCustOpen(true);setPage('customers');},
     goPipeline: () => setPage('pipeline'),
     goPage: (p) => setPage(p),
-    setCourier: (id, info) => setOrders((os) => os.map((o) => {
-      if (o.id !== id) return o;
-      const merged = { ...o, ...info };
-      // When a courier/tracking is marked, queue a shipment notification Mira delivers to the customer in the Sales App.
-      if ((info.courier || info.track) && (merged.courier || merged.track)) {
+    // "Save & notify customer" — record the courier + tracking on the order AND
+    // dispatch it. This is now a real server write: it PUTs courier/track and
+    // moves the order to 'shipped', which is what makes the backend create the
+    // customer's shipment notification (and the WhatsApp message). Before, it
+    // only changed local state + a localStorage note, so the courier vanished on
+    // reload and the customer was never actually notified.
+    setCourier: (id, info) => {
+      const o = (orders || []).find((x) => x.id === id);
+      const shipping = !!(info.courier || info.track);
+      // Adding courier = dispatching. Move to 'shipped' from any earlier open
+      // stage so the server fires the shipment notification exactly once.
+      const willShip = shipping && o && ['new', 'confirmed', 'packed'].includes(o.status);
+      setOrders((os) => os.map((x) => x.id === id ? { ...x, ...info, ...(willShip ? { status: 'shipped' } : {}) } : x));
+      if (info.courier !== undefined || info.track !== undefined || willShip) {
+        crmApi('PUT', '/orders/' + id, {
+          ...(info.courier !== undefined ? { courier: info.courier } : {}),
+          ...(info.track !== undefined ? { track: info.track } : {}),
+          ...(willShip ? { status: 'shipped' } : {}),
+        });
+      }
+      // Local mirror so the CRM's own notification bell shows it instantly; the
+      // authoritative customer notification is the server row created above.
+      if (shipping) {
         try {
-          const cust = H.cust(o.cust) || {};
+          const cust = H.cust(id && o ? o.cust : '') || {};
           const key = 'eurostar-mira-notifications';
           const list = JSON.parse(localStorage.getItem(key) || '[]');
-          const idx = list.findIndex((n) => n.orderId === o.id);
-          const rec = { id: 'NTF-' + o.id, orderId: o.id, cust: o.cust, custName: cust.name || '', custCompany: cust.name || '', courier: merged.courier || '', track: merged.track || '', value: o.value, ts: Date.now(), read: false };
+          const idx = list.findIndex((n) => n.orderId === id);
+          const rec = { id: 'NTF-' + id, orderId: id, cust: o ? o.cust : '', custName: cust.name || '', custCompany: cust.name || '', courier: info.courier || (o && o.courier) || '', track: info.track || (o && o.track) || '', value: o ? o.value : 0, ts: Date.now(), read: false };
           if (idx >= 0) list[idx] = { ...list[idx], ...rec }; else list.push(rec);
           localStorage.setItem(key, JSON.stringify(list.slice(-100)));
         } catch (e) {}
       }
-      return merged;
-    })),
+    },
     // Persist a collected payment and put it in the Back Office's
     // pending-verification queue. Returns a promise so the modal can confirm
     // success or surface a real error instead of just vanishing. The server

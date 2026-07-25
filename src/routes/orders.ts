@@ -170,12 +170,22 @@ ordersRouter.post(
     const staff = !!me && me.role !== 'customer';
     const canOverride = me?.role === 'office'; // only back office may override price
 
-    const customer = d.customerId
-      ? await prisma.customer.findUnique({ where: { id: d.customerId } })
-      : null;
-
     // "customer" can be a name string or an object.
     const customerObj = typeof d.customer === 'object' ? d.customer : undefined;
+
+    // Resolve the real Customer row so the order carries a customerId FK — that
+    // is what lets the customer see the order in "Your orders". Try the explicit
+    // id, then the object's id/code, then the top-level code. Rep orders often
+    // send only the code, so without the code lookup they landed with a null
+    // customerId and never showed up for the customer who placed them.
+    const custIdCandidate = d.customerId || customerObj?.id;
+    const custCodeCandidate = customerObj?.code || d.code;
+    let customer = custIdCandidate
+      ? await prisma.customer.findUnique({ where: { id: custIdCandidate } })
+      : null;
+    if (!customer && custCodeCandidate) {
+      customer = await prisma.customer.findUnique({ where: { code: custCodeCandidate } });
+    }
     const customerNameFromPayload = typeof d.customer === 'string' ? d.customer : customerObj?.name;
 
     const city = customer?.city ?? d.city ?? null;
@@ -351,7 +361,16 @@ ordersRouter.get(
 
     const where: any = { ...(status ? { status } : {}) };
     if (me?.role === 'customer') {
-      where.OR = [{ customerId: me.sub }, { repUserId: null, customerName: me.name }];
+      // me.sub is the User id; the order's customerId is a Customer id, so resolve
+      // the master record by phone (as checkout/RFQ do) and match on its id AND
+      // code — rep-placed orders often carry only the code. Matching customerName
+      // catches self-placed orders that never got linked at all.
+      const u = await prisma.user.findUnique({ where: { id: me.sub } });
+      const c = u?.phone ? await prisma.customer.findFirst({ where: { phone: u.phone } }) : null;
+      const ors: any[] = [{ customerId: me.sub }];
+      if (c) { ors.push({ customerId: c.id }); ors.push({ customerCode: c.code }); }
+      ors.push({ repUserId: null, customerName: me.name });
+      where.OR = ors;
     } else if (me?.role === 'rep' && scope !== 'all') {
       // A rep sees their own orders — matched either by the User FK or by their
       // repId string, since customer-placed orders historically only carried the

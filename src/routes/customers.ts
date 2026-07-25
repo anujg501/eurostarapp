@@ -97,24 +97,33 @@ customersRouter.post(
       repUserId = rep?.id ?? null;
     }
 
-    // Dedupe on normalised GSTIN — if this GST already exists, return that
-    // customer (the master record) instead of creating a duplicate.
+    // A customer belongs to the business, not to one rep — the same shop must
+    // not be added a second time, even under a different rep. Two things
+    // identify a shop: its GSTIN and its mobile number. If either already
+    // exists, refuse the add and say who already holds it, so the rep gets a
+    // clear "already exists" popup instead of a silent duplicate.
     const gstinNorm = normGst(d.gstin);
     if (gstinNorm) {
-      const existing = await prisma.customer.findFirst({ where: { gstinNorm } });
-      if (existing) {
-        return ok(res, {
-          id: existing.id,
-          code: existing.code,
-          name: existing.name,
-          phone: existing.phone,
-          city: existing.city,
-          pincode: existing.pincode,
-          gstin: existing.gstin,
-          terms: existing.terms,
-          createdAt: existing.createdAt,
-          rep: null,
-          deduped: true,
+      const clash = await prisma.customer.findFirst({ where: { gstinNorm }, include: { rep: true } });
+      if (clash) {
+        const under = clash.rep?.name ? ` under ${clash.rep.name}` : '';
+        return res.status(409).json({
+          error: `This customer already exists — ${clash.name} (${clash.code})${under}. Same GST number.`,
+          duplicate: true, code: clash.code, field: 'gstin',
+        });
+      }
+    }
+    const wantedPhone = phoneDigits(d.phone);
+    if (wantedPhone.length >= 10) {
+      // Phones are stored in many formats ("+91 93145 88201", "9314588201"), so
+      // compare on the last 10 digits.
+      const candidates = await prisma.customer.findMany({ where: { phone: { not: null } }, include: { rep: true } });
+      const dup = candidates.find((c) => phoneDigits(c.phone) === wantedPhone);
+      if (dup) {
+        const under = dup.rep?.name ? ` under ${dup.rep.name}` : '';
+        return res.status(409).json({
+          error: `This customer already exists — ${dup.name} (${dup.code})${under}. Same mobile number.`,
+          duplicate: true, code: dup.code, field: 'phone',
         });
       }
     }

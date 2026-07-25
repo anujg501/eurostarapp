@@ -144,8 +144,13 @@ function TopBar({ route, setRoute, persona, cartCount, onOpenTweaks }) {
             let mode = 'customer', repName = '', repId = '';
             try {
               mode = localStorage.getItem('eurostar_login_mode') || 'customer';
-              repName = localStorage.getItem('eurostar-rep-name') || '';
-              repId = localStorage.getItem('eurostar-rep-id') || '';
+              // The signed-in user carries the real name/repId (set at login and
+              // when the CRM hands the session across). Prefer it over the older
+              // standalone keys, which the CRM hand-off never wrote — that left
+              // the chip showing a generic "Sales Rep" instead of the rep's name.
+              var who = JSON.parse(localStorage.getItem('eurostar_user') || 'null');
+              repName = (who && who.name) || localStorage.getItem('eurostar-rep-name') || '';
+              repId = (who && who.repId) || localStorage.getItem('eurostar-rep-id') || '';
             } catch (e) {}
             const isRep = mode === 'rep-cash', isOffice = mode === 'office';
             const staff = isRep || isOffice;

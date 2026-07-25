@@ -38,7 +38,29 @@ function App() {
   React.useEffect(() => {
     var who = null;
     try { who = JSON.parse(localStorage.getItem('eurostar_user') || 'null'); } catch (e) {}
-    if (!who || who.role !== 'customer') return; // staff keep their role chip
+    if (!who) return;
+    // Staff (a rep or back-office user) open the shop to order on behalf of a
+    // customer — but the shell is still THEIR session, so it must show THEIR
+    // name, not the demo "Kiran Jewellers". The actual customer is chosen on the
+    // checkout screen. Before this, staff fell through to the demo persona.
+    if (who.role !== 'customer') {
+      var sName = who.name || basePersona.company;
+      var sInit = String(sName).split(/\s+/).map(function (w) { return w[0]; }).filter(Boolean).slice(0, 2).join('').toUpperCase();
+      setPersonaLive({
+        ...basePersona,
+        company: sName,
+        code: who.repId || '',
+        contact: sName,
+        phone: who.phone || '',
+        email: '',
+        location: '',
+        gst: '',
+        terms: 'cash',
+        tier: who.role === 'rep' ? 'Sales Rep' : who.role === 'office' ? 'Back Office' : 'Admin',
+        initials: sInit || basePersona.initials,
+      });
+      return;
+    }
     var headers = {};
     try { var t = localStorage.getItem('eurostar_token'); if (t) headers.authorization = 'Bearer ' + t; } catch (e) {}
     var ph = who.phone || '';

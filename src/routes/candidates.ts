@@ -9,8 +9,11 @@ export const candidatesRouter = Router();
 const STAGES = ['applied', 'screening', 'training', 'test', 'recommended', 'hired', 'rejected'] as const;
 
 function serialise(c: any) {
+  let data: any = {};
+  if (c.data) { try { data = JSON.parse(c.data); } catch { data = {}; } }
   return {
     id: c.id,
+    candId: c.candId,
     name: c.name,
     email: c.email,
     phone: c.phone,
@@ -21,8 +24,25 @@ function serialise(c: any) {
     score: c.score,
     exp: c.exp,
     repId: c.repId,
+    // The rich state (screening, attempts, watched, onboarding…) spread back
+    // so the UI sees a flat candidate exactly like its seed shape.
+    ...data,
     createdAt: c.createdAt,
   };
+}
+
+// Split an incoming candidate into the real columns and the JSON blob for
+// everything else (the LMS UI sends the whole flat object).
+const CANDIDATE_COLUMNS = ['name', 'email', 'phone', 'city', 'state', 'source', 'stage', 'score', 'exp', 'repId', 'candId'];
+function splitCandidate(body: any) {
+  const cols: any = {};
+  const rest: any = {};
+  for (const k of Object.keys(body || {})) {
+    if (k === 'id' || k === 'createdAt' || k === 'updatedAt' || k === 'data') continue;
+    if (CANDIDATE_COLUMNS.includes(k)) cols[k] = body[k];
+    else rest[k] = body[k];
+  }
+  return { cols, data: JSON.stringify(rest) };
 }
 
 // GET /candidates?stage=… — the LMS recruitment pipeline.
@@ -53,43 +73,39 @@ candidatesRouter.get(
   })
 );
 
-const createSchema = z.object({
-  name: z.string().min(1),
-  email: z.string().optional(),
-  phone: z.string().optional(),
-  city: z.string().optional(),
-  state: z.string().optional(),
-  source: z.string().optional(),
-  stage: z.enum(STAGES).optional(),
-  score: z.number().int().optional(),
-  exp: z.string().optional(),
-});
-
 candidatesRouter.post(
   '/',
   authenticate,
   requireStaff,
   asyncHandler(async (req, res) => {
-    const parsed = createSchema.safeParse(req.body);
-    if (!parsed.success) return failValidation(res, parsed.error);
-    const c = await prisma.candidate.create({ data: parsed.data });
+    if (!req.body || typeof req.body.name !== 'string' || !req.body.name.trim()) {
+      return fail(res, 400, 'Candidate name is required');
+    }
+    const { cols, data } = splitCandidate(req.body);
+    // A client-supplied candId lets the LMS seed keep its "EC-1001" ids; dedupe
+    // on it so re-seeding the same list doesn't create twins.
+    if (cols.candId) {
+      const dup = await prisma.candidate.findUnique({ where: { candId: cols.candId } });
+      if (dup) return ok(res, serialise(dup), 200);
+    }
+    const c = await prisma.candidate.create({ data: { ...cols, data } });
     return ok(res, serialise(c), 201);
   })
 );
 
-// PUT /candidates/:id — advance stage / set score.
-const updateSchema = createSchema.partial().extend({ repId: z.string().optional() });
-
+// PUT /candidates/:id — persist any change (stage, score, screening, onboarding…).
 candidatesRouter.put(
   '/:id',
   authenticate,
   requireStaff,
   asyncHandler(async (req, res) => {
-    const parsed = updateSchema.safeParse(req.body);
-    if (!parsed.success) return failValidation(res, parsed.error);
-    const existing = await prisma.candidate.findUnique({ where: { id: req.params.id } });
+    // A candidate may be addressed by its DB id or its display candId.
+    const existing = await prisma.candidate.findFirst({
+      where: { OR: [{ id: req.params.id }, { candId: req.params.id }] },
+    });
     if (!existing) return fail(res, 404, 'Candidate not found');
-    const c = await prisma.candidate.update({ where: { id: existing.id }, data: parsed.data });
+    const { cols, data } = splitCandidate(req.body);
+    const c = await prisma.candidate.update({ where: { id: existing.id }, data: { ...cols, data } });
     return ok(res, serialise(c));
   })
 );

@@ -13,6 +13,7 @@ function LmsIcon({ name }) {
     reports: <><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></>,
     notifications: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></>,
     settings: <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></>,
+    logout: <><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></>,
   };
   return <svg {...p} viewBox="0 0 24 24">{map[name]}</svg>;
 }
@@ -36,6 +37,11 @@ function AdminRoot({ cands, actions, questions, testCfg, settings, notifs, audit
   const pending = cands.filter(c => c.stage === 'recommended').length;
   const unread = (notifs || []).filter(n => !n.read).length;
   const openCand = (id) => setDrawer(id);
+  const logout = () => {
+    if (!window.confirm('Log out of the LMS?')) return;
+    try { localStorage.removeItem('eurostar-admin-token'); } catch (e) {}
+    location.reload();
+  };
   const drawerCand = drawer ? cands.find(c => c.id === drawer) : null;
   let screen;
   if (page === 'dashboard') screen = <LmsDashboard go={go} cands={cands} actions={actions} openCand={openCand} />;
@@ -61,6 +67,11 @@ function AdminRoot({ cands, actions, questions, testCfg, settings, notifs, audit
             </button>
           ))}
         </nav>
+        <div className="lms-side-foot">
+          <button className="lms-nav-item lms-logout" onClick={logout}>
+            <LmsIcon name="logout" />Log out
+          </button>
+        </div>
       </aside>
       <div className="lms-main">
         <div className="lms-mobnav">
@@ -69,6 +80,7 @@ function AdminRoot({ cands, actions, questions, testCfg, settings, notifs, audit
               {n.label}{n.badgeKey && badgeVal(n) > 0 && <span className="badge">{badgeVal(n)}</span>}
             </button>
           ))}
+          <button className="lms-mobnav-item lms-logout" onClick={logout}>Log out</button>
         </div>
         {screen}
       </div>
@@ -87,7 +99,36 @@ function LMS() {
   const [notifs, setNotifs] = sUseState(() => window.LMS_NOTIFICATIONS.map(n => ({ ...n })));
   const [audit, setAudit] = sUseState(() => window.LMS_AUDIT.map(a => ({ ...a })));
   React.useEffect(() => { if (window.MiraStaff) window.MiraStaff.setContext('lms', role); }, [role]);
-  const update = (id, patch) => setCands(cs => cs.map(c => c.id === id ? { ...c, ...patch } : c));
+  // --- server persistence ---------------------------------------------------
+  // The LMS was entirely local state; now every candidate change is saved to
+  // the database so the pipeline survives a reload and is shared across devices.
+  const lmsApi = (method, path, body) => {
+    try {
+      const t = localStorage.getItem('eurostar-admin-token') || '';
+      const opts = { method, headers: { 'content-type': 'application/json', authorization: 'Bearer ' + t } };
+      if (body != null) opts.body = JSON.stringify(body);
+      return fetch((window.EUROSTAR_API || location.origin) + path, opts).then(r => r.json().then(d => ({ ok: r.ok, data: d })).catch(() => ({ ok: r.ok, data: null })));
+    } catch (e) { return Promise.resolve({ ok: false, data: null }); }
+  };
+  const persistCand = (cand) => { if (cand && (cand.candId || cand.id)) lmsApi('PUT', '/candidates/' + (cand.candId || cand.id), cand); };
+  // Mutate one candidate AND persist the result. All actions route through this.
+  const mutate = (id, fn) => setCands(cs => cs.map(c => { if (c.id !== id) return c; const next = fn(c); persistCand(next); return next; }));
+  const update = (id, patch) => mutate(id, c => ({ ...c, ...patch }));
+
+  // Load the pipeline from the database on mount. If the database is empty
+  // (first run), seed it from the built-in list once, so there is data to work
+  // with; afterwards the database is the source of truth.
+  React.useEffect(() => {
+    lmsApi('GET', '/candidates').then((res) => {
+      if (!res.ok || !Array.isArray(res.data)) return;
+      if (res.data.length > 0) { setCands(res.data.map(c => ({ ...c }))); return; }
+      // Empty DB → bootstrap from the seed, then use the server rows.
+      const seed = (window.LMS_CANDIDATES || []);
+      Promise.all(seed.map(c => lmsApi('POST', '/candidates', c).then(r => (r.ok && r.data ? r.data : c)))).
+        then(rows => setCands(rows.map(c => ({ ...c }))));
+    });
+  }, []);
+
   const now = () => new Date(window.LMS_TODAY).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) + ' · now';
   const logAudit = (action, target) => setAudit(a => [{ id: 'A' + Date.now(), actor: 'Admin (Office)', action, target, time: now() }, ...a]);
   const notify = (icon, who, text) => setNotifs(n => [{ id: 'N' + Date.now(), icon, who, text, time: now(), read: false }, ...n]);
@@ -100,36 +141,42 @@ function LMS() {
     lockTest: (id) => update(id, { testUnlockedOn: null }),
     allowRetest: (id) => { update(id, { testUnlockedOn: today(), testConsumed: false, score: null, stage: 'training' }); const c = cands.find(x => x.id === id); logAudit('Granted re-test', c && c.name); },
     consumeTest: (id) => update(id, { testConsumed: true }),
-    markWatched: (id, vid) => setCands(cs => cs.map(c => c.id === id ? { ...c, watched: (c.watched || []).includes(vid) ? c.watched : [...(c.watched || []), vid] } : c)),
+    markWatched: (id, vid) => mutate(id, c => ({ ...c, watched: (c.watched || []).includes(vid) ? c.watched : [...(c.watched || []), vid] })),
     // Screening outcome
-    markScreen: (id, result, note, rating) => setCands(cs => cs.map(c => c.id === id ? { ...c, screenResult: result, screenNote: note, screenRating: rating, stage: result === 'fail' ? 'rejected' : (c.stage === 'applied' ? 'screening' : c.stage), rejectReason: result === 'fail' ? 'Did not clear screening interview' : c.rejectReason } : c)),
-    setScore: (id, score) => setCands(cs => cs.map(c => {
-      if (c.id !== id) return c;
+    markScreen: (id, result, note, rating) => mutate(id, c => ({ ...c, screenResult: result, screenNote: note, screenRating: rating, stage: result === 'fail' ? 'rejected' : (c.stage === 'applied' ? 'screening' : c.stage), rejectReason: result === 'fail' ? 'Did not clear screening interview' : c.rejectReason })),
+    setScore: (id, score) => mutate(id, c => {
       const n = (c.attempts || []).length + 1;
       const passed = score >= testCfg.passPct;
       const attempts = [...(c.attempts || []), { n, score, date: new Date(window.LMS_TODAY).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }), passed }];
       if (passed) notify('✅', c.name, `Cleared the assessment with ${score}% — awaiting approval`);
       return { ...c, score, attempts, testConsumed: true, stage: passed ? 'recommended' : c.stage };
-    })),
-    hire: (id) => setCands(cs => {
-      const c = cs.find(x => x.id === id);
-      const rid = window.lmsNextRepId(cs, c);
+    }),
+    hire: (id) => {
+      const c = cands.find(x => x.id === id);
+      if (!c) return;
+      const rid = window.lmsNextRepId(cands, c);
       const pwd = c.tempPassword || window.lmsGenPassword();
       notify('🎉', c.name, `Hired · Rep ID ${rid} issued — WhatsApp sent to staff (${settings.staffWhatsApp})`);
       logAudit('Hired & issued Rep ID ' + rid, c.name);
-      return cs.map(x => x.id === id ? { ...x, stage: 'hired', repId: rid, tempPassword: pwd, onboarding: { ...(x.onboarding || {}), confidentiality: x.onboarding && x.onboarding.confidentiality } } : x);
-    }),
+      mutate(id, x => ({ ...x, stage: 'hired', repId: rid, tempPassword: pwd, onboarding: { ...(x.onboarding || {}), confidentiality: x.onboarding && x.onboarding.confidentiality } }));
+    },
     reject: (id, reason) => { update(id, { stage: 'rejected', rejectReason: reason || 'Not a fit' }); const c = cands.find(x => x.id === id); logAudit('Rejected — ' + (reason || 'Not a fit'), c && c.name); },
     onboardToCrm: (id, form) => {
-      let rec = null;
-      setCands(cs => cs.map(c => {
-        if (c.id !== id) return c;
-        rec = { id: c.repId, name: c.name, region: form.region || c.state || '', city: form.city || c.city || '',
-          phone: c.phone || '', rate: (parseFloat(form.rate) || 4) / 100, joined: String(new Date().getFullYear()),
-          target: parseInt(form.target, 10) || 50, addedThisMonth: 0, asm: form.asm || 'L1', head: form.head || 'L2',
-          fromLms: true, hiredOn: window.LMS_TODAY || new Date().toISOString().slice(0, 10) };
-        return { ...c, onboarding: { ...(c.onboarding || {}), crmSynced: true, crmCity: rec.city, crmRegion: rec.region } };
-      }));
+      const cand = cands.find(x => x.id === id);
+      const rec = cand ? { id: cand.repId, name: cand.name, region: form.region || cand.state || '', city: form.city || cand.city || '',
+        phone: cand.phone || '', rate: (parseFloat(form.rate) || 4) / 100, joined: String(new Date().getFullYear()),
+        target: parseInt(form.target, 10) || 50, addedThisMonth: 0, asm: form.asm || 'L1', head: form.head || 'L2',
+        fromLms: true, hiredOn: window.LMS_TODAY || new Date().toISOString().slice(0, 10) } : null;
+      mutate(id, c => ({ ...c, onboarding: { ...(c.onboarding || {}), crmSynced: true, crmCity: form.city || c.city, crmRegion: form.region || c.state } }));
+      // Create the rep's real CRM record AND a login account, so the hire can
+      // actually sign into the CRM. The api-bridge already mirrors this key to
+      // POST /reps; the extra call here creates the User login the bridge never did.
+      if (rec && rec.id) {
+        // Login first, then its rep settings (the settings write finds the user
+        // by repId, so it must exist). A 409 (already created) is harmless.
+        lmsApi('POST', '/users', { role: 'rep', name: rec.name, username: rec.id, password: (cand && cand.tempPassword) || undefined }).
+          then(() => lmsApi('PUT', '/reps/' + rec.id, { commissionPct: (rec.rate || 0.04) * 100, region: rec.region || '', phoneNote: rec.phone || '' }));
+      }
       try {
         const k = 'eurostar-crm-new-hires';
         const arr = JSON.parse(localStorage.getItem(k) || '[]');
@@ -139,9 +186,9 @@ function LMS() {
       logAudit('Onboarded to CRM as active rep ' + (c && c.repId), c && c.name);
       notify('🔗', c && c.name, 'Onboarded to CRM — now an active rep (auto-forwarding leads in ' + (form.city || (c && c.city)) + ')');
     },
-    syncCrm: (id) => { setCands(cs => cs.map(c => c.id === id ? { ...c, onboarding: { ...(c.onboarding || {}), crmSynced: true } } : c)); const c = cands.find(x => x.id === id); logAudit('Synced rep to CRM', c && c.name); },
-    setOnboarding: (id, patch) => setCands(cs => cs.map(c => c.id === id ? { ...c, onboarding: { ...(c.onboarding || {}), ...patch } } : c)),
-    signConfidentiality: (id) => setCands(cs => cs.map(c => c.id === id ? { ...c, onboarding: { ...(c.onboarding || {}), confidentiality: true } } : c)),
+    syncCrm: (id) => { mutate(id, c => ({ ...c, onboarding: { ...(c.onboarding || {}), crmSynced: true } })); const c = cands.find(x => x.id === id); logAudit('Synced rep to CRM', c && c.name); },
+    setOnboarding: (id, patch) => mutate(id, c => ({ ...c, onboarding: { ...(c.onboarding || {}), ...patch } })),
+    signConfidentiality: (id) => mutate(id, c => ({ ...c, onboarding: { ...(c.onboarding || {}), confidentiality: true } })),
     // question bank
     saveQuestion: (q) => setQuestions(qs => {
       if (q.id) return qs.map(x => x.id === q.id ? { ...q } : x);

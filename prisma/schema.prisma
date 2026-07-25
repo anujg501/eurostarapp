@@ -442,6 +442,12 @@ model Candidate {
   score     Int? // screening/test score
   exp       String? // experience note (e.g. "4 yrs")
   repId     String? // assigned rep id once hired
+  candId    String?  @unique // display id, e.g. "EC-1001"
+  // Everything the LMS UI tracks that isn't a top-level column: screening
+  // result/notes/rating, test attempts, watched videos, unlock dates,
+  // temp password, onboarding KYC/bank/offer. Stored as JSON so the whole
+  // candidate round-trips without a column per field.
+  data      String? // JSON blob of the rich candidate state
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

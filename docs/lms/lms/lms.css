@@ -40,6 +40,10 @@ a { color: inherit; text-decoration: none; }
 .lms-nav-item:hover { background: rgba(255,255,255,0.07); color: #fff; }
 .lms-nav-item.active { background: var(--lms-green); color: #fff; font-weight: 600; }
 .lms-nav-item .badge { margin-left: auto; background: rgba(255,255,255,0.18); font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; }
+.lms-side-foot { padding: 12px; border-top: 1px solid rgba(255,255,255,0.08); }
+.lms-nav-item.lms-logout { color: rgba(255,255,255,0.6); }
+.lms-nav-item.lms-logout:hover { background: rgba(224,88,88,0.16); color: #ff8a80; }
+.lms-mobnav-item.lms-logout { color: var(--lms-ruby, #b3261e); }
 
 .lms-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .lms-top { position: sticky; top: 0; z-index: 30; background: rgba(247,248,250,0.94); backdrop-filter: blur(8px); border-bottom: 1px solid var(--lms-border); padding: 12px 26px; display: flex; align-items: center; gap: 14px; }

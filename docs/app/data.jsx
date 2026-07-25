@@ -1739,7 +1739,7 @@ const MOISS_CHART = {
   tapered: [['1×1.25×1.5 mm',0.014],['1×1.25×2 mm',0.02],['1×1.5×1.75 mm',0.02],['1×1.5×2 mm',0.025],['1×1.5×2.5 mm',0.031],['1×1.5×3 mm',0.035],['1×1.5×3.5 mm',0.046],['1×2×2.5 mm',0.05],['1×2×3 mm',0.06],['1.5×2×2.5 mm',0.055],['1.5×2×3 mm',0.068],['1.5×2×3.5 mm',0.08],['1.5×2×4 mm',0.08],['1.5×2.5×3 mm',0.08],['2×3×4 mm',0.19],['2×3×5 mm',0.23],['2×4×5 mm',0.35],['2×3×6 mm',0.28],['2.5×3×5 mm',0.27]],
   baguette: [['1×1.25 mm',0.01],['1×1.3 mm',0.01],['1×1.4 mm',0.01],['1×1.5 mm',0.012],['1×1.75 mm',0.013],['1×2 mm',0.016],['1×2.5 mm',0.021],['1×2.75 mm',0.025],['1.25×1.75 mm',0.018],['1.25×2 mm',0.023],['1.25×2.25 mm',0.025],['1.25×2.5 mm',0.029],['1.5×1.75 mm',0.025],['1.5×2 mm',0.03],['1.5×2.25 mm',0.035],['1.5×2.5 mm',0.037],['1.5×3 mm',0.045],['1.5×3.5 mm',0.058],['1.5×4 mm',0.075],['2×2.5 mm',0.067],['2×2.75 mm',0.071],['2×3 mm',0.079],['2×3.5 mm',0.095],['2×4 mm',0.118],['2×4.5 mm',0.137],['2.5×3 mm',0.116],['2.5×4 mm',0.161],['2.5×5 mm',0.21],['3×4 mm',0.2],['3×5 mm',0.31],['3×6 mm',0.36],['4×6 mm',0.61]],
   // Lab Grown Beryl shapes — Square (princess weights) & Octagon Step (emerald weights).
-  'square': [['3×3 mm',0.15],['6×6 mm',1.2],['6.5×6.5 mm',1.54],['7×7 mm',1.89],['7.5×7.5 mm',2.36],['8×8 mm',2.61]],
+  'square': [['3×3 mm',0.15],['3.5×3.5 mm',0.24],['4×4 mm',0.36],['4.5×4.5 mm',0.51],['5×5 mm',0.64],['5.5×5.5 mm',0.9],['6×6 mm',1.2],['6.5×6.5 mm',1.54],['7×7 mm',1.89],['7.5×7.5 mm',2.36],['8×8 mm',2.61],['8.5×8.5 mm',3.47],['9×9 mm',3.86],['10×10 mm',6.26],['11×11 mm',8.26]],
   'octagon-step': [['2×3 mm',0.074],['3×4 mm',0.2],['3×5 mm',0.281],['4×6 mm',0.6],['5×7 mm',1.05],['6×8 mm',1.7],['7×9 mm',2.52],['8×10 mm',3.62],['10×14 mm',7.95],['10×12 mm',6.67]],
 };
 // Size at/above which a Moissanite shape switches from carat-input to piece-input
@@ -1827,6 +1827,23 @@ function lgMoq(shape, size) {
 window.lgSizes = lgSizes; window.lgPricePc = lgPricePc;
 window.lgShapeAvailable = lgShapeAvailable; window.lgMoq = lgMoq;
 window.LABGROWN_SHAPES = LABGROWN_SHAPES;
+
+// ---- Lab Grown Corundum: flat Rs150/ct x moissanite weight, all colours, per piece ----
+const LABCORUNDUM_CT = 150;
+const LABCORUNDUM_SHAPES = ['round','square','asscher','cushion','oval','pear','octagon-step','marquise'];
+const LABCORUNDUM_TARGET = {
+  'round': ['5.00 mm','5.50 mm','6.00 mm','6.50 mm','7.00 mm','7.50 mm','8.00 mm','8.50 mm','9.00 mm','10.00 mm','11.00 mm','12.00 mm','13.00 mm','14.00 mm'],
+  'square': ['5×5 mm','5.5×5.5 mm','6×6 mm','6.5×6.5 mm','7×7 mm','7.5×7.5 mm','8×8 mm','8.5×8.5 mm','9×9 mm','10×10 mm','11×11 mm'],
+  'asscher': ['5×5 mm','5.5×5.5 mm','6×6 mm','6.5×6.5 mm','7×7 mm','7.5×7.5 mm','8×8 mm','8.5×8.5 mm','9×9 mm','10×10 mm','11×11 mm'],
+  'cushion': ['5×5 mm','5.5×5.5 mm','6×6 mm','6.5×6.5 mm','7×7 mm','7.5×7.5 mm','8×8 mm','9×9 mm','10×10 mm','11×11 mm'],
+  'oval': ['4×6 mm','5×7 mm','6×8 mm','7×9 mm','8×10 mm','10×14 mm'],
+  'pear': ['4×6 mm','5×7 mm','6×8 mm','7×9 mm','8×10 mm','10×12 mm','10×14 mm'],
+  'octagon-step': ['4×6 mm','5×7 mm','6×8 mm','7×9 mm','8×10 mm','10×12 mm','10×14 mm'],
+  'marquise': ['3×6 mm','4×8 mm','5×10 mm','6×12 mm','7×14 mm'],
+};
+function lgCorSizes(shape) { return LABCORUNDUM_TARGET[shape] ? LABCORUNDUM_TARGET[shape].slice() : []; }
+function lgCorPrice(shape, size) { const w = moissCtEach(shape, size); return w ? Math.round(LABCORUNDUM_CT * w) : null; }
+window.lgCorSizes = lgCorSizes; window.lgCorPrice = lgCorPrice; window.LABCORUNDUM_SHAPES = LABCORUNDUM_SHAPES;
 
 // Per-size, per-grade Moissanite rate in ₹/carat, from the uploaded price sheet.
 // [DEF ₹/ct, GH ₹/ct] for each shape + size. moissRate() returns the rate, or

@@ -996,9 +996,10 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
     return sizeUnitPrice(product, s);
   };
   const showPieceWt = false;
-  // Pearls are per-packet priced, EXCEPT Natural Cabs which are priced per piece (ordered in packets).
+  // Pearls: full-drilled is priced per packet; half-drilled & cabs are priced
+  // per PIECE but still ordered by the packet (like natural cabs).
   const packetPriced = (catPacketPriced(category.id) || grade.packetPriced) &&
-  !(category.id === 'pearls' && grade.id === 'natural' && shape === 'cabs');
+  !(category.id === 'pearls' && shape !== 'fulldrilled');
   // Packet-priced sheets that carry weight (e.g. full-drilled pearls) show weight PER PACKET,
   // matching the price sheet, instead of the per-1000-pcs normalisation used elsewhere.
   const packetWtMode = showWt && packetPriced && !navMode;

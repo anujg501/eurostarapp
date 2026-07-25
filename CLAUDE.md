@@ -11,6 +11,7 @@
 
 ## Price-sheet uploads (Excel → storefront pricing)
 When the user uploads a price-list spreadsheet for a colour/grade:
+- **Always ignore HIDDEN sheets/tabs** (openpyxl `sheet_state != 'visible'`). They are working/cost drafts — never read prices or MOQ from a hidden sheet.
 - **Always use the `RIVEN` sheet** if the workbook has one (it carries pieces-per-box + final ₹/piece).
 - **Keep exactly the shapes and sizes present in the file** — nothing added, nothing invented. Restrict that colour's shapes to only those in the sheet (set `shapes: [...]` on the colour in `COLORS_BY_CATEGORY`).
 - Mirror the existing **Alpanite Green/Blue** pattern in `docs/app/data.jsx`:

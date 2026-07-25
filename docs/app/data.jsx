@@ -3066,6 +3066,10 @@ const NAVRATNA_SHEETS = {
     'cushion': [['2 mm',2513.7],['2.5 mm',2234.4],['3 mm',2793],['3.5 mm',3351.6],['4 mm',3630.9],['4.5 mm',3910.2],['5 mm',4189.5],['5.5 mm',5306.7],['6 mm',6703.2],['6.5 mm',8379],['7 mm',10054.8]],
     'marquise': [['2×4 mm',1117.2],['2.5×5 mm',1675.8],['3×6 mm',2793],['3.5×7 mm',4189.5],['4×8 mm',5586],['5×10 mm',10054.8]],
   },
+  // Created Navratna · Round only. Price is per SET (1 set = 9 pieces = 1 packet).
+  'created': {
+    'round': [['1.50 mm',100],['2.00 mm',100],['2.50 mm',100],['3.00 mm',150],['3.50 mm',200],['4.00 mm',200],['5.00 mm',400]],
+  },
 };
 function navSizes(gradeId, shape) {
   const g = NAVRATNA_SHEETS[gradeId];

@@ -742,6 +742,7 @@ function PolkiSeriesPad({ product, grade, color, category, seriesKey, designs,
   const lines = designs.filter((d) => (qtyBySize[d.id] || 0) > 0 && !dSoldOut(d));
   const totalPackets = lines.reduce((s, d) => s + (qtyBySize[d.id] || 0), 0);
   const totalPcs = lines.reduce((s, d) => s + (qtyBySize[d.id] || 0) * d.pcsPerPacket, 0);
+  const totalWt = lines.reduce((s, d) => s + (qtyBySize[d.id] || 0) * d.pcsPerPacket * (d.wt || 0), 0);
   const FOIL_FEE = product.foilCharge || 0;
   const totalFoil = lines.reduce((s, d) => s + (qtyBySize[d.id] || 0) * d.pcsPerPacket * FOIL_FEE, 0);
   const grandTotal = lines.reduce((s, d) => s + (qtyBySize[d.id] || 0) * d.pcsPerPacket * (d.price + FOIL_FEE), 0);
@@ -829,7 +830,7 @@ function PolkiSeriesPad({ product, grade, color, category, seriesKey, designs,
                   <div className="size-pad-unit">design · uneven</div>
                 </div>
               </div>
-              <div className="size-pad-pcs polki-dim" style={{ textAlign: 'center', gridArea: 'dim' }}>{dim(d)}</div>
+              <div className="size-pad-pcs polki-dim" style={{ textAlign: 'center', gridArea: 'dim' }}>{dim(d)}{d.wt != null && <span className="size-pad-unit" style={{ display: 'block', fontSize: 11 }}>{d.wt} g/pc</span>}</div>
               <div className="size-pad-price" style={{ gridArea: 'price' }}>{formatINR(d.price)} <span className="size-pad-unit-sfx">/pc</span>{FOIL_FEE > 0 && <span className="size-pad-unit" style={{ display: 'block', fontSize: 11 }}>+{formatINR(FOIL_FEE)} foil</span>}</div>
               <div className="size-pad-pcs polki-ppp" style={{ textAlign: 'center', gridArea: 'ppp' }}>{d.pcsPerPacket.toLocaleString('en-IN')}</div>
               <div className="size-pad-input-wrap" style={{ gridArea: 'input' }}>

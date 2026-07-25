@@ -883,7 +883,10 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   // White Polki series (B/C/X/Z/PCJ/GJ) use a design-based pad, not a size list.
   if (category.id === 'polki') {
     const sk = (grade.id.match(/-(b|c|x|z|pcj|gj)$/) || [])[1];
-    const designs = sk && window.POLKI_SERIES_DESIGNS[sk];
+    // Moissanite (gold-foil) polki uses its own WITH-FOIL price set.
+    const isSamosa = /^samosa-/.test(grade.id);
+    const designSet = isSamosa && window.POLKI_SAMOSA_DESIGNS ? window.POLKI_SAMOSA_DESIGNS : window.POLKI_SERIES_DESIGNS;
+    const designs = sk && designSet[sk];
     if (designs) {
       return <PolkiSeriesPad product={product} grade={grade} color={color} category={category}
         seriesKey={sk} designs={designs} qtyBySize={qtyBySize} setQtyBySize={setQtyBySize}

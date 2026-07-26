@@ -138,6 +138,22 @@ const ShapeHexagon = (p) => (
     <path d="M22 16 L42 16 L52 32 L42 48 L22 48 L12 32 Z" />
   </GS>
 );
+const ShapeLongHexa = (p) => (
+  <GS {...p}>
+    <path d="M20 12 L44 12 L52 32 L44 52 L20 52 L12 32 Z" />
+  </GS>
+);
+const ShapeTarpozid = (p) => (
+  <GS {...p}>
+    <path d="M18 20 L46 20 L54 44 L10 44 Z" />
+  </GS>
+);
+const ShapeKite = (p) => (
+  <GS {...p}>
+    <path d="M32 8 L50 30 L32 56 L14 30 Z" />
+    <path d="M14 30 L50 30" />
+  </GS>
+);
 
 // Evil-eye motif shapes.
 const ShapeStar = (p) => (
@@ -175,6 +191,7 @@ const SHAPE_ICONS = {
   heart: ShapeHeart, trillion: ShapeTrillion, baguette: ShapeBaguette,
   tapered: ShapeTapered, hexagon: ShapeHexagon,
   star: ShapeStar, butterfly: ShapeButterfly, clover: ShapeClover, palm: ShapePalm,
+  'long-hexa': ShapeLongHexa, tarpozid: ShapeTarpozid, kite: ShapeKite,
 };
 
 function ShapeIcon({ shape, size = 36, color }) {

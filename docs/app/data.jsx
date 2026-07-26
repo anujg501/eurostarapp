@@ -139,6 +139,9 @@ const SHAPES = [
   { id: 'triangle', name: 'Triangle', note: 'Three-sided' },
   { id: 'oblong', name: 'Oblong Cushion', note: 'Elongated cushion' },
   { id: 'hexagon', name: 'Hexagon', note: 'Six-sided' },
+  { id: 'long-hexa', name: 'Long Hexagon', note: 'Elongated six-sided' },
+  { id: 'tarpozid', name: 'Trapezoid', note: 'Four-sided taper' },
+  { id: 'kite', name: 'Kite', note: 'Kite / lozenge' },
 ];
 
 const TONES = [
@@ -694,7 +697,7 @@ const SHAPES_BY_CATEGORY = {
   beads:      ['plain-beads','faceted-beads','oval-maniya','drops'],
   laser:      ['round','marquise','oval','pear','square','invisible-square','heart','curved-trillion','cushion','oblong-cushion','asscher','radiant','baguette-prince','baguette-step','tapered-baguette','triangle','octagon','leaf'],
   alpanite:   ['round','oval','pear','princess','cushion','asscher','trillion','triangle','marquise','heart','baguette-step','octagon-step','octagon-princess'],
-  multisapphire: ['round','princess','oval','pear','octagon-step','octagon-princess','radiant','baguette','marquise','trillion','heart','hexagon','cushion'],
+  multisapphire: ['round','princess','oval','pear','octagon-step','octagon-princess','radiant','baguette','marquise','trillion','heart','hexagon','long-hexa','tarpozid','kite','cushion'],
   cabochon:   ['round','oval','pear','marquise','pearoval','square'],
   highdensity:['round'],
   corundum:   ['round','oval','cushion','emerald','pear','baguette','tapered'],
@@ -1551,7 +1554,7 @@ const stripCarats = (size) => STRIP_CARATS_BY_SIZE[size] || 2;
 // Other grades carry a direct INR/line price.
 const MULTISAPPHIRE_SHEETS = {
   'aaa': {
-    'round': [['1.50 mm',2300,null,1.8,null],['1.80 mm',1200,null,2.5,null],['2.00 mm',1200,null,3.1,null],['2.25 mm',1200,null,3.8,null],['2.50 mm',1200,null,4.4,null],['2.75 mm',1350,null,4.9,null],['3.00 mm',2100,null,5.9,null],['3.50 mm',2500,null,10.2,null],['4.00 mm',3350,null,13.2,null],['5.00 mm',6450,null,17.5,null]],
+    'round': [['1.50 mm',2300,null,1.8,null],['1.80 mm',1200,null,2.5,null],['2.00 mm',1200,null,3.1,null],['2.25 mm',1200,null,3.8,null],['2.50 mm',1200,null,4.4,null],['2.75 mm',1350,null,4.9,null],['3.00 mm',2100,null,5.9,null],['3.50 mm',2500,null,10.2,null],['4.00 mm',3350,null,13.2,null],['4.00 mm DC',5000,null,13.2,null],['5.00 mm',6450,null,17.5,null]],
     'princess': [['1.50 mm',4600,null,2.8,null],['1.80 mm',2300,null,3.7,null],['2.00 mm',2100,null,4.7,null],['2.25 mm',1600,null,5.6,null],['2.50 mm',1900,null,6.7,null],['2.75 mm',2000,null,7.4,null],['3.00 mm',2500,null,8.8,null],['3.50 mm',4600,null,12.2,null],['4.00 mm',8100,null,15.8,null],['5.00 mm',14600,null,22.4,null]],
     'oval': [['2×3 mm',2300,null,3.4,null],['3×4 mm',1200,null,7.5,null],['3×5 mm',1450,null,7.7,null],['4×5 mm',2100,null,12.6,null],['4×6 mm',2900,null,13.2,null],['5×7 mm',6250,null,19.8,null]],
     'pear': [['2×3 mm',2300,null,3,null],['3×4 mm',1200,null,6.2,null],['3×5 mm',1450,null,6.3,null],['4×5 mm',2100,null,11.2,null],['4×6 mm',2900,null,11.4,null],['5×7 mm',6250,null,17.8,null]],
@@ -1562,6 +1565,9 @@ const MULTISAPPHIRE_SHEETS = {
     'heart': [['3.00 mm',2300,null,6.5,null],['3.50 mm',3100,null,8.2,null],['4.00 mm',2700,null,11,null],['5.00 mm',6250,null,16.1,null]],
     'hexagon': [['3.00 mm',4200,null,7.7,null],['3.50 mm',5000,null,13.3,null]],
     'cushion': [['4.00 mm',4600,null,13.6,null],['5.00 mm',6900,null,21,null]],
+    'long-hexa': [['3×5 mm',6450,null,9.8,null]],
+    'tarpozid': [['3×5 mm',8350,null,10.8,null]],
+    'kite': [['3.5×5.5 mm',6450,null,8.3,null]],
   },
   'labcreated': {
     'octagon-step': [['5×3 mm',5075,59,null,null],['6×4 mm',4550,44,null,null],['7×5 mm',4550,36,null,null]],

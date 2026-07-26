@@ -37,6 +37,18 @@ function productImageFor(catId, colorId, shape, gradeId) {
   );
 }
 
+// The first uploaded product photo found for a category, regardless of
+// colour/grade/shape. Used as an automatic thumbnail for the category card on
+// the home screen when no explicit category thumbnail has been set.
+function firstProductImageForCat(catId) {
+  const all = pimgLoadAll();
+  const prefix = catId + '|';
+  for (const k in all) {
+    if (k.indexOf(prefix) === 0 && all[k]) return all[k];
+  }
+  return null;
+}
+
 function getStoredProductImage(catId, colorId, shape, gradeId) {
   const all = pimgLoadAll();
   // A grade-specific photo wins; otherwise fall back to the legacy shared
@@ -212,5 +224,5 @@ function DocUploadCard({ catId, gradeId, docId, label, caption }) {
 
 Object.assign(window, {
   getStoredProductImage, setStoredProductImage, fileToCompressedDataUrl, ProductHero, DocUploadCard,
-  productImageFor, PIMG_GRADE_SCOPED,
+  productImageFor, PIMG_GRADE_SCOPED, firstProductImageForCat,
 });

@@ -184,6 +184,27 @@ const ShapePalm = (p) => (
   </GS>
 );
 
+// Coral cabs & balls. Cabs reuse the flat silhouette; balls get a bead look.
+const ShapeSquareCab = (p) => (
+  <GS {...p}>
+    <path d="M14 14 L50 14 L50 50 L14 50 Z" />
+    <path d="M22 22 L42 22 L42 42 L22 42 Z" />
+  </GS>
+);
+const ShapeBall = (p) => (
+  <GS {...p}>
+    <circle cx="32" cy="32" r="22" />
+    <path d="M20 24 Q26 18 34 20" />
+  </GS>
+);
+const ShapeDrilledBall = (p) => (
+  <GS {...p}>
+    <circle cx="32" cy="32" r="22" />
+    <circle cx="32" cy="32" r="4" />
+    <path d="M20 24 Q26 18 34 20" />
+  </GS>
+);
+
 const SHAPE_ICONS = {
   round: ShapeRound, oval: ShapeOval, pear: ShapePear,
   emerald: ShapeEmerald, radiant: ShapeRadiant, marquise: ShapeMarquise,
@@ -192,6 +213,9 @@ const SHAPE_ICONS = {
   tapered: ShapeTapered, hexagon: ShapeHexagon,
   star: ShapeStar, butterfly: ShapeButterfly, clover: ShapeClover, palm: ShapePalm,
   'long-hexa': ShapeLongHexa, tarpozid: ShapeTarpozid, kite: ShapeKite,
+  'round-cabs': ShapeRound, 'oval-cabs': ShapeOval, 'pear-cabs': ShapePear,
+  'marquise-cabs': ShapeMarquise, 'square-cabs': ShapeSquareCab,
+  'undrilled-ball': ShapeBall, 'drilled-ball': ShapeDrilledBall,
 };
 
 function ShapeIcon({ shape, size = 36, color }) {

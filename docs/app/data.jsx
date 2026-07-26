@@ -134,6 +134,13 @@ const SHAPES = [
   { id: 'flower5', name: '5-Petal Flower', note: 'Drilled flower' },
   { id: 'star', name: 'Star', note: '14 mm star' },
   { id: 'palm', name: 'Palm', note: 'Hamsa palm motif' },
+  { id: 'round-cabs', name: 'Round Cabs', note: 'Round cabochon' },
+  { id: 'oval-cabs', name: 'Oval Cabs', note: 'Oval cabochon' },
+  { id: 'pear-cabs', name: 'Pear Cabs', note: 'Pear cabochon' },
+  { id: 'marquise-cabs', name: 'Marquise Cabs', note: 'Marquise cabochon' },
+  { id: 'square-cabs', name: 'Square Cabs', note: 'Square cabochon' },
+  { id: 'undrilled-ball', name: 'Undrilled Ball', note: 'Round bead, no hole' },
+  { id: 'drilled-ball', name: 'Drilled Ball', note: 'Round bead, drilled' },
   { id: 'dholki', name: 'Dholki', note: 'Drum bead' },
   { id: 'tile', name: 'Tile', note: 'Flat tile' },
   { id: 'triangle', name: 'Triangle', note: 'Three-sided' },
@@ -703,7 +710,7 @@ const SHAPES_BY_CATEGORY = {
   corundum:   ['round','oval','cushion','pear','baguette','tapered'],
   labopal:    ['round','oval','pear'],
   opaque:     ['round','oval','cushion'],
-  coral:      ['round','oval'],
+  coral:      ['round-cabs','oval-cabs','pear-cabs','marquise-cabs','square-cabs','undrilled-ball','drilled-ball'],
   polki:      ['round','oval','pear','cushion','marquise','heart'],
   evileye:    ['round','heart','marquise','star','butterfly','clover','palm'],
   bracelet:   ['round'],
@@ -3715,10 +3722,18 @@ window.rajkotSizes = rajkotSizes; window.rajkotSku = rajkotSku;
 
 // Milky Corals & Olives · per-grade cab price sheet (one price across all 4 colours).
 // Round from RD CAB (with g/1000 weight); oval from the 100% CABS block. Row [size,pcs,₹/pc,g per 1000].
+// Milky Corals & Olives · cabs and balls, per piece. Row = [size, packing (pcs),
+// ₹/pc, g per 1000 pcs]. Prices are the same for Coral and Olive (grade A).
+// From 061 MILKY CABS AND BALLS (Coral & Olive).
 const CORAL_SHEETS = {
   'a': {
-    'round': [['2.00 mm',1,5.6,38.9],['2.25 mm',1,5.67,49],['2.50 mm',1,6.61,68],['2.75 mm',1,8.88,101],['3.00 mm',1,9.44,110],['3.25 mm',1,11.33,148],['3.50 mm',1,13.22,205],['3.75 mm',1,15.11,220],['4.00 mm',1,17.57,272],['4.25 mm',1,22.67,327],['4.50 mm',1,24.56,360]],
-    'oval': [['3×2.5 mm',500,11,null],['4×3 mm',500,16,160],['5×3 mm',200,19,150],['4.5×3.5 mm',200,24,null],['6×4 mm',200,33.06,null]],
+    'round-cabs': [['2.00 mm',1000,5.6,38.9],['2.25 mm',1000,5.67,49],['2.50 mm',1000,6.61,68],['2.75 mm',1000,8.88,101],['3.00 mm',1000,9.44,110],['3.25 mm',500,11.33,148],['3.50 mm',500,13.22,205],['3.75 mm',500,15.11,220],['4.00 mm',200,17.57,272],['4.25 mm',200,22.67,327],['4.50 mm',200,24.56,360]],
+    'oval-cabs': [['3×2.5 mm',500,11,null],['4×3 mm',500,16,160],['5×3 mm',200,19,150],['4.5×3.5 mm',200,24,null],['6×4 mm',200,33.06,null]],
+    'pear-cabs': [['3×2.5 mm',500,11,null],['4×3 mm',500,16,160],['5×3 mm',200,19,150],['4.5×3.5 mm',200,24,null],['6×4 mm',200,33.06,null]],
+    'marquise-cabs': [['3×1.5 mm',500,5.67,null],['4×2 mm',500,11,null],['5×2.5 mm',500,14,121],['6×3 mm',200,17.94,null]],
+    'square-cabs': [['2.00 mm',500,5.67,null],['2.25 mm',500,6.61,null],['2.50 mm',500,8.5,null],['2.75 mm',500,9,108],['3.00 mm',500,12.28,146],['3.25 mm',500,14.17,null],['3.50 mm',500,16.06,null],['4.00 mm',200,20.78,null]],
+    'undrilled-ball': [['2.00 mm',1000,5.6,25.7],['2.25 mm',1000,6,35.4],['2.50 mm',1000,7,50.21],['2.75 mm',1000,9,65.75],['3.00 mm',1000,11,87.65],['3.25 mm',500,13,110],['3.30 mm',500,15,117],['3.50 mm',500,17,140],['3.75 mm',500,18,173],['4.00 mm',200,24,211],['4.25 mm',200,30,253],['4.50 mm',200,39.6,304]],
+    'drilled-ball': [['2.00 mm',1000,6.84,21.9],['2.25 mm',1000,7.2,28],['2.50 mm',1000,8.1,56],['2.75 mm',1000,9.9,60],['3.00 mm',1000,11.7,81],['3.25 mm',500,13.5,97],['3.30 mm',500,14.25,110],['3.50 mm',500,15.3,133],['3.75 mm',500,17.1,160],['4.00 mm',200,18,189],['4.25 mm',200,25.2,215],['4.50 mm',200,30.6,230],['5.00 mm',200,39.6,433]],
   },
 };
 function coralSizes(gradeId, shape) { const g = CORAL_SHEETS[gradeId]; return g && g[shape] ? g[shape].map((r) => r[0]) : []; }

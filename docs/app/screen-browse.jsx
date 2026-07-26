@@ -69,6 +69,8 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
   window.LABCORUNDUM_SHAPES :
   route.cat === 'labgrown' && grade && grade.id === 'labgrown' && baseColor && window.LABGROWN_SHAPES && window.lgShapeAvailable ?
   window.LABGROWN_SHAPES.filter((s) => window.lgShapeAvailable(baseColor.id, s)) :
+  route.cat === 'multisapphire' && grade && window.msShapes && window.msShapes(grade.id).length ?
+  window.msShapes(grade.id) :
   baseShapeIds;
   // Some shapes (e.g. Opaque · Cut Stones) open a second grid of cut shapes.
   const baseShapeMeta = shape ? findShape(shape) : null;
@@ -923,9 +925,18 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   const unitName = unitLabelLong(unit); // carat / piece / packet / strip
   const byCarat = unit === 'ct';
   const byStrip = unit === 'strip';
-  // Natural Multi Sapphires: strip-sold AND shows a carats-per-strip column.
-  const natStrip = category.id === 'multisapphire' && grade.id === 'aaa';
-  const stripCols = natStrip ? '120px 120px 130px 1fr 120px' : '120px 140px 1fr 130px';
+  // Multi Sapphires: strip-sold with a per-grade rate sheet that also carries
+  // pcs-per-line, approx carat weight and (synthetic) strip length in inches.
+  const msActive = category.id === 'multisapphire' && grade && shape && window.msSizes && window.msSizes(grade.id, shape).length > 0;
+  const msRows = msActive ? window.msSizes(grade.id, shape).map((s) => window.msRow(grade.id, shape, s)) : [];
+  const msHasInch = msRows.some((r) => r && r[4] != null);
+  const msHasCt = msRows.some((r) => r && r[3] != null);
+  const msHasPcs = msRows.some((r) => r && r[2] != null);
+  // Legacy carats×₹/ct estimate only applies to a strip grade with no rate sheet.
+  const natStrip = category.id === 'multisapphire' && grade.id === 'aaa' && !msActive;
+  const stripCols = natStrip ? '120px 120px 130px 1fr 120px'
+    : msActive ? ['110px', msHasInch ? '84px' : null, msHasCt ? '96px' : null, msHasPcs ? '84px' : null, '1fr', '108px', '116px'].filter(Boolean).join(' ')
+    : '120px 140px 1fr 130px';
   const moqUnits = category.id === 'beads' ? 100 : (category.id === 'moissanite' || category.id === 'labgrown' ? 1 : unitMoq(unit));
   // Moissanite: 6.50 mm+ is sold per piece (MOQ 1 pc); below that, per carat (MOQ 1 ct).
   // Lab Grown reuses the same chart-driven carat-weight model (no ₹80 certificate).
@@ -1097,7 +1108,9 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   // Lab Grown Beryl · per-colour size list (default target sizes + special-colour Excel sizes).
   const lgSheet = lgBeryl && color && window.lgSizes && window.lgSizes(color.id, shape).length ? window.lgSizes(color.id, shape)
     : lgCorundum && window.lgCorSizes && window.lgCorSizes(shape).length ? window.lgCorSizes(shape) : null;
-  let sizes = category.id === 'moissanite' ? (moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm']) : alpGreen ? alpGreen : alpBlue ? alpBlue : alpSheet ? alpSheet : hdSheet ? hdSheet : corSheet ? corSheet : wfSheet ? wfSheet : czSheet ? czSheet : colorCzSheet ? colorCzSheet : opaqueNatSheet ? opaqueNatSheet : opaqueSheet ? opaqueSheet : polkiSheet ? polkiSheet : labopalSheet ? labopalSheet : cabSheet ? cabSheet : pearlSheet ? pearlSheet : hmopSheet ? hmopSheet : alexSheet ? alexSheet : lwcSheet ? lwcSheet : rajkotSheet ? rajkotSheet : coralSheet ? coralSheet : evileyeSheet ? evileyeSheet : navSheet ? navSheet : lgSheet ? lgSheet : skuSizes.length ? skuSizes.slice() : (SIZES_BY_CATEGORY && SIZES_BY_CATEGORY[category.id]) ? SIZES_BY_CATEGORY[category.id].slice() : ourosaMode ? OUROSA_SIZES.map((x) => x[0]) : mixedMoiss ? moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm'] : byStrip ? FULL_SIZES[shape] || ['4.00 mm'] : FULL_SIZES[shape] || ['4.00 mm'];
+  // Multi Sapphires · per-grade per-strip rate sheet.
+  const msSheet = msActive ? window.msSizes(grade.id, shape) : null;
+  let sizes = category.id === 'moissanite' ? (moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm']) : alpGreen ? alpGreen : alpBlue ? alpBlue : alpSheet ? alpSheet : hdSheet ? hdSheet : corSheet ? corSheet : wfSheet ? wfSheet : czSheet ? czSheet : colorCzSheet ? colorCzSheet : opaqueNatSheet ? opaqueNatSheet : opaqueSheet ? opaqueSheet : polkiSheet ? polkiSheet : labopalSheet ? labopalSheet : cabSheet ? cabSheet : pearlSheet ? pearlSheet : hmopSheet ? hmopSheet : alexSheet ? alexSheet : lwcSheet ? lwcSheet : rajkotSheet ? rajkotSheet : coralSheet ? coralSheet : evileyeSheet ? evileyeSheet : navSheet ? navSheet : lgSheet ? lgSheet : msSheet ? msSheet : skuSizes.length ? skuSizes.slice() : (SIZES_BY_CATEGORY && SIZES_BY_CATEGORY[category.id]) ? SIZES_BY_CATEGORY[category.id].slice() : ourosaMode ? OUROSA_SIZES.map((x) => x[0]) : mixedMoiss ? moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm'] : byStrip ? FULL_SIZES[shape] || ['4.00 mm'] : FULL_SIZES[shape] || ['4.00 mm'];
   // A colour may cap its size range (e.g. Alpanite Yellow / 162/2 → 1.00–2.00 mm only).
   if (color && color.sizeMax) {sizes = sizes.filter((s) => (parseFloat(s) || 0) <= color.sizeMax + 0.001);}
   // A colour may set a minimum size. Fancy NxN sizes (e.g. "3x4") are kept as-is
@@ -1252,6 +1265,7 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
     return stringMode ? pearlStringPrice(size) :
     lotMode ? LOT_PRICE :
     ctLotMode ? OP_LOT_CT * opRowRate(size) :
+    msActive ? window.msRate(grade.id, shape, size) :
     natStrip ? stripCarats(size) * product.price :
     byStrip ? product.price :
     unitRate(product, size, rowUnit(size), category.id);
@@ -1545,6 +1559,9 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
         <div className="size-pad-head" style={{ gridTemplateColumns: stripCols }}>
           <span>Size</span>
           {natStrip && <span style={{ textAlign: 'center' }}>Carats / strip</span>}
+          {msActive && msHasInch && <span style={{ textAlign: 'center' }}>Inches</span>}
+          {msActive && msHasCt && <span style={{ textAlign: 'center' }}>Approx ct</span>}
+          {msActive && msHasPcs && <span style={{ textAlign: 'center' }}>Pcs / line</span>}
           <span style={{ textAlign: 'right' }}>{natStrip ? '₹ / ct' : '₹ / strip'}</span>
           <span style={{ textAlign: 'center' }}>Strips</span>
           <span style={{ textAlign: 'right' }}>Line total</span>
@@ -1564,6 +1581,15 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
             {natStrip &&
               <div className="size-pad-pcs">{stripCarats(s)} <span className="size-pad-unit-sfx">ct</span></div>
               }
+            {msActive && msHasInch &&
+              <div className="size-pad-pcs">{(() => { const mr = window.msRow(grade.id, shape, s); return mr && mr[4] != null ? <React.Fragment>{mr[4]}<span className="size-pad-unit-sfx"> in</span></React.Fragment> : <span style={{ color: 'var(--ink-4)' }}>—</span>; })()}</div>
+              }
+            {msActive && msHasCt &&
+              <div className="size-pad-pcs">{(() => { const mr = window.msRow(grade.id, shape, s); return mr && mr[3] != null ? <React.Fragment>{mr[3]}<span className="size-pad-unit-sfx"> ct</span></React.Fragment> : <span style={{ color: 'var(--ink-4)' }}>—</span>; })()}</div>
+              }
+            {msActive && msHasPcs &&
+              <div className="size-pad-pcs">{(() => { const mr = window.msRow(grade.id, shape, s); return mr && mr[2] != null ? <React.Fragment>{mr[2]}<span className="size-pad-unit-sfx"> pcs</span></React.Fragment> : <span style={{ color: 'var(--ink-4)' }}>—</span>; })()}</div>
+              }
             <div className="size-pad-price">{natStrip ? <React.Fragment>{formatINR(product.price)}<span className="size-pad-unit-sfx"> /ct</span></React.Fragment> : formatINR(r)}</div>
             <div className="size-pad-input-wrap">
               <div className="size-pad-stepper">
@@ -1581,6 +1607,8 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
                 <button className="size-pad-add" onClick={() => fillRow(s)}>+ Add 1 strip</button>}
               {natStrip && isFilled &&
                 <div className="size-pad-pcs-note">{(q * stripCarats(s)).toFixed(1)} ct × {formatINR(product.price)}/ct</div>}
+              {msActive && msHasPcs && isFilled && (() => { const mr = window.msRow(grade.id, shape, s); return mr && mr[2] != null ?
+                <div className="size-pad-pcs-note">{q} strip{q > 1 ? 's' : ''} · ≈ {(q * mr[2]).toLocaleString('en-IN')} pcs</div> : null; })()}
             </div>
             <div className="size-pad-total">
               {isFilled ? formatINR(lineTotal) : <span style={{ color: 'var(--ink-4)' }}>—</span>}

@@ -693,7 +693,7 @@ const SHAPES_BY_CATEGORY = {
   beads:      ['plain-beads','faceted-beads','oval-maniya','drops'],
   laser:      ['round','marquise','oval','pear','square','invisible-square','heart','curved-trillion','cushion','oblong-cushion','asscher','radiant','baguette-prince','baguette-step','tapered-baguette','triangle','octagon','leaf'],
   alpanite:   ['round','oval','pear','princess','cushion','asscher','trillion','triangle','marquise','heart','baguette-step','octagon-step','octagon-princess'],
-  multisapphire: ['round','oval','pear','cushion','emerald','heart','baguette','tapered'],
+  multisapphire: ['round','princess','oval','pear','octagon-step','octagon-princess','radiant','baguette','marquise','trillion','heart','hexagon','cushion'],
   cabochon:   ['round','oval','pear','marquise','pearoval','square'],
   highdensity:['round'],
   corundum:   ['round','oval','cushion','emerald','pear','baguette','tapered'],
@@ -1544,6 +1544,50 @@ const STRIP_CARATS_BY_SIZE = {
   '6×4 mm': 12, '7×5 mm': 18, '8×6 mm': 26,
 };
 const stripCarats = (size) => STRIP_CARATS_BY_SIZE[size] || 2;
+
+// Multi Sapphire per-strip rate sheets. Row = [size, INR/line(strip), pcs/line, approx ct, inches].
+// Grades: aaa (Natural), labcreated (Lab Grown certified), aa (Synthetic), icecut (Ice Cut).
+const MULTISAPPHIRE_SHEETS = {
+  'aaa': {
+    'round': [['1.50 mm',2300,null,null,null],['1.80 mm',1200,null,null,null],['2.00 mm',1200,null,null,null],['2.25 mm',1200,null,null,null],['2.50 mm',1200,null,null,null],['2.75 mm',1350,null,null,null],['3.00 mm',2100,null,null,null],['3.50 mm',2500,null,null,null],['4.00 mm',3350,null,null,null],['5.00 mm',6450,null,null,null]],
+    'princess': [['1.50 mm',4600,null,null,null],['1.80 mm',2300,null,null,null],['2.00 mm',2100,null,null,null],['2.25 mm',1600,null,null,null],['2.50 mm',1900,null,null,null],['2.75 mm',2000,null,null,null],['3.00 mm',2500,null,null,null],['3.50 mm',4600,null,null,null],['4.00 mm',8100,null,null,null],['5.00 mm',14600,null,null,null]],
+    'oval': [['2×3 mm',2300,null,null,null],['3×4 mm',1200,null,null,null],['3×5 mm',1450,null,null,null],['4×5 mm',2100,null,null,null],['4×6 mm',2900,null,null,null],['5×7 mm',6250,null,null,null]],
+    'pear': [['2×3 mm',2300,null,null,null],['3×4 mm',1200,null,null,null],['3×5 mm',1450,null,null,null],['4×5 mm',2100,null,null,null],['4×6 mm',2900,null,null,null],['5×7 mm',6250,null,null,null]],
+    'octagon-step': [['2×3 mm',2900,null,null,null],['3×4 mm',2100,null,null,null],['3×5 mm',3350,null,null,null],['4×5 mm',5000,null,null,null],['4×6 mm',7100,null,null,null],['5×7 mm',11650,null,null,null]],
+    'marquise': [['2×4 mm',1700,null,null,null],['2.5×5 mm',1900,null,null,null],['3×6 mm',2300,null,null,null]],
+    'baguette': [['1.5×3 mm',3100,null,null,null],['2×3 mm',1600,null,null,null],['2×3.5 mm',1800,null,null,null],['2×4 mm',2200,null,null,null],['2.5×5 mm',3150,null,null,null],['3×5 mm',4600,null,null,null],['3×6 mm',6900,null,null,null]],
+    'trillion': [['3.00 mm',2300,null,null,null],['3.50 mm',3100,null,null,null],['4.00 mm',2700,null,null,null],['5.00 mm',6250,null,null,null]],
+    'heart': [['3.00 mm',2300,null,null,null],['3.50 mm',3100,null,null,null],['4.00 mm',2700,null,null,null],['5.00 mm',6250,null,null,null]],
+    'hexagon': [['3.00 mm',4200,null,null,null],['3.50 mm',5000,null,null,null]],
+    'cushion': [['4.00 mm',4600,null,null,null],['5.00 mm',6900,null,null,null]],
+  },
+  'labcreated': {
+    'octagon-step': [['5×3 mm',5075,59,null,null],['6×4 mm',4550,44,null,null],['7×5 mm',4550,36,null,null]],
+    'oval': [['4×3 mm',2675,59,null,null],['5×3 mm',3000,59,null,null],['6×4 mm',3800,44,null,null],['7×5 mm',3850,36,null,null]],
+    'princess': [['1.5×1.5 mm',3550,118,null,null],['2×2 mm',2975,90,null,null],['2.5×2.5 mm',2775,72,null,null],['3×3 mm',2925,59,null,null],['4×4 mm',3100,44,null,null],['5×5 mm',3375,36,null,null]],
+    'round': [['1.50 mm',800,118,null,null],['2.00 mm',950,90,null,null],['2.50 mm',1550,72,null,null],['3.00 mm',1750,59,null,null],['4.00 mm',1700,44,null,null],['5.00 mm',2900,36,null,null]],
+    'pear': [['4×3 mm',2675,59,null,null],['5×3 mm',3000,59,null,null],['6×4 mm',3800,44,null,null],['7×5 mm',3850,36,null,null]],
+  },
+  'aa': {
+    'princess': [['2.00 mm',2080,83,3.35,6.64],['2.25 mm',2400,77,4.75,6.93],['2.50 mm',2560,66,5,6.6],['2.75 mm',2560,63,5.05,6.93],['3.00 mm',2560,53,7.85,6.36],['3.50 mm',2880,46,12.4,6.44],['4.00 mm',3200,40,17.65,6.4],['5.00 mm',4140,33,26.45,6.6]],
+    'round': [['2.00 mm',1920,79,2.7,6.32],['2.25 mm',1920,72,2.05,6.48],['2.50 mm',2240,65,4.3,6.5],['2.75 mm',2400,61,4.55,6.71],['3.00 mm',2560,55,6.6,6.6],['3.50 mm',2560,45,9.2,6.3],['4.00 mm',2880,40,10.8,6.4]],
+    'octagon-step': [['3×2 mm',2400,53,3.7,6.36],['4×3 mm',2880,39,9.9,6.24],['5×3 mm',2880,32,10.3,6.4],['5×4 mm',3280,30,15.8,6],['6×4 mm',3680,27,18.25,6.48],['7×5 mm',5400,null,27.5,null]],
+    'baguette': [['2×1 mm',3000,80,null,6.4],['3×1.5 mm',2400,52,null,6.24],['3×2 mm',2400,54,3.5,6.48],['4×2 mm',2400,40,4.7,6.4],['5×3 mm',4000,32,null,6.4],['5×2.5 mm',2800,33,5.8,6]],
+    'oval': [['4×3 mm',2560,39,6.65,6.24],['5×3 mm',2880,33,6.3,6.6],['6×4 mm',3200,27,13.3,6.48],['7×5 mm',3600,24,21.15,6],['8×6 mm',4000,20,29.35,6]],
+    'heart': [['3.00 mm',2880,42,6.1,6],['4.00 mm',3200,42,11.75,6]],
+  },
+  'icecut': {
+    'oval': [['4×3 mm',2943,40,13.7,null],['5×3 mm',2340,32,13.75,null],['6×4 mm',2793,27,24.95,null],['7×5 mm',2988,23,36.5,null]],
+    'pear': [['6×4 mm',2793,27,22.45,null],['7×5 mm',2988,23,34.95,null]],
+    'radiant': [['4×3 mm',2943,40,16.83,null],['5×3 mm',2340,32,15.8,null],['6×4 mm',2793,27,28.1,null],['7×5 mm',2988,23,42.25,null]],
+    'octagon-princess': [['3.00 mm',3584,53,15.5,null],['4.00 mm',3126,40,27.15,null],['5.00 mm',3102,32,42.05,null]],
+  },
+};
+const msSizes = (gradeId, shape) => { const g = MULTISAPPHIRE_SHEETS[gradeId]; return g && g[shape] ? g[shape].map((r) => r[0]) : []; };
+const msRow = (gradeId, shape, size) => { const g = MULTISAPPHIRE_SHEETS[gradeId]; return g && g[shape] ? (g[shape].find((r) => r[0] === size) || null) : null; };
+const msRate = (gradeId, shape, size) => { const r = msRow(gradeId, shape, size); return r ? r[1] : null; };
+const msShapes = (gradeId) => { const g = MULTISAPPHIRE_SHEETS[gradeId]; return g ? Object.keys(g) : []; };
+window.msSizes = msSizes; window.msRow = msRow; window.msRate = msRate; window.msShapes = msShapes;
 
 // Ourosa: PP sizes with mm equivalents.
 const OUROSA_SIZES = [

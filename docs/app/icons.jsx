@@ -139,12 +139,42 @@ const ShapeHexagon = (p) => (
   </GS>
 );
 
+// Evil-eye motif shapes.
+const ShapeStar = (p) => (
+  <GS {...p}>
+    <path d="M32 6 L39 24 L58 24 L43 36 L49 55 L32 43 L15 55 L21 36 L6 24 L25 24 Z" />
+  </GS>
+);
+const ShapeButterfly = (p) => (
+  <GS {...p}>
+    <path d="M32 20 L32 46" />
+    <path d="M32 24 C20 8 6 12 8 26 C4 34 12 46 24 42 C30 40 32 32 32 30" />
+    <path d="M32 24 C44 8 58 12 56 26 C60 34 52 46 40 42 C34 40 32 32 32 30" />
+  </GS>
+);
+const ShapeClover = (p) => (
+  <GS {...p}>
+    <path d="M32 32 C22 22 22 10 32 10 C42 10 42 22 32 32 Z" />
+    <path d="M32 32 C42 22 54 22 54 32 C54 42 42 42 32 32 Z" />
+    <path d="M32 32 C42 42 42 54 32 54 C22 54 22 42 32 32 Z" />
+    <path d="M32 32 C22 42 10 42 10 32 C10 22 22 22 32 32 Z" />
+  </GS>
+);
+const ShapePalm = (p) => (
+  <GS {...p}>
+    <path d="M20 34 L20 26 M26 34 L26 20 M32 34 L32 18 M38 34 L38 20 M44 34 L44 26" />
+    <path d="M18 34 Q18 52 32 54 Q46 52 46 34 Z" />
+    <circle cx="32" cy="42" r="4" />
+  </GS>
+);
+
 const SHAPE_ICONS = {
   round: ShapeRound, oval: ShapeOval, pear: ShapePear,
   emerald: ShapeEmerald, radiant: ShapeRadiant, marquise: ShapeMarquise,
   princess: ShapePrincess, cushion: ShapeCushion, asscher: ShapeAsscher,
   heart: ShapeHeart, trillion: ShapeTrillion, baguette: ShapeBaguette,
   tapered: ShapeTapered, hexagon: ShapeHexagon,
+  star: ShapeStar, butterfly: ShapeButterfly, clover: ShapeClover, palm: ShapePalm,
 };
 
 function ShapeIcon({ shape, size = 36, color }) {

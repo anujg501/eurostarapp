@@ -133,6 +133,7 @@ const SHAPES = [
   { id: 'butterfly', name: 'Butterfly', note: 'Carved butterfly' },
   { id: 'flower5', name: '5-Petal Flower', note: 'Drilled flower' },
   { id: 'star', name: 'Star', note: '14 mm star' },
+  { id: 'palm', name: 'Palm', note: 'Hamsa palm motif' },
   { id: 'dholki', name: 'Dholki', note: 'Drum bead' },
   { id: 'tile', name: 'Tile', note: 'Flat tile' },
   { id: 'triangle', name: 'Triangle', note: 'Three-sided' },
@@ -701,7 +702,7 @@ const SHAPES_BY_CATEGORY = {
   opaque:     ['round','oval','cushion'],
   coral:      ['round','oval'],
   polki:      ['round','oval','pear','cushion','marquise','heart'],
-  evileye:    ['round','oval','pear','heart','marquise'],
+  evileye:    ['round','heart','marquise','star','butterfly','clover','palm'],
   bracelet:   ['round'],
   hollowmop:  ['round','square','oval','baguette','pear','heart','clover','hexagon'],
   labwhitecorundum: ['round','oval','pear','princess','heart','cushion','marquise','baguette','triangle','octagon-step'],
@@ -3700,11 +3701,17 @@ function ourosaSku(colorId, shape, size) {
 }
 window.ourosaSku = ourosaSku;
 
-// Evil Eye · Real MOP evil-eye stones (round / heart / marquise), per piece. Row [size,pcs,₹/pc].
+// Evil Eye · imported evil-eye stones, per piece. Row [size, pcs-per-packet (MOQ), ₹/pc].
+// Shapes and sizes are taken strictly from the price list (064 EVIL EYE ALL COLORS):
+// ROUND (white), HEART, MAQ (marquise), STAR, BUTTERFLY, FLOWER VANKLEAF (clover), PALM.
 const EVILEYE_SHEETS = {
   'round': [['4 mm',25,24],['5 mm',25,24],['6 mm',25,24],['7 mm',25,32],['8 mm',25,36],['9 mm',15,40],['10 mm',15,40],['11 mm',15,40],['12 mm',15,46],['13 mm',15,48],['14 mm',15,56],['15 mm',15,70],['16 mm',15,70],['18 mm',15,110],['20 mm',15,130]],
   'heart': [['6 mm',25,36],['8 mm',25,36],['9 mm',15,40],['10 mm',15,46],['11 mm',15,48],['12 mm',15,44],['13 mm',15,56],['14 mm',15,64],['16 mm',15,70],['18 mm',15,110],['20 mm',15,130]],
   'marquise': [['6×3 mm',25,24],['8×4 mm',25,26],['10×5 mm',25,26],['12×6 mm',25,34],['14×7 mm',25,44],['16×8 mm',25,46],['18×9 mm',25,60],['20×10 mm',25,66]],
+  'star': [['4 mm',25,30],['6 mm',25,30],['8 mm',25,32],['10 mm',25,36],['12 mm',25,44]],
+  'butterfly': [['9×6 mm',25,36],['10×8 mm',15,40],['12×8 mm',25,40],['14×10 mm',25,50]],
+  'clover': [['6 mm',25,32],['7 mm',25,36],['8 mm',25,40],['9 mm',25,40],['10 mm',25,44],['11 mm',25,46],['12 mm',25,48],['14 mm',25,56],['15 mm',25,64]],
+  'palm': [['8×6 mm',25,34],['8×10 mm',25,40],['10×14 mm',25,50],['16×12 mm',25,64]],
 };
 function evileyeSizes(shape) { const g = EVILEYE_SHEETS[shape]; return g ? g.map((r) => r[0]) : []; }
 function evileyeSku(shape, size) {

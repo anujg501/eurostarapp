@@ -297,6 +297,10 @@ export const GRADE_SCOPED: Record<string, boolean> = {
   hollowmop: true,
   bracelet: true,
   beads: true,
+  corundum: true,
+  cz: true,
+  pearls: true,
+  rajkot: true,
 };
 
 // The grade list to offer per grade-scoped category (id must match the
@@ -339,6 +343,22 @@ export const GRADE_SCOPED_GRADES: Record<string, { id: string; name: string }[]>
     { id: 'rubyopaque', name: 'Ruby Opaque Beads' },
     { id: 'greenopaque', name: 'Green Opaque Beads' },
     { id: 'greenhydro', name: 'Green Hydro Beads' },
+  ],
+  corundum: [
+    { id: 'aaa', name: 'EXCEL AAA' },
+    { id: 'aa', name: 'DECCAN AA' },
+  ],
+  cz: [
+    { id: 'excele', name: 'Excel-E' },
+    { id: 'deccan', name: 'Deccan' },
+  ],
+  pearls: [
+    { id: 'natural', name: 'Natural' },
+    { id: 'created', name: 'Created' },
+  ],
+  rajkot: [
+    { id: 'white', name: 'White' },
+    { id: 'color', name: 'Colour' },
   ],
 };
 
@@ -424,6 +444,73 @@ export const GRADE_SCOPED_COLOURS: Record<string, Record<string, Colour[]>> = {
       { id: 'black', name: 'Black', hex: '#2A2A28' },
     ],
   },
+  // Corundum, CZ, Pearls and Rajkot show different colours per grade, so each
+  // grade keeps its own photos (mirrors *_COLORS_BY_GRADE in data.jsx).
+  corundum: {
+    aaa: [
+      { id: 'ruby5', name: 'Ruby 5', hex: '#8B1E2E' },
+      { id: 'blue34', name: 'Blue 34', hex: '#1E3A8A' },
+      { id: 'white', name: 'White', hex: '#F2EFE8' },
+    ],
+    aa: [
+      { id: 'ruby2', name: 'Ruby 2', hex: '#B23A4A' },
+      { id: 'ruby3', name: 'Ruby 3', hex: '#9E2A3A' },
+      { id: 'ruby5', name: 'Ruby 5', hex: '#8B1E2E' },
+      { id: 'ruby8', name: 'Ruby 8', hex: '#6E1422' },
+    ],
+  },
+  cz: {
+    excele: [
+      { id: 'green', name: 'Green CZ', hex: '#3E8E4F' },
+      { id: 'aqua', name: 'Aqua CZ', hex: '#5B7BC4' },
+      { id: 'purple', name: 'Amethyst', hex: '#9C7DC2' },
+      { id: 'inkblue', name: 'Ink Blue', hex: '#1E2A6A' },
+      { id: 'pink', name: 'Pink', hex: '#E6A4B4' },
+      { id: 'yellow', name: 'Yellow', hex: '#E2B43A' },
+      { id: 'brown', name: 'Brown', hex: '#7A4A2E' },
+      { id: 'garnet', name: 'Garnet', hex: '#8B1E2E' },
+      { id: 'olive', name: 'Olive', hex: '#6B7A3A' },
+      { id: 'tanzanite', name: 'Tanzanite', hex: '#5B5BC4' },
+      { id: 'tcf', name: 'TCF Colours', hex: '#2E9C8E' },
+      { id: 'black', name: 'Black CZ', hex: '#2A2A28' },
+      { id: 'champagne', name: 'Champagne CZ', hex: '#D8C9A8' },
+      { id: 'rhodolite', name: 'Rhodolite', hex: '#9C3A66' },
+    ],
+    deccan: [
+      { id: 'purple', name: 'Amethyst', hex: '#9C7DC2' },
+      { id: 'inkblue', name: 'Ink Blue', hex: '#1E2A6A' },
+      { id: 'pink', name: 'Pink', hex: '#E6A4B4' },
+      { id: 'yellow', name: 'Yellow', hex: '#E2B43A' },
+      { id: 'garnet', name: 'Garnet', hex: '#8B1E2E' },
+      { id: 'olive', name: 'Olive', hex: '#6B7A3A' },
+      { id: 'black', name: 'Black CZ', hex: '#2A2A28' },
+      { id: 'champagne', name: 'Champagne CZ', hex: '#D8C9A8' },
+    ],
+  },
+  pearls: {
+    natural: [
+      { id: 'white', name: 'White', hex: '#F2EFE8' },
+    ],
+    created: [
+      { id: 'white', name: 'White (650)', hex: '#F2EFE8' },
+      { id: 'lightgold', name: 'Light Gold (539)', hex: '#F0E6D2' },
+      { id: 'cream', name: 'Cream (620)', hex: '#F5EEDC' },
+      { id: 'gold', name: 'Gold (296)', hex: '#E2C879' },
+    ],
+  },
+  rajkot: {
+    white: [
+      { id: 'white', name: 'White', hex: '#F2EFE8' },
+    ],
+    color: [
+      { id: 'pinkcz', name: 'Pink CZ', hex: '#E6A4B4' },
+      { id: 'nanogreen', name: 'Nano Green', hex: '#3E8E4F' },
+      { id: 'nanoblue113', name: 'Nano Blue 113', hex: '#2E6FB0' },
+      { id: 'nanoblue114', name: 'Nano Blue 114', hex: '#1F5A95' },
+      { id: 'ruby5aaa', name: 'Ruby 5 AAA', hex: '#B0234A' },
+      { id: 'ruby5aa', name: 'Ruby 5 AA', hex: '#C44A66' },
+    ],
+  },
 };
 
 // A few grade-scoped categories also vary their SHAPES per grade (Opaque:
@@ -445,6 +532,25 @@ export const GRADE_SCOPED_SHAPES: Record<string, Record<string, string[]>> = {
   bracelet: {
     rolex: ['round'],
     cartier: ['round'],
+  },
+  // Corundum / CZ cut sets differ by grade (union of that grade's colour shapes).
+  corundum: {
+    aaa: ['round', 'oval', 'pear', 'marquise', 'princess', 'octagon-princess', 'heart', 'cushion', 'baguette', 'tapered'],
+    aa: ['round', 'oval', 'pear', 'marquise', 'princess', 'cushion', 'heart', 'trillion', 'triangle', 'asscher', 'star', 'octagon-step', 'octagon-princess', 'baguette', 'tapered'],
+  },
+  cz: {
+    excele: ['round', 'oval', 'pear', 'marquise', 'princess', 'cushion', 'heart', 'triangle', 'asscher', 'octagon-princess', 'baguette', 'hexagon', 'trillion', 'octagon-step', 'oblong-cushion', 'star'],
+    deccan: ['round', 'princess', 'cushion', 'trillion', 'heart', 'triangle', 'asscher', 'octagon-princess', 'baguette', 'star'],
+  },
+  // Pearls: drilling options differ by grade (Natural has Undrilled, Created does not).
+  pearls: {
+    natural: ['fulldrilled', 'undrilled', 'halfdrilled', 'cabs'],
+    created: ['fulldrilled', 'halfdrilled', 'cabs'],
+  },
+  // Rajkot is round only in both grades.
+  rajkot: {
+    white: ['round'],
+    color: ['round'],
   },
 };
 

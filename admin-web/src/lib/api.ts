@@ -305,11 +305,11 @@ export const GRADE_SCOPED: Record<string, boolean> = {
 export const GRADE_SCOPED_GRADES: Record<string, { id: string; name: string }[]> = {
   mop: [
     { id: 'white', name: 'White MOP' },
-    { id: 'malachite', name: 'Malachite' },
     { id: 'black', name: 'Black MOP' },
   ],
   multisapphire: [
     { id: 'aaa', name: 'Natural Multi Sapphires' },
+    { id: 'labcreated', name: 'Lab Created Sapphires' },
     { id: 'aa', name: 'Synthetic Multi Sapphires' },
     { id: 'icecut', name: 'Ice Cut Multi Sapphires' },
   ],
@@ -433,7 +433,13 @@ export const GRADE_SCOPED_COLOURS: Record<string, Record<string, Colour[]>> = {
 export const GRADE_SCOPED_SHAPES: Record<string, Record<string, string[]>> = {
   opaque: {
     natural: ['cutstones', 'maniya', 'tyre-plain', 'tyre-fac', 'ballhole-plain', 'ballhole-fac'],
-    opal: ['round', 'oval', 'cushion'],
+    opal: ['round', 'oval', 'pear', 'princess', 'marquise'],
+  },
+  // Lab Grown: Beryl and Corundum each offer their own cut set (mirrors
+  // LABGROWN_SHAPES / LABCORUNDUM_SHAPES in data.jsx). 'created' falls back to base.
+  labgrown: {
+    labgrown: ['round', 'square', 'asscher', 'oval', 'pear', 'octagon-step', 'marquise', 'baguette'],
+    labcorundum: ['round', 'square', 'asscher', 'cushion', 'oval', 'pear', 'octagon-step', 'marquise'],
   },
   // Bracelets have no shape axis; the storefront keys the photo under 'round'.
   bracelet: {

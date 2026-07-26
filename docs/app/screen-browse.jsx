@@ -935,6 +935,8 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   const natStrip = msHasSheet && msCaratGrade;       // carats/strip × ₹/ct display
   const msActive = msHasSheet && !msCaratGrade;      // direct ₹/strip display
   const natCarats = (size) => natStrip && window.msCarats ? (window.msCarats(grade.id, shape, size) || 0) : stripCarats(size);
+  // Natural: per-size ₹/ct comes from the rate sheet (falls back to grade base rate).
+  const natRateCt = (size) => natStrip && window.msRate ? (window.msRate(grade.id, shape, size) || product.price) : product.price;
   const msRows = msActive ? window.msSizes(grade.id, shape).map((s) => window.msRow(grade.id, shape, s)) : [];
   const msHasInch = msRows.some((r) => r && r[4] != null);
   const msHasCt = msRows.some((r) => r && r[3] != null);
@@ -1271,7 +1273,7 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
     lotMode ? LOT_PRICE :
     ctLotMode ? OP_LOT_CT * opRowRate(size) :
     msActive ? window.msRate(grade.id, shape, size) :
-    natStrip ? Math.round(natCarats(size) * product.price) :
+    natStrip ? Math.round(natCarats(size) * natRateCt(size)) :
     byStrip ? product.price :
     unitRate(product, size, rowUnit(size), category.id);
   };
@@ -1595,7 +1597,7 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
             {msActive && msHasPcs &&
               <div className="size-pad-pcs ms-pcs">{(() => { const mr = window.msRow(grade.id, shape, s); return mr && mr[2] != null ? <React.Fragment>{mr[2]}<span className="size-pad-unit-sfx"> pcs</span></React.Fragment> : <span style={{ color: 'var(--ink-4)' }}>—</span>; })()}</div>
               }
-            <div className="size-pad-price">{natStrip ? <React.Fragment>{formatINR(product.price)}<span className="size-pad-unit-sfx"> /ct</span></React.Fragment> : formatINR(r)}</div>
+            <div className="size-pad-price">{natStrip ? <React.Fragment>{formatINR(natRateCt(s))}<span className="size-pad-unit-sfx"> /ct</span></React.Fragment> : formatINR(r)}</div>
             <div className="size-pad-input-wrap">
               <div className="size-pad-stepper">
                 <button onClick={() => bumpQty(s, -stepUnits)} disabled={q <= 0} aria-label="decrease">
@@ -1611,7 +1613,7 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
               {q === 0 &&
                 <button className="size-pad-add" onClick={() => fillRow(s)}>+ Add 1 strip</button>}
               {natStrip && isFilled &&
-                <div className="size-pad-pcs-note">{(q * natCarats(s)).toFixed(1)} ct × {formatINR(product.price)}/ct</div>}
+                <div className="size-pad-pcs-note">{(q * natCarats(s)).toFixed(1)} ct × {formatINR(natRateCt(s))}/ct</div>}
               {msActive && msHasPcs && isFilled && (() => { const mr = window.msRow(grade.id, shape, s); return mr && mr[2] != null ?
                 <div className="size-pad-pcs-note">{q} strip{q > 1 ? 's' : ''} · ≈ {(q * mr[2]).toLocaleString('en-IN')} pcs</div> : null; })()}
             </div>

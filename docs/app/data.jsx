@@ -1546,21 +1546,22 @@ const STRIP_CARATS_BY_SIZE = {
 };
 const stripCarats = (size) => STRIP_CARATS_BY_SIZE[size] || 2;
 
-// Multi Sapphire per-strip rate sheets. Row = [size, INR/line(strip), pcs/line, approx ct, inches].
-// Grades: aaa (Natural), labcreated (Lab Grown certified), aa (Synthetic), icecut (Ice Cut).
+// Multi Sapphire strip sheets. Row = [size, INR/line, pcs/line, approx ct, inches].
+// Natural (aaa) is CARAT-priced: 'approx ct' holds carats per 7" strip and price = ct x grade INR/ct.
+// Other grades carry a direct INR/line price.
 const MULTISAPPHIRE_SHEETS = {
   'aaa': {
-    'round': [['1.50 mm',2300,null,null,null],['1.80 mm',1200,null,null,null],['2.00 mm',1200,null,null,null],['2.25 mm',1200,null,null,null],['2.50 mm',1200,null,null,null],['2.75 mm',1350,null,null,null],['3.00 mm',2100,null,null,null],['3.50 mm',2500,null,null,null],['4.00 mm',3350,null,null,null],['5.00 mm',6450,null,null,null]],
-    'princess': [['1.50 mm',4600,null,null,null],['1.80 mm',2300,null,null,null],['2.00 mm',2100,null,null,null],['2.25 mm',1600,null,null,null],['2.50 mm',1900,null,null,null],['2.75 mm',2000,null,null,null],['3.00 mm',2500,null,null,null],['3.50 mm',4600,null,null,null],['4.00 mm',8100,null,null,null],['5.00 mm',14600,null,null,null]],
-    'oval': [['2×3 mm',2300,null,null,null],['3×4 mm',1200,null,null,null],['3×5 mm',1450,null,null,null],['4×5 mm',2100,null,null,null],['4×6 mm',2900,null,null,null],['5×7 mm',6250,null,null,null]],
-    'pear': [['2×3 mm',2300,null,null,null],['3×4 mm',1200,null,null,null],['3×5 mm',1450,null,null,null],['4×5 mm',2100,null,null,null],['4×6 mm',2900,null,null,null],['5×7 mm',6250,null,null,null]],
-    'octagon-step': [['2×3 mm',2900,null,null,null],['3×4 mm',2100,null,null,null],['3×5 mm',3350,null,null,null],['4×5 mm',5000,null,null,null],['4×6 mm',7100,null,null,null],['5×7 mm',11650,null,null,null]],
-    'marquise': [['2×4 mm',1700,null,null,null],['2.5×5 mm',1900,null,null,null],['3×6 mm',2300,null,null,null]],
-    'baguette': [['1.5×3 mm',3100,null,null,null],['2×3 mm',1600,null,null,null],['2×3.5 mm',1800,null,null,null],['2×4 mm',2200,null,null,null],['2.5×5 mm',3150,null,null,null],['3×5 mm',4600,null,null,null],['3×6 mm',6900,null,null,null]],
-    'trillion': [['3.00 mm',2300,null,null,null],['3.50 mm',3100,null,null,null],['4.00 mm',2700,null,null,null],['5.00 mm',6250,null,null,null]],
-    'heart': [['3.00 mm',2300,null,null,null],['3.50 mm',3100,null,null,null],['4.00 mm',2700,null,null,null],['5.00 mm',6250,null,null,null]],
-    'hexagon': [['3.00 mm',4200,null,null,null],['3.50 mm',5000,null,null,null]],
-    'cushion': [['4.00 mm',4600,null,null,null],['5.00 mm',6900,null,null,null]],
+    'round': [['1.50 mm',null,null,1.8,null],['1.80 mm',null,null,2.5,null],['2.00 mm',null,null,3.1,null],['2.25 mm',null,null,3.8,null],['2.50 mm',null,null,4.4,null],['2.75 mm',null,null,4.9,null],['3.00 mm',null,null,5.9,null],['3.50 mm',null,null,10.2,null],['4.00 mm',null,null,13.2,null],['5.00 mm',null,null,17.5,null]],
+    'princess': [['1.50 mm',null,null,2.8,null],['1.80 mm',null,null,3.7,null],['2.00 mm',null,null,4.7,null],['2.25 mm',null,null,5.6,null],['2.50 mm',null,null,6.7,null],['2.75 mm',null,null,7.4,null],['3.00 mm',null,null,8.8,null],['3.50 mm',null,null,12.2,null],['4.00 mm',null,null,15.8,null],['5.00 mm',null,null,22.4,null]],
+    'oval': [['2×3 mm',null,null,3.4,null],['3×4 mm',null,null,7.5,null],['3×5 mm',null,null,7.7,null],['4×5 mm',null,null,12.6,null],['4×6 mm',null,null,13.2,null],['5×7 mm',null,null,19.8,null]],
+    'pear': [['2×3 mm',null,null,3,null],['3×4 mm',null,null,6.2,null],['3×5 mm',null,null,6.3,null],['4×5 mm',null,null,11.2,null],['4×6 mm',null,null,11.4,null],['5×7 mm',null,null,17.8,null]],
+    'octagon-step': [['2×3 mm',null,null,4.4,null],['3×4 mm',null,null,8.8,null],['3×5 mm',null,null,9.8,null],['4×5 mm',null,null,9.8,null],['4×6 mm',null,null,18,null],['5×7 mm',null,null,26.2,null]],
+    'marquise': [['2×4 mm',null,null,7.5,null],['2.5×5 mm',null,null,6,null],['3×6 mm',null,null,6.6,null]],
+    'baguette': [['1.5×3 mm',null,null,2.7,null],['2×3 mm',null,null,4.7,null],['2×3.5 mm',null,null,4.8,null],['2×4 mm',null,null,5.2,null],['2.5×5 mm',null,null,7.3,null],['3×5 mm',null,null,10.8,null],['3×6 mm',null,null,10.8,null]],
+    'trillion': [['3.00 mm',null,null,6.5,null],['3.50 mm',null,null,8.2,null],['4.00 mm',null,null,11,null],['5.00 mm',null,null,17.1,null]],
+    'heart': [['3.00 mm',null,null,6.5,null],['3.50 mm',null,null,8.2,null],['4.00 mm',null,null,11,null],['5.00 mm',null,null,16.1,null]],
+    'hexagon': [['3.00 mm',null,null,7.7,null],['3.50 mm',null,null,13.3,null]],
+    'cushion': [['4.00 mm',null,null,13.6,null],['5.00 mm',null,null,21,null]],
   },
   'labcreated': {
     'octagon-step': [['5×3 mm',5075,59,null,null],['6×4 mm',4550,44,null,null],['7×5 mm',4550,36,null,null]],
@@ -1587,8 +1588,9 @@ const MULTISAPPHIRE_SHEETS = {
 const msSizes = (gradeId, shape) => { const g = MULTISAPPHIRE_SHEETS[gradeId]; return g && g[shape] ? g[shape].map((r) => r[0]) : []; };
 const msRow = (gradeId, shape, size) => { const g = MULTISAPPHIRE_SHEETS[gradeId]; return g && g[shape] ? (g[shape].find((r) => r[0] === size) || null) : null; };
 const msRate = (gradeId, shape, size) => { const r = msRow(gradeId, shape, size); return r ? r[1] : null; };
+const msCarats = (gradeId, shape, size) => { const r = msRow(gradeId, shape, size); return r ? r[3] : null; };
 const msShapes = (gradeId) => { const g = MULTISAPPHIRE_SHEETS[gradeId]; return g ? Object.keys(g) : []; };
-window.msSizes = msSizes; window.msRow = msRow; window.msRate = msRate; window.msShapes = msShapes;
+window.msSizes = msSizes; window.msRow = msRow; window.msRate = msRate; window.msCarats = msCarats; window.msShapes = msShapes;
 
 // Ourosa: PP sizes with mm equivalents.
 const OUROSA_SIZES = [

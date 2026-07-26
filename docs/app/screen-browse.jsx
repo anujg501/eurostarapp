@@ -495,6 +495,7 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
               category.id === 'alpanite' && window.alpSheetSizes && window.alpSheetSizes(_cid, s).length ? window.alpSheetSizes(_cid, s) :
               category.id === 'navratna' && window.navSizes ? window.navSizes(_gid, s) :
               category.id === 'labgrown' && _gid === 'labgrown' && window.lgSizes ? window.lgSizes(_cid, s) :
+              category.id === 'multisapphire' && window.msSizes ? window.msSizes(_gid, s) :
               [];
             const sizes = sheetSizesForCard.length ? sheetSizesForCard : skuSizesForCard.length ? skuSizesForCard : category.id === 'mop' ? window.MOP_PRICES[s] || [] : FULL_SIZES[s] || ['4.00 mm'];
             const shapeImg = productImageFor(category.id, color.id, s, grade && grade.id);
@@ -925,18 +926,22 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   const unitName = unitLabelLong(unit); // carat / piece / packet / strip
   const byCarat = unit === 'ct';
   const byStrip = unit === 'strip';
-  // Multi Sapphires: strip-sold with a per-grade rate sheet that also carries
-  // pcs-per-line, approx carat weight and (synthetic) strip length in inches.
-  const msActive = category.id === 'multisapphire' && grade && shape && window.msSizes && window.msSizes(grade.id, shape).length > 0;
+  // Multi Sapphires: strip-sold with a per-grade rate sheet.
+  //  · Natural (aaa)  → CARAT-priced: carats/strip (from sheet) × ₹/ct grade rate.
+  //  · Other grades   → direct ₹/strip, plus the info the sheet carries
+  //                     (pcs/line, approx carat, and synthetic strip length in inches).
+  const msHasSheet = category.id === 'multisapphire' && grade && shape && window.msSizes && window.msSizes(grade.id, shape).length > 0;
+  const msCaratGrade = category.id === 'multisapphire' && grade && grade.id === 'aaa';
+  const natStrip = msHasSheet && msCaratGrade;       // carats/strip × ₹/ct display
+  const msActive = msHasSheet && !msCaratGrade;      // direct ₹/strip display
+  const natCarats = (size) => natStrip && window.msCarats ? (window.msCarats(grade.id, shape, size) || 0) : stripCarats(size);
   const msRows = msActive ? window.msSizes(grade.id, shape).map((s) => window.msRow(grade.id, shape, s)) : [];
   const msHasInch = msRows.some((r) => r && r[4] != null);
   const msHasCt = msRows.some((r) => r && r[3] != null);
   const msHasPcs = msRows.some((r) => r && r[2] != null);
-  // Legacy carats×₹/ct estimate only applies to a strip grade with no rate sheet.
-  const natStrip = category.id === 'multisapphire' && grade.id === 'aaa' && !msActive;
-  const stripCols = natStrip ? '120px 120px 130px 1fr 120px'
-    : msActive ? ['110px', msHasInch ? '84px' : null, msHasCt ? '96px' : null, msHasPcs ? '84px' : null, '1fr', '108px', '116px'].filter(Boolean).join(' ')
-    : '120px 140px 1fr 130px';
+  const stripCols = natStrip ? '96px 120px 96px 1fr 120px'
+    : msActive ? ['96px', msHasInch ? '78px' : null, msHasCt ? '92px' : null, msHasPcs ? '80px' : null, '104px', '1fr', '120px'].filter(Boolean).join(' ')
+    : '120px 160px 1fr 130px';
   const moqUnits = category.id === 'beads' ? 100 : (category.id === 'moissanite' || category.id === 'labgrown' ? 1 : unitMoq(unit));
   // Moissanite: 6.50 mm+ is sold per piece (MOQ 1 pc); below that, per carat (MOQ 1 ct).
   // Lab Grown reuses the same chart-driven carat-weight model (no ₹80 certificate).
@@ -1108,8 +1113,8 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   // Lab Grown Beryl · per-colour size list (default target sizes + special-colour Excel sizes).
   const lgSheet = lgBeryl && color && window.lgSizes && window.lgSizes(color.id, shape).length ? window.lgSizes(color.id, shape)
     : lgCorundum && window.lgCorSizes && window.lgCorSizes(shape).length ? window.lgCorSizes(shape) : null;
-  // Multi Sapphires · per-grade per-strip rate sheet.
-  const msSheet = msActive ? window.msSizes(grade.id, shape) : null;
+  // Multi Sapphires · per-grade rate sheet (Natural carat + others per-strip).
+  const msSheet = msHasSheet ? window.msSizes(grade.id, shape) : null;
   let sizes = category.id === 'moissanite' ? (moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm']) : alpGreen ? alpGreen : alpBlue ? alpBlue : alpSheet ? alpSheet : hdSheet ? hdSheet : corSheet ? corSheet : wfSheet ? wfSheet : czSheet ? czSheet : colorCzSheet ? colorCzSheet : opaqueNatSheet ? opaqueNatSheet : opaqueSheet ? opaqueSheet : polkiSheet ? polkiSheet : labopalSheet ? labopalSheet : cabSheet ? cabSheet : pearlSheet ? pearlSheet : hmopSheet ? hmopSheet : alexSheet ? alexSheet : lwcSheet ? lwcSheet : rajkotSheet ? rajkotSheet : coralSheet ? coralSheet : evileyeSheet ? evileyeSheet : navSheet ? navSheet : lgSheet ? lgSheet : msSheet ? msSheet : skuSizes.length ? skuSizes.slice() : (SIZES_BY_CATEGORY && SIZES_BY_CATEGORY[category.id]) ? SIZES_BY_CATEGORY[category.id].slice() : ourosaMode ? OUROSA_SIZES.map((x) => x[0]) : mixedMoiss ? moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm'] : byStrip ? FULL_SIZES[shape] || ['4.00 mm'] : FULL_SIZES[shape] || ['4.00 mm'];
   // A colour may cap its size range (e.g. Alpanite Yellow / 162/2 → 1.00–2.00 mm only).
   if (color && color.sizeMax) {sizes = sizes.filter((s) => (parseFloat(s) || 0) <= color.sizeMax + 0.001);}
@@ -1266,7 +1271,7 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
     lotMode ? LOT_PRICE :
     ctLotMode ? OP_LOT_CT * opRowRate(size) :
     msActive ? window.msRate(grade.id, shape, size) :
-    natStrip ? stripCarats(size) * product.price :
+    natStrip ? Math.round(natCarats(size) * product.price) :
     byStrip ? product.price :
     unitRate(product, size, rowUnit(size), category.id);
   };
@@ -1579,16 +1584,16 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
               <div className="size-pad-unit">{s.includes('mm') ? 'mm strip' : 'strip'}</div>
             </div>
             {natStrip &&
-              <div className="size-pad-pcs">{stripCarats(s)} <span className="size-pad-unit-sfx">ct</span></div>
+              <div className="size-pad-pcs">{natCarats(s)} <span className="size-pad-unit-sfx">ct</span></div>
               }
             {msActive && msHasInch &&
-              <div className="size-pad-pcs">{(() => { const mr = window.msRow(grade.id, shape, s); return mr && mr[4] != null ? <React.Fragment>{mr[4]}<span className="size-pad-unit-sfx"> in</span></React.Fragment> : <span style={{ color: 'var(--ink-4)' }}>—</span>; })()}</div>
+              <div className="size-pad-pcs ms-inch">{(() => { const mr = window.msRow(grade.id, shape, s); return mr && mr[4] != null ? <React.Fragment>{mr[4]}<span className="size-pad-unit-sfx"> in</span></React.Fragment> : <span style={{ color: 'var(--ink-4)' }}>—</span>; })()}</div>
               }
             {msActive && msHasCt &&
-              <div className="size-pad-pcs">{(() => { const mr = window.msRow(grade.id, shape, s); return mr && mr[3] != null ? <React.Fragment>{mr[3]}<span className="size-pad-unit-sfx"> ct</span></React.Fragment> : <span style={{ color: 'var(--ink-4)' }}>—</span>; })()}</div>
+              <div className="size-pad-pcs ms-ct">{(() => { const mr = window.msRow(grade.id, shape, s); return mr && mr[3] != null ? <React.Fragment>{mr[3]}<span className="size-pad-unit-sfx"> ct</span></React.Fragment> : <span style={{ color: 'var(--ink-4)' }}>—</span>; })()}</div>
               }
             {msActive && msHasPcs &&
-              <div className="size-pad-pcs">{(() => { const mr = window.msRow(grade.id, shape, s); return mr && mr[2] != null ? <React.Fragment>{mr[2]}<span className="size-pad-unit-sfx"> pcs</span></React.Fragment> : <span style={{ color: 'var(--ink-4)' }}>—</span>; })()}</div>
+              <div className="size-pad-pcs ms-pcs">{(() => { const mr = window.msRow(grade.id, shape, s); return mr && mr[2] != null ? <React.Fragment>{mr[2]}<span className="size-pad-unit-sfx"> pcs</span></React.Fragment> : <span style={{ color: 'var(--ink-4)' }}>—</span>; })()}</div>
               }
             <div className="size-pad-price">{natStrip ? <React.Fragment>{formatINR(product.price)}<span className="size-pad-unit-sfx"> /ct</span></React.Fragment> : formatINR(r)}</div>
             <div className="size-pad-input-wrap">
@@ -1606,7 +1611,7 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
               {q === 0 &&
                 <button className="size-pad-add" onClick={() => fillRow(s)}>+ Add 1 strip</button>}
               {natStrip && isFilled &&
-                <div className="size-pad-pcs-note">{(q * stripCarats(s)).toFixed(1)} ct × {formatINR(product.price)}/ct</div>}
+                <div className="size-pad-pcs-note">{(q * natCarats(s)).toFixed(1)} ct × {formatINR(product.price)}/ct</div>}
               {msActive && msHasPcs && isFilled && (() => { const mr = window.msRow(grade.id, shape, s); return mr && mr[2] != null ?
                 <div className="size-pad-pcs-note">{q} strip{q > 1 ? 's' : ''} · ≈ {(q * mr[2]).toLocaleString('en-IN')} pcs</div> : null; })()}
             </div>

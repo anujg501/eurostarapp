@@ -1157,6 +1157,10 @@ img[src*="assets/products/"] {
 }
 .size-pad-row:last-child { border-bottom: none; }
 .size-pad-row:hover { background: var(--paper-2); }
+/* Strip pads (Multi Sapphire) have only a handful of columns; cap the width so
+   they pack into a neat table instead of stretching the flexible column across
+   the whole page. */
+.strip-pad { max-width: 880px; }
 .size-pad-row.filled {
   background: var(--emerald-soft);
   border-bottom-color: #C8DDD0;
@@ -1366,10 +1370,14 @@ img[src*="assets/products/"] {
       "size   price"
       "pcs    pcs"
       "pcs2   pcs2"
+      "pcs3   pcs3"
       "input  total";
   }
-  .lot-pad .size-pad-pcs ~ .size-pad-pcs,
-  .strip-pad .size-pad-pcs ~ .size-pad-pcs { grid-area: pcs2; }
+  .lot-pad .size-pad-pcs ~ .size-pad-pcs { grid-area: pcs2; }
+  /* Multi Sapphire per-strip info cells stack in a fixed order on mobile. */
+  .strip-pad .ms-inch { grid-area: pcs; }
+  .strip-pad .ms-ct   { grid-area: pcs2; }
+  .strip-pad .ms-pcs  { grid-area: pcs3; }
   /* Must match the desktop `.size-pad.has-wt .size-pad-row` specificity (3 classes)
      or its 6 fixed columns win over the mobile 2-column layout. */
   .size-pad.has-wt .size-pad-row,
@@ -1397,6 +1405,9 @@ img[src*="assets/products/"] {
   .lot-pad    .size-pad-pcs ~ .size-pad-pcs::before { content: 'Qty / packet: '; }
   .ctlot-pad  .size-pad-pcs::before { content: 'Qty / packet: '; }
   .strip-pad  .size-pad-pcs::before { content: 'Carats / strip: '; }
+  .strip-pad  .ms-inch::before { content: 'Inches: '; }
+  .strip-pad  .ms-ct::before   { content: 'Approx ct: '; }
+  .strip-pad  .ms-pcs::before  { content: 'Pcs / line: '; }
   .size-pad-price {
     grid-area: price; text-align: right; justify-self: end; align-self: start;
     font-size: 15px; font-weight: 600; color: var(--fg);

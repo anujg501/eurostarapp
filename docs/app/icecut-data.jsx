@@ -58,6 +58,17 @@ const ICECUT_PRICES = {
 const icecutRows = (shape) => ICECUT_PRICES[ICECUT_SHAPE_GROUP[shape] || 'g2'] || [];
 const TIER_COL = { white: 'w', normal: 'n', special1: 's1', special2: 's2', paribas: 'pb' };
 
+// Pieces per packet (MOQ) by the stone's largest dimension (mm). One rule across
+// every Ice Cut shape and colour: ≤6 → 100, 7–9 → 50, 10 → 25, 11 mm+ → 10.
+const ICECUT_MOQ = (size) => {
+  const ns = String(size).match(/[\d.]+/g);
+  const mx = ns ? Math.max.apply(null, ns.map(Number)) : 0;
+  if (mx <= 6) return 100;
+  if (mx <= 9) return 50;
+  if (mx <= 10) return 25;
+  return 10;
+};
+
 function IceCutOrderPad({ grade, color, shape, category, qtyBySize, setQtyBySize, onBack, onChangeColor, addToCart, setRoute }) {
   const fmt = (n) => (window.formatINR ? window.formatINR(n) : '₹' + Number(n).toLocaleString('en-IN'));
   const shapeMeta = (window.findShape && window.findShape(shape)) || { name: shape };
@@ -67,7 +78,7 @@ function IceCutOrderPad({ grade, color, shape, category, qtyBySize, setQtyBySize
   // Same resolver the shape cards use — see laser-data.jsx.
   const heroImg = window.productImageFor ? window.productImageFor(category.id, color.id, shape) : null;
   const rows = icecutRows(shape);
-  const ppp = (r) => (r && r.ppp ? r.ppp : 1);
+  const ppp = (r) => (r ? ICECUT_MOQ(r.s) : 1);
 
   const setQty = (size, v) => setQtyBySize((p) => ({ ...p, [size]: Math.max(0, parseInt(v, 10) || 0) }));
   const bump = (size, d) => setQtyBySize((p) => ({ ...p, [size]: Math.max(0, (p[size] || 0) + d) }));
@@ -121,7 +132,7 @@ function IceCutOrderPad({ grade, color, shape, category, qtyBySize, setQtyBySize
             {color.name} Ice Cut {shapeMeta.name}
           </h1>
           <p style={{ margin: 0, color: 'var(--fg-muted)', fontSize: 14 }}>
-            Crushed ice-cut CZ · ordered by the packet · priced per piece · pieces-per-packet set on bulk upload.
+            Crushed ice-cut CZ · ordered by the packet · priced per piece · pieces-per-packet (MOQ) by size.
           </p>
         </div>
         <button className="btn btn-ghost btn-sm" onClick={onBack}>
@@ -145,7 +156,7 @@ function IceCutOrderPad({ grade, color, shape, category, qtyBySize, setQtyBySize
             <div key={r.s} className={`size-pad-row ${q > 0 ? 'filled' : ''}`}
               style={{ gridTemplateColumns: '1fr 110px 100px 1fr 130px' }}>
               <div className="size-pad-size"><div className="size-pad-mm" style={{ fontSize: 15 }}>{r.s}</div></div>
-              <div className="size-pad-pcs">{r.ppp ? r.ppp : '—'}</div>
+              <div className="size-pad-pcs">{ICECUT_MOQ(r.s)}</div>
               <div className="size-pad-price">{fmt(price)}</div>
               <div className="size-pad-input-wrap">
                 <div className="size-pad-stepper">
@@ -158,7 +169,7 @@ function IceCutOrderPad({ grade, color, shape, category, qtyBySize, setQtyBySize
                     {window.IconPlus ? <window.IconPlus size={12} /> : '+'}
                   </button>
                 </div>
-                {q > 0 && r.ppp && <div className="size-pad-pcs-note">= {pieces.toLocaleString('en-IN')} pcs</div>}
+                {q > 0 && <div className="size-pad-pcs-note">= {pieces.toLocaleString('en-IN')} pcs</div>}
               </div>
               <div className="size-pad-total">
                 {q > 0 ? fmt(pieces * price) : <span style={{ color: 'var(--ink-4)' }}>—</span>}

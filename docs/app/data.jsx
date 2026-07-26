@@ -695,7 +695,7 @@ const SHAPES_BY_CATEGORY = {
   icecut:     ['oval','pear','oblong','radiant','square','round','cushion','marquise'],
   ourosa:     ['round'],
   beads:      ['plain-beads','faceted-beads','oval-maniya','drops'],
-  laser:      ['round','marquise','oval','pear','square','invisible-square','heart','curved-trillion','cushion','oblong-cushion','asscher','radiant','baguette-prince','baguette-step','tapered-baguette','triangle','octagon','leaf'],
+  laser:      ['round','marquise','oval','pear','square','heart','curved-trillion','cushion','oblong-cushion','asscher','radiant','baguette-prince','baguette-step','tapered-baguette','triangle','octagon'],
   alpanite:   ['round','oval','pear','princess','cushion','asscher','trillion','triangle','marquise','heart','baguette-step','octagon-step','octagon-princess'],
   multisapphire: ['round','princess','oval','pear','octagon-step','octagon-princess','radiant','baguette','marquise','trillion','heart','hexagon','long-hexa','tarpozid','kite','cushion'],
   cabochon:   ['round','oval','pear','marquise','pearoval','square'],
@@ -1657,7 +1657,9 @@ const ORIGIN_BY_CATEGORY = {
 };
 const catOrigin = (catId) => ORIGIN_BY_CATEGORY[catId] || 'Synthetic';
 // Categories that show the "Wt / 1000 pcs" column (opt-in)
-const WEIGHT_CATEGORIES = new Set(['highdensity', 'cabochon', 'whitecz']);
+// whitecz weight shows only when the grade's sheet carries weights (czHasWeight),
+// so grades supplied without a weight sheet (Prizma / Eternal) hide the column.
+const WEIGHT_CATEGORIES = new Set(['highdensity', 'cabochon']);
 const catShowWeight = (catId) => WEIGHT_CATEGORIES.has(catId);
 // Packet-sold categories that quote a flat price PER PACKET (not per piece).
 const PACKET_PRICED = new Set(['pearls', 'ourosa', 'rajkot']);
@@ -2970,6 +2972,20 @@ const WHITECZ_SHEETS = {
       ['2.20 mm',500,0.86,18.6],['2.25 mm',500,0.97,19.6],['2.30 mm',500,1.01,20.6],['2.35 mm',500,1.01,20.95],['2.40 mm',500,1.08,23.9],
       ['2.45 mm',500,1.08,25.06],['2.50 mm',500,1.08,26.4],['2.60 mm',500,1.19,29.0],['2.70 mm',500,1.29,32.6],['2.75 mm',500,1.34,35.42],
       ['2.80 mm',500,1.4,36.4],['2.90 mm',500,1.51,39.8],['3.00 mm',500,1.73,43.0],
+  ] },
+  // Prizma & Eternal · RIVEN price sheets (price per 1000 pcs). Packet = 1000 pcs,
+  // so ₹/packet == the sheet value. Per-piece price = sheet ÷ 1000. No weight sheet
+  // supplied → weight column hidden for these grades.
+  'prizma': { round: [
+      ['0.80 mm',1000,0.094,null],['0.90 mm',1000,0.094,null],['1.00 mm',1000,0.094,null],['1.10 mm',1000,0.102,null],['1.20 mm',1000,0.133,null],
+      ['1.30 mm',1000,0.139,null],['1.40 mm',1000,0.175,null],['1.50 mm',1000,0.2,null],['1.60 mm',1000,0.265,null],['1.70 mm',1000,0.306,null],
+      ['1.80 mm',1000,0.36,null],['1.90 mm',1000,0.403,null],['2.00 mm',1000,0.466,null],['2.10 mm',1000,0.499,null],['2.25 mm',1000,0.614,null],
+      ['2.50 mm',1000,0.672,null],['2.75 mm',1000,0.941,null],['3.00 mm',1000,1.094,null],
+  ] },
+  'eternal': { round: [
+      ['1.00 mm',1000,0.058,null],['1.10 mm',1000,0.071,null],['1.20 mm',1000,0.082,null],['1.30 mm',1000,0.09,null],['1.40 mm',1000,0.116,null],
+      ['1.50 mm',1000,0.139,null],['1.60 mm',1000,0.162,null],['1.70 mm',1000,0.182,null],['1.80 mm',1000,0.22,null],['1.90 mm',1000,0.26,null],
+      ['2.00 mm',1000,0.263,null],
   ] },
 };
 function czSizes(gradeId, shape) {

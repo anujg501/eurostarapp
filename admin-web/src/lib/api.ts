@@ -296,6 +296,7 @@ export const GRADE_SCOPED: Record<string, boolean> = {
   navratna: true,
   hollowmop: true,
   bracelet: true,
+  beads: true,
 };
 
 // The grade list to offer per grade-scoped category (id must match the
@@ -332,6 +333,12 @@ export const GRADE_SCOPED_GRADES: Record<string, { id: string; name: string }[]>
   bracelet: [
     { id: 'rolex', name: 'Rolex Style' },
     { id: 'cartier', name: 'Cartier Style' },
+  ],
+  beads: [
+    { id: 'ruby5', name: 'Ruby 5 Beads' },
+    { id: 'rubyopaque', name: 'Ruby Opaque Beads' },
+    { id: 'greenopaque', name: 'Green Opaque Beads' },
+    { id: 'greenhydro', name: 'Green Hydro Beads' },
   ],
 };
 

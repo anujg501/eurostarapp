@@ -1468,10 +1468,8 @@ const COLORS_BY_CATEGORY = {
     { id: 'green', name: 'Green', hex: '#2E8C5C' },
   ],
   coral: [
-    { id: 'red',   name: 'Coral Red',  hex: '#C0432E' },
-    { id: 'milky', name: 'Milky White',hex: '#F0E6D2' },
-    { id: 'pink',  name: 'Pink',       hex: '#E6A4B4' },
-    { id: 'olive', name: 'Olive',      hex: '#7A7A3A' },
+    { id: 'red',   name: 'Coral',  hex: '#C0432E' },
+    { id: 'olive', name: 'Olive',  hex: '#7A7A3A' },
   ],
   polki: [{ id: 'default', name: 'Polki', hex: '#EFE6CF' }],
   evileye: [{ id: 'default', name: 'Evil Eye', hex: '#2A6FDB' }],

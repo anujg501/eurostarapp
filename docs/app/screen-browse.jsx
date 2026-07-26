@@ -969,7 +969,7 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
     const s = window.uploadedSkuFor ? uploadedSkuFor(category.id, shape, size, grade) : null;
     return s && Number(s.moq) > 0 ? Number(s.moq) : moqUnits;
   };
-  const stepUnits = category.id === 'beads' ? 100 : 1;
+  const stepUnits = category.id === 'beads' || lgCreated ? 100 : 1;
   // Moissanite: optional ₹80/pc certificate, offered from the same per-shape size.
   const [certOff, setCertOff] = React.useState({});
   const certEligible = (size) => (category.id === 'moissanite' || (category.id === 'labgrown' && (grade.id === 'labgrown' || grade.id === 'labcorundum'))) && moissIsPiece(shape, size);
@@ -1375,7 +1375,7 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
               <React.Fragment>Order by the packet · enter packets against any size · MOQ {moqUnits} packet per size ·
                       pieces per packet vary by size · {packetPriced ? 'priced per packet' : 'priced per piece'}</React.Fragment> :
               <React.Fragment>Enter {unitName} quantities against any size below ·
-                      MOQ {moqUnits} {unitWord} per size{category.id === 'beads' ? ' · in multiples of 100 ct' : ' · ±0.05 mm tolerance'}
+                      MOQ {lgCreated ? 100 : moqUnits} {unitWord} per size{category.id === 'beads' || lgCreated ? ' · in multiples of 100 ct' : ' · ±0.05 mm tolerance'}
                       {category.id === 'moissanite' && ' · 6.00 mm+ entered by piece, billed by carat · optional ₹80/pc certificate'}
                       {category.id === 'labgrown' && grade.id === 'labgrown' && ' · ordered & priced per piece · optional ₹2,000/pc IGI certificate'}
                       {category.id === 'labgrown' && grade.id === 'labcorundum' && ' · ₹150/ct × weight · ordered & priced per piece · optional ₹2,000/pc IGI certificate'}</React.Fragment>}</React.Fragment>}
@@ -1633,9 +1633,9 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
       </div> :
 
       <div className={`size-pad ${showWt || showPieceWt ? 'has-wt' : ''} ${navMode ? 'unit-nav' : 'unit-' + unit}`} style={{ marginTop: 4 }}>
-        <div className="size-pad-head" style={navMode ? { gridTemplateColumns: '140px 150px minmax(0,1fr) 130px' } : undefined}>
+        <div className="size-pad-head" style={navMode ? { gridTemplateColumns: '140px 150px minmax(0,1fr) 130px' } : lgCreated ? { gridTemplateColumns: '140px 150px 1fr 130px' } : undefined}>
           <span>Size</span>
-          {!navMode &&
+          {!navMode && !lgCreated &&
           <span style={{ textAlign: 'center' }}>
             {unit === 'ct' ? 'Pcs / ct' : unit === 'pkt' ? 'Pcs / packet' : 'Per pc'}
           </span>}
@@ -1666,14 +1666,13 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
           const so = sizeSoldOut(s);
           return (
             <div key={s} className={`size-pad-row ${isFilled ? 'filled' : ''} ${belowMoq ? 'below' : ''} ${so ? 'soldout' : ''}`}
-            style={navMode ? { gridTemplateColumns: '140px 150px minmax(0,1fr) 130px' } : undefined}>
+            style={navMode ? { gridTemplateColumns: '140px 150px minmax(0,1fr) 130px' } : lgCreated ? { gridTemplateColumns: '140px 150px 1fr 130px' } : undefined}>
               <div className="size-pad-size">
                 <div className="size-pad-mm">{ourosaMode ? s : s.replace(' mm', '')}</div>
                 <div className="size-pad-unit">{ourosaMode ? ourosaMM(s) : s.includes('mm') ? 'mm' : ''}</div>
               </div>
-              {!navMode &&
+              {!navMode && !lgCreated &&
               <div className="size-pad-pcs">{mixedMoiss ?
-                lgCreated ? 'MOQ 100 ct' :
                 pieceInput(s) ? `${moissCt(s)} ct/pc` : `${moissPcsPerCt(shape, s).toLocaleString('en-IN')} /ct` :
                 unit === 'pc' ? '1' : each.toLocaleString('en-IN')}</div>}
               <div className="size-pad-price">{formatINR(navMode ? navUnitPrice : lgPriced ? (lgPiecePrice(s) != null ? lgPiecePrice(s) : moissPerCt(s)) : mixedMoiss ? moissPerCt(s) : unit === 'pkt' ? packetPriced ? r : piecePrice(s) : r)}{mixedMoiss && <span className="size-pad-unit-sfx">{lgPriced ? ' /pc' : ' /ct'}</span>}</div>
@@ -1715,7 +1714,7 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
                 {isFilled && pieceInput(s) &&
                 <div className="size-pad-pcs-note">= {billedCt(s, q).toFixed(2)} ct billed</div>
                 }
-                {isFilled && !navMode && ru !== 'pc' &&
+                {isFilled && !navMode && ru !== 'pc' && !lgCreated &&
                 <div className="size-pad-pcs-note">{unit === 'pkt' ? '= ' : '≈ '}{linePcs.toLocaleString('en-IN')} pcs</div>
                 }
                 {certEligible(s) && isFilled &&
@@ -1777,7 +1776,13 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
             <div className="stat-value">{totalUnits.toLocaleString('en-IN')} {unitWord}</div>
           </div>
           }
-          {!byStrip && !stringMode && !lotMode && !ctLotMode &&
+          {lgCreated &&
+          <div>
+            <div className="stat-label">Total carats</div>
+            <div className="stat-value">{totalUnits.toLocaleString('en-IN')} ct</div>
+          </div>
+          }
+          {!byStrip && !stringMode && !lotMode && !ctLotMode && !lgCreated &&
           <div>
             <div className="stat-label">Approx pieces</div>
             <div className="stat-value">{totalPcs.toLocaleString('en-IN')}</div>

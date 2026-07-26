@@ -2099,6 +2099,27 @@ function lgCorSizes(shape) { return LABCORUNDUM_TARGET[shape] ? LABCORUNDUM_TARG
 function lgCorPrice(shape, size) { const w = moissCtEach(shape, size); return w ? Math.round(LABCORUNDUM_CT * w) : null; }
 window.lgCorSizes = lgCorSizes; window.lgCorPrice = lgCorPrice; window.LABCORUNDUM_SHAPES = LABCORUNDUM_SHAPES;
 
+// Lab Grown · Created Coloured Gemstones (grade 'created'). Sold BY THE CARAT,
+// MOQ 100 ct, priced ₹/carat by size — the SAME price for every colour. Three
+// shape groups share one price table (from lab_created_pricelist.xlsx). Row =
+// [size, ₹/ct].
+const LABCREATED_G1 = [['3×4 mm',162.5],['3×5 mm',143],['4×6 mm',97.5],['5×7 mm',84.5],['6×8 mm',78],['7×9 mm',71.5],['8×10 mm',71.5],['10×12 mm',71.5],['10×14 mm',71.5],['12×16 mm',71.5]]; // oval / pear / octagon-step
+const LABCREATED_G3_ROUND = [['3.00 mm',143],['4.00 mm',117],['5.00 mm',117],['6.00 mm',97.5],['7.00 mm',97.5],['8.00 mm',78],['9.00 mm',78],['10.00 mm',78]]; // round
+const LABCREATED_G3_SQ = [['3×3 mm',143],['4×4 mm',117],['5×5 mm',117],['6×6 mm',97.5],['7×7 mm',97.5],['8×8 mm',78],['9×9 mm',78],['10×10 mm',78]]; // cushion / asscher (square footprint)
+const LABCREATED_SHEETS = {
+  oval: LABCREATED_G1,
+  pear: LABCREATED_G1,
+  'octagon-step': LABCREATED_G1,
+  marquise: [['2×4 mm',162.5],['2.5×5 mm',143],['3×6 mm',143],['3.5×7 mm',117],['4×8 mm',84.5],['5×10 mm',84.5]],
+  round: LABCREATED_G3_ROUND,
+  cushion: LABCREATED_G3_SQ,
+  asscher: LABCREATED_G3_SQ,
+};
+const LABCREATED_SHAPES = Object.keys(LABCREATED_SHEETS);
+function lgCreatedSizes(shape) { const g = LABCREATED_SHEETS[shape]; return g ? g.map((r) => r[0]) : []; }
+function lgCreatedCt(shape, size) { const g = LABCREATED_SHEETS[shape]; const row = g ? g.find((r) => r[0] === size) : null; return row ? row[1] : null; }
+window.lgCreatedSizes = lgCreatedSizes; window.lgCreatedCt = lgCreatedCt; window.LABCREATED_SHAPES = LABCREATED_SHAPES;
+
 // Per-size, per-grade Moissanite rate in ₹/carat, from the uploaded price sheet.
 // [DEF ₹/ct, GH ₹/ct] for each shape + size. moissRate() returns the rate, or
 // null when a size/grade is absent so the caller falls back to the grade's flat

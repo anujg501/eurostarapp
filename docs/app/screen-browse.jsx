@@ -69,6 +69,8 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
   window.LABCORUNDUM_SHAPES :
   route.cat === 'labgrown' && grade && grade.id === 'labgrown' && baseColor && window.LABGROWN_SHAPES && window.lgShapeAvailable ?
   window.LABGROWN_SHAPES.filter((s) => window.lgShapeAvailable(baseColor.id, s)) :
+  route.cat === 'labgrown' && grade && grade.id === 'created' && window.LABCREATED_SHAPES ?
+  window.LABCREATED_SHAPES :
   route.cat === 'multisapphire' && grade && window.msShapes && window.msShapes(grade.id).length ?
   window.msShapes(grade.id) :
   baseShapeIds;
@@ -953,11 +955,15 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   const lgBeryl = category.id === 'labgrown' && grade.id === 'labgrown';
   const lgCorundum = category.id === 'labgrown' && grade.id === 'labcorundum';
   const lgPriced = lgBeryl || lgCorundum; // Lab Grown Beryl & Corundum: per-piece priced.
+  // Lab Grown · Created Coloured Gemstones: sold BY THE CARAT (MOQ 100 ct),
+  // ₹/ct by size from the price sheet, same for every colour.
+  const lgCreated = category.id === 'labgrown' && grade.id === 'created' && window.lgCreatedSizes && window.lgCreatedSizes(shape).length > 0;
   // Lab Grown Beryl/Corundum are ordered by PIECE at every size.
-  const pieceInput = (size) => mixedMoiss && (lgPriced || moissIsPiece(shape, size));
+  const pieceInput = (size) => mixedMoiss && !lgCreated && (lgPriced || moissIsPiece(shape, size));
   const rowUnit = (size) => pieceInput(size) ? 'pc' : unit;
   // An uploaded SKU carries its own MOQ from the CSV.
   const sizeMoq = (size) => {
+    if (lgCreated) return 100; // Created gemstones: MOQ 100 ct
     if (lgBeryl && window.lgMoq) return window.lgMoq(shape, size);
     if (pieceInput(size)) return 1;
     const s = window.uploadedSkuFor ? uploadedSkuFor(category.id, shape, size, grade) : null;
@@ -971,6 +977,7 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   // sheet (window.moissRate). Falls back to the grade's flat basePrice when a
   // size/grade isn't in the sheet (and for Lab Grown, which has no sheet).
   const moissPerCt = (size) => {
+    if (lgCreated) { const r = window.lgCreatedCt(shape, size); if (r != null) return r; }
     if (lgPriced) {
       // Return the per-CARAT rate implied by the per-piece price, so the existing
       // billedCt × rate math yields pieces × ₹/pc for the line total.
@@ -1114,7 +1121,8 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   const navSheet = category.id === 'navratna' && grade && window.navSizes && window.navSizes(grade.id, shape).length ? window.navSizes(grade.id, shape) : null;
   // Lab Grown Beryl · per-colour size list (default target sizes + special-colour Excel sizes).
   const lgSheet = lgBeryl && color && window.lgSizes && window.lgSizes(color.id, shape).length ? window.lgSizes(color.id, shape)
-    : lgCorundum && window.lgCorSizes && window.lgCorSizes(shape).length ? window.lgCorSizes(shape) : null;
+    : lgCorundum && window.lgCorSizes && window.lgCorSizes(shape).length ? window.lgCorSizes(shape)
+    : lgCreated && window.lgCreatedSizes ? window.lgCreatedSizes(shape) : null;
   // Multi Sapphires · per-grade rate sheet (Natural carat + others per-strip).
   const msSheet = msHasSheet ? window.msSizes(grade.id, shape) : null;
   let sizes = category.id === 'moissanite' ? (moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm']) : alpGreen ? alpGreen : alpBlue ? alpBlue : alpSheet ? alpSheet : hdSheet ? hdSheet : corSheet ? corSheet : wfSheet ? wfSheet : czSheet ? czSheet : colorCzSheet ? colorCzSheet : opaqueNatSheet ? opaqueNatSheet : opaqueSheet ? opaqueSheet : polkiSheet ? polkiSheet : labopalSheet ? labopalSheet : cabSheet ? cabSheet : pearlSheet ? pearlSheet : hmopSheet ? hmopSheet : alexSheet ? alexSheet : lwcSheet ? lwcSheet : rajkotSheet ? rajkotSheet : coralSheet ? coralSheet : evileyeSheet ? evileyeSheet : navSheet ? navSheet : lgSheet ? lgSheet : msSheet ? msSheet : skuSizes.length ? skuSizes.slice() : (SIZES_BY_CATEGORY && SIZES_BY_CATEGORY[category.id]) ? SIZES_BY_CATEGORY[category.id].slice() : ourosaMode ? OUROSA_SIZES.map((x) => x[0]) : mixedMoiss ? moissSizes(shape).length ? moissSizes(shape) : FULL_SIZES[shape] || ['4.00 mm'] : byStrip ? FULL_SIZES[shape] || ['4.00 mm'] : FULL_SIZES[shape] || ['4.00 mm'];
@@ -1665,6 +1673,7 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
               </div>
               {!navMode &&
               <div className="size-pad-pcs">{mixedMoiss ?
+                lgCreated ? 'MOQ 100 ct' :
                 pieceInput(s) ? `${moissCt(s)} ct/pc` : `${moissPcsPerCt(shape, s).toLocaleString('en-IN')} /ct` :
                 unit === 'pc' ? '1' : each.toLocaleString('en-IN')}</div>}
               <div className="size-pad-price">{formatINR(navMode ? navUnitPrice : lgPriced ? (lgPiecePrice(s) != null ? lgPiecePrice(s) : moissPerCt(s)) : mixedMoiss ? moissPerCt(s) : unit === 'pkt' ? packetPriced ? r : piecePrice(s) : r)}{mixedMoiss && <span className="size-pad-unit-sfx">{lgPriced ? ' /pc' : ' /ct'}</span>}</div>

@@ -133,16 +133,20 @@ function HomeScreen({ persona, setRoute }) {
               position: 'absolute', top: 10, right: 10, color: 'var(--fg-meta)',
               display: 'flex', alignItems: 'center', justifyContent: 'center'
             }}><IconDrag size={18} /></div>}
-            <div className="cat-card-art">
-              {(() => {
-                // Explicit category thumbnail wins; otherwise auto-use the first
-                // real product photo uploaded for this category; else the vector art.
-                const thumb = catThumbs[c.id] || (window.firstProductImageForCat && window.firstProductImageForCat(c.id));
-                return thumb
-                  ? <img src={thumb} alt={c.name} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center' }} />
-                  : <CategoryArt cat={c.id} />;
-              })()}
-            </div>
+            {(() => {
+              // Explicit category thumbnail wins; otherwise auto-use the first
+              // real product photo uploaded for this category; else the vector art.
+              const thumb = catThumbs[c.id] || (window.firstProductImageForCat && window.firstProductImageForCat(c.id));
+              // Whole image, never cropped (contain); white backing so the
+              // white-background product photos blend in with no visible bars.
+              return (
+                <div className="cat-card-art" style={thumb ? { background: '#fff' } : undefined}>
+                  {thumb
+                    ? <img src={thumb} alt={c.name} style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'center' }} />
+                    : <CategoryArt cat={c.id} />}
+                </div>
+              );
+            })()}
             <div>
               <div className="cat-card-name">{c.name}</div>
             </div>

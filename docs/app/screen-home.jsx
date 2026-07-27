@@ -139,18 +139,12 @@ function HomeScreen({ persona, setRoute }) {
                 // real product photo uploaded for this category; else the vector art.
                 const thumb = catThumbs[c.id] || (window.firstProductImageForCat && window.firstProductImageForCat(c.id));
                 return thumb
-                  ? <img src={thumb} alt={c.name} style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'center', padding: 4, boxSizing: 'border-box' }} />
+                  ? <img src={thumb} alt={c.name} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center' }} />
                   : <CategoryArt cat={c.id} />;
               })()}
             </div>
             <div>
               <div className="cat-card-name">{c.name}</div>
-              <div style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 4, lineHeight: 1.4 }}>
-                {c.blurb}
-              </div>
-            </div>
-            <div className="cat-card-meta" style={{ marginTop: 'auto' }}>
-              {c.count.toLocaleString('en-IN')} SKUs
             </div>
           </div>
         )}

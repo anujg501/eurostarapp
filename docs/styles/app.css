@@ -653,14 +653,14 @@ img[src*="assets/products/"] {
   box-shadow: var(--shadow-md);
 }
 .cat-card-art {
-  height: 200px;
+  height: 260px;
   border-radius: var(--r-md);
   background: var(--paper-2);
   position: relative;
   overflow: hidden;
   display: flex; align-items: center; justify-content: center;
 }
-@media (max-width: 720px) { .cat-card-art { height: 150px; } }
+@media (max-width: 720px) { .cat-card-art { height: 190px; } }
 .cat-card-art svg { color: var(--ink-3); opacity: 0.6; }
 .cat-card-name {
   font-family: var(--font-serif);

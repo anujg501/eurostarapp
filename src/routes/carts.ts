@@ -8,6 +8,9 @@ import { getStoreRules, type StoreRules } from '../services/settings';
 
 export const cartsRouter = Router();
 
+// An active cart with no update for this many days shows as "abandoned" in the CRM.
+const ABANDON_DAYS = 3;
+
 const lineSchema = z.object({
   skuId: z.string().optional(),
   categoryKey: z.string().optional(),
@@ -71,7 +74,21 @@ cartsRouter.get(
     });
     // Load the rules once for the whole list rather than per cart.
     const rules = await getStoreRules();
-    return ok(res, carts.map((c) => serialiseCart(c, rules)));
+    // An open ("active") cart left untouched for a while is treated as
+    // abandoned so the back office can chase it. Computed at read time — no
+    // cron, no stored 'abandoned' status; a fresh save flips it back to active.
+    const now = Date.now();
+    const ABANDON_MS = ABANDON_DAYS * 24 * 60 * 60 * 1000;
+    return ok(
+      res,
+      carts.map((c) => {
+        const s = serialiseCart(c, rules);
+        if (s.status === 'active' && now - new Date(c.updatedAt).getTime() > ABANDON_MS) {
+          s.status = 'abandoned';
+        }
+        return s;
+      })
+    );
   })
 );
 

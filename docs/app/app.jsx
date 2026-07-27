@@ -73,6 +73,7 @@ function App() {
         setPersonaLive({
           ...basePersona,
           company: name,
+          custId: (c && c.id) || '',
           code: (c && c.code) || '',
           contact: (c && c.contact) || who.name || name,
           phone: (c && c.phone) || ph,
@@ -131,6 +132,66 @@ function App() {
   React.useEffect(() => {
     try { localStorage.setItem(cartKey(), JSON.stringify(cart)); } catch (e) {}
   }, [cart, cartKey]);
+
+  // Mirror the live cart to the back office so it appears as an OPEN cart in the
+  // CRM (and turns ABANDONED if left untouched). Before this the cart lived only
+  // in the browser, so staff never saw carts-in-progress. Signed-in accounts
+  // only; debounced so quick edits don't spam the API. Emptying the cart (incl.
+  // after an order is placed) deletes the server copy.
+  const cartSrvRef = React.useRef(undefined);
+  React.useEffect(() => {
+    const API = window.EUROSTAR_API || location.origin;
+    let tok = ''; try { tok = localStorage.getItem('eurostar_token') || ''; } catch (e) {}
+    if (!tok) return; // anonymous preview / guest — nothing to sync
+    let who = null; try { who = JSON.parse(localStorage.getItem('eurostar_user') || 'null'); } catch (e) {}
+    const idKey = 'eurostar-cart-serverid-' + ((who && (who.phone || who.username)) || 'guest');
+    if (cartSrvRef.current === undefined) {
+      try { cartSrvRef.current = localStorage.getItem(idKey) || null; } catch (e) { cartSrvRef.current = null; }
+    }
+    const H = { 'content-type': 'application/json', authorization: 'Bearer ' + tok };
+    const lines = (cart || []).map((l) => {
+      const qty = Math.max(1, Math.round(l.qty || l.ct || 1));
+      const lineTotal = Number(l.lineTotal != null ? l.lineTotal : (l.unitPrice || l.perCtPrice || 0) * qty) || 0;
+      return {
+        categoryKey: l.catId || l.category || undefined,
+        grade: l.quality || l.grade || undefined,
+        colour: l.color || l.colour || undefined,
+        shape: l.shape || undefined,
+        size: l.size != null ? String(l.size) : undefined,
+        unit: l.unitMode || l.unit || 'pc',
+        qty,
+        unitPrice: Math.max(0, Math.round(lineTotal / qty)),
+      };
+    }).filter((x) => x.qty > 0);
+
+    const timer = setTimeout(() => {
+      if (!lines.length) {
+        if (cartSrvRef.current) {
+          fetch(API + '/carts/' + cartSrvRef.current, { method: 'DELETE', headers: H }).catch(() => {});
+          cartSrvRef.current = null; try { localStorage.removeItem(idKey); } catch (e) {}
+        }
+        return;
+      }
+      const body = JSON.stringify({
+        customerId: (persona && persona.custId) || undefined,
+        personaId: (who && (who.phone || who.username)) || undefined,
+        status: 'active',
+        lines,
+      });
+      if (cartSrvRef.current) {
+        fetch(API + '/carts/' + cartSrvRef.current, { method: 'PUT', headers: H, body })
+          .then((r) => { if (r.status === 404) { cartSrvRef.current = null; try { localStorage.removeItem(idKey); } catch (e) {} } })
+          .catch(() => {});
+      } else {
+        fetch(API + '/carts', { method: 'POST', headers: H, body })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((res) => { if (res && res.id) { cartSrvRef.current = res.id; try { localStorage.setItem(idKey, res.id); } catch (e) {} } })
+          .catch(() => {});
+      }
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [cart, persona]);
+
   const [wishlist, setWishlist] = React.useState(new Set());
   const [toast, setToast] = React.useState(null);
 

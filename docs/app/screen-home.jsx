@@ -3,6 +3,10 @@
 const CAT_ORDER_KEY = 'eurostar.catOrder.v1';
 const CAT_THUMB_KEY = 'eurostar-cat-thumbs-v1';
 const SHAPE_THUMB_KEY = 'eurostar-shape-thumbs-v1';
+// Categories whose card photo sits on a dark background — the card gets a dark
+// backing so a navy/black image fills the box with no white bars. Others use
+// white (product photos are shot on white).
+const DARK_THUMB_CATS = { whitefancy: true };
 function loadThumbStore(key) {
   try { return JSON.parse(localStorage.getItem(key) || '{}') || {}; } catch (e) { return {}; }
 }
@@ -140,7 +144,7 @@ function HomeScreen({ persona, setRoute }) {
               // Whole image, never cropped (contain); white backing so the
               // white-background product photos blend in with no visible bars.
               return (
-                <div className="cat-card-art" style={thumb ? { background: '#fff' } : undefined}>
+                <div className="cat-card-art" style={thumb ? { background: DARK_THUMB_CATS[c.id] ? '#0a1020' : '#fff' } : undefined}>
                   {thumb
                     ? <img src={thumb} alt={c.name} style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'center' }} />
                     : <CategoryArt cat={c.id} />}

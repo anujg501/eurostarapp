@@ -111,11 +111,23 @@
           });
         });
       }
+      // Shapes retired from a category. The backend catalog overlay is add-only
+      // and still holds these from an earlier seeding, so filter them out here
+      // (and strip any that already leaked into the built-in list).
+      var DEPRECATED_SHAPES = { laser: ['invisible-square', 'leaf'] };
+      Object.keys(DEPRECATED_SHAPES).forEach(function (key) {
+        if (!SHAPES_BY_CATEGORY[key]) return;
+        DEPRECATED_SHAPES[key].forEach(function (sid) {
+          var i = SHAPES_BY_CATEGORY[key].indexOf(sid);
+          if (i !== -1) SHAPES_BY_CATEGORY[key].splice(i, 1);
+        });
+      });
       if (extraShapes && typeof extraShapes === 'object') {
         Object.keys(extraShapes).forEach(function (key) {
           if (!SHAPES_BY_CATEGORY[key]) SHAPES_BY_CATEGORY[key] = [];
+          var blocked = DEPRECATED_SHAPES[key] || [];
           (extraShapes[key] || []).forEach(function (sid) {
-            if (sid && SHAPES_BY_CATEGORY[key].indexOf(sid) === -1) SHAPES_BY_CATEGORY[key].push(sid);
+            if (sid && blocked.indexOf(sid) === -1 && SHAPES_BY_CATEGORY[key].indexOf(sid) === -1) SHAPES_BY_CATEGORY[key].push(sid);
           });
         });
       }

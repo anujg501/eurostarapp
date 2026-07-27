@@ -153,7 +153,18 @@ export async function liftBuiltinCatalogOverlays(): Promise<{ colours: number; s
       addedShapes += missing.length;
     }
   }
-  if (addedShapes) await setSetting(KEYS.extraShapes, shapes);
+  // Prune shapes retired from a category. The lift is otherwise add-only, so a
+  // shape seeded on an earlier boot lingers forever; this removes deprecated
+  // ones from the stored overlay (and the admin panel) for good.
+  const DEPRECATED_SHAPES: Record<string, string[]> = { laser: ['invisible-square', 'leaf'] };
+  let prunedShapes = 0;
+  for (const [cat, dead] of Object.entries(DEPRECATED_SHAPES)) {
+    const cur = shapes[cat];
+    if (!Array.isArray(cur)) continue;
+    const kept = cur.filter((s) => !dead.includes(s));
+    if (kept.length !== cur.length) { shapes[cat] = kept; prunedShapes += cur.length - kept.length; }
+  }
+  if (addedShapes || prunedShapes) await setSetting(KEYS.extraShapes, shapes);
 
   return { colours: addedColours, shapes: addedShapes };
 }

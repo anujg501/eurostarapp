@@ -112,8 +112,13 @@ export const config = {
   },
 
   assistant: {
-    apiKey: process.env.ANTHROPIC_API_KEY ?? '',
-    model: process.env.ASSISTANT_MODEL ?? 'claude-opus-4-8',
+    // Provider is auto-detected: if a GEMINI_API_KEY is present we use Gemini,
+    // otherwise Anthropic. Override explicitly with ASSISTANT_PROVIDER if needed.
+    provider: (process.env.ASSISTANT_PROVIDER ?? (process.env.GEMINI_API_KEY ? 'gemini' : 'anthropic')) as 'anthropic' | 'gemini',
+    apiKey: (process.env.ANTHROPIC_API_KEY ?? '').trim(),
+    model: (process.env.ASSISTANT_MODEL ?? 'claude-opus-4-8').trim(),
+    geminiKey: (process.env.GEMINI_API_KEY ?? '').trim(),
+    geminiModel: (process.env.GEMINI_MODEL ?? 'gemini-flash-latest').trim(),
   },
 
   // Google Maps — public browser key used only to draw the rep check-in map in

@@ -150,16 +150,17 @@ assistantRouter.get(
 // If an ANTHROPIC_API_KEY is configured we call the real Claude model with the
 // admin-managed Mira instructions. Otherwise we fall back to a safe canned reply
 // so the feature still works during development.
-async function generateReply(message: string, cfg: { instructions: string; rules: string; knowledge: string; examples: string }): Promise<string> {
-  if (!config.assistant.apiKey) {
-    return "Hi, I'm Mira. The assistant isn't fully connected yet, but a team member will help you shortly. Meanwhile you can browse the catalogue and place your order.";
-  }
+const NOT_CONNECTED =
+  "Hi, I'm Mira. The assistant isn't fully connected yet, but a team member will help you shortly. Meanwhile you can browse the catalogue and place your order.";
+const REPLY_ERROR = "I'm having trouble replying right now. Please try again in a moment.";
+const DEFAULT_SYSTEM = 'You are Mira, a helpful assistant for Eurostar gemstone wholesale customers.';
 
+function buildSystemPrompt(cfg: { instructions: string; rules: string; knowledge: string; examples: string }): string {
   const rules = parseList(cfg.rules) as string[];
   const knowledge = parseList(cfg.knowledge) as { title: string; text: string }[];
   const examples = parseList(cfg.examples) as { q: string; a: string }[];
 
-  const systemPrompt = [
+  return [
     cfg.instructions && `Instructions:\n${cfg.instructions}`,
     rules.length && `Rules:\n${rules.map((r) => `- ${r}`).join('\n')}`,
     knowledge.length && `Knowledge:\n${knowledge.map((k) => `${k.title}: ${k.text}`).join('\n')}`,
@@ -167,6 +168,18 @@ async function generateReply(message: string, cfg: { instructions: string; rules
   ]
     .filter(Boolean)
     .join('\n\n');
+}
+
+async function generateReply(message: string, cfg: { instructions: string; rules: string; knowledge: string; examples: string }): Promise<string> {
+  const systemPrompt = buildSystemPrompt(cfg) || DEFAULT_SYSTEM;
+  return config.assistant.provider === 'gemini'
+    ? replyWithGemini(message, systemPrompt)
+    : replyWithAnthropic(message, systemPrompt);
+}
+
+// Anthropic (Claude) — used when ANTHROPIC_API_KEY is set and provider is anthropic.
+async function replyWithAnthropic(message: string, systemPrompt: string): Promise<string> {
+  if (!config.assistant.apiKey) return NOT_CONNECTED;
 
   const resp = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -178,16 +191,39 @@ async function generateReply(message: string, cfg: { instructions: string; rules
     body: JSON.stringify({
       model: config.assistant.model,
       max_tokens: 1024,
-      system: systemPrompt || 'You are Mira, a helpful assistant for Eurostar gemstone wholesale customers.',
+      system: systemPrompt,
       messages: [{ role: 'user', content: message }],
     }),
   });
 
-  if (!resp.ok) {
-    return "I'm having trouble replying right now. Please try again in a moment.";
-  }
+  if (!resp.ok) return REPLY_ERROR;
   const data: any = await resp.json();
   return data?.content?.[0]?.text ?? "I didn't catch that — could you rephrase?";
+}
+
+// Google Gemini — used when GEMINI_API_KEY is set (provider auto-switches to gemini).
+async function replyWithGemini(message: string, systemPrompt: string): Promise<string> {
+  if (!config.assistant.geminiKey) return NOT_CONNECTED;
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${config.assistant.geminiModel}:generateContent`;
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-goog-api-key': config.assistant.geminiKey,
+    },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: systemPrompt }] },
+      contents: [{ role: 'user', parts: [{ text: message }] }],
+      generationConfig: { maxOutputTokens: 1024 },
+    }),
+  });
+
+  if (!resp.ok) return REPLY_ERROR;
+  const data: any = await resp.json();
+  const parts = data?.candidates?.[0]?.content?.parts;
+  const text = Array.isArray(parts) ? parts.map((p: any) => p?.text ?? '').join('').trim() : '';
+  return text || "I didn't catch that — could you rephrase?";
 }
 
 // GET /assistant/chatlogs?app=sales|crm|lms — transcripts per app (Mira Admin).

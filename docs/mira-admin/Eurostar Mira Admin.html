@@ -508,7 +508,7 @@ function miraTrainingFacts(){
     const ex = getJSON(LS.ex);
     if (ex.length) s += '\n\nEXAMPLE ANSWERS (match this phrasing/approach):\nQ: ' + ex.map(e => e.q + '\nA: ' + e.a).join('\nQ: ');
     const imgs = getJSON(LS.img);
-    if (imgs.length) s += '\n\nIMAGE LIBRARY — you can SEND any of these to the customer when relevant. To send one, append <<IMG>>exact name<<END>> at the very end of your message. Only use names from this list, never invent an image:\n- ' + imgs.map(i => i.name + (i.desc ? ' (' + i.desc + ')' : '')).join('\n- ');
+    if (imgs.length) s += '\n\nIMAGE LIBRARY — these are the ONLY images you can send. To send one, append <<IMG>>exact name<<END>> at the very end. Send an image ONLY when the customer clearly asks for that specific item AND its exact name is in the list below. If they ask for an image NOT in this list, tell them you don\'t have that image yet — NEVER send a different image as a substitute, and never invent one:\n- ' + imgs.map(i => i.name + (i.desc ? ' (' + i.desc + ')' : '')).join('\n- ');
   } catch (e) {}
   return s;
 }

@@ -119,7 +119,7 @@ function ChatAssistant({ persona, cart, addToCart, navigate, isOnline }) {
   const imageLibFacts = () => {
     const lib = imageLib();
     if (!lib.length) return '';
-    return '\n\nIMAGE LIBRARY — you can SEND any of these images to the customer when relevant (e.g. show a product, certificate, size chart). To send one, append <<IMG>>exact name<<END>> at the very end of your message. Only use names from this list, never invent an image:\n- ' + lib.map(im => im.name + (im.desc ? ' (' + im.desc + ')' : '')).join('\n- ');
+    return '\n\nIMAGE LIBRARY — these are the ONLY images you can send. To send one, append <<IMG>>exact name<<END>> at the very end of your message. Send an image ONLY when the customer clearly asks for that specific item AND its exact name is in the list below. If the customer asks for an image that is NOT in this list, tell them you don\'t have that image yet — NEVER send a different image as a substitute, and never invent one:\n- ' + lib.map(im => im.name + (im.desc ? ' (' + im.desc + ')' : '')).join('\n- ');
   };
 
   // Admin-defined overrides (edited in the Mira Admin page, stored in localStorage).

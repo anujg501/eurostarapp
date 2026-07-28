@@ -36,6 +36,16 @@ function ChatAssistant({ persona, cart, addToCart, navigate, isOnline }) {
     const iv = setInterval(pull, 15000);
     return () => { alive = false; clearInterval(iv); };
   }, []);
+  // Pull the image library from the back room so Mira can send the pictures the
+  // office uploaded — on any customer device, not just the one that uploaded
+  // them. imageLib() reads this localStorage key.
+  React.useEffect(() => {
+    const API = window.EUROSTAR_API || location.origin;
+    fetch(API + '/admin/mira/images')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (Array.isArray(d)) { try { localStorage.setItem('eurostar-mira-images', JSON.stringify(d)); } catch (e) {} } })
+      .catch(() => {});
+  }, []);
   const readNotifs = () => { try { return JSON.parse(localStorage.getItem('eurostar-mira-notifications') || '[]'); } catch (e) { return []; } };
   // Production filters by the logged-in customer id; in this prototype we surface unread shipment updates.
   const pendingNotifs = () => readNotifs().filter(n => !n.read);

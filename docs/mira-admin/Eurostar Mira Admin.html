@@ -508,7 +508,7 @@ function miraTrainingFacts(){
     const ex = getJSON(LS.ex);
     if (ex.length) s += '\n\nEXAMPLE ANSWERS (match this phrasing/approach):\nQ: ' + ex.map(e => e.q + '\nA: ' + e.a).join('\nQ: ');
     const imgs = getJSON(LS.img);
-    if (imgs.length) s += '\n\nIMAGE LIBRARY (you can mention you would send these): ' + imgs.map(i => i.name).join(', ');
+    if (imgs.length) s += '\n\nIMAGE LIBRARY — you can SEND any of these to the customer when relevant. To send one, append <<IMG>>exact name<<END>> at the very end of your message. Only use names from this list, never invent an image:\n- ' + imgs.map(i => i.name + (i.desc ? ' (' + i.desc + ')' : '')).join('\n- ');
   } catch (e) {}
   return s;
 }
@@ -552,7 +552,11 @@ function renderTestMsgs(mode){
   const box = document.getElementById('testMsgs'); if(!box) return;
   const list = testMsgs[mode] || [];
   if(!list.length && !testBusy[mode]){ box.innerHTML = '<div class="empty" style="margin:auto">'+(mode==='admin'?'Start coaching — e.g. “When a customer asks for credit, always say it needs office approval.”':(mode==='staff'?'Ask anything about the CRM, LMS or Sales App — e.g. “How does the check-out OTP work?” or “How do I approve a flagged lead?”':'Start a conversation — e.g. “Do you give credit?” or “White round CZ 2mm rate?”'))+'</div>'; return; }
-  box.innerHTML = list.map(m=>`<div style="align-self:${m.role==='user'?'flex-end':'flex-start'};max-width:80%;background:${m.role==='user'?'var(--emerald)':'#fff'};color:${m.role==='user'?'#fff':'var(--fg)'};border:${m.role==='user'?'none':'1px solid var(--border)'};border-radius:14px;padding:9px 13px;font-size:13.5px;white-space:pre-wrap">${esc(m.text)}</div>`).join('')
+  box.innerHTML = list.map(m=>{
+    const style = `align-self:${m.role==='user'?'flex-end':'flex-start'};max-width:80%;background:${m.role==='user'?'var(--emerald)':'#fff'};color:${m.role==='user'?'#fff':'var(--fg)'};border:${m.role==='user'?'none':'1px solid var(--border)'};border-radius:14px;padding:9px 13px;font-size:13.5px;white-space:pre-wrap`;
+    const img = m.img?`<img src="${m.img}" alt="" style="max-width:100%;border-radius:10px;display:block;${m.text?'margin-bottom:6px':''}">`:'';
+    return `<div style="${style}">${img}${esc(m.text||'')}</div>`;
+  }).join('')
     + (testBusy[mode]?'<div style="align-self:flex-start;background:#fff;border:1px solid var(--border);border-radius:14px;padding:9px 14px;color:var(--fg-meta);font-size:13.5px">•••</div>':'');
   box.scrollTop = box.scrollHeight;
 }
@@ -563,9 +567,26 @@ async function sendTest(mode){
   try {
     if(!(window.claude && window.claude.complete)) throw new Error('no-ai');
     const history = testMsgs[mode].slice(-12).map(m=>(m.role==='user'?(mode==='admin'?'Trainer':(mode==='staff'?'Staff':'Customer')):'Mira')+': '+m.text).join('\n');
-    const reply = await window.claude.complete({ messages:[{role:'user', content: miraTestPrompt(mode) + '\n\nConversation so far:\n' + history + '\n\nReply as Mira to the last message. Do NOT output any <<ACTION>> markers in this chat.'}] });
-    const cleanReply = (reply||'').replace(/<<[\s\S]*?<<END>>/g,'').trim() || '(no reply)';
+    // Customer preview may send images (so image training can be tested); other
+    // modes stay marker-free.
+    const markerNote = mode==='cust'
+      ? '\n\nReply as Mira to the last message. You MAY send an image with <<IMG>>exact name<<END>>; do NOT output any other markers.'
+      : '\n\nReply as Mira to the last message. Do NOT output any <<ACTION>> markers in this chat.';
+    const reply = await window.claude.complete({ messages:[{role:'user', content: miraTestPrompt(mode) + '\n\nConversation so far:\n' + history + markerNote}] });
+    let cleanReply = reply || '';
+    const imgsToSend = [];
+    if (mode==='cust'){
+      const lib = getJSON(LS.img); let m; const re = /<<IMG>>([\s\S]*?)<<END>>/;
+      while ((m = cleanReply.match(re))){
+        const nm = m[1].trim().toLowerCase();
+        const hit = lib.find(x=>(x.name||'').trim().toLowerCase()===nm) || lib.find(x=>(x.name||'').trim().toLowerCase().includes(nm) || nm.includes((x.name||'').trim().toLowerCase()));
+        if (hit) imgsToSend.push(hit);
+        cleanReply = cleanReply.replace(m[0],'').trim();
+      }
+    }
+    cleanReply = cleanReply.replace(/<<[\s\S]*?<<END>>/g,'').trim() || (imgsToSend.length ? '' : '(no reply)');
     testMsgs[mode].push({role:'assistant', text:cleanReply});
+    imgsToSend.forEach(im => testMsgs[mode].push({role:'assistant', img: im.data, text: im.desc || ''}));
     // Staff helpdesk: log the Q&A into the CRM or LMS review list so it can be coached later.
     if(mode==='staff'){
       const key = staffTopic==='lms' ? LS.logLms : LS.logCrm;

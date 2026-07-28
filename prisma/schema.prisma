@@ -137,6 +137,7 @@ model Cart {
   repUserId  String?
   personaId  String? // client-side owner key ("eurostar-drafts-<personaId>")
   status     String   @default("active") // "active" | "confirmed"
+  discount   Int      @default(0) // % off, set by back office when negotiating a cart
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -151,6 +152,7 @@ model CartLine {
   cartId     String
   cart       Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
   skuId      String?
+  name       String? // product label as shown in the cart / editor
   categoryKey String?
   grade      String?
   colour     String?

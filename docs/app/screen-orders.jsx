@@ -25,7 +25,7 @@ function customerForOrder(id) {
   return ORDERS_CUSTOMERS[h % ORDERS_CUSTOMERS.length];
 }
 
-function OrdersScreen({ persona, setRoute, cart, setCart, initialTab, editCart, editCustomer }) {
+function OrdersScreen({ persona, setRoute, cart, setCart, initialTab, editCart, editCustomer, discount }) {
   const staff = ordersIsStaff();
   const [tab, setTab] = React.useState(initialTab || (cart.length ? 'cart' : 'active'));
   React.useEffect(() => { if (initialTab) setTab(initialTab); }, [initialTab]);
@@ -112,7 +112,7 @@ function OrdersScreen({ persona, setRoute, cart, setCart, initialTab, editCart, 
       </div>
 
       {tab === 'cart' ? (
-        <CartView cart={cart} setCart={setCart} persona={persona} setRoute={setRoute} />
+        <CartView cart={cart} setCart={setCart} persona={persona} setRoute={setRoute} discount={discount} />
       ) : visible.length === 0 ? (
         <div className="empty card">
           <IconBox size={36} stroke="var(--ink-4)" />
@@ -230,7 +230,7 @@ function DraftList({ drafts, onRestore, onDelete }) {
   );
 }
 
-function CartView({ cart, setCart, persona, setRoute }) {
+function CartView({ cart, setCart, persona, setRoute, discount }) {
   const [drafts, setDrafts] = React.useState(() => loadDrafts(persona));
 
   // Revalidate against live inventory whenever the cart is opened or its
@@ -321,12 +321,16 @@ function CartView({ cart, setCart, persona, setRoute }) {
   const termsLong = isExport
     ? 'Letter of credit confirmed at dispatch'
     : (isCredit ? 'Invoice payable within ' + persona.terms + ' days of dispatch' : 'Pay before dispatch — order ships once payment is received');
+  // Back-office discount (%) negotiated on this cart, applied before GST.
+  const discPct = Math.max(0, Math.min(100, Number(discount) || 0));
+  const discAmt = Math.round(subtotal * discPct / 100);
+  const netSub = subtotal - discAmt;
   const taxRate = isExport ? 0 : 0.03; // GST 3% on gold/gem in India
-  const tax = Math.round(subtotal * taxRate);
+  const tax = Math.round(netSub * taxRate);
   const MIN_ORDER = 1000;
-  const shipping = subtotal > 1000 ? 0 : 300; // ₹300 courier up to ₹1,000, free above
+  const shipping = netSub > 1000 ? 0 : 300; // ₹300 courier up to ₹1,000, free above
   const insurance = 0;
-  const grand = subtotal + tax + shipping + insurance;
+  const grand = netSub + tax + shipping + insurance;
   const belowMin = subtotal < MIN_ORDER;
 
   const totalCt   = cart.reduce((s, l) => s + l.ct, 0);
@@ -717,6 +721,12 @@ function CartView({ cart, setCart, persona, setRoute }) {
             <span style={{ color: 'var(--fg-muted)' }}>Subtotal</span>
             <span>{formatINR(subtotal)}</span>
           </div>
+          {discPct > 0 && (
+            <div className="summary-row">
+              <span style={{ color: 'var(--emerald-ink, #0E5C4A)' }}>Discount · {discPct}%</span>
+              <span style={{ color: 'var(--emerald-ink, #0E5C4A)' }}>− {formatINR(discAmt)}</span>
+            </div>
+          )}
           <div className="summary-row">
             <span style={{ color: 'var(--fg-muted)' }}>
               {isExport ? 'Export · zero rated' : 'GST · 3%'}

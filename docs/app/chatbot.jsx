@@ -21,6 +21,21 @@ function ChatAssistant({ persona, cart, addToCart, navigate, isOnline }) {
 
   // ---- Shipment updates pushed from the CRM: Mira proactively tells the customer when an order is dispatched ----
   const [unread, setUnread] = React.useState(0);
+  // Office can switch the customer-facing Mira off from Mira Admin → Turn Mira
+  // on/off. Pulled from the back room so the toggle reaches every customer, not
+  // just the device that set it. Polled so a change applies without a reload.
+  const [miraOn, setMiraOn] = React.useState(true);
+  React.useEffect(() => {
+    const API = window.EUROSTAR_API || location.origin;
+    let alive = true;
+    const pull = () => fetch(API + '/admin/mira/enabled')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (alive && d && typeof d === 'object') setMiraOn(d.salesApp !== false); })
+      .catch(() => {});
+    pull();
+    const iv = setInterval(pull, 15000);
+    return () => { alive = false; clearInterval(iv); };
+  }, []);
   const readNotifs = () => { try { return JSON.parse(localStorage.getItem('eurostar-mira-notifications') || '[]'); } catch (e) { return []; } };
   // Production filters by the logged-in customer id; in this prototype we surface unread shipment updates.
   const pendingNotifs = () => readNotifs().filter(n => !n.read);
@@ -268,9 +283,6 @@ Keep replies short (2-5 sentences), friendly and practical. Never mention or exp
   const repLink = (kind) => kind === 'wa' ? 'https://wa.me/919372342451' : 'tel:+919372342451';
   const quicks = ['Reorder my last order', 'Order white round CZ', 'Is 2.00 mm in stock?', 'What do I owe?', 'Track my order', 'I have a quality issue'];
 
-  // Office can switch the customer-facing Mira off from Mira Admin → Turn Mira on/off.
-  let miraOn = true;
-  try { miraOn = (JSON.parse(localStorage.getItem('eurostar-mira-enabled') || '{}').salesApp) !== false; } catch (e) {}
   if (!miraOn) return null;
 
   return (

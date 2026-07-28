@@ -17,7 +17,15 @@
   function setJSON(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 
   // surface keys: crmRep, crmOffice, crmAdmin, lmsAdmin, lmsRep — default all enabled
-  function enabledMap() { return Object.assign({ crmRep: true, crmOffice: true, crmAdmin: true, lmsAdmin: true, lmsRep: true }, getJSON(LS.enabled, '{}')); }
+  // Server flags win over local defaults, so a toggle in Mira Admin turns the
+  // widget on/off for every staff device — not just the one that set it.
+  var serverEnabled = null;
+  function enabledMap() { return Object.assign({ crmRep: true, crmOffice: true, crmAdmin: true, lmsAdmin: true, lmsRep: true }, getJSON(LS.enabled, '{}'), serverEnabled || {}); }
+  function pullEnabled() {
+    var API = window.EUROSTAR_API || location.origin;
+    fetch(API + '/admin/mira/enabled').then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { if (d && typeof d === 'object') { serverEnabled = d; if (els.panel) render(); } }).catch(function () {});
+  }
   function surfaceKey(app, role) {
     if (app === 'crm') return role === 'rep' ? 'crmRep' : role === 'office' ? 'crmOffice' : 'crmAdmin';
     return role === 'candidate' || role === 'rep' ? 'lmsRep' : 'lmsAdmin';
@@ -131,6 +139,7 @@
     }
   };
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { build(); render(); });
-  else { build(); render(); }
+  function init() { build(); render(); pullEnabled(); setInterval(pullEnabled, 15000); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else { init(); }
 })();

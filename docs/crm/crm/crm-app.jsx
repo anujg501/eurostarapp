@@ -860,7 +860,13 @@ function OfficeAbandoned({ st }) {
             <div className="lrow-amt"><div className="crm-amt">{H.inr(c.value)}</div></div>
             <button className="cbtn cbtn-ghost cbtn-sm" onClick={() => st.editItems(c.id)}>Edit</button>
             <button className="cbtn cbtn-ghost cbtn-sm" onClick={() => st.removeCart(c.id)}>Remove</button>
-            <button className="cbtn cbtn-accent cbtn-sm">Call / WhatsApp</button>
+            <button className="cbtn cbtn-accent cbtn-sm" onClick={() => {
+              const digits = String(cu.mobile || cu.phone || '').replace(/\D/g, '');
+              if (!digits) { alert('No phone number on file for this customer.'); return; }
+              const num = digits.length === 10 ? '91' + digits : digits;
+              const msg = 'Hello ' + (cu.name || '') + ', this is Eurostar. You have items worth ' + H.inr(c.value) + ' saved in your cart — shall we help you complete the order?';
+              window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(msg), '_blank');
+            }}>Call / WhatsApp</button>
           </div>);})}
         {abandoned.length === 0 && <div className="lrow crm-muted">No abandoned carts.</div>}
       </div>
@@ -3086,7 +3092,8 @@ function CRM() {
       });
       authedGet('/carts').then((rows) => {
         if (!Array.isArray(rows)) return;
-        setCarts(rows.map((c) => ({ id: c.id, cust: c.customerId || '', updated: dateOnly(c.updatedAt), status: c.status || 'active', value: (c.totals && c.totals.grand) || 0, items: Array.isArray(c.lines) ? c.lines.length : 0, age: '', note: '' })));
+        setCarts(rows.map((c) => ({ id: c.id, cust: c.customerId || '', updated: dateOnly(c.updatedAt), status: c.status || 'active', value: (c.totals && c.totals.grand) || 0, items: Array.isArray(c.lines) ? c.lines.length : 0, age: '', note: '', appliedDisc: c.discount || 0,
+          lines: Array.isArray(c.lines) ? c.lines.map((l) => ({ name: l.name || [l.colour, l.categoryKey, l.shape].filter(Boolean).join(' ') || 'Item', size: l.size || '', qty: l.qty || 0, rate: l.unitPrice || 0, disc: 0 })) : undefined })));
       });
       // RFQ enquiries, live from the database. The screen read the seed/bridge
       // copy before, so a quote sent or a rep assigned reverted on reload.
@@ -3195,9 +3202,23 @@ function CRM() {
       setOrders((os) => os.map((x) => x.id === id ? { ...x, status } : x));
       crmApi('PUT', '/orders/' + id, { status: status === 'new' ? 'pending' : status });
     },
-    setDisc: (id, v) => setCarts((cs) => cs.map((c) => c.id === id ? { ...c, appliedDisc: Math.max(0, Math.min(100, parseInt(v, 10) || 0)) } : c)),
+    setDisc: (id, v) => {
+      const disc = Math.max(0, Math.min(100, parseInt(v, 10) || 0));
+      setCarts((cs) => cs.map((c) => c.id === id ? { ...c, appliedDisc: disc } : c));
+      // Persist the negotiated discount so it survives a reload.
+      const API = window.EUROSTAR_API || location.origin;
+      let tok = ''; try { tok = localStorage.getItem('eurostar-admin-token') || ''; } catch (e) {}
+      if (tok) fetch(API + '/carts/' + id, { method: 'PUT', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + tok }, body: JSON.stringify({ discount: disc }) }).catch(() => {});
+    },
     editItems: (id) => setEditTarget({ kind: 'cart', id }),
-    removeCart: (id) => {if (confirm('Remove this cart? This cannot be undone.')) setCarts((cs) => cs.filter((c) => c.id !== id));},
+    removeCart: (id) => {
+      if (!confirm('Remove this cart? This cannot be undone.')) return;
+      setCarts((cs) => cs.filter((c) => c.id !== id));
+      // Delete on the server too, else it reappears on the next reload.
+      const API = window.EUROSTAR_API || location.origin;
+      let tok = ''; try { tok = localStorage.getItem('eurostar-admin-token') || ''; } catch (e) {}
+      if (tok) fetch(API + '/carts/' + id, { method: 'DELETE', headers: { authorization: 'Bearer ' + tok } }).catch(() => {});
+    },
     editOrder: (id) => setEditTarget({ kind: 'order', id }),
     removeOrder: (id) => {if (confirm('Remove this completed order? This cannot be undone.')) setOrders((os) => os.filter((o) => o.id !== id));},
     answer: (id) => {
@@ -3594,7 +3615,25 @@ function CRM() {
       </main>
       {editTarget && (() => {const entity = editTarget.kind === 'order' ? orders.find((o) => o.id === editTarget.id) : carts.find((c) => c.id === editTarget.id);
         if (!entity) return null;
-        const onSave = (patch) => {if (editTarget.kind === 'order') setOrders((os) => os.map((o) => o.id === editTarget.id ? { ...o, ...patch } : o));else setCarts((cs) => cs.map((c) => c.id === editTarget.id ? { ...c, ...patch } : c));};
+        const onSave = (patch) => {
+          if (editTarget.kind === 'order') { setOrders((os) => os.map((o) => o.id === editTarget.id ? { ...o, ...patch } : o)); return; }
+          setCarts((cs) => cs.map((c) => c.id === editTarget.id ? { ...c, ...patch } : c));
+          // Persist the edited lines to the back room so the change survives a
+          // reload (before this, cart edits were local-only and reverted).
+          const API = window.EUROSTAR_API || location.origin;
+          let tok = ''; try { tok = localStorage.getItem('eurostar-admin-token') || ''; } catch (e) {}
+          if (!tok) return;
+          const lines = (patch.lines || []).map((l) => {
+            const qty = Math.max(1, parseInt(l.qty, 10) || 1);
+            const rate = Math.max(0, parseInt(l.rate, 10) || 0);
+            const unitPrice = Math.max(0, Math.round(rate * (1 - (parseInt(l.disc, 10) || 0) / 100)));
+            return { name: l.name || undefined, unit: 'pc', qty, unitPrice, size: l.size ? String(l.size) : undefined };
+          });
+          fetch(API + '/carts/' + editTarget.id, {
+            method: 'PUT', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + tok },
+            body: JSON.stringify({ status: 'active', lines }),
+          }).catch(() => {});
+        };
         return <CartEditor kind={editTarget.kind} entity={entity} onSave={onSave} onClose={() => setEditTarget(null)} />;})()}
       <CrmTweaks />
     </div>);

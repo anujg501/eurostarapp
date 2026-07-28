@@ -23,18 +23,21 @@ function checkoutLoggedInUser() {
   try { return JSON.parse(localStorage.getItem('eurostar_user') || 'null'); } catch (e) { return null; }
 }
 
-function cartTotals(cart, persona) {
+function cartTotals(cart, persona, discount) {
   const subtotal = cart.reduce((s, l) => s + (l.lineTotal || 0), 0);
   const isExport = (persona.location || '').toLowerCase().includes('dubai');
-  const tax = isExport ? 0 : Math.round(subtotal * 0.03);
-  const shipping = subtotal > 1000 ? 0 : 300; // ₹300 courier up to ₹1,000, free above
+  const discPct = Math.max(0, Math.min(100, Number(discount) || 0));
+  const discAmt = Math.round(subtotal * discPct / 100);
+  const netSub = subtotal - discAmt;
+  const tax = isExport ? 0 : Math.round(netSub * 0.03);
+  const shipping = netSub > 1000 ? 0 : 300; // ₹300 courier up to ₹1,000, free above
   const insurance = 0;
-  const grand = subtotal + tax + shipping + insurance;
-  return { subtotal, isExport, tax, shipping, insurance, grand };
+  const grand = netSub + tax + shipping + insurance;
+  return { subtotal, discPct, discAmt, netSub, isExport, tax, shipping, insurance, grand };
 }
 
-function CheckoutScreen({ cart, persona, onBack, onPlace, isOnline }) {
-  const t = cartTotals(cart, persona);
+function CheckoutScreen({ cart, persona, onBack, onPlace, isOnline, discount }) {
+  const t = cartTotals(cart, persona, discount);
   const [addr, setAddr] = React.useState(persona.location || '');
   const addrTouched = React.useRef(false); // don't overwrite what the operator typed
   const [contact, setContact] = React.useState(persona.contact || '');
@@ -228,6 +231,7 @@ function CheckoutScreen({ cart, persona, onBack, onPlace, isOnline }) {
               ))}
             </div>
             <div className="summary-row label"><span>Subtotal</span><span>{formatINR(t.subtotal)}</span></div>
+            {t.discPct > 0 && <div className="summary-row label" style={{ color: 'var(--emerald-ink, #0E5C4A)' }}><span>Discount · {t.discPct}%</span><span>− {formatINR(t.discAmt)}</span></div>}
             {t.tax > 0 && <div className="summary-row label"><span>GST 3%</span><span>{formatINR(t.tax)}</span></div>}
             <div className="summary-row label"><span>Courier {t.shipping === 0 ? '· free over ₹1,000' : ''}</span><span>{t.shipping === 0 ? 'Free' : formatINR(t.shipping)}</span></div>
             <div className="summary-row total"><span>Total payable</span><span>{formatINR(t.grand)}</span></div>

@@ -114,6 +114,10 @@
     <div id="panel"></div>
   </div>
 
+<!-- Provides window.claude.complete (backed by /assistant/chat) so the built-in
+     "Chat as customer" / "Train Mira" sandboxes work on the live site, not just
+     inside the Claude design preview. -->
+<script src="../app/mira-claude-shim.js"></script>
 <script src="api-bridge.js"></script>
 <script>
 const LS = {
@@ -595,6 +599,15 @@ function saveLastAsRule(){
   document.body.style.overflow = 'hidden';
   try { var savedUser = localStorage.getItem(AUTH_KEY); if (savedUser) userEl.value = savedUser; } catch(e){}
   var API = window.EUROSTAR_API || location.origin;
+  // Stay signed in across refreshes: if we already hold a valid token, skip the
+  // login. A dead/expired token is cleared so the form shows instead.
+  (function resume(){
+    var tok = ''; try { tok = localStorage.getItem('eurostar-admin-token') || ''; } catch(e){}
+    if (!tok) return;
+    fetch(API + '/auth/me', { headers: { authorization: 'Bearer ' + tok } })
+      .then(function(r){ if (r.ok) unlock(); else if (r.status === 401 || r.status === 403) { try { localStorage.removeItem('eurostar-admin-token'); } catch(e){} } })
+      .catch(function(){});
+  })();
   var btn = form.querySelector('.btn-pri');
   form.addEventListener('submit', function(e){
     e.preventDefault();

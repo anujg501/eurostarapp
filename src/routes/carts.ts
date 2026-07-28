@@ -13,6 +13,7 @@ const ABANDON_DAYS = 3;
 
 const lineSchema = z.object({
   skuId: z.string().optional(),
+  name: z.string().optional(),
   categoryKey: z.string().optional(),
   grade: z.string().optional(),
   colour: z.string().optional(),
@@ -27,6 +28,7 @@ const cartSchema = z.object({
   customerId: z.string().optional(),
   personaId: z.string().optional(), // maps to client "eurostar-drafts-<personaId>"
   status: z.enum(['active', 'confirmed']).optional(),
+  discount: z.number().int().min(0).max(100).optional(),
   lines: z.array(lineSchema).default([]),
 });
 
@@ -34,6 +36,7 @@ function serialiseCart(cart: any, rules: StoreRules) {
   const lines = cart.lines.map((l: any) => ({
     id: l.id,
     skuId: l.skuId,
+    name: l.name,
     categoryKey: l.categoryKey,
     grade: l.grade,
     colour: l.colour,
@@ -51,6 +54,7 @@ function serialiseCart(cart: any, rules: StoreRules) {
     customerId: cart.customerId,
     personaId: cart.personaId,
     status: cart.status,
+    discount: cart.discount,
     lines,
     totals,
     updatedAt: cart.updatedAt,
@@ -107,9 +111,11 @@ cartsRouter.post(
         personaId: d.personaId,
         repUserId: req.user!.role !== 'customer' ? req.user!.sub : null,
         status: d.status ?? 'active',
+        discount: d.discount ?? 0,
         lines: {
           create: d.lines.map((l) => ({
             skuId: l.skuId,
+            name: l.name,
             categoryKey: l.categoryKey,
             grade: l.grade,
             colour: l.colour,
@@ -150,11 +156,13 @@ cartsRouter.put(
           customerId: d.customerId ?? existing.customerId,
           personaId: d.personaId ?? existing.personaId,
           status: d.status ?? existing.status,
+          discount: d.discount ?? existing.discount,
           ...(d.lines
             ? {
                 lines: {
                   create: d.lines.map((l) => ({
                     skuId: l.skuId,
+                    name: l.name,
                     categoryKey: l.categoryKey,
                     grade: l.grade,
                     colour: l.colour,

@@ -150,19 +150,23 @@ function App() {
     }
     const H = { 'content-type': 'application/json', authorization: 'Bearer ' + tok };
     const lines = (cart || []).map((l) => {
-      const qty = Math.max(1, Math.round(l.qty || l.ct || 1));
-      const lineTotal = Number(l.lineTotal != null ? l.lineTotal : (l.unitPrice || l.perCtPrice || 0) * qty) || 0;
+      const pieces = Math.max(1, Math.round(l.qty || l.ct || 1));
+      // Use the line's exact total as a single unit. Per-piece prices are
+      // fractional (e.g. ₹3.52 across 1000 pcs); splitting + rounding them drifts
+      // the CRM total away from the storefront. qty 1 × lineTotal is exact.
+      const lineTotal = Math.round(Number(l.lineTotal != null ? l.lineTotal : (l.unitPrice || l.perCtPrice || 0) * pieces) || 0);
       return {
+        name: l.name || undefined,
         categoryKey: l.catId || l.category || undefined,
         grade: l.quality || l.grade || undefined,
         colour: l.color || l.colour || undefined,
         shape: l.shape || undefined,
         size: l.size != null ? String(l.size) : undefined,
         unit: l.unitMode || l.unit || 'pc',
-        qty,
-        unitPrice: Math.max(0, Math.round(lineTotal / qty)),
+        qty: 1,
+        unitPrice: Math.max(0, lineTotal),
       };
-    }).filter((x) => x.qty > 0);
+    });
 
     const timer = setTimeout(() => {
       if (!lines.length) {
@@ -191,6 +195,32 @@ function App() {
     }, 1200);
     return () => clearTimeout(timer);
   }, [cart, persona]);
+
+  // Pull any discount the back office set on this cart, so the customer sees the
+  // negotiated price. Polled because staff may change it while the app is open.
+  const [cartDiscount, setCartDiscount] = React.useState(0);
+  React.useEffect(() => {
+    const API = window.EUROSTAR_API || location.origin;
+    let tok = ''; try { tok = localStorage.getItem('eurostar_token') || ''; } catch (e) {}
+    if (!tok) return;
+    let who = null; try { who = JSON.parse(localStorage.getItem('eurostar_user') || 'null'); } catch (e) {}
+    const persid = (who && (who.phone || who.username)) || '';
+    if (!persid) return;
+    let alive = true;
+    const pull = () => {
+      fetch(API + '/carts?persona=' + encodeURIComponent(persid), { headers: { authorization: 'Bearer ' + tok } })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((rows) => {
+          if (!alive || !Array.isArray(rows) || !rows.length) return;
+          const c = rows[0];
+          if (c && typeof c.discount === 'number') setCartDiscount(c.discount);
+        })
+        .catch(() => {});
+    };
+    pull();
+    const iv = setInterval(pull, 8000);
+    return () => { alive = false; clearInterval(iv); };
+  }, [cart]);
 
   const [wishlist, setWishlist] = React.useState(new Set());
   const [toast, setToast] = React.useState(null);
@@ -303,11 +333,11 @@ function App() {
                               addToCart={addToCart} wishlist={wishlist} toggleWishlist={toggleWishlist} />;
       break;
     case 'orders':
-      screen = <OrdersScreen persona={persona} setRoute={navigate} cart={cart} setCart={setCart}
+      screen = <OrdersScreen persona={persona} setRoute={navigate} cart={cart} setCart={setCart} discount={cartDiscount}
                              initialTab={route.tab} editCart={route.editCart} editCustomer={route.editCustomer} />;
       break;
     case 'checkout':
-      screen = <CheckoutScreen cart={cart} persona={persona} isOnline={isOnline}
+      screen = <CheckoutScreen cart={cart} persona={persona} isOnline={isOnline} discount={cartDiscount}
                   onBack={() => navigate({ name: 'orders', tab: 'cart' })}
                   onPlace={(details) => {
                     // Unique order number. The old 'SO-' + (24900 + random(90))

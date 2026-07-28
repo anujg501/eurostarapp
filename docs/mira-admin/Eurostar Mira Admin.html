@@ -218,14 +218,40 @@ function render(){
   else if (active==='knowledge') p.innerHTML = viewKnowledge();
   else if (active==='images') p.innerHTML = viewImages();
   else if (active==='examples') p.innerHTML = viewExamples();
-  else if (active==='chats') { chatLogKey = LS.log; p.innerHTML = viewChats(); }
-  else if (active==='crmchats') { chatLogKey = LS.logCrm; p.innerHTML = viewChats(); }
-  else if (active==='lmschats') { chatLogKey = LS.logLms; p.innerHTML = viewChats(); }
+  else if (active==='chats') { chatLogKey = LS.log; hydrateServerChats('sales', LS.log); p.innerHTML = viewChats(); }
+  else if (active==='crmchats') { chatLogKey = LS.logCrm; hydrateServerChats('crm', LS.logCrm); p.innerHTML = viewChats(); }
+  else if (active==='lmschats') { chatLogKey = LS.logLms; hydrateServerChats('lms', LS.logLms); p.innerHTML = viewChats(); }
   else if (active==='testcust') { p.innerHTML = viewTest('cust'); renderTestMsgs('cust'); }
   else if (active==='testadmin') { p.innerHTML = viewTest('admin'); renderTestMsgs('admin'); }
   else if (active==='toggles') p.innerHTML = viewToggles();
 }
 function go(id){ active=id; chatRoleFilter='all'; openThread=null; render(); }
+
+// Pull real conversations from the back room so staff see chats from EVERY
+// device here, not just this browser. Merged into the local log (keeping any
+// "Improve this reply" coaching), deduped by session + question. Fetched once
+// per app per session; reload to refresh.
+let chatsHydrated = {};
+function hydrateServerChats(app, key){
+  if (chatsHydrated[app]) return;
+  chatsHydrated[app] = true;
+  const API = window.EUROSTAR_API || location.origin;
+  let tok=''; try { tok = localStorage.getItem('eurostar-admin-token') || ''; } catch(e){}
+  if (!tok) return;
+  fetch(API + '/assistant/chatlog?app=' + app, { headers: { authorization: 'Bearer ' + tok } })
+    .then(r => r.ok ? r.json() : null)
+    .then(turns => {
+      if (!Array.isArray(turns) || !turns.length) return;
+      const existing = getJSON(key);
+      const seen = {};
+      existing.forEach(c => { seen[c.sessionId + '|' + (c.q||'').trim().toLowerCase()] = true; });
+      turns.forEach(t => { const k = t.sessionId + '|' + (t.q||'').trim().toLowerCase(); if (!seen[k]) { existing.push(t); seen[k] = true; } });
+      existing.sort((a,b) => a.ts - b.ts);
+      setJSON(key, existing.slice(-500));
+      if ((active==='chats'&&key===LS.log)||(active==='crmchats'&&key===LS.logCrm)||(active==='lmschats'&&key===LS.logLms)) render();
+    })
+    .catch(()=>{});
+}
 
 /* ---- Instructions ---- */
 function viewInstructions(){

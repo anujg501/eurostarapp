@@ -107,6 +107,75 @@ assistantRouter.post(
   })
 );
 
+// POST /assistant/chatlog — the apps push a CLEAN question/answer turn here so
+// staff can review real conversations in Mira Admin from any device (localStorage
+// chat logs only ever lived on the device the chat happened on). Stored as two
+// rows with roles 'q'/'a', kept separate from the raw /chat rows above.
+const chatLogSchema = z.object({
+  app: z.enum(['sales', 'crm', 'lms']).default('sales'),
+  sessionId: z.string().min(1),
+  who: z.string().optional(),
+  contact: z.string().optional(),
+  cust: z.string().optional(),
+  q: z.string().min(1),
+  a: z.string().min(1),
+});
+
+assistantRouter.post(
+  '/chatlog',
+  optionalAuth,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = chatLogSchema.safeParse(req.body);
+    if (!parsed.success) return failValidation(res, parsed.error);
+    const { app, sessionId, who, contact, cust, q, a } = parsed.data;
+    await prisma.chatLog.create({ data: { sessionId, app, role: 'q', message: q, who, contact, cust } });
+    await prisma.chatLog.create({ data: { sessionId, app, role: 'a', message: a, who, contact, cust } });
+    return ok(res, { ok: true });
+  })
+);
+
+// GET /assistant/chatlog?app=sales|crm|lms — clean turns for the Mira Admin
+// review screens, paired back into {q, a} and grouped-ready. Internal staff only.
+assistantRouter.get(
+  '/chatlog',
+  authenticate,
+  requireInternal,
+  asyncHandler(async (req, res) => {
+    const app = typeof req.query.app === 'string' ? req.query.app : undefined;
+    const rows = await prisma.chatLog.findMany({
+      where: { role: { in: ['q', 'a'] }, ...(app ? { app } : {}) },
+      orderBy: { createdAt: 'asc' },
+      take: 2000,
+    });
+    const pendingQ: Record<string, any> = {};
+    const turns: any[] = [];
+    for (const r of rows) {
+      if (r.role === 'q') {
+        pendingQ[r.sessionId] = r;
+      } else if (r.role === 'a') {
+        const qr = pendingQ[r.sessionId];
+        if (qr) {
+          const who = qr.who || r.who || 'Customer';
+          turns.push({
+            sessionId: r.sessionId,
+            app: r.app,
+            who,
+            // Staff role for the CRM/LMS review filters ("Sales Rep (CRM)" -> "Sales Rep").
+            role: who.replace(/ \((CRM|LMS)\)$/, ''),
+            cust: qr.cust || r.cust || '',
+            contact: qr.contact || r.contact || '',
+            q: qr.message,
+            a: r.message,
+            ts: new Date(qr.createdAt).getTime(),
+          });
+          delete pendingQ[r.sessionId];
+        }
+      }
+    }
+    return ok(res, turns);
+  })
+);
+
 // POST /assistant/whatsapp — Twilio inbound WhatsApp webhook. A customer messages
 // your WhatsApp number; Mira replies with the same brain as the website chat.
 // Twilio sends form-encoded fields (From, Body) and expects a TwiML response.

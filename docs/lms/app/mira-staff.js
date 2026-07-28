@@ -123,6 +123,14 @@
       var lg = getJSON(key, '[]');
       lg.push({ sessionId: state.session, role: roleLabel(), who: roleLabel() + ' (' + (state.app === 'crm' ? 'CRM' : 'LMS') + ')', contact: roleLabel(), q: q, a: clean, ts: Date.now() });
       setJSON(key, lg.slice(-300));
+      // Push a clean turn to the back room so office staff see this in Mira Admin
+      // from any device. Skip the offline/preview fallback line.
+      if (clean.indexOf('⚠') !== 0) {
+        try {
+          var API = window.EUROSTAR_API || location.origin;
+          fetch(API + '/assistant/chatlog', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ app: state.app, sessionId: state.session, who: roleLabel() + ' (' + (state.app === 'crm' ? 'CRM' : 'LMS') + ')', contact: roleLabel(), q: q, a: clean }) }).catch(function () {});
+        } catch (e) {}
+      }
       state.busy = false; renderMsgs();
     };
     if (!(window.claude && window.claude.complete)) { setTimeout(function () { doReply('\u26a0 The AI isn\u2019t connected in this preview. Once the app is wired to your Claude account, I\u2019ll answer here live.'); }, 200); return; }

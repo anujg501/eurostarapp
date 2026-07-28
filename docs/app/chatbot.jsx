@@ -267,6 +267,13 @@ Keep replies short (2-5 sentences), friendly and practical. Never mention or exp
           ts: Date.now()
         });
         localStorage.setItem('eurostar-mira-chatlog', JSON.stringify(log.slice(-300)));
+        // Push a clean turn to the back room so office staff see this chat in
+        // Mira Admin from any device (not just this browser).
+        const API = window.EUROSTAR_API || location.origin;
+        fetch(API + '/assistant/chatlog', {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ app: 'sales', sessionId: sessionRef.current, who: persona.company, cust: (persona && persona.code) || '', contact: (persona && persona.contact) || '', q, a: (reply || '').replace(/<<[\s\S]*?<<END>>/g, '').trim() }),
+        }).catch(() => {});
       } catch (e) {}
     } catch (e) {
       setMsgs(m => [...m, { role: 'assistant', text: isOnline === false ? "You're offline right now — I'll be ready the moment you reconnect. You can still browse and queue orders." : "I couldn't reach the assistant just now. Please try again, or tap a category to order directly." }]);

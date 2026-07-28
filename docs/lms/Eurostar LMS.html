@@ -91,11 +91,11 @@
     <div class="lg-right">
       <form class="lg-form" id="lms-login-form" autocomplete="on">
         <div class="lg-tabs" id="lms-lg-tabs">
-          <button type="button" class="lg-tab on" data-role="rep"><span class="ti">👤</span>Sales Rep</button>
+          <button type="button" class="lg-tab on" data-role="candidate"><span class="ti">👤</span>Candidate</button>
           <button type="button" class="lg-tab" data-role="admin"><span class="ti">✦</span>Admin</button>
         </div>
         <h2>Welcome back</h2>
-        <p class="lgsub" id="lms-lg-rolesub">Sign in with your Sales Rep credentials.</p>
+        <p class="lgsub" id="lms-lg-rolesub">Sign in with your candidate credentials.</p>
         <p class="lgerr" id="lms-lgerr">Incorrect username or password.</p>
         <div class="lgfield">
           <label for="lms-lg-user">Username</label>
@@ -118,10 +118,10 @@
     (function () {
       var AUTH_KEY = 'eurostar-lms-authed';
       var ROLES = {
-        rep:   { user: 'rep',   pass: 'eurostar', sub: 'Sign in with your Sales Rep credentials.', ph: 'e.g. rep' },
+        rep:   { user: 'rep',   pass: 'eurostar', sub: 'Sign in with your candidate credentials.', ph: 'e.g. rep' },
         admin: { user: 'admin', pass: 'eurostar', sub: 'Sign in with your Admin credentials.',     ph: 'e.g. admin' }
       };
-      var role = 'rep';
+      var role = 'candidate';
       var gate = document.getElementById('lms-login');
       var form = document.getElementById('lms-login-form');
       var err = document.getElementById('lms-lgerr');
@@ -136,7 +136,15 @@
       window.addEventListener('load', setLogo);
       document.documentElement.style.overflow = 'hidden'; document.body.style.overflow = 'hidden';
       function applyRole(r) {
-        role = r; subEl.textContent = ROLES[r].sub; userEl.placeholder = ROLES[r].ph; err.classList.remove('show');
+        role = r;
+        var isCand = (r === 'candidate');
+        // Candidates register/login inside the candidate app (mobile OTP) — no
+        // fixed username/password here. Only Admin uses the credential form.
+        subEl.textContent = isCand ? 'New or returning candidate — apply & register inside. No password needed here.' : ROLES[r].sub;
+        form.querySelectorAll('.lgfield, .lgrow').forEach(function (el) { el.style.display = isCand ? 'none' : ''; });
+        if (!isCand) userEl.placeholder = ROLES[r].ph;
+        form.querySelector('.lgbtn').textContent = isCand ? 'Continue as candidate →' : 'Sign in';
+        err.classList.remove('show');
       }
       [].forEach.call(document.querySelectorAll('#lms-lg-tabs .lg-tab'), function (t) {
         t.addEventListener('click', function () {
@@ -147,10 +155,15 @@
       try { var savedUser = localStorage.getItem(AUTH_KEY); if (savedUser) userEl.value = savedUser; } catch (e) {}
       applyRole(role);
       function unlock() { gate.style.display = 'none'; document.documentElement.style.overflow = ''; document.body.style.overflow = ''; }
+      // A candidate coming in (or returning) skips this staff gate entirely — the
+      // candidate app below has its own apply/register/login (mobile OTP).
+      try { if (new URLSearchParams(location.search).get('role') === 'candidate') unlock(); } catch (e) {}
       var API = window.EUROSTAR_API || location.origin;
       var btn = form.querySelector('.lgbtn');
       form.addEventListener('submit', function (e) {
         e.preventDefault();
+        // Candidate → hand off to the candidate app's own apply/register/login.
+        if (role === 'candidate') { window.location.href = location.pathname + '?role=candidate'; return; }
         var username = userEl.value.trim();
         var password = document.getElementById('lms-lg-pass').value;
         var remember = document.getElementById('lms-lg-remember').checked;

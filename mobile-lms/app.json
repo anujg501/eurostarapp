@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "Eurostar Academy",
+    "slug": "eurostar-lms-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "eurostarlms",
+    "splash": {
+      "backgroundColor": "#201731"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "in.eurostar.lms"
+    },
+    "android": {
+      "package": "in.eurostar.lms"
+    },
+    "extra": {
+      "apiBaseUrl": "https://eurostar-api.onrender.com"
+    }
+  }
+}

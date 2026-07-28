@@ -107,6 +107,8 @@
       <p>Train your AI assistant — no code. Changes apply instantly in the Sales App.</p>
     </div>
     <a class="back" href="../Eurostar Sales website.html">Open Sales App →</a>
+    <button type="button" id="mira-logout" style="color:#FDFAF2;font-size:13px;border:1px solid rgba(255,255,255,.3);padding:7px 13px;border-radius:8px;background:transparent;cursor:pointer;font-family:inherit"
+            onclick="try{localStorage.removeItem('eurostar-admin-token');localStorage.removeItem('eurostar-mira-authed');}catch(e){}; location.reload();">Log out</button>
   </div>
 
   <div class="wrap">

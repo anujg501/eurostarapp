@@ -26,6 +26,17 @@ function pimgKey(catId, colorId, shape, gradeId) {
 function getStoredProductImage(catId, colorId, shape, gradeId) {
   return pimgLoadAll()[pimgKey(catId, colorId, shape, gradeId)] || null;
 }
+
+// Built-in default product photos shipped with the app (repo assets), so a card
+// shows a photo without needing a per-browser admin upload. Keyed exactly like
+// the stored map (catId|colorId|shape, with grade folded in only for the
+// grade-scoped categories). A stored/admin-uploaded photo always wins over these.
+const DEFAULT_PRODUCT_IMAGES = {
+  'laser|vgi-alp-blue|radiant': 'assets/products/laser-vgi-alp-blue-radiant.jpg',
+};
+function getDefaultProductImage(catId, colorId, shape, gradeId) {
+  return DEFAULT_PRODUCT_IMAGES[pimgKey(catId, colorId, shape, gradeId)] || null;
+}
 function setStoredProductImage(catId, colorId, shape, dataUrl, gradeId) {
   const all = pimgLoadAll();
   const k = pimgKey(catId, colorId, shape, gradeId);

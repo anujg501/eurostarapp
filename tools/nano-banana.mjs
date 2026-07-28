@@ -23,15 +23,25 @@ if (!process.env.NODE_EXTRA_CA_CERTS) {
 }
 
 function parseArgs(argv) {
-  const args = { model: 'gemini-2.5-flash-image' };
+  const args = { model: 'gemini-2.5-flash-image', inputs: [] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--prompt' || a === '-p') args.prompt = argv[++i];
     else if (a === '--out' || a === '-o') args.out = argv[++i];
     else if (a === '--model' || a === '-m') args.model = argv[++i];
+    else if (a === '--input' || a === '-i') args.inputs.push(argv[++i]); // edit an existing image (repeatable)
     else if (a === '--help' || a === '-h') args.help = true;
   }
   return args;
+}
+
+import { readFile } from 'node:fs/promises';
+function mimeFor(path) {
+  const p = path.toLowerCase();
+  if (p.endsWith('.png')) return 'image/png';
+  if (p.endsWith('.jpg') || p.endsWith('.jpeg')) return 'image/jpeg';
+  if (p.endsWith('.webp')) return 'image/webp';
+  return 'image/png';
 }
 
 function usage() {
@@ -60,11 +70,17 @@ if (!args.out) {
 
 const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${args.model}:generateContent`;
 
-const body = {
-  contents: [{ parts: [{ text: args.prompt }] }],
-};
+// Build request parts: any input images first (for editing), then the text instruction.
+const reqParts = [];
+for (const imgPath of args.inputs) {
+  const buf = await readFile(imgPath);
+  reqParts.push({ inlineData: { mimeType: mimeFor(imgPath), data: buf.toString('base64') } });
+}
+reqParts.push({ text: args.prompt });
 
-console.log(`Generating with model "${args.model}"...`);
+const body = { contents: [{ parts: reqParts }] };
+
+console.log(`${args.inputs.length ? 'Editing' : 'Generating'} with model "${args.model}"${args.inputs.length ? ` (${args.inputs.length} input image[s])` : ''}...`);
 
 let res;
 try {

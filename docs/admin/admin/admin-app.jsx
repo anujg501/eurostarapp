@@ -846,6 +846,70 @@ function Media() {
   );
 }
 
+/* ---------------- COLOUR IMAGES (the swatch on 'Choose a colour') ---------------- */
+// Every colour a category offers, across all its grades (deduped by id).
+function allColoursForCat(catId){
+  const grades = GBY[catId]||[];
+  const seen = {}, out = [];
+  const add = (list)=> (list||[]).forEach((c)=>{ if(c && c.id && !seen[c.id]){ seen[c.id]=1; out.push(c); } });
+  grades.forEach((g)=> add(coloursForGrade(catId, g.id)));
+  add(coloursForGrade(catId, ''));
+  return out.length ? out : coloursForGrade(catId, '');
+}
+
+// One round swatch image per colour (reserved shape '_swatch', grade-independent).
+function ColourSwatchCell({ catId, colour }){
+  const [img, setImg] = useState(()=>pimgGet(catId, colour.id, '_swatch', ''));
+  const [busy, setBusy] = useState(false);
+  const ref = React.useRef(null);
+  React.useEffect(()=>{ setImg(pimgGet(catId, colour.id, '_swatch', '')); }, [catId, colour.id]);
+  const onPick = async (e)=>{ const f=e.target.files&&e.target.files[0]; if(!f) return; setBusy(true);
+    try { const url=await adThumbCompress(f, 600, 0.85); if(pimgSet(catId, colour.id, '_swatch', url, '')) setImg(url); }
+    catch(err){ alert('Could not read that image.'); } setBusy(false); e.target.value=''; };
+  const onRemove = ()=>{ pimgSet(catId, colour.id, '_swatch', null, ''); setImg(''); };
+  return (
+    <div className="ad-thumb-cell">
+      <div className="ad-thumb-art" style={{borderRadius:'50%',overflow:'hidden'}}>
+        {img ? <img src={img} alt={colour.name} style={{width:'100%',height:'100%',objectFit:'cover'}} />
+             : <span className="ad-thumb-empty" style={{background:colour.hex,borderRadius:'50%',display:'block',width:'100%',height:'100%'}}></span>}
+      </div>
+      <div className="ad-thumb-label">{colour.name}</div>
+      <div style={{display:'flex',gap:6,marginTop:4,flexWrap:'wrap'}}>
+        <input ref={ref} type="file" accept="image/*" onChange={onPick} style={{display:'none'}} />
+        <button className="ad-btn ad-btn-ghost ad-btn-sm" onClick={()=>ref.current&&ref.current.click()}>{busy?'Saving…':img?'Change':'＋ Upload'}</button>
+        {img && <button className="ad-btn ad-btn-ghost ad-btn-sm" onClick={onRemove}>Remove</button>}
+      </div>
+    </div>
+  );
+}
+
+function ColourImages(){
+  const [cat, setCat] = useState(CATS[0]?CATS[0].id:'');
+  const colours = allColoursForCat(cat);
+  return (
+    <div className="ad-body">
+      <PageHead title="Colour images"
+        sub="Upload the picture shown for each colour on the storefront's 'Choose a colour' page. Leave one empty to keep the plain colour swatch." />
+      <div className="ad-card ad-card-pad">
+        <div className="ad-field" style={{maxWidth:280}}>
+          <span className="ad-label">Category</span>
+          <select className="ad-select" style={{width:'100%'}} value={cat} onChange={(e)=>setCat(e.target.value)}>
+            {CATS.map((c)=>(<option key={c.id} value={c.id}>{c.name}</option>))}
+          </select>
+        </div>
+      </div>
+      <div className="ad-card ad-card-pad" style={{marginTop:12}}>
+        <div className="ad-sechead" style={{marginBottom:10}}><h3>Colours</h3><span className="meta">{colours.length} colour{colours.length!==1?'s':''}</span></div>
+        <div className="ad-thumb-grid">
+          {colours.map((cl)=>(<ColourSwatchCell key={cl.id} catId={cat} colour={cl} />))}
+          {colours.length===0 && <span className="ad-muted">No colours configured for this category.</span>}
+        </div>
+      </div>
+      <div className="ad-muted" style={{fontSize:12,marginTop:12}}>Saved instantly to the server — the image replaces the plain colour ball on the storefront for every visitor. Round images look best.</div>
+    </div>
+  );
+}
+
 /* ---------------- ORDERS / RFQ / FRANCHISE ---------------- */
 function Orders() {
   const orders = ORD_ALL;
@@ -1274,6 +1338,7 @@ const NAV = [
   { id:'catalog', label:'Catalog' },
   { id:'newcat', label:'＋ Add category' },
   { id:'bulk', label:'Bulk upload' },
+  { id:'colourimages', label:'Colour images' },
   { id:'media', label:'Product images' },
   { id:'homethumbs', label:'Home thumbnails' },
   { id:'splash', label:'Pop-up window' },
@@ -1296,7 +1361,7 @@ function Admin() {
     dashboard:<Dashboard go={go} hidden={hidden} />,
     catalog:<Catalog hidden={hidden} toggleHidden={toggleHidden} openCat={setCatId} />,
     newcat:<CreateCategory onDone={()=>go('catalog')} />,
-    bulk:<BulkUpload />, media:<Media />, homethumbs:<HomeThumbs />, splash:<SplashAdmin />,    content:<Content />, settings:<Settings />,
+    bulk:<BulkUpload />, colourimages:<ColourImages />, media:<Media />, homethumbs:<HomeThumbs />, splash:<SplashAdmin />,    content:<Content />, settings:<Settings />,
     repbroadcast:<RepBroadcast />,
     users:<UsersAccess />,
   })[page];

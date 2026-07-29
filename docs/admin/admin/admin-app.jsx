@@ -26,6 +26,7 @@ function Dashboard({ go, hidden }) {
   return (
     <div className="ad-body">
       <PageHead title="Dashboard" sub="Catalog & store overview" />
+      <div style={{background:'#0E5C4A',color:'#F6F1E6',padding:'10px 16px',borderRadius:10,fontWeight:800,fontSize:16,marginBottom:16,display:'inline-block'}}>🔖 VERSION 1 — live update test</div>
       <div className="ad-kpis">
         <div className="ad-kpi"><div className="lbl">Live categories</div><div className="val">{CATS.length - hidden.length}</div><div className="sub">{hidden.length} hidden</div></div>
         <div className="ad-kpi"><div className="lbl">Grades / sub-categories</div><div className="val">{totalGrades}</div><div className="sub">across all categories</div></div>

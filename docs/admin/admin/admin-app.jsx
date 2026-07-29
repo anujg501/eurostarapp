@@ -274,6 +274,20 @@ function CatDetail({ catId, onBack }) {
     if (CBY[catId]) { const i=CBY[catId].findIndex((c)=>c.id===id); if(i>=0) CBY[catId].splice(i,1); }
     rerender();
   };
+  // ---- hide / restore a BUILT-IN colour (extras are deleted outright above) ----
+  const HIDDEN_KEY = 'eurostar-hidden-colors-v1';
+  const hiddenIds = loadOverlay(HIDDEN_KEY)[catId] || [];
+  const hideColour = (id)=>{
+    const all = loadOverlay(HIDDEN_KEY); const arr = all[catId]||[];
+    if (arr.indexOf(id)<0) arr.push(id); all[catId]=arr;
+    try { localStorage.setItem(HIDDEN_KEY, JSON.stringify(all)); } catch(e){}
+    rerender();
+  };
+  const unhideColour = (id)=>{
+    const all = loadOverlay(HIDDEN_KEY); all[catId]=(all[catId]||[]).filter((x)=>x!==id);
+    try { localStorage.setItem(HIDDEN_KEY, JSON.stringify(all)); } catch(e){}
+    rerender();
+  };
 
   // ---- add / remove shape (pick from the master shape catalog) ----
   const allShapes = (W.SHAPES||[]);
@@ -328,9 +342,13 @@ function CatDetail({ catId, onBack }) {
       {tab==='colours' &&
       <div className="ad-card ad-card-pad">
         <div className="ad-chips" style={{marginBottom:16}}>
-          {colours.map((c)=>{ const isExtra=extraColIds.indexOf(c.id)>=0; return (
-            <span key={c.id} className="ad-chip"><span className="ad-sw" style={{background:c.hex}} />{c.name}
-            {isExtra && <button className="ad-chip-x" title="Remove" onClick={()=>removeColour(c.id)} style={{marginLeft:6,border:'none',background:'none',cursor:'pointer',color:'var(--ruby)',fontWeight:700}}>×</button>}
+          {colours.map((c)=>{ const isExtra=extraColIds.indexOf(c.id)>=0; const isHidden=hiddenIds.indexOf(c.id)>=0; return (
+            <span key={c.id} className="ad-chip" style={isHidden?{opacity:.55}:undefined}>
+              <span className="ad-sw" style={{background:c.hex}} />
+              <span style={isHidden?{textDecoration:'line-through'}:undefined}>{c.name}</span>
+              {isHidden
+                ? <button className="ad-chip-x" title="Show on website again" onClick={()=>unhideColour(c.id)} style={{marginLeft:6,border:'none',background:'none',cursor:'pointer',color:'var(--emerald,#0E5C4A)',fontWeight:700,fontSize:11.5}}>Restore</button>
+                : <button className="ad-chip-x" title={isExtra?'Delete this colour':'Hide from website'} onClick={()=> isExtra ? removeColour(c.id) : hideColour(c.id)} style={{marginLeft:6,border:'none',background:'none',cursor:'pointer',color:'var(--ruby)',fontWeight:700}}>×</button>}
             </span>); })}
           {colours.length===0 && <span className="ad-muted">No colours configured.</span>}
         </div>
@@ -341,7 +359,7 @@ function CatDetail({ catId, onBack }) {
             <input type="color" value={newColHex} onChange={(e)=>setNewColHex(e.target.value)} style={{width:54,height:38,padding:2,border:'1px solid var(--border)',borderRadius:8,background:'var(--surface)',cursor:'pointer'}} /></div>
           <button className="ad-btn ad-btn-acc ad-btn-sm" onClick={addColour}>＋ Add colour</button>
         </div>
-        <div className="ad-muted" style={{fontSize:12,marginTop:10}}>Added colours appear in this category on the Sales App immediately. Set their photo in Home thumbnails / Product images.</div>
+        <div className="ad-muted" style={{fontSize:12,marginTop:10}}>Click × on any colour to take it off the website — colours you added are deleted, built-in colours are hidden (use <b>Restore</b> to bring them back). Changes show on the Sales App after a page refresh.</div>
       </div>}
 
       {tab==='shapes' &&

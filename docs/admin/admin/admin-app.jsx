@@ -274,6 +274,20 @@ function CatDetail({ catId, onBack }) {
     if (CBY[catId]) { const i=CBY[catId].findIndex((c)=>c.id===id); if(i>=0) CBY[catId].splice(i,1); }
     rerender();
   };
+  // ---- hide / restore a BUILT-IN colour (extras are deleted outright above) ----
+  const HIDDEN_KEY = 'eurostar-hidden-colors-v1';
+  const hiddenIds = loadOverlay(HIDDEN_KEY)[catId] || [];
+  const hideColour = (id)=>{
+    const all = loadOverlay(HIDDEN_KEY); const arr = all[catId]||[];
+    if (arr.indexOf(id)<0) arr.push(id); all[catId]=arr;
+    try { localStorage.setItem(HIDDEN_KEY, JSON.stringify(all)); } catch(e){}
+    rerender();
+  };
+  const unhideColour = (id)=>{
+    const all = loadOverlay(HIDDEN_KEY); all[catId]=(all[catId]||[]).filter((x)=>x!==id);
+    try { localStorage.setItem(HIDDEN_KEY, JSON.stringify(all)); } catch(e){}
+    rerender();
+  };
 
   // ---- add / remove shape (pick from the master shape catalog) ----
   const allShapes = (W.SHAPES||[]);
@@ -328,9 +342,13 @@ function CatDetail({ catId, onBack }) {
       {tab==='colours' &&
       <div className="ad-card ad-card-pad">
         <div className="ad-chips" style={{marginBottom:16}}>
-          {colours.map((c)=>{ const isExtra=extraColIds.indexOf(c.id)>=0; return (
-            <span key={c.id} className="ad-chip"><span className="ad-sw" style={{background:c.hex}} />{c.name}
-            {isExtra && <button className="ad-chip-x" title="Remove" onClick={()=>removeColour(c.id)} style={{marginLeft:6,border:'none',background:'none',cursor:'pointer',color:'var(--ruby)',fontWeight:700}}>×</button>}
+          {colours.map((c)=>{ const isExtra=extraColIds.indexOf(c.id)>=0; const isHidden=hiddenIds.indexOf(c.id)>=0; return (
+            <span key={c.id} className="ad-chip" style={isHidden?{opacity:.55}:undefined}>
+              <span className="ad-sw" style={{background:c.hex}} />
+              <span style={isHidden?{textDecoration:'line-through'}:undefined}>{c.name}</span>
+              {isHidden
+                ? <button className="ad-chip-x" title="Show on website again" onClick={()=>unhideColour(c.id)} style={{marginLeft:6,border:'none',background:'none',cursor:'pointer',color:'var(--emerald,#0E5C4A)',fontWeight:700,fontSize:11.5}}>Restore</button>
+                : <button className="ad-chip-x" title={isExtra?'Delete this colour':'Hide from website'} onClick={()=> isExtra ? removeColour(c.id) : hideColour(c.id)} style={{marginLeft:6,border:'none',background:'none',cursor:'pointer',color:'var(--ruby)',fontWeight:700}}>×</button>}
             </span>); })}
           {colours.length===0 && <span className="ad-muted">No colours configured.</span>}
         </div>
@@ -341,7 +359,7 @@ function CatDetail({ catId, onBack }) {
             <input type="color" value={newColHex} onChange={(e)=>setNewColHex(e.target.value)} style={{width:54,height:38,padding:2,border:'1px solid var(--border)',borderRadius:8,background:'var(--surface)',cursor:'pointer'}} /></div>
           <button className="ad-btn ad-btn-acc ad-btn-sm" onClick={addColour}>＋ Add colour</button>
         </div>
-        <div className="ad-muted" style={{fontSize:12,marginTop:10}}>Added colours appear in this category on the Sales App immediately. Set their photo in Home thumbnails / Product images.</div>
+        <div className="ad-muted" style={{fontSize:12,marginTop:10}}>Click × on any colour to take it off the website — colours you added are deleted, built-in colours are hidden (use <b>Restore</b> to bring them back). Changes show on the Sales App after a page refresh.</div>
       </div>}
 
       {tab==='shapes' &&
@@ -694,11 +712,26 @@ function pimgKey(catId, colorId, shape, gradeId){
     : catId+'|'+colorId+'|'+shape;
 }
 function pimgGet(catId, colorId, shape, gradeId){ return pimgLoadAll()[pimgKey(catId,colorId,shape,gradeId)]||''; }
+function pimgApiBase(){
+  if (window.EUROSTAR_API) return window.EUROSTAR_API;
+  return /^(localhost|127\.|0\.0\.0\.0)/.test(location.hostname) ? location.origin : 'https://eurostar-api.onrender.com';
+}
+function pimgServerSave(k, url){
+  try {
+    if (url) fetch(pimgApiBase()+'/admin/product-images/item',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({key:k,url:url})}).catch(function(){});
+    else fetch(pimgApiBase()+'/admin/product-images/item',{method:'DELETE',headers:{'content-type':'application/json'},body:JSON.stringify({key:k}),keepalive:true}).catch(function(){});
+  } catch(e){}
+}
 function pimgSet(catId, colorId, shape, url, gradeId){
-  const all = pimgLoadAll(); const k = pimgKey(catId,colorId,shape,gradeId);
+  const k = pimgKey(catId,colorId,shape,gradeId);
+  // Server is the source of truth: the photo shows for every visitor and this
+  // succeeds even when the browser's local store is full.
+  pimgServerSave(k, url);
+  // Best-effort local cache for instant preview in this same browser.
+  const all = pimgLoadAll();
   if (url) all[k]=url; else delete all[k];
-  try { localStorage.setItem(PIMG_STORE_KEY, JSON.stringify(all)); return true; }
-  catch(e){ alert('Browser storage is full — try a smaller image.'); return false; }
+  try { localStorage.setItem(PIMG_STORE_KEY, JSON.stringify(all)); } catch(e){}
+  return true;
 }
 
 // The colour list shown for a given grade, mirroring the storefront drill-down.
@@ -809,6 +842,70 @@ function Media() {
       <div className="ad-muted" style={{fontSize:12,marginTop:12}}>
         Photos are saved instantly and appear on the Sales App storefront for the matching {scoped?'grade, ':''}colour &amp; shape.
       </div>
+    </div>
+  );
+}
+
+/* ---------------- COLOUR IMAGES (the swatch on 'Choose a colour') ---------------- */
+// Every colour a category offers, across all its grades (deduped by id).
+function allColoursForCat(catId){
+  const grades = GBY[catId]||[];
+  const seen = {}, out = [];
+  const add = (list)=> (list||[]).forEach((c)=>{ if(c && c.id && !seen[c.id]){ seen[c.id]=1; out.push(c); } });
+  grades.forEach((g)=> add(coloursForGrade(catId, g.id)));
+  add(coloursForGrade(catId, ''));
+  return out.length ? out : coloursForGrade(catId, '');
+}
+
+// One round swatch image per colour (reserved shape '_swatch', grade-independent).
+function ColourSwatchCell({ catId, colour }){
+  const [img, setImg] = useState(()=>pimgGet(catId, colour.id, '_swatch', ''));
+  const [busy, setBusy] = useState(false);
+  const ref = React.useRef(null);
+  React.useEffect(()=>{ setImg(pimgGet(catId, colour.id, '_swatch', '')); }, [catId, colour.id]);
+  const onPick = async (e)=>{ const f=e.target.files&&e.target.files[0]; if(!f) return; setBusy(true);
+    try { const url=await adThumbCompress(f, 600, 0.85); if(pimgSet(catId, colour.id, '_swatch', url, '')) setImg(url); }
+    catch(err){ alert('Could not read that image.'); } setBusy(false); e.target.value=''; };
+  const onRemove = ()=>{ pimgSet(catId, colour.id, '_swatch', null, ''); setImg(''); };
+  return (
+    <div className="ad-thumb-cell">
+      <div className="ad-thumb-art" style={{borderRadius:'50%',overflow:'hidden'}}>
+        {img ? <img src={img} alt={colour.name} style={{width:'100%',height:'100%',objectFit:'cover'}} />
+             : <span className="ad-thumb-empty" style={{background:colour.hex,borderRadius:'50%',display:'block',width:'100%',height:'100%'}}></span>}
+      </div>
+      <div className="ad-thumb-label">{colour.name}</div>
+      <div style={{display:'flex',gap:6,marginTop:4,flexWrap:'wrap'}}>
+        <input ref={ref} type="file" accept="image/*" onChange={onPick} style={{display:'none'}} />
+        <button className="ad-btn ad-btn-ghost ad-btn-sm" onClick={()=>ref.current&&ref.current.click()}>{busy?'Saving…':img?'Change':'＋ Upload'}</button>
+        {img && <button className="ad-btn ad-btn-ghost ad-btn-sm" onClick={onRemove}>Remove</button>}
+      </div>
+    </div>
+  );
+}
+
+function ColourImages(){
+  const [cat, setCat] = useState(CATS[0]?CATS[0].id:'');
+  const colours = allColoursForCat(cat);
+  return (
+    <div className="ad-body">
+      <PageHead title="Colour images"
+        sub="Upload the picture shown for each colour on the storefront's 'Choose a colour' page. Leave one empty to keep the plain colour swatch." />
+      <div className="ad-card ad-card-pad">
+        <div className="ad-field" style={{maxWidth:280}}>
+          <span className="ad-label">Category</span>
+          <select className="ad-select" style={{width:'100%'}} value={cat} onChange={(e)=>setCat(e.target.value)}>
+            {CATS.map((c)=>(<option key={c.id} value={c.id}>{c.name}</option>))}
+          </select>
+        </div>
+      </div>
+      <div className="ad-card ad-card-pad" style={{marginTop:12}}>
+        <div className="ad-sechead" style={{marginBottom:10}}><h3>Colours</h3><span className="meta">{colours.length} colour{colours.length!==1?'s':''}</span></div>
+        <div className="ad-thumb-grid">
+          {colours.map((cl)=>(<ColourSwatchCell key={cl.id} catId={cat} colour={cl} />))}
+          {colours.length===0 && <span className="ad-muted">No colours configured for this category.</span>}
+        </div>
+      </div>
+      <div className="ad-muted" style={{fontSize:12,marginTop:12}}>Saved instantly to the server — the image replaces the plain colour ball on the storefront for every visitor. Round images look best.</div>
     </div>
   );
 }
@@ -1241,6 +1338,7 @@ const NAV = [
   { id:'catalog', label:'Catalog' },
   { id:'newcat', label:'＋ Add category' },
   { id:'bulk', label:'Bulk upload' },
+  { id:'colourimages', label:'Colour images' },
   { id:'media', label:'Product images' },
   { id:'homethumbs', label:'Home thumbnails' },
   { id:'splash', label:'Pop-up window' },
@@ -1263,7 +1361,7 @@ function Admin() {
     dashboard:<Dashboard go={go} hidden={hidden} />,
     catalog:<Catalog hidden={hidden} toggleHidden={toggleHidden} openCat={setCatId} />,
     newcat:<CreateCategory onDone={()=>go('catalog')} />,
-    bulk:<BulkUpload />, media:<Media />, homethumbs:<HomeThumbs />, splash:<SplashAdmin />,    content:<Content />, settings:<Settings />,
+    bulk:<BulkUpload />, colourimages:<ColourImages />, media:<Media />, homethumbs:<HomeThumbs />, splash:<SplashAdmin />,    content:<Content />, settings:<Settings />,
     repbroadcast:<RepBroadcast />,
     users:<UsersAccess />,
   })[page];

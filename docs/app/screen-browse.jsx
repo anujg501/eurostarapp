@@ -376,10 +376,12 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
           </div> :
 
         <div className="color-pick-grid">
-            {colors.map((c) =>
+            {colors.map((c) => {
+          const swatch = getStoredProductImage(category.id, c.id, '_swatch') || productPhoto(c.id);
+          return (
           <button key={c.id} className="color-pick-card" onClick={() => pickColor(c.id)}>
-                {productPhoto(c.id) ?
-            <img className="color-pick-swatch" src={productPhoto(c.id)} alt={c.name}
+                {swatch ?
+            <img className="color-pick-swatch" src={swatch} alt={c.name}
             style={{ objectFit: 'cover' }} /> :
             <div className="color-pick-swatch" style={{ background: c.hex }} />}
                 <div className="color-pick-name">{c.name}</div>
@@ -388,7 +390,7 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
             <div className="color-pick-meta">+{Math.round((c.mult - 1) * 100)}% fancy</div>
             }
               </button>
-          )}
+          ); })}
           </div>)
         }
 

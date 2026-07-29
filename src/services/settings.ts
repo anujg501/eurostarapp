@@ -22,6 +22,21 @@ export async function setSetting(key: string, value: unknown): Promise<void> {
   });
 }
 
+// Remove a setting (no-op if it doesn't exist).
+export async function deleteSetting(key: string): Promise<void> {
+  await prisma.setting.deleteMany({ where: { key } });
+}
+
+// List the keys of all settings sharing a prefix (used to index per-item stores
+// like product images, where each image is its own row rather than one blob).
+export async function listSettingKeys(prefix: string): Promise<string[]> {
+  const rows = await prisma.setting.findMany({
+    where: { key: { startsWith: prefix } },
+    select: { key: true },
+  });
+  return rows.map((r) => r.key);
+}
+
 // The exact client localStorage keys, reused verbatim as setting keys so the
 // apps map 1:1 when wired.
 export const KEYS = {

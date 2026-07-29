@@ -19,7 +19,15 @@ export const theme = {
   purpleInk: '#5B21B6',
   purpleSoft: '#EDE7FB',
   green: '#15803D',
+  greenInk: '#0F5C2C',
   greenSoft: '#E3F1E9',
+  // Mira assistant (staff/candidate helpdesk bubble)
+  mira: '#0E5C4A',
+  miraPaper: '#FBF8F1',
+  // Form surfaces (mirrors .cand-ipt / .cand-ipt.locked)
+  inputBg: '#F4F2F8',
+  lockGold: '#E0A93C',
+  lockBg: '#FFF8EC',
   maroon: '#A01E2E',
   maroonInk: '#7E1522',
   gold: '#F5E7C4',

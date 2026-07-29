@@ -1,25 +1,36 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView,
+  View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Image,
   KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { api, setToken } from '../api';
 import { theme } from '../theme';
+import MiraFab from '../components/MiraFab';
 
-// A labelled input with a leading icon (matches the web candidate card).
+const LOGO = require('../../assets/eurostar-logo.png');
+
+// The back room issues codes of config.otp.length, which defaults to 6
+// (src/services/otp.ts). The web candidate demo used 4 boxes — with the real
+// API that made the code impossible to type in.
+const OTP_LEN = 6;
+
+// A labelled input with a leading icon — mirrors .cand-label + .cand-ipt-wrap
+// in the web candidate UI (docs/lms/lms/lms.css).
 function Field({
   label, icon, value, onChangeText, placeholder, keyboardType, secureTextEntry,
-  autoCapitalize, editable = true, right,
+  autoCapitalize, maxLength, locked = false, right, first = false,
 }: any) {
   return (
-    <View style={{ marginBottom: 11 }}>
-      <Text style={styles.label}>{label}</Text>
-      <View style={[styles.inputRow, editable === false && styles.inputRowLocked]}>
-        <Feather name={icon} size={15} color={theme.purple} style={{ marginRight: 8 }} />
+    <>
+      {/* `first` mimics CSS margin-collapsing: the web label's 14px top margin
+          collapses into the 22px bottom margin of the element above it. */}
+      <Text style={[styles.label, first && { marginTop: 0 }]}>{label}</Text>
+      <View style={[styles.iptWrap, locked && styles.iptLocked]}>
+        <Feather name={icon} size={18} color={theme.purple} style={styles.ic} />
         <TextInput
-          style={styles.input}
+          style={styles.ipt}
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
@@ -27,11 +38,12 @@ function Field({
           keyboardType={keyboardType}
           secureTextEntry={secureTextEntry}
           autoCapitalize={autoCapitalize}
-          editable={editable}
+          maxLength={maxLength}
+          editable={!locked}
         />
         {right}
       </View>
-    </View>
+    </>
   );
 }
 
@@ -42,161 +54,243 @@ export default function AuthScreen({ onSignedIn }: { onSignedIn: () => void }) {
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [otp, setOtp] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
-  const [verified, setVerified] = useState(false);
+  const [otp, setOtp] = useState<string[]>(Array(OTP_LEN).fill(''));
+  const [otpStage, setOtpStage] = useState<'idle' | 'sent' | 'verified'>('idle');
   const [devCode, setDevCode] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const otpRefs = useRef<(TextInput | null)[]>([]);
 
   const reg = mode === 'register';
-  const cleanPhone = phone.replace(/\D/g, '');
+  const validPhone = /^[6-9]\d{9}$/.test(phone);
+  const otpFull = otp.join('').length === OTP_LEN;
+  // Login is OTP-based here too (the web demo's login pane used a password), so
+  // both modes need a verified number before the button does anything.
+  const canSubmit = validPhone && otpStage === 'verified';
 
-  function resetPhone(t: string) {
-    setPhone(t); setOtpSent(false); setVerified(false); setOtp('');
+  function setDigit(i: number, v: string) {
+    // Autofill/paste can drop the whole code into one box — spread it instead.
+    if (v.length > 1) {
+      const digits = v.replace(/\D/g, '').slice(0, OTP_LEN - i).split('');
+      if (!digits.length) return;
+      const next = otp.slice();
+      digits.forEach((d, k) => { next[i + k] = d; });
+      setOtp(next);
+      otpRefs.current[Math.min(i + digits.length, OTP_LEN - 1)]?.focus();
+      return;
+    }
+    if (!/^\d?$/.test(v)) return;
+    const next = otp.slice();
+    next[i] = v;
+    setOtp(next);
+    if (v && i < OTP_LEN - 1) otpRefs.current[i + 1]?.focus();
+  }
+
+  function onPhone(t: string) {
+    setPhone(t.replace(/\D/g, ''));
+    setOtpStage('idle');
+    setOtp(Array(OTP_LEN).fill(''));
+    setDevCode(null);
   }
 
   async function sendOtp() {
-    if (cleanPhone.length < 10) { Alert.alert('Enter a valid 10-digit mobile number'); return; }
+    if (!validPhone) return;
     setBusy(true);
     try {
-      const r = await api.requestOtp(cleanPhone, reg ? 'signup' : 'login');
-      setOtpSent(true);
+      const r = await api.requestOtp(phone, reg ? 'signup' : 'login');
+      setOtpStage('sent');
       setDevCode(r.devCode || null);
     } catch (e: any) {
       Alert.alert('Could not send code', e.message || 'Try again.');
     } finally { setBusy(false); }
   }
 
-  function verifyCode() {
-    if (otp.trim().length < 4) { Alert.alert('Enter the code sent to your phone'); return; }
-    setVerified(true);
+  function verifyOtp() {
+    if (!otpFull) return;
+    setOtpStage('verified');
   }
 
   async function submit() {
+    if (!canSubmit) return;
     if (reg && (!first.trim() || !last.trim())) { Alert.alert('Enter your first and last name'); return; }
-    if (!verified) { Alert.alert('Please verify your mobile number first'); return; }
     if (reg && !password) { Alert.alert('Set a password'); return; }
     setBusy(true);
     try {
       const name = reg ? `${first.trim()} ${last.trim()}` : undefined;
-      const r = await api.verifyOtp(cleanPhone, otp.trim(), name, reg ? email.trim() : undefined);
+      // Email is optional, but the server validates it as an email when present
+      // — sending "" for a blank field failed the whole registration with a
+      // validation error rather than being treated as "not given".
+      const mail = reg && email.trim() ? email.trim() : undefined;
+      const r = await api.verifyOtp(phone, otp.join(''), name, mail);
       await setToken(r.accessToken);
       onSignedIn();
     } catch (e: any) {
-      Alert.alert('Registration failed', e.message || 'Please try again.');
+      Alert.alert(reg ? 'Registration failed' : 'Login failed', e.message || 'Please try again.');
     } finally { setBusy(false); }
   }
 
   return (
     <SafeAreaView style={styles.wrap} edges={['top', 'bottom']}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-          <View style={styles.card}>
-            <View style={styles.capBar} />
-            <Text style={styles.brand}>eurostar<Text style={styles.reg}> ®</Text></Text>
-
-            <Text style={styles.h1}>{reg ? 'Create Account' : 'Welcome back'}</Text>
-            <Text style={styles.h1sub}>{reg ? 'Register to continue' : 'Please login to your account'}</Text>
-
-            {reg && (
-              <>
-                <Field label="First Name" icon="user" value={first} onChangeText={setFirst} placeholder="First name" />
-                <Field label="Last Name" icon="user" value={last} onChangeText={setLast} placeholder="Last name" />
-              </>
-            )}
-
-            <Field
-              label="Mobile Number"
-              icon="phone"
-              value={phone}
-              onChangeText={resetPhone}
-              placeholder="10-digit mobile"
-              keyboardType="phone-pad"
-              editable={!verified}
-              right={
-                verified ? (
-                  <Text style={styles.tick}>✓</Text>
-                ) : (
-                  <TouchableOpacity onPress={sendOtp} disabled={busy}>
-                    <Text style={styles.sendOtp}>{otpSent ? 'Resend' : 'Send OTP'}</Text>
-                  </TouchableOpacity>
-                )
-              }
-            />
-
-            {otpSent && !verified && (
-              <View style={{ marginTop: -4, marginBottom: 14 }}>
-                <View style={styles.inputRow}>
-                  <Feather name="key" size={16} color={theme.purple} style={{ marginRight: 9 }} />
-                  <TextInput style={styles.input} value={otp} onChangeText={setOtp} placeholder="Enter OTP" placeholderTextColor={theme.meta} keyboardType="number-pad" maxLength={6} />
-                  <TouchableOpacity onPress={verifyCode}><Text style={styles.sendOtp}>Verify</Text></TouchableOpacity>
-                </View>
-                {devCode ? <Text style={styles.devHint}>Test code: {devCode}</Text> : null}
-              </View>
-            )}
-
-            {verified && (
-              <View style={styles.verifiedRow}>
-                <View style={styles.verifiedDot}><Text style={styles.verifiedDotTxt}>✓</Text></View>
-                <Text style={styles.verifiedTxt}>Mobile number verified</Text>
-              </View>
-            )}
-
-            {reg && (
-              <>
-                <Field label="Email Address" icon="mail" value={email} onChangeText={setEmail} placeholder="you@example.com" keyboardType="email-address" autoCapitalize="none" />
-                <Field label="Password" icon="lock" value={password} onChangeText={setPassword} placeholder="Create a password" secureTextEntry autoCapitalize="none" />
-              </>
-            )}
-
-            <TouchableOpacity style={[styles.cta, busy && { opacity: 0.6 }]} onPress={submit} disabled={busy}>
-              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.ctaTxt}>{reg ? 'Register' : 'Login'}</Text>}
-            </TouchableOpacity>
-
-            <TouchableOpacity onPress={() => { setMode(reg ? 'login' : 'register'); }}>
-              <Text style={styles.switch}>
-                {reg ? 'Already have an account? ' : 'New here? '}
-                <Text style={styles.switchLink}>{reg ? 'Login' : 'Create account'}</Text>
-              </Text>
-            </TouchableOpacity>
+        <ScrollView contentContainerStyle={styles.pad} keyboardShouldPersistTaps="handled">
+          <View style={styles.logoWrap}>
+            <Image source={LOGO} style={styles.logo} resizeMode="contain" />
           </View>
 
-          <Text style={styles.foot}>Eurostar Technologies · Recruitment portal</Text>
+          <Text style={styles.h1}>{reg ? 'Create Account' : 'Welcome Back!'}</Text>
+          <Text style={styles.sub}>{reg ? 'Register to continue' : 'Please login to your account'}</Text>
+
+          {reg && (
+            <>
+              <Field first label="First Name" icon="user" value={first} onChangeText={setFirst} placeholder="First name" />
+              <Field label="Last Name" icon="user" value={last} onChangeText={setLast} placeholder="Last name" />
+            </>
+          )}
+
+          <Text style={[styles.label, !reg && { marginTop: 0 }]}>Mobile Number</Text>
+          <View style={styles.phoneRow}>
+            <View style={[styles.iptWrap, { flex: 1 }, otpStage === 'verified' && styles.iptLocked]}>
+              <Feather name="phone" size={18} color={theme.purple} style={styles.ic} />
+              <TextInput
+                style={styles.ipt}
+                value={phone}
+                onChangeText={onPhone}
+                placeholder="10-digit mobile"
+                placeholderTextColor={theme.meta}
+                keyboardType="number-pad"
+                maxLength={10}
+                editable={otpStage !== 'verified'}
+              />
+              {otpStage === 'verified' && <Text style={styles.lockTick}>✓</Text>}
+            </View>
+            {otpStage !== 'verified' && (
+              <TouchableOpacity
+                style={[styles.btn, styles.btnInline, !validPhone && styles.btnOff]}
+                onPress={sendOtp}
+                disabled={!validPhone || busy}
+              >
+                <Text style={styles.btnInlineTxt}>{otpStage === 'sent' ? 'Resend' : 'Send OTP'}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {otpStage === 'sent' && (
+            <>
+              <View style={styles.otpNote}>
+                <Text style={styles.otpNoteTxt}>
+                  OTP sent to <Text style={{ fontWeight: '700' }}>+91 {phone}</Text>.
+                  {devCode ? ` Test code: ${devCode}.` : ` Enter the ${OTP_LEN}-digit code.`}
+                </Text>
+              </View>
+              <View style={styles.otpRow}>
+                {otp.map((d, i) => (
+                  <TextInput
+                    key={i}
+                    ref={(el) => { otpRefs.current[i] = el; }}
+                    style={styles.otpBox}
+                    value={d}
+                    onChangeText={(v) => setDigit(i, v)}
+                    keyboardType="number-pad"
+                    maxLength={OTP_LEN}
+                    textAlign="center"
+                  />
+                ))}
+              </View>
+              <TouchableOpacity
+                style={[styles.btn, styles.btnGreen, { marginTop: 14 }, !otpFull && styles.btnOff]}
+                onPress={verifyOtp}
+                disabled={!otpFull}
+              >
+                <Text style={styles.btnTxt}>Verify OTP</Text>
+              </TouchableOpacity>
+            </>
+          )}
+
+          {otpStage === 'verified' && (
+            <View style={styles.verifiedRow}>
+              <View style={styles.verifiedDot}><Text style={styles.verifiedDotTxt}>✓</Text></View>
+              <Text style={styles.verifiedTxt}>Mobile number verified</Text>
+            </View>
+          )}
+
+          <Field label="Email Address" icon="mail" value={email} onChangeText={setEmail} placeholder="you@email.com" keyboardType="email-address" autoCapitalize="none" />
+          <Field label="Password" icon="lock" value={password} onChangeText={setPassword} placeholder={reg ? 'Create a password' : 'Your password'} secureTextEntry autoCapitalize="none" />
+
+          <TouchableOpacity
+            style={[styles.btn, { marginTop: 20 }, (!canSubmit || busy) && styles.btnOff]}
+            onPress={submit}
+            disabled={!canSubmit || busy}
+          >
+            {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnTxt}>{reg ? 'Register' : 'Sign In'}</Text>}
+          </TouchableOpacity>
+
+          {!canSubmit && (
+            <Text style={styles.hint}>Verify your mobile number to {reg ? 'register' : 'log in'}.</Text>
+          )}
+
+          <TouchableOpacity onPress={() => setMode(reg ? 'login' : 'register')}>
+            <Text style={styles.link}>
+              {reg ? 'Already have an account? ' : 'New here? '}
+              <Text style={styles.linkB}>{reg ? 'Login' : 'Create account'}</Text>
+            </Text>
+          </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <MiraFab />
     </SafeAreaView>
   );
 }
 
+// Values mirror .cand-* in docs/lms/lms/lms.css so the app and the web
+// candidate flow render the same screen.
 const styles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: theme.bgMid },
-  scroll: { padding: 18, paddingTop: 24, flexGrow: 1, justifyContent: 'center' },
-  card: { backgroundColor: theme.surface, borderRadius: theme.radius.xl, paddingHorizontal: 22, paddingBottom: 24, overflow: 'hidden' },
-  capBar: { height: 10, backgroundColor: theme.purple, marginHorizontal: -22, marginBottom: 16, borderTopLeftRadius: theme.radius.xl, borderTopRightRadius: theme.radius.xl },
-  brand: { textAlign: 'center', fontSize: 20, fontWeight: '800', color: theme.ink, letterSpacing: -0.5 },
-  reg: { fontSize: 11, color: theme.meta },
-  tabs: { flexDirection: 'row', backgroundColor: theme.paper, borderRadius: theme.radius.md, padding: 4, marginTop: 16, marginBottom: 14 },
-  tab: { flex: 1, paddingVertical: 9, borderRadius: theme.radius.sm, alignItems: 'center' },
-  tabOn: { backgroundColor: theme.surface, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
-  tabTxt: { color: theme.meta, fontWeight: '700', fontSize: 13.5 },
-  tabTxtOn: { color: theme.purpleInk },
-  h1: { textAlign: 'center', fontSize: 23, fontWeight: '700', color: theme.ink, marginTop: 8, marginBottom: 3 },
-  h1sub: { textAlign: 'center', fontSize: 13.5, color: theme.meta, marginBottom: 16 },
-  label: { fontSize: 12.5, fontWeight: '600', color: theme.ink2, marginBottom: 5 },
-  inputRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F4F2F8', borderRadius: 12, borderWidth: 1, borderColor: theme.border, paddingHorizontal: 13, minHeight: 46 },
-  inputRowLocked: { borderColor: '#E0A93C', backgroundColor: '#FFF8EC' },
-  icon: { fontSize: 15, marginRight: 8, color: theme.purple },
-  input: { flex: 1, fontSize: 14, color: theme.ink, paddingVertical: Platform.OS === 'ios' ? 12 : 8 },
-  sendOtp: { color: theme.purpleInk, fontWeight: '700', fontSize: 13 },
-  tick: { color: '#E0A93C', fontWeight: '800', fontSize: 16 },
-  devHint: { color: theme.green, fontSize: 12, marginTop: 6, fontWeight: '600' },
-  verifiedRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, marginBottom: 6 },
-  verifiedDot: { width: 20, height: 20, borderRadius: 10, backgroundColor: theme.green, alignItems: 'center', justifyContent: 'center' },
-  verifiedDotTxt: { color: '#fff', fontSize: 12, fontWeight: '900' },
-  verifiedTxt: { color: theme.green, fontWeight: '700', fontSize: 13.5 },
-  cta: { backgroundColor: theme.purple, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 14 },
-  ctaTxt: { color: '#fff', fontWeight: '700', fontSize: 15.5 },
-  switch: { textAlign: 'center', color: theme.meta, marginTop: 16, fontSize: 13.5 },
-  switchLink: { color: theme.purpleInk, fontWeight: '700' },
-  foot: { color: theme.onDarkMeta, fontSize: 11, textAlign: 'center', marginTop: 18 },
+  wrap: { flex: 1, backgroundColor: theme.surface },
+  // .cand-pad { padding: 22px 20px 30px } + the mobile rule's 96px Mira clearance.
+  // Top-aligned like the web card — centering would push the footer link off-screen.
+  pad: { paddingHorizontal: 20, paddingTop: 22, paddingBottom: 96 },
+
+  logoWrap: { alignItems: 'center', marginBottom: 6 },
+  logo: { height: 34, width: 132 },
+
+  h1: { fontSize: 26, fontWeight: '700', textAlign: 'center', color: theme.ink, marginTop: 12, marginBottom: 4 },
+  sub: { fontSize: 14, textAlign: 'center', color: theme.meta, marginBottom: 22 },
+
+  label: { fontSize: 12.5, fontWeight: '600', color: theme.ink2, marginTop: 14, marginBottom: 6 },
+  iptWrap: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: theme.inputBg,
+    borderRadius: 14, borderWidth: 1, borderColor: theme.border, paddingHorizontal: 15,
+  },
+  iptLocked: { borderColor: theme.lockGold, backgroundColor: theme.lockBg },
+  ic: { marginRight: 11 },
+  ipt: { flex: 1, fontSize: 14, color: theme.ink, paddingVertical: 14 },
+  lockTick: { color: theme.green, fontSize: 15, fontWeight: '700' },
+
+  phoneRow: { flexDirection: 'row', gap: 8, alignItems: 'stretch' },
+
+  otpNote: { backgroundColor: theme.purpleSoft, borderWidth: 1, borderColor: '#DDD0F5', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, marginTop: 12 },
+  otpNoteTxt: { fontSize: 13, color: theme.purpleInk, lineHeight: 19 },
+  // Six boxes have to fit 320dp of usable width, so they are narrower than the
+  // web demo's 54px four-box row.
+  otpRow: { flexDirection: 'row', gap: 8, marginTop: 12, justifyContent: 'center' },
+  otpBox: {
+    flex: 1, maxWidth: 54, paddingVertical: 12, fontSize: 19, fontWeight: '700', color: theme.ink,
+    backgroundColor: theme.inputBg, borderRadius: 14, borderWidth: 1, borderColor: theme.border,
+  },
+
+  verifiedRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
+  verifiedDot: { width: 22, height: 22, borderRadius: 11, backgroundColor: theme.green, alignItems: 'center', justifyContent: 'center' },
+  verifiedDotTxt: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  verifiedTxt: { color: theme.greenInk, fontSize: 13.5, fontWeight: '600' },
+
+  // .cand-btn
+  btn: { backgroundColor: theme.purple, borderRadius: 14, paddingVertical: 15, alignItems: 'center', justifyContent: 'center' },
+  btnTxt: { color: '#fff', fontSize: 15.5, fontWeight: '700' },
+  btnGreen: { backgroundColor: theme.green },
+  btnInline: { paddingVertical: 0, paddingHorizontal: 16 },
+  btnInlineTxt: { color: '#fff', fontSize: 13.5, fontWeight: '700' },
+  btnOff: { opacity: 0.5 },
+
+  hint: { textAlign: 'center', fontSize: 12, color: theme.meta, marginTop: 10 },
+  link: { textAlign: 'center', fontSize: 13.5, color: theme.meta, marginTop: 16 },
+  linkB: { color: theme.purple, fontWeight: '700' },
 });

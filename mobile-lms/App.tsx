@@ -53,7 +53,8 @@ export default function App() {
   if (!signedIn) {
     return (
       <SafeAreaProvider>
-        <StatusBar style="light" />
+        {/* Auth is a full-bleed white screen (matches the web candidate card). */}
+        <StatusBar style="dark" />
         <AuthScreen onSignedIn={onSignedIn} />
       </SafeAreaProvider>
     );

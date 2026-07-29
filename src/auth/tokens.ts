@@ -3,7 +3,9 @@ import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { config } from '../config';
 
-export type Role = 'customer' | 'rep' | 'office' | 'admin';
+// "candidate" is an LMS applicant (Eurostar Academy). They sign in with phone +
+// OTP like a customer, but have no GSTIN and no access to any staff endpoint.
+export type Role = 'customer' | 'rep' | 'office' | 'admin' | 'candidate';
 
 export interface AccessClaims {
   sub: string; // user id

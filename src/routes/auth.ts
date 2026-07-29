@@ -161,6 +161,121 @@ authRouter.post(
   })
 );
 
+// --- Candidate OTP (Eurostar Academy / LMS) ---------------------------------
+// Candidates are job applicants, not buyers: they have no GSTIN, so they cannot
+// use the customer routes above (those answer 422 "please provide your name and
+// GSTIN" for every new number). Same OTP service, different sign-up rules.
+
+// "Registered" for a candidate means a candidate login exists, or the office
+// already has them in the recruitment pipeline. Deliberately does NOT consult
+// the customer master — buying from Eurostar is not applying to work there.
+async function candidateRegistered(phone: string): Promise<boolean> {
+  const user = await prisma.user.findUnique({ where: { phone } });
+  if (user && user.role === 'candidate') return true;
+  const cand = await prisma.candidate.findFirst({ where: { phone } });
+  return !!cand;
+}
+
+const candOtpRequestSchema = z.object({
+  phone: z.string().min(6),
+  mode: z.enum(['login', 'signup']).optional(),
+});
+
+authRouter.post(
+  '/candidate/otp/request',
+  asyncHandler(async (req, res) => {
+    const parsed = candOtpRequestSchema.safeParse(req.body);
+    if (!parsed.success) return failValidation(res, parsed.error);
+    const { phone, mode } = parsed.data;
+
+    if (mode === 'login' || mode === 'signup') {
+      const registered = await candidateRegistered(phone);
+      if (mode === 'login' && !registered) {
+        return fail(res, 404, 'No application with this number yet — please register first.', { signupRequired: true });
+      }
+      if (mode === 'signup' && registered) {
+        return fail(res, 409, 'This number has already applied — just log in.', { alreadyRegistered: true });
+      }
+    }
+
+    const { devCode } = await requestOtp(phone);
+    return ok(res, { sent: true, ...(devCode ? { devCode } : {}) });
+  })
+);
+
+// Display id for the recruitment pipeline: EC-1001, EC-1002, …
+async function nextCandId(): Promise<string> {
+  const rows = await prisma.candidate.findMany({
+    where: { candId: { startsWith: 'EC-' } },
+    select: { candId: true },
+  });
+  const highest = rows.reduce((max, r) => {
+    const n = parseInt((r.candId ?? '').slice(3), 10);
+    return Number.isFinite(n) && n > max ? n : max;
+  }, 1000);
+  return `EC-${highest + 1}`;
+}
+
+const candOtpVerifySchema = z.object({
+  phone: z.string().min(6),
+  otp: z.string().min(3),
+  name: z.string().min(1).optional(),
+  email: z.string().email().optional(),
+  city: z.string().optional(),
+  remember: z.boolean().optional(),
+});
+
+authRouter.post(
+  '/candidate/otp/verify',
+  asyncHandler(async (req, res) => {
+    const parsed = candOtpVerifySchema.safeParse(req.body);
+    if (!parsed.success) return failValidation(res, parsed.error);
+    const { phone, otp, name, email, city, remember } = parsed.data;
+
+    // Checked without spending it, exactly as the customer flow does: a missing
+    // name comes back as 422 and the same code is presented again.
+    const valid = await verifyOtp(phone, otp, { consume: false });
+    if (!valid) return fail(res, 401, 'Incorrect or expired code');
+
+    let user = await prisma.user.findUnique({ where: { phone } });
+
+    if (!user) {
+      // A first-time applicant only has to give a name. No GSTIN — that is a
+      // business registration number and means nothing for a job application.
+      if (!name) {
+        return fail(res, 422, 'New applicant: please provide your name', { signupRequired: true });
+      }
+      user = await prisma.user.create({ data: { role: 'candidate', name, phone } });
+    }
+    // If the number already belongs to a customer or staff account, their role
+    // is left alone — this signs them in as who they already are rather than
+    // rewriting an existing account, and User.phone is unique so there cannot
+    // be a second row for the same number.
+
+    // Mirror them into the recruitment pipeline so the office sees the
+    // application the moment they register.
+    const existing = await prisma.candidate.findFirst({ where: { phone } });
+    if (!existing) {
+      await prisma.candidate.create({
+        data: {
+          name: name ?? user.name,
+          phone,
+          email: email ?? null,
+          city: city ?? null,
+          source: 'Mobile app',
+          stage: 'applied',
+          candId: await nextCandId(),
+        },
+      });
+    } else if (email && !existing.email) {
+      await prisma.candidate.update({ where: { id: existing.id }, data: { email } });
+    }
+
+    await consumeOtp(phone);
+    return ok(res, await issueSession(user, remember ?? false));
+  })
+);
+
 // --- Staff password login (rep / office / admin) ----------------------------
 // The login gates send { role, username, password }. "username" is the login id
 // (stored as User.userId). "userId" is accepted too for backward compatibility.

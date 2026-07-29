@@ -712,11 +712,26 @@ function pimgKey(catId, colorId, shape, gradeId){
     : catId+'|'+colorId+'|'+shape;
 }
 function pimgGet(catId, colorId, shape, gradeId){ return pimgLoadAll()[pimgKey(catId,colorId,shape,gradeId)]||''; }
+function pimgApiBase(){
+  if (window.EUROSTAR_API) return window.EUROSTAR_API;
+  return /^(localhost|127\.|0\.0\.0\.0)/.test(location.hostname) ? location.origin : 'https://eurostar-api.onrender.com';
+}
+function pimgServerSave(k, url){
+  try {
+    if (url) fetch(pimgApiBase()+'/admin/product-images/item',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({key:k,url:url})}).catch(function(){});
+    else fetch(pimgApiBase()+'/admin/product-images/item',{method:'DELETE',headers:{'content-type':'application/json'},body:JSON.stringify({key:k}),keepalive:true}).catch(function(){});
+  } catch(e){}
+}
 function pimgSet(catId, colorId, shape, url, gradeId){
-  const all = pimgLoadAll(); const k = pimgKey(catId,colorId,shape,gradeId);
+  const k = pimgKey(catId,colorId,shape,gradeId);
+  // Server is the source of truth: the photo shows for every visitor and this
+  // succeeds even when the browser's local store is full.
+  pimgServerSave(k, url);
+  // Best-effort local cache for instant preview in this same browser.
+  const all = pimgLoadAll();
   if (url) all[k]=url; else delete all[k];
-  try { localStorage.setItem(PIMG_STORE_KEY, JSON.stringify(all)); return true; }
-  catch(e){ alert('Browser storage is full — try a smaller image.'); return false; }
+  try { localStorage.setItem(PIMG_STORE_KEY, JSON.stringify(all)); } catch(e){}
+  return true;
 }
 
 // The colour list shown for a given grade, mirroring the storefront drill-down.

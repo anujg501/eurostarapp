@@ -23,8 +23,39 @@ function pimgKey(catId, colorId, shape, gradeId) {
     : catId + '|' + colorId + '|' + shape;
 }
 
+// Server-backed product photos: uploaded in the admin, stored on the API, and
+// shown here for EVERY visitor on every device (no per-browser upload needed).
+// A tiny manifest (keys only) is fetched on load; each photo then streams from
+// the API on demand via <img src>, so nothing bloats this browser's storage.
+var PIMG_API_BASE = (function () {
+  if (window.EUROSTAR_API) return window.EUROSTAR_API;
+  return /^(localhost|127\.|0\.0\.0\.0)/.test(location.hostname) ? location.origin : 'https://eurostar-api.onrender.com';
+})();
+var pimgManifest = null; // map of key -> 1 for photos present on the server
+(function fetchPimgManifest() {
+  try {
+    fetch(PIMG_API_BASE + '/admin/product-images/manifest')
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (d && Array.isArray(d.keys)) {
+          pimgManifest = {};
+          d.keys.forEach(function (k) { pimgManifest[k] = 1; });
+          try { window.dispatchEvent(new Event('eurostar-pimg-ready')); } catch (e) {}
+        }
+      })
+      .catch(function () {});
+  } catch (e) {}
+})();
+function pimgServerUrl(key) {
+  return PIMG_API_BASE + '/admin/product-images/item?key=' + encodeURIComponent(key);
+}
+
 function getStoredProductImage(catId, colorId, shape, gradeId) {
-  return pimgLoadAll()[pimgKey(catId, colorId, shape, gradeId)] || null;
+  var key = pimgKey(catId, colorId, shape, gradeId);
+  var local = pimgLoadAll()[key];
+  if (local) return local;                                  // instant, same browser
+  if (pimgManifest && pimgManifest[key]) return pimgServerUrl(key); // everyone, every device
+  return null;
 }
 
 // Built-in default product photos shipped with the app (repo assets), so a card

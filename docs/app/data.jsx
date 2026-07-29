@@ -3832,12 +3832,13 @@ const XGRD_KEY = 'eurostar-grades-override-v1';
     });
   } catch (e) {}
   try {
+    // Authoritative, not additive — the admin writes the category's whole shape
+    // list, so a removal there has to remove it here. (catalog-sync.jsx applies
+    // the same rule to the server copy; this path is what runs offline.)
     const xs = JSON.parse(localStorage.getItem(XSHP_KEY) || '{}') || {};
     Object.keys(xs).forEach((cat) => {
-      if (!SHAPES_BY_CATEGORY[cat]) SHAPES_BY_CATEGORY[cat] = [];
-      (xs[cat] || []).forEach((sid) => {
-        if (sid && !SHAPES_BY_CATEGORY[cat].includes(sid)) SHAPES_BY_CATEGORY[cat].push(sid);
-      });
+      if (!Array.isArray(xs[cat])) return;
+      SHAPES_BY_CATEGORY[cat] = [...new Set(xs[cat].filter(Boolean))];
     });
   } catch (e) {}
   try {

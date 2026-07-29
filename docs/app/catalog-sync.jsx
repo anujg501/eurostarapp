@@ -122,13 +122,25 @@
           if (i !== -1) SHAPES_BY_CATEGORY[key].splice(i, 1);
         });
       });
+      // The overlay is the operator's WHOLE list for a category, not a list of
+      // extras on top of the built-ins: Admin loads it, edits it, and writes the
+      // full array back. Merging it in additively meant a shape removed in Admin
+      // silently stayed on the storefront — every built-in survived no matter
+      // what the operator did. So the overlay replaces the list outright.
+      //
+      // Safe because the server lifts the built-in union into this overlay on
+      // boot (services/catalogOverlays.ts), so the stored array is a superset of
+      // what data.jsx ships. A category with no overlay entry is left alone.
       if (extraShapes && typeof extraShapes === 'object') {
         Object.keys(extraShapes).forEach(function (key) {
-          if (!SHAPES_BY_CATEGORY[key]) SHAPES_BY_CATEGORY[key] = [];
+          var list = extraShapes[key];
+          if (!Array.isArray(list)) return;
           var blocked = DEPRECATED_SHAPES[key] || [];
-          (extraShapes[key] || []).forEach(function (sid) {
-            if (sid && blocked.indexOf(sid) === -1 && SHAPES_BY_CATEGORY[key].indexOf(sid) === -1) SHAPES_BY_CATEGORY[key].push(sid);
+          var next = [];
+          list.forEach(function (sid) {
+            if (sid && blocked.indexOf(sid) === -1 && next.indexOf(sid) === -1) next.push(sid);
           });
+          SHAPES_BY_CATEGORY[key] = next;
         });
       }
 

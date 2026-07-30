@@ -26,6 +26,7 @@ function Dashboard({ go, hidden }) {
   return (
     <div className="ad-body">
       <PageHead title="Dashboard" sub="Catalog & store overview" />
+      <div style={{background:'#0E5C4A',color:'#F6F1E6',padding:'10px 16px',borderRadius:10,fontWeight:800,fontSize:16,marginBottom:16,display:'inline-block'}}>🔖 VERSION 1 — live update test</div>
       <div className="ad-kpis">
         <div className="ad-kpi"><div className="lbl">Live categories</div><div className="val">{CATS.length - hidden.length}</div><div className="sub">{hidden.length} hidden</div></div>
         <div className="ad-kpi"><div className="lbl">Grades / sub-categories</div><div className="val">{totalGrades}</div><div className="sub">across all categories</div></div>
@@ -274,6 +275,20 @@ function CatDetail({ catId, onBack }) {
     if (CBY[catId]) { const i=CBY[catId].findIndex((c)=>c.id===id); if(i>=0) CBY[catId].splice(i,1); }
     rerender();
   };
+  // ---- hide / restore a BUILT-IN colour (extras are deleted outright above) ----
+  const HIDDEN_KEY = 'eurostar-hidden-colors-v1';
+  const hiddenIds = loadOverlay(HIDDEN_KEY)[catId] || [];
+  const hideColour = (id)=>{
+    const all = loadOverlay(HIDDEN_KEY); const arr = all[catId]||[];
+    if (arr.indexOf(id)<0) arr.push(id); all[catId]=arr;
+    try { localStorage.setItem(HIDDEN_KEY, JSON.stringify(all)); } catch(e){}
+    rerender();
+  };
+  const unhideColour = (id)=>{
+    const all = loadOverlay(HIDDEN_KEY); all[catId]=(all[catId]||[]).filter((x)=>x!==id);
+    try { localStorage.setItem(HIDDEN_KEY, JSON.stringify(all)); } catch(e){}
+    rerender();
+  };
 
   // ---- add / remove shape (pick from the master shape catalog) ----
   const allShapes = (W.SHAPES||[]);
@@ -328,9 +343,13 @@ function CatDetail({ catId, onBack }) {
       {tab==='colours' &&
       <div className="ad-card ad-card-pad">
         <div className="ad-chips" style={{marginBottom:16}}>
-          {colours.map((c)=>{ const isExtra=extraColIds.indexOf(c.id)>=0; return (
-            <span key={c.id} className="ad-chip"><span className="ad-sw" style={{background:c.hex}} />{c.name}
-            {isExtra && <button className="ad-chip-x" title="Remove" onClick={()=>removeColour(c.id)} style={{marginLeft:6,border:'none',background:'none',cursor:'pointer',color:'var(--ruby)',fontWeight:700}}>×</button>}
+          {colours.map((c)=>{ const isExtra=extraColIds.indexOf(c.id)>=0; const isHidden=hiddenIds.indexOf(c.id)>=0; return (
+            <span key={c.id} className="ad-chip" style={isHidden?{opacity:.55}:undefined}>
+              <span className="ad-sw" style={{background:c.hex}} />
+              <span style={isHidden?{textDecoration:'line-through'}:undefined}>{c.name}</span>
+              {isHidden
+                ? <button className="ad-chip-x" title="Show on website again" onClick={()=>unhideColour(c.id)} style={{marginLeft:6,border:'none',background:'none',cursor:'pointer',color:'var(--emerald,#0E5C4A)',fontWeight:700,fontSize:11.5}}>Restore</button>
+                : <button className="ad-chip-x" title={isExtra?'Delete this colour':'Hide from website'} onClick={()=> isExtra ? removeColour(c.id) : hideColour(c.id)} style={{marginLeft:6,border:'none',background:'none',cursor:'pointer',color:'var(--ruby)',fontWeight:700}}>×</button>}
             </span>); })}
           {colours.length===0 && <span className="ad-muted">No colours configured.</span>}
         </div>
@@ -341,7 +360,7 @@ function CatDetail({ catId, onBack }) {
             <input type="color" value={newColHex} onChange={(e)=>setNewColHex(e.target.value)} style={{width:54,height:38,padding:2,border:'1px solid var(--border)',borderRadius:8,background:'var(--surface)',cursor:'pointer'}} /></div>
           <button className="ad-btn ad-btn-acc ad-btn-sm" onClick={addColour}>＋ Add colour</button>
         </div>
-        <div className="ad-muted" style={{fontSize:12,marginTop:10}}>Added colours appear in this category on the Sales App immediately. Set their photo in Home thumbnails / Product images.</div>
+        <div className="ad-muted" style={{fontSize:12,marginTop:10}}>Click × on any colour to take it off the website — colours you added are deleted, built-in colours are hidden (use <b>Restore</b> to bring them back). Changes show on the Sales App after a page refresh.</div>
       </div>}
 
       {tab==='shapes' &&
@@ -677,14 +696,201 @@ function HomeThumbs() {
   );
 }
 
-/* ---------------- MEDIA (per-colour product photos) ---------------- */
+/* ---------------- MEDIA (per-colour / per-grade product photos) ---------------- */
+// Product photos shown on the Sales App live in the SAME localStorage store the
+// storefront reads (`eurostar-product-images-v1`). For most categories one photo
+// covers a colour+shape across all grades. But some categories show their GRADE
+// as the visual variant while sharing a single colour id (Mother of Pearl:
+// White MOP / Malachite / Black MOP → colour 'mop'; Multi Sapphires: Natural /
+// Synthetic / Ice Cut → colour 'multi'). For those the grade is folded into the
+// key so each grade carries its own photo. Keep this in sync with product-images.jsx.
+const PIMG_STORE_KEY = 'eurostar-product-images-v1';
+const PIMG_GRADE_SCOPED = W.PIMG_GRADE_SCOPED || { mop:true, multisapphire:true, opaque:true };
+function pimgLoadAll(){ try { return JSON.parse(localStorage.getItem(PIMG_STORE_KEY)||'{}')||{}; } catch(e){ return {}; } }
+function pimgKey(catId, colorId, shape, gradeId){
+  return (gradeId && PIMG_GRADE_SCOPED[catId])
+    ? catId+'|'+gradeId+'|'+colorId+'|'+shape
+    : catId+'|'+colorId+'|'+shape;
+}
+function pimgGet(catId, colorId, shape, gradeId){ return pimgLoadAll()[pimgKey(catId,colorId,shape,gradeId)]||''; }
+function pimgApiBase(){
+  if (window.EUROSTAR_API) return window.EUROSTAR_API;
+  return /^(localhost|127\.|0\.0\.0\.0)/.test(location.hostname) ? location.origin : 'https://eurostar-api.onrender.com';
+}
+function pimgServerSave(k, url){
+  try {
+    if (url) fetch(pimgApiBase()+'/admin/product-images/item',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({key:k,url:url})}).catch(function(){});
+    else fetch(pimgApiBase()+'/admin/product-images/item',{method:'DELETE',headers:{'content-type':'application/json'},body:JSON.stringify({key:k}),keepalive:true}).catch(function(){});
+  } catch(e){}
+}
+function pimgSet(catId, colorId, shape, url, gradeId){
+  const k = pimgKey(catId,colorId,shape,gradeId);
+  // Server is the source of truth: the photo shows for every visitor and this
+  // succeeds even when the browser's local store is full.
+  pimgServerSave(k, url);
+  // Best-effort local cache for instant preview in this same browser.
+  const all = pimgLoadAll();
+  if (url) all[k]=url; else delete all[k];
+  try { localStorage.setItem(PIMG_STORE_KEY, JSON.stringify(all)); } catch(e){}
+  return true;
+}
+
+// The colour list shown for a given grade, mirroring the storefront drill-down.
+function coloursForGrade(catId, gradeId){
+  const byGrade =
+    (catId==='opaque'   && (W.OPAQUE_COLORS_BY_GRADE||{})[gradeId]) ||
+    (catId==='pearls'   && (W.PEARL_COLORS_BY_GRADE||{})[gradeId]) ||
+    (catId==='corundum' && (W.CORUNDUM_COLORS_BY_GRADE||{})[gradeId]) ||
+    (catId==='labgrown' && (W.LABGROWN_COLORS_BY_GRADE||{})[gradeId]) ||
+    (catId==='cz'       && (W.CZ_COLORS_BY_GRADE||{})[gradeId]) ||
+    (catId==='rajkot'   && (W.RAJKOT_COLORS_BY_GRADE||{})[gradeId]);
+  return byGrade || CBY[catId] || [{ id:'default', name:'Default', hex:'#CCCCCC' }];
+}
+function shapesForColour(catId, colour){
+  return (colour && colour.shapes) || SBY[catId] || ['round'];
+}
+
+// One uploadable photo cell (colour + shape, optionally scoped to a grade).
+function MediaCell({ catId, colour, shape, gradeId }){
+  const [img, setImg] = useState(()=>pimgGet(catId, colour.id, shape, gradeId));
+  const [busy, setBusy] = useState(false);
+  const ref = React.useRef(null);
+  React.useEffect(()=>{ setImg(pimgGet(catId, colour.id, shape, gradeId)); }, [catId, colour.id, shape, gradeId]);
+  const onPick = async (e)=>{ const f=e.target.files&&e.target.files[0]; if(!f) return; setBusy(true);
+    try { const url=await adThumbCompress(f, 900, 0.82); if(pimgSet(catId, colour.id, shape, url, gradeId)) setImg(url); }
+    catch(err){ alert('Could not read that image.'); } setBusy(false); e.target.value=''; };
+  const onRemove = ()=>{ pimgSet(catId, colour.id, shape, null, gradeId); setImg(''); };
+  return (
+    <div className="ad-thumb-cell">
+      <div className="ad-thumb-art">
+        {img ? <img src={img} alt={shape} /> : <span className="ad-thumb-empty" style={{background:colour.hex}}></span>}
+      </div>
+      <div className="ad-thumb-label">{adFindShape(shape).name}</div>
+      <div style={{display:'flex',gap:6,marginTop:4,flexWrap:'wrap'}}>
+        <input ref={ref} type="file" accept="image/*" onChange={onPick} style={{display:'none'}} />
+        <button className="ad-btn ad-btn-ghost ad-btn-sm" onClick={()=>ref.current&&ref.current.click()}>{busy?'Saving…':img?'Change':'＋ Upload'}</button>
+        {img && <button className="ad-btn ad-btn-ghost ad-btn-sm" onClick={onRemove}>Remove</button>}
+      </div>
+    </div>
+  );
+}
+
+// A group of shape cells for one colour (under a specific grade, if scoped).
+function MediaColourBlock({ catId, colour, gradeId }){
+  const shapes = shapesForColour(catId, colour);
+  return (
+    <div className="ad-card ad-card-pad" style={{marginTop:12}}>
+      <div className="ad-sechead" style={{marginBottom:10}}>
+        <h3 style={{display:'flex',alignItems:'center',gap:8}}>
+          <span className="ad-sw" style={{background:colour.hex}} />{colour.name}
+        </h3>
+        <span className="meta">{shapes.length} shape{shapes.length!==1?'s':''}</span>
+      </div>
+      <div className="ad-thumb-grid">
+        {shapes.map((s)=>(<MediaCell key={s} catId={catId} colour={colour} shape={s} gradeId={gradeId} />))}
+      </div>
+    </div>
+  );
+}
+
 function Media() {
   const [cat, setCat] = useState(CATS[0]?CATS[0].id:'');
-  const colours = CBY[cat]||[];
-  const shapes = SBY[cat]||[];
+  const grades = GBY[cat]||[];
+  const scoped = !!PIMG_GRADE_SCOPED[cat] && grades.length>1;
+  const [gradeId, setGradeId] = useState(scoped ? (grades[0]&&grades[0].id) : '');
+  React.useEffect(()=>{
+    const gs = GBY[cat]||[];
+    const sc = !!PIMG_GRADE_SCOPED[cat] && gs.length>1;
+    setGradeId(sc ? (gs[0]&&gs[0].id) : '');
+  }, [cat]);
+
+  const activeGradeId = scoped ? gradeId : '';
+  const colours = coloursForGrade(cat, activeGradeId);
+  const gradeName = scoped ? ((grades.find((g)=>g.id===gradeId)||{}).name||'') : '';
+
   return (
     <div className="ad-body">
-      <PageHead title="Product images" sub="Upload one photo per colour + shape — shows across all grades & sizes" />
+      <PageHead title="Product images"
+        sub={scoped
+          ? 'Each grade carries its own photo — upload a different image per grade, colour & shape.'
+          : 'Upload one photo per colour + shape — shows across all grades & sizes.'} />
+      <div className="ad-card ad-card-pad">
+        <div style={{display:'flex',gap:16,flexWrap:'wrap',alignItems:'flex-end'}}>
+          <div className="ad-field" style={{maxWidth:280,flex:'1 1 240px'}}>
+            <span className="ad-label">Category</span>
+            <select className="ad-select" style={{width:'100%'}} value={cat} onChange={(e)=>setCat(e.target.value)}>
+              {CATS.map((c)=>(<option key={c.id} value={c.id}>{c.name}</option>))}
+            </select>
+          </div>
+          {scoped &&
+            <div className="ad-field" style={{maxWidth:280,flex:'1 1 240px'}}>
+              <span className="ad-label">Grade</span>
+              <select className="ad-select" style={{width:'100%'}} value={gradeId} onChange={(e)=>setGradeId(e.target.value)}>
+                {grades.map((g)=>(<option key={g.id} value={g.id}>{g.name}</option>))}
+              </select>
+            </div>}
+        </div>
+        {scoped &&
+          <div className="ad-muted" style={{fontSize:12.5,marginTop:10}}>
+            Editing photos for <strong>{gradeName}</strong>. Switch the grade above to give each one a different image.
+          </div>}
+      </div>
+
+      {colours.map((cl)=>(
+        <MediaColourBlock key={(activeGradeId||'')+'|'+cl.id} catId={cat} colour={cl} gradeId={activeGradeId} />
+      ))}
+
+      <div className="ad-muted" style={{fontSize:12,marginTop:12}}>
+        Photos are saved instantly and appear on the Sales App storefront for the matching {scoped?'grade, ':''}colour &amp; shape.
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- COLOUR IMAGES (the swatch on 'Choose a colour') ---------------- */
+// Every colour a category offers, across all its grades (deduped by id).
+function allColoursForCat(catId){
+  const grades = GBY[catId]||[];
+  const seen = {}, out = [];
+  const add = (list)=> (list||[]).forEach((c)=>{ if(c && c.id && !seen[c.id]){ seen[c.id]=1; out.push(c); } });
+  grades.forEach((g)=> add(coloursForGrade(catId, g.id)));
+  add(coloursForGrade(catId, ''));
+  return out.length ? out : coloursForGrade(catId, '');
+}
+
+// One round swatch image per colour (reserved shape '_swatch', grade-independent).
+function ColourSwatchCell({ catId, colour }){
+  const [img, setImg] = useState(()=>pimgGet(catId, colour.id, '_swatch', ''));
+  const [busy, setBusy] = useState(false);
+  const ref = React.useRef(null);
+  React.useEffect(()=>{ setImg(pimgGet(catId, colour.id, '_swatch', '')); }, [catId, colour.id]);
+  const onPick = async (e)=>{ const f=e.target.files&&e.target.files[0]; if(!f) return; setBusy(true);
+    try { const url=await adThumbCompress(f, 600, 0.85); if(pimgSet(catId, colour.id, '_swatch', url, '')) setImg(url); }
+    catch(err){ alert('Could not read that image.'); } setBusy(false); e.target.value=''; };
+  const onRemove = ()=>{ pimgSet(catId, colour.id, '_swatch', null, ''); setImg(''); };
+  return (
+    <div className="ad-thumb-cell">
+      <div className="ad-thumb-art" style={{borderRadius:'50%',overflow:'hidden'}}>
+        {img ? <img src={img} alt={colour.name} style={{width:'100%',height:'100%',objectFit:'cover'}} />
+             : <span className="ad-thumb-empty" style={{background:colour.hex,borderRadius:'50%',display:'block',width:'100%',height:'100%'}}></span>}
+      </div>
+      <div className="ad-thumb-label">{colour.name}</div>
+      <div style={{display:'flex',gap:6,marginTop:4,flexWrap:'wrap'}}>
+        <input ref={ref} type="file" accept="image/*" onChange={onPick} style={{display:'none'}} />
+        <button className="ad-btn ad-btn-ghost ad-btn-sm" onClick={()=>ref.current&&ref.current.click()}>{busy?'Saving…':img?'Change':'＋ Upload'}</button>
+        {img && <button className="ad-btn ad-btn-ghost ad-btn-sm" onClick={onRemove}>Remove</button>}
+      </div>
+    </div>
+  );
+}
+
+function ColourImages(){
+  const [cat, setCat] = useState(CATS[0]?CATS[0].id:'');
+  const colours = allColoursForCat(cat);
+  return (
+    <div className="ad-body">
+      <PageHead title="Colour images"
+        sub="Upload the picture shown for each colour on the storefront's 'Choose a colour' page. Leave one empty to keep the plain colour swatch." />
       <div className="ad-card ad-card-pad">
         <div className="ad-field" style={{maxWidth:280}}>
           <span className="ad-label">Category</span>
@@ -692,17 +898,15 @@ function Media() {
             {CATS.map((c)=>(<option key={c.id} value={c.id}>{c.name}</option>))}
           </select>
         </div>
-        <div style={{overflowX:'auto'}}>
-          <table className="ad-table" style={{minWidth:480}}>
-            <thead><tr><th>Colour</th>{shapes.map((s)=>(<th key={s}>{adFindShape(s).name}</th>))}</tr></thead>
-            <tbody>{colours.map((cl)=>(
-              <tr key={cl.id}><td><span className="ad-sw" style={{background:cl.hex,marginRight:8}} />{cl.name}</td>
-              {shapes.map((s)=>(<td key={s}><button className="ad-btn ad-btn-ghost ad-btn-sm">＋ Upload</button></td>))}</tr>
-            ))}</tbody>
-          </table>
-        </div>
-        <div className="ad-muted" style={{fontSize:12,marginTop:12}}>Tip: name files <code>{cat}_colour_shape.jpg</code> and bulk-upload via the image sheet.</div>
       </div>
+      <div className="ad-card ad-card-pad" style={{marginTop:12}}>
+        <div className="ad-sechead" style={{marginBottom:10}}><h3>Colours</h3><span className="meta">{colours.length} colour{colours.length!==1?'s':''}</span></div>
+        <div className="ad-thumb-grid">
+          {colours.map((cl)=>(<ColourSwatchCell key={cl.id} catId={cat} colour={cl} />))}
+          {colours.length===0 && <span className="ad-muted">No colours configured for this category.</span>}
+        </div>
+      </div>
+      <div className="ad-muted" style={{fontSize:12,marginTop:12}}>Saved instantly to the server — the image replaces the plain colour ball on the storefront for every visitor. Round images look best.</div>
     </div>
   );
 }
@@ -1135,6 +1339,7 @@ const NAV = [
   { id:'catalog', label:'Catalog' },
   { id:'newcat', label:'＋ Add category' },
   { id:'bulk', label:'Bulk upload' },
+  { id:'colourimages', label:'Colour images' },
   { id:'media', label:'Product images' },
   { id:'homethumbs', label:'Home thumbnails' },
   { id:'splash', label:'Pop-up window' },
@@ -1157,7 +1362,7 @@ function Admin() {
     dashboard:<Dashboard go={go} hidden={hidden} />,
     catalog:<Catalog hidden={hidden} toggleHidden={toggleHidden} openCat={setCatId} />,
     newcat:<CreateCategory onDone={()=>go('catalog')} />,
-    bulk:<BulkUpload />, media:<Media />, homethumbs:<HomeThumbs />, splash:<SplashAdmin />,    content:<Content />, settings:<Settings />,
+    bulk:<BulkUpload />, colourimages:<ColourImages />, media:<Media />, homethumbs:<HomeThumbs />, splash:<SplashAdmin />,    content:<Content />, settings:<Settings />,
     repbroadcast:<RepBroadcast />,
     users:<UsersAccess />,
   })[page];

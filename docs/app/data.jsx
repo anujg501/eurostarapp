@@ -3831,6 +3831,15 @@ const XGRD_KEY = 'eurostar-grades-override-v1';
       });
     });
   } catch (e) {}
+  // Hidden colours: the admin can hide any colour (built-in OR extra) per
+  // category. Anything listed here is removed from the customer-facing list.
+  try {
+    const hc = JSON.parse(localStorage.getItem('eurostar-hidden-colors-v1') || '{}') || {};
+    Object.keys(hc).forEach((cat) => {
+      if (COLORS_BY_CATEGORY[cat] && Array.isArray(hc[cat]) && hc[cat].length)
+        COLORS_BY_CATEGORY[cat] = COLORS_BY_CATEGORY[cat].filter((c) => hc[cat].indexOf(c.id) < 0);
+    });
+  } catch (e) {}
   try {
     // Authoritative, not additive — the admin writes the category's whole shape
     // list, so a removal there has to remove it here. (catalog-sync.jsx applies

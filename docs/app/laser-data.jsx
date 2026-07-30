@@ -128,22 +128,43 @@ function LaserOrderPad({ grade, color, shape, category, qtyBySize, setQtyBySize,
   // The one resolver the shape cards use, so this page shows the same picture
   // the customer just clicked instead of falling back to a drawn icon.
   const heroImg = window.productImageFor ? window.productImageFor(category.id, color.id, shape) : null;
-  const rows = laserRows(shape);
+  // Admin > Pricing edits reach this pad too: add/remove sizes, a per-size net
+  // price, and pieces-per-box. Sizes the operator added or removed are applied
+  // to the sheet's own list.
+  const catId = category.id;
+  const ovrPrice = (s) => (window.priceOverride ? window.priceOverride(catId, grade && grade.id, color && color.id, shape, s) : null);
+  const ovrPk = (s) => (window.pcsOverride ? window.pcsOverride(catId, s) : null);
+  const baseRows = laserRows(shape);
+  let rows = baseRows;
+  if (window.applySizeOverrides) {
+    const bySize = {};
+    baseRows.forEach((r) => { bySize[r.s] = r; });
+    rows = window.applySizeOverrides(catId, shape, baseRows.map((r) => r.s))
+      .map((s) => bySize[s] || { s, mm: parseFloat(s) || 0, pk: 0, price: null });
+  }
+  // An operator's pieces-per-box edit wins over the sheet.
+  const pkOf = (r) => { const o = ovrPk(r.s); return o != null ? o : r.pk; };
 
   const setQty = (s, v) => setQtyBySize((p) => ({ ...p, [s]: Math.max(0, parseInt(v, 10) || 0) }));
   const bump = (s, d) => setQtyBySize((p) => ({ ...p, [s]: Math.max(0, (p[s] || 0) + d) }));
 
-  const net = (r) => r.price == null ? null : Math.round(r.price * (1 - laserDiscount(shape, r.mm, isWhite)) * 100) / 100;
+  // A staff net-price edit IS the customer price (the size discount is already
+  // baked into what they typed); otherwise net = list × (1 − size discount).
+  const net = (r) => {
+    const o = ovrPrice(r.s);
+    if (o != null) return o;
+    return r.price == null ? null : Math.round(r.price * (1 - laserDiscount(shape, r.mm, isWhite)) * 100) / 100;
+  };
   const lines = Object.entries(qtyBySize).filter(([, q]) => q > 0);
   const rowBySize = (s) => rows.find((r) => r.s === s);
   const totalPkts = lines.reduce((a, [, q]) => a + q, 0);
-  const totalPcs = lines.reduce((a, [s, q]) => { const r = rowBySize(s); return a + q * (r ? r.pk : 0); }, 0);
-  const totalAmt = lines.reduce((a, [s, q]) => { const r = rowBySize(s); const n = r ? net(r) : 0; return a + q * (r ? r.pk : 0) * (n || 0); }, 0);
+  const totalPcs = lines.reduce((a, [s, q]) => { const r = rowBySize(s); return a + q * (r ? pkOf(r) : 0); }, 0);
+  const totalAmt = lines.reduce((a, [s, q]) => { const r = rowBySize(s); const n = r ? net(r) : 0; return a + q * (r ? pkOf(r) : 0) * (n || 0); }, 0);
 
   const onAddAll = () => {
     if (lines.length === 0) return;
     lines.forEach(([s, q]) => {
-      const r = rowBySize(s); if (!r) return; const n = net(r) || 0; const pieces = q * r.pk;
+      const r = rowBySize(s); if (!r) return; const n = net(r) || 0; const pieces = q * pkOf(r);
       addToCart({
         pid: 'laser-' + color.id + '-' + shape + '-' + s.replace(/\s/g, ''),
         name: color.name + ' Laser ' + shapeMeta.name,
@@ -157,8 +178,8 @@ function LaserOrderPad({ grade, color, shape, category, qtyBySize, setQtyBySize,
         // must be the price for ONE of those units (per packet), because the
         // cart recomputes lineTotal as ct * perCtPrice when the quantity is
         // edited. pcsPerUnit lets it convert back to pieces exactly.
-        qty: pieces, ct: q, unitMode: 'pkt', pcsPerUnit: r.pk,
-        unitPrice: n, perCtPrice: n * r.pk, certFee: 0,
+        qty: pieces, ct: q, unitMode: 'pkt', pcsPerUnit: pkOf(r),
+        unitPrice: n, perCtPrice: n * pkOf(r), certFee: 0,
         lineTotal: pieces * n, tone: 'def-white', toneHex: hex,
       });
     });
@@ -210,14 +231,15 @@ function LaserOrderPad({ grade, color, shape, category, qtyBySize, setQtyBySize,
           <span style={{ textAlign: 'right' }}>Line total</span>
         </div>
         {rows.map((r) => {
-          const q = qtyBySize[r.s] || 0; const pieces = q * r.pk;
+          const q = qtyBySize[r.s] || 0; const pieces = q * pkOf(r);
           const dsc = laserDiscount(shape, r.mm, isWhite); const n = net(r);
+          const custom = ovrPrice(r.s) != null; // operator set this net directly
           return (
             <div key={r.s} className={`size-pad-row ${q > 0 ? 'filled' : ''}`}>
               <div className="size-pad-size"><div className="size-pad-mm">{r.s.replace(' mm', '')}</div></div>
-              <div className="size-pad-pcs">{r.pk}</div>
-              <div className="size-pad-price size-pad-list" style={{ textDecoration: r.price != null ? 'line-through' : 'none', color: 'var(--fg-meta)' }}>{r.price != null ? fmt(r.price) : '—'}</div>
-              <div className="size-pad-disc">{Math.round(dsc * 100)}%</div>
+              <div className="size-pad-pcs">{pkOf(r)}</div>
+              <div className="size-pad-price size-pad-list" style={{ textDecoration: !custom && r.price != null ? 'line-through' : 'none', color: 'var(--fg-meta)' }}>{custom ? '—' : r.price != null ? fmt(r.price) : '—'}</div>
+              <div className="size-pad-disc">{custom ? 'custom' : Math.round(dsc * 100) + '%'}</div>
               <div className="size-pad-price size-pad-net" style={{ fontWeight: 600 }}>{n != null ? fmt(n) : '—'}</div>
               <div className="size-pad-input-wrap">
                 <div className="size-pad-stepper">
@@ -253,4 +275,4 @@ function LaserOrderPad({ grade, color, shape, category, qtyBySize, setQtyBySize,
   );
 }
 
-Object.assign(window, { LASER_ROUND, laserRows, laserDiscount, LaserOrderPad });
+Object.assign(window, { laserRows, laserDiscount, LaserOrderPad, LASER_TABLES });

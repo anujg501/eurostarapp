@@ -40,14 +40,15 @@ function snapNorm(s: string): string {
 // Override price keys, most→least specific — the single source of truth shared
 // by the editor and the Excel export so both resolve a rate identically.
 function priceKeys(multiGrade: boolean, gradeId: string, colourId: string, shape: string, sizeNorm: string): string[] {
+  const sh = shape.toLowerCase();
   const k: string[] = [];
   const colSpecific = colourId !== ALL;
   if (multiGrade) {
-    if (colSpecific) k.push(`${gradeId}@${colourId}|${shape}|${sizeNorm}`);
-    k.push(`${gradeId}@${shape}|${sizeNorm}`);
+    if (colSpecific) k.push(`${gradeId}@${colourId}|${sh}|${sizeNorm}`);
+    k.push(`${gradeId}@${sh}|${sizeNorm}`);
   }
-  if (colSpecific) k.push(`${colourId}|${shape}|${sizeNorm}`);
-  k.push(`${shape}|${sizeNorm}`);
+  if (colSpecific) k.push(`${colourId}|${sh}|${sizeNorm}`);
+  k.push(`${sh}|${sizeNorm}`);
   return k;
 }
 
@@ -63,11 +64,12 @@ function snapLook(
 ): SnapshotRow | null {
   if (!catSnap) return null;
   const cid = colourId === ALL ? '' : colourId;
+  const sh = shape.toLowerCase();
   const cands = [
-    [gradeId, cid, shape, sizeNorm],
-    ['', cid, shape, sizeNorm],
-    [gradeId, '', shape, sizeNorm],
-    ['', '', shape, sizeNorm],
+    [gradeId, cid, sh, sizeNorm],
+    ['', cid, sh, sizeNorm],
+    [gradeId, '', sh, sizeNorm],
+    ['', '', sh, sizeNorm],
   ];
   for (const a of cands) {
     const v = catSnap[a.join('|')];
@@ -520,16 +522,21 @@ function PriceEditor({
   const delList = ovr.delSizes?.[activeShape] ?? [];
   const addList = ovr.addSizes?.[activeShape] ?? [];
   // Sizes from the matrix and the snapshot, minus removed, plus admin-added.
+  const activeShapeLc = activeShape.toLowerCase();
   const snapSizesForShape = Object.entries(snap ?? {})
     .filter(([key]) => {
       const [kg, kc, ksh] = key.split('|');
       const cid = colourId === ALL ? '' : colourId;
-      return ksh === activeShape && (kg === gradeId || kg === '') && (colourId === ALL ? kc === '' : kc === cid || kc === '');
+      return ksh === activeShapeLc && (kg === gradeId || kg === '') && (colourId === ALL ? kc === '' : kc === cid || kc === '');
     })
     .map(([, r]) => r.size);
+  // The published sheet decides which sizes exist; the /admin/pricing chart is
+  // only a fallback for a shape the snapshot doesn't cover. This is what stops a
+  // sheet-priced category (e.g. Laser 0.60 mm+) from showing the generic chart.
+  const sizeSource = snapSizesForShape.length ? snapSizesForShape : matrix.rows.map((r) => r.size);
   const baseSizes: string[] = [];
   const seenNorm = new Set<string>();
-  [...matrix.rows.map((r) => r.size), ...snapSizesForShape].forEach((s) => {
+  sizeSource.forEach((s) => {
     const n = snapNorm(s);
     if (!seenNorm.has(n)) { seenNorm.add(n); baseSizes.push(s); }
   });

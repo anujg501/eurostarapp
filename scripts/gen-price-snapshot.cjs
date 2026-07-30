@@ -22,23 +22,33 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const Babel = require(path.join(ROOT, 'docs', 'vendor', 'babel.min.js'));
-const src = fs.readFileSync(path.join(ROOT, 'docs', 'app', 'data.jsx'), 'utf8');
-const code = Babel.transform(src, { presets: ['react'] }).code;
 
-// Minimal browser shims — data.jsx only needs window/localStorage while it
-// defines its tables and functions; its React components are never rendered.
+// Minimal browser shims — these files only need window/localStorage while they
+// define their tables and functions; their React components are never rendered.
 const win = {};
 const shimLocal = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
 const shimReact = { createElement: () => null, Fragment: 'Fragment', useState: () => [null, () => {}], useEffect: () => {} };
 const shimDoc = { createElement: () => ({ style: {} }), getElementById: () => null };
-try {
-  // eslint-disable-next-line no-new-func
-  const run = new Function('window', 'localStorage', 'React', 'document', 'navigator', code + '\n;return window;');
-  Object.assign(win, run(win, shimLocal, shimReact, shimDoc, { language: 'en' }));
-} catch (e) {
-  console.error('Failed to evaluate data.jsx:', e.message);
-  process.exit(1);
+
+// Load one storefront .jsx into `win`. `prefix` neutralises a harmless
+// in-browser quirk (a bare identifier that only survives because top-level
+// function declarations become globals) so the file evaluates under Node.
+function loadInto(relPath, prefix = '') {
+  const code = Babel.transform(fs.readFileSync(path.join(ROOT, relPath), 'utf8'), { presets: ['react'] }).code;
+  try {
+    // eslint-disable-next-line no-new-func
+    const run = new Function('window', 'localStorage', 'React', 'document', 'navigator', prefix + code + '\n;return window;');
+    Object.assign(win, run(win, shimLocal, shimReact, shimDoc, { language: 'en' }));
+  } catch (e) {
+    console.error(`Failed to evaluate ${relPath}:`, e.message);
+    process.exit(1);
+  }
 }
+
+loadInto('docs/app/data.jsx');
+// laser-data.jsx references an undefined LASER_ROUND on its last line (only the
+// browser tolerates it); declare it so the file loads cleanly here too.
+loadInto('docs/app/laser-data.jsx', 'var LASER_ROUND;\n');
 
 const COLORS = win.COLORS_BY_CATEGORY || {};
 const GRADES = win.GRADES_BY_CATEGORY || {};
@@ -77,6 +87,9 @@ const DESCS = [
   { cat: 'evileye', scope: 'n', sizesOf: (gid, cid, sh) => call('evileyeSizes', sh), skuOf: (gid, cid, sh, sz) => call('evileyeSku', sh, sz) },
   // alpanite: green/blue have dedicated sheets, other colours share alpSheet*
   { cat: 'alpanite', scope: 'c', sizesOf: (gid, cid, sh) => alpSizes(cid, sh), skuOf: (gid, cid, sh, sz) => alpSku(cid, sh, sz) },
+  // ourosa: per-colour sheet (OUROSA_SHEETS); sizes are the shared PP-size list,
+  // ourosaSku returns null for any the colour/shape doesn't carry.
+  { cat: 'ourosa', scope: 'c', sizesOf: () => (win.OUROSA_SIZES || []).map((x) => x[0]), skuOf: (gid, cid, sh, sz) => call('ourosaSku', cid, sh, sz) },
 ];
 
 function call(name, ...args) {
@@ -110,7 +123,7 @@ for (const d of DESCS) {
         for (const size of sizes) {
           const sku = d.skuOf(gr.id, co.id, sh, size);
           if (!sku || typeof sku.price !== 'number' || !(sku.price > 0)) continue;
-          const key = [d.scope === 'gc' || d.scope === 'g' ? gr.id || '' : '', d.scope === 'gc' || d.scope === 'c' ? co.id || '' : '', sh, normSize(size)].join('|');
+          const key = [d.scope === 'gc' || d.scope === 'g' ? gr.id || '' : '', d.scope === 'gc' || d.scope === 'c' ? co.id || '' : '', String(sh).toLowerCase(), normSize(size)].join('|');
           catOut[key] = { rate: sku.price, pcs: Number(sku.pcsPerPacket) > 0 ? Number(sku.pcsPerPacket) : 0, size: String(size) };
           rows++;
         }
@@ -118,6 +131,32 @@ for (const d of DESCS) {
     }
   }
   if (Object.keys(catOut).length) snapshot[d.cat] = catOut;
+}
+
+// Laser Engraved — its own pad (laser-data.jsx): a per-size LIST price and a
+// size-tiered discount. We publish the NET price (list × (1 − discount)), which
+// is exactly what the customer pays and what the Sales App shows as "Net ₹/pc".
+// The price is the same for every colour, so it's stored colour/grade-agnostic.
+if (typeof win.laserRows === 'function' && typeof win.laserDiscount === 'function') {
+  const tables = win.LASER_TABLES || {};
+  const laserOut = {};
+  let n = 0;
+  for (const sh of Object.keys(tables)) {
+    for (const r of win.laserRows(sh) || []) {
+      if (r.price == null) continue;
+      const net = Math.round(r.price * (1 - win.laserDiscount(sh, r.mm, false)) * 100) / 100;
+      laserOut[['', '', String(sh).toLowerCase(), normSize(r.s)].join('|')] = {
+        rate: net,
+        pcs: Number(r.pk) > 0 ? Number(r.pk) : 0,
+        size: r.s,
+      };
+      n++;
+    }
+  }
+  if (n) { snapshot.laser = laserOut; rows += n; }
+  const lr = snapshot.laser || {};
+  const ls = Object.keys(lr).filter((k) => k.split('|')[2] === 'round').slice(0, 5);
+  console.log(`Laser: ${n} net rows. round sample:`, ls.map((k) => `${lr[k].size}=₹${lr[k].rate}`).join(', '));
 }
 
 const outPath = path.join(ROOT, 'docs', 'price-snapshot.json');

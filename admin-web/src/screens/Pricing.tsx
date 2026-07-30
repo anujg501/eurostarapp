@@ -20,6 +20,11 @@ import {
 type Step = 'cats' | 'grades' | 'colours' | 'editor';
 const ALL = '__all__';
 
+// Categories sold as one flat price per packet/set (not ₹ per piece × pcs).
+// The rate IS the whole-packet price and the pcs count is fixed, so the editor
+// labels it accordingly and hides the editable pieces-per-packet column.
+const FLAT_SET_LABEL: Record<string, string> = { navratna: '₹ per set (9 pieces)' };
+
 // "9.00" → "9.00 mm"; "10x8" / "10*8" → "10×8 mm"; leaves an existing "mm" alone.
 // Used only for the "add size" input.
 function normSize(raw: string): string {
@@ -111,8 +116,9 @@ function exportColourCsv(
   catSnap: Record<string, SnapshotRow> | undefined,
   ovr: CategoryPricingOverride
 ): void {
+  const flat = !!FLAT_SET_LABEL[cat.key];
   const unit = cat.unit || 'pc';
-  const packet = unit === 'pkt';
+  const packet = !flat && unit === 'pkt';
   const cid = colourId === ALL ? '' : colourId;
 
   // Every (shape, size) the snapshot has for this grade/colour scope.
@@ -158,7 +164,7 @@ function exportColourCsv(
     return v != null ? v : auto;
   };
 
-  const header = ['Shape', 'Size', `Rate ₹ ${rateUnitSuffix(unit)}`];
+  const header = ['Shape', 'Size', flat ? 'Rate ₹ /set' : `Rate ₹ ${rateUnitSuffix(unit)}`];
   if (packet) header.push('Pcs per packet');
   const rows: string[][] = [header];
 
@@ -444,10 +450,13 @@ function PriceEditor({
     return matrix?.rows.find((r) => r.size === size)?.pcsPerPacket ?? 0;
   };
 
+  // Flat-set categories (e.g. Navratna) price by the whole packet, so no
+  // editable pieces-per-packet column.
+  const flatSet = !!FLAT_SET_LABEL[cat.key];
   // Whether the category is packet-sold — decides the Pcs column. Driven by the
   // unit/matrix only: the snapshot carries pcsPerPacket 1 for per-piece sheets
   // (e.g. Corundum), which must NOT turn on a packet column.
-  const packet = unit === 'pkt' || (matrix?.rows.some((r) => r.pcsPerPacket > 0) ?? false);
+  const packet = !flatSet && (unit === 'pkt' || (matrix?.rows.some((r) => r.pcsPerPacket > 0) ?? false));
 
   const keysFor = (size: string) => priceKeys(multiGrade, gradeId, colourId, activeShape, snapNorm(size));
   const writeKey = (size: string) => keysFor(size)[0];
@@ -546,7 +555,7 @@ function PriceEditor({
     ...addList.filter((s) => !autoSizes.some((a) => snapNorm(a) === snapNorm(s))).map((s) => ({ size: s, added: true })),
   ];
 
-  const unitLabel = unit === 'ct' ? '₹ per carat' : unit === 'pkt' ? '₹ per piece · packet sold' : `₹ per ${unit}`;
+  const unitLabel = FLAT_SET_LABEL[cat.key] || (unit === 'ct' ? '₹ per carat' : unit === 'pkt' ? '₹ per piece · packet sold' : `₹ per ${unit}`);
 
   return (
     <section className="ad-card ad-card-pad">

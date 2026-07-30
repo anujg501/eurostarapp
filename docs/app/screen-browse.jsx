@@ -1067,7 +1067,11 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   const navMode = category.id === 'navratna'; // sold by packet, one flat price per packet, no pcs/packet
   // Navratna packet price: prefer the RIVEN sheet ('B' tier) when present, else the base multiplier.
   const navUnit = (s) => {
-    if (navMode && grade && window.navPrice) { const p = window.navPrice(grade.id, shape, s); if (p != null) return p; }
+    if (navMode) {
+      // Admin > Pricing edit (₹ per set) wins over the RIVEN sheet.
+      if (window.priceOverride) { const o = window.priceOverride(category.id, grade && grade.id, color && color.id, shape, s); if (o != null) return o; }
+      if (grade && window.navPrice) { const p = window.navPrice(grade.id, shape, s); if (p != null) return p; }
+    }
     return sizeUnitPrice(product, s);
   };
   const showPieceWt = false;

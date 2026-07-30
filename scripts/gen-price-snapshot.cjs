@@ -235,6 +235,27 @@ if (win.MOISS_PRICE && typeof win.moissRate === 'function') {
   console.log(`Moissanite: ${n} carat rows. def round sample:`, ms.map((k) => `${mr[k].size}=₹${mr[k].rate}/ct`).join(', '));
 }
 
+// Navratna — one flat ₹ per SET (1 set = 9 stones = 1 packet). navPrice returns
+// the set price; grade-scoped (natural/created), colour-agnostic. pcs 9 (fixed).
+if (typeof win.navPrice === 'function' && typeof win.navSizes === 'function') {
+  const grades = GRADES.navratna || [];
+  const shapes = SHAPES.navratna || [];
+  const navOut = {};
+  let n = 0;
+  for (const gr of grades) {
+    for (const sh of shapes) {
+      for (const size of win.navSizes(gr.id, sh) || []) {
+        const price = win.navPrice(gr.id, sh, size);
+        if (price == null || !(price > 0)) continue;
+        navOut[[gr.id, '', String(sh).toLowerCase(), normSize(size)].join('|')] = { rate: price, pcs: 9, size };
+        n++;
+      }
+    }
+  }
+  if (n) { snapshot.navratna = navOut; rows += n; }
+  console.log(`Navratna: ${n} set rows.`);
+}
+
 const outPath = path.join(ROOT, 'docs', 'price-snapshot.json');
 fs.writeFileSync(outPath, JSON.stringify(snapshot));
 console.log(`Wrote ${outPath}: ${Object.keys(snapshot).length} categories, ${rows} priced rows.`);

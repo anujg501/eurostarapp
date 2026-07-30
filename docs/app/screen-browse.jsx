@@ -499,7 +499,9 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
               category.id === 'labgrown' && _gid === 'labgrown' && window.lgSizes ? window.lgSizes(_cid, s) :
               category.id === 'multisapphire' && window.msSizes ? window.msSizes(_gid, s) :
               [];
-            const sizes = sheetSizesForCard.length ? sheetSizesForCard : skuSizesForCard.length ? skuSizesForCard : category.id === 'mop' ? window.MOP_PRICES[s] || [] : FULL_SIZES[s] || ['4.00 mm'];
+            let sizes = sheetSizesForCard.length ? sheetSizesForCard : skuSizesForCard.length ? skuSizesForCard : category.id === 'mop' ? window.MOP_PRICES[s] || [] : FULL_SIZES[s] || ['4.00 mm'];
+            // Keep the shape-card size count in step with the pad's add/remove edits.
+            if (window.applySizeOverrides) sizes = window.applySizeOverrides(category.id, s, sizes);
             const shapeImg = productImageFor(category.id, color.id, s, grade && grade.id);
             return (
               <button key={s} className="shape-pick-card" onClick={() => needsSubShape ? pickShapeSub(s) : pickShape(s)}>
@@ -1131,6 +1133,8 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   // A colour may set a minimum size. Fancy NxN sizes (e.g. "3x4") are kept as-is
   // (they already start small); only plain mm round sizes below the min are dropped.
   if (!lgPriced && color && color.sizeMin) {sizes = sizes.filter((s) => /x/i.test(s) || (parseFloat(s) || 0) >= color.sizeMin - 0.001);}
+  // Sizes the operator added or removed in Admin > Pricing (per category+shape).
+  if (window.applySizeOverrides) {sizes = window.applySizeOverrides(category.id, shape, sizes);}
 
   const updateQty = (size, value) => {
     const v = capQty(size, Math.max(0, parseFloat(value) || 0));
@@ -1265,16 +1269,33 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
     const s = skuFor(size);
     return s && typeof s.price === 'number' && s.price > 0 ? s : null;
   };
-  // Pieces in one packet of this size. A saved SKU carries its own count, set
-  // in Admin > Pricing; it must beat the built-in chart or an edit made in the
-  // panel would never reach the customer.
+  // Admin > Pricing overrides. Applied only to the standard per-piece /
+  // per-packet / per-carat path — the bespoke strip/lot/carat sheets (Multi
+  // Sapphire strips, natural pearl/opaque lots, Moissanite & Lab Grown carat
+  // charts, Navratna packets) keep their own sheet pricing and are not edited
+  // through this editor, so an override there is ignored to avoid mispricing.
+  const stdPricing = !(stringMode || lotMode || ctLotMode || msActive || natStrip || byStrip || mixedMoiss || navMode);
+  const ovrPiece = (size) =>
+    stdPricing && window.priceOverride
+      ? window.priceOverride(category.id, grade && grade.id, color && color.id, shape, size)
+      : null;
+  const ovrPcs = (size) => (stdPricing && window.pcsOverride ? window.pcsOverride(category.id, size) : null);
+  // Pieces in one packet of this size. An operator's pcs edit wins, then a saved
+  // SKU's own count, then the built-in chart — so an edit made in the panel
+  // always reaches the customer.
   const rowPacketPcs = (size) => {
+    const po = ovrPcs(size);
+    if (po) return po;
     const s = skuFor(size);
     const n = s ? Number(s.pcsPerPacket) : NaN;
     return isFinite(n) && n > 0 ? n : packetPcs(category.id, size);
   };
   const rate = (size) => {
     if (navMode) return navUnit(size); // per-packet price (RIVEN sheet or base) — keeps order total in sync with line totals
+    // An operator's price edit is a per-piece rate; convert it to the row's
+    // billing unit exactly as the real-SKU branch below does.
+    const op = ovrPiece(size);
+    if (op != null) return rowUnit(size) === 'ct' ? Math.round(op * pcsPerCt(size)) : rowUnit(size) === 'pkt' ? op * rowPacketPcs(size) : op;
     const s = skuPriced(size);
     if (s) return rowUnit(size) === 'ct' ? Math.round(s.price * pcsPerCt(size)) : rowUnit(size) === 'pkt' ? s.price * rowPacketPcs(size) : s.price;
     return stringMode ? pearlStringPrice(size) :
@@ -1285,7 +1306,7 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
     byStrip ? product.price :
     unitRate(product, size, rowUnit(size), category.id);
   };
-  const piecePrice = (size) => { const s = skuPriced(size); return s ? s.price : sizeUnitPrice(product, size); }; // per-piece rate
+  const piecePrice = (size) => { const op = ovrPiece(size); if (op != null) return op; const s = skuPriced(size); return s ? s.price : sizeUnitPrice(product, size); }; // per-piece rate
   // Amount for the stones on a row (excludes certificate).
   const stoneAmount = (size, q) => mixedMoiss ? Math.round(billedCt(size, q) * moissPerCt(size)) : q * rate(size);
   // Pieces represented by a row's quantity.

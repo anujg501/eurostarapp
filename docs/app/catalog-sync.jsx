@@ -70,6 +70,7 @@
     getJson('/admin/catalog/colours'),
     getJson('/admin/catalog/shapes'),
     getJson('/admin/splash'),
+    getJson('/admin/pricing-overrides'),
   ])
     .then(function (res) {
       var cat = res[0];
@@ -81,6 +82,13 @@
       var extraColours = res[6];
       var extraShapes = res[7];
       var splash = res[8];
+      var pricingOvr = res[9];
+
+      // Prices, pieces-per-packet and add/remove-size edits made in
+      // Admin > Pricing. Loaded before the pads render so a saved edit is live.
+      if (pricingOvr && typeof pricingOvr === 'object' && window.setPricingOverrides) {
+        window.setPricingOverrides(pricingOvr);
+      }
 
       mirrorToLocal('eurostar-cat-thumbs-v1', catThumbs);
       mirrorToLocal('eurostar-shape-thumbs-v1', shapeThumbs);

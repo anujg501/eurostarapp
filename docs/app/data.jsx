@@ -1843,6 +1843,93 @@ const sizeUnitPrice = (product, size) => {
 // Price per carat for a given size = price/piece × pieces/ct
 const sizePerCtPrice = (product, size) => Math.round(sizeUnitPrice(product, size) * pcsPerCt(size));
 
+// ---- Admin > Pricing overrides ---------------------------------------------
+// The Pricing editor (admin-web) writes per-category overrides to
+// /admin/pricing-overrides; catalog-sync fetches them at boot and hands the raw
+// map to setPricingOverrides(). Each category entry is:
+//   { price: { key: ₹/piece }, pcs: { size: n },
+//     addSizes: { shape: [size,...] }, delSizes: { shape: [size,...] } }
+// A price value is the per-PIECE rate the operator typed — the same thing a
+// SKU's price means — so the storefront feeds it through the identical
+// ct/pkt/pc unit conversion the real-SKU path uses.
+//
+// Price keys, most→least specific: `grade@colour|shape|size`,
+// `grade@shape|size`, `colour|shape|size`, `shape|size`. Sizes and shapes are
+// matched on a normalised form ("7.50 mm" = "7.5" = "7.5mm"), mirroring the
+// norm() the backend /admin/pricing route uses, so an edit lands on the row it
+// was made against even when the two sides spell a size slightly differently.
+let PRICING_OVR = {};
+function normPriceSize(s) {
+  const t = String(s == null ? '' : s).trim().toLowerCase().replace(/×/g, 'x').replace(/\s+/g, '');
+  return t.replace(/(\d+(?:\.\d*?[1-9])?)\.?0*(?=\D|$)/g, '$1');
+}
+function normShapeKey(s) { return String(s == null ? '' : s).trim().toLowerCase(); }
+// Rebuild the raw map into a lookup whose price keys and pcs/size lists are all
+// normalised, so reads are plain object hits with no per-call string work.
+function setPricingOverrides(raw) {
+  const out = {};
+  Object.keys(raw || {}).forEach((cat) => {
+    const o = raw[cat] || {};
+    const price = {};
+    Object.keys(o.price || {}).forEach((k) => {
+      const cut = k.lastIndexOf('|');
+      if (cut < 0) return;
+      price[k.slice(0, cut).toLowerCase() + '|' + normPriceSize(k.slice(cut + 1))] = o.price[k];
+    });
+    const pcs = {};
+    Object.keys(o.pcs || {}).forEach((sz) => { pcs[normPriceSize(sz)] = o.pcs[sz]; });
+    const addSizes = {};
+    Object.keys(o.addSizes || {}).forEach((sh) => { addSizes[normShapeKey(sh)] = (o.addSizes[sh] || []).slice(); });
+    const delSizes = {};
+    Object.keys(o.delSizes || {}).forEach((sh) => { delSizes[normShapeKey(sh)] = (o.delSizes[sh] || []).map(normPriceSize); });
+    out[cat] = { price, pcs, addSizes, delSizes };
+  });
+  PRICING_OVR = out;
+}
+// Per-piece price override for a row, or null. grade/colour are optional; a key
+// is only tried when its parts exist, and the first present match wins.
+function priceOverride(cat, gradeId, colourId, shape, size) {
+  const o = PRICING_OVR[cat];
+  if (!o) return null;
+  const sh = normShapeKey(shape), sz = normPriceSize(size);
+  const g = gradeId ? String(gradeId).toLowerCase() : '';
+  const c = colourId ? String(colourId).toLowerCase() : '';
+  const keys = [];
+  if (g && c) keys.push(g + '@' + c + '|' + sh + '|' + sz);
+  if (g) keys.push(g + '@' + sh + '|' + sz);
+  if (c) keys.push(c + '|' + sh + '|' + sz);
+  keys.push(sh + '|' + sz);
+  for (let i = 0; i < keys.length; i++) {
+    const v = o.price[keys[i]];
+    if (v != null && isFinite(v)) return v;
+  }
+  return null;
+}
+// Pieces-per-packet override for a size (keyed by size only), or null.
+function pcsOverride(cat, size) {
+  const o = PRICING_OVR[cat];
+  if (!o) return null;
+  const v = o.pcs[normPriceSize(size)];
+  return v != null && isFinite(v) && v > 0 ? v : null;
+}
+// Apply the operator's add/remove-size edits to one shape's size list.
+function applySizeOverrides(cat, shape, sizes) {
+  const o = PRICING_OVR[cat];
+  if (!o) return sizes;
+  const sh = normShapeKey(shape);
+  const del = o.delSizes[sh] || [];
+  const add = o.addSizes[sh] || [];
+  if (!del.length && !add.length) return sizes;
+  let out = del.length ? sizes.filter((s) => del.indexOf(normPriceSize(s)) === -1) : sizes.slice();
+  if (add.length) {
+    const have = {};
+    out.forEach((s) => { have[normPriceSize(s)] = 1; });
+    add.forEach((s) => { if (!have[normPriceSize(s)]) out.push(s); });
+  }
+  return out;
+}
+Object.assign(window, { setPricingOverrides, priceOverride, pcsOverride, applySizeOverrides });
+
 // ---- Uploaded SKUs -> real sizes -------------------------------------------
 // The size pads used to read their rows out of the built-in size charts
 // (FULL_SIZES / SIZES_BY_CATEGORY), falling back to a single hardcoded

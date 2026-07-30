@@ -194,14 +194,23 @@ function LmsScreening({ cands, actions, settings }) {
   const toScreen = all.filter(c => c.stage === 'applied' || c.stage === 'screening');
   const [savingOutcome, setSavingOutcome] = aUseState(false);
   const [outMsg, setOutMsg] = aUseState('');
+  // Clearing the message on a timer meant a save that worked and a save that
+  // was never attempted looked identical a few seconds later — the form also
+  // reset the candidate dropdown to blank on success, so there was nothing
+  // left on screen to show anything had happened at all. The message now
+  // names who was saved and stays up until the next save starts.
+  const pickOutId = (val) => { setOutId(val); setOutMsg(''); };
   const saveOutcome = () => {
     if (!outId || !actions || savingOutcome) return;
+    const savedName = (toScreen.find(c => c.id === outId) || {}).name || 'Candidate';
+    const savedResult = result;
     setSavingOutcome(true); setOutMsg('');
     Promise.resolve(actions.markScreen(outId, result, note, rating)).then((ok) => {
       setSavingOutcome(false);
-      setOutMsg(ok ? '✓ Outcome saved.' : '✕ Could not save — check your connection and try again.');
+      setOutMsg(ok
+        ? `✓ Saved — ${savedName} marked ${savedResult === 'pass' ? 'Pass' : 'Fail'}.`
+        : `✕ Could not save ${savedName}'s outcome — check your connection and try again.`);
       if (ok) { setOutId(''); setNote(''); setResult('pass'); setRating(4); }
-      setTimeout(() => setOutMsg(''), 4000);
     });
   };
   const canSchedule = schedId && schedDate && slot;
@@ -257,7 +266,7 @@ function LmsScreening({ cands, actions, settings }) {
         <div className="lms-card lms-card-pad">
           <strong style={{ fontFamily: 'var(--font-serif)', fontWeight: 500, fontSize: 18, display: 'block', marginBottom: 16, paddingBottom: 14, borderBottom: '1px solid var(--lms-divider)' }}>Record Screening Outcome</strong>
           <div className="lms-field" style={{ marginBottom: 14 }}><label>Candidate *</label>
-            <select style={fieldStyle} value={outId} onChange={e => setOutId(e.target.value)}><option value="">Choose a candidate…</option>{toScreen.map(c => <option key={c.id} value={c.id}>{c.name} · {c.city}</option>)}</select>
+            <select style={fieldStyle} value={outId} onChange={e => pickOutId(e.target.value)}><option value="">Choose a candidate…</option>{toScreen.map(c => <option key={c.id} value={c.id}>{c.name} · {c.city}</option>)}</select>
           </div>
           <div className="lms-field" style={{ marginBottom: 14 }}><label>Result *</label>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -274,7 +283,13 @@ function LmsScreening({ cands, actions, settings }) {
           )}
           <div className="lms-field" style={{ marginBottom: 14 }}><label>Interview notes</label><textarea style={{ ...fieldStyle, minHeight: 70, resize: 'vertical' }} value={note} onChange={e => setNote(e.target.value)} placeholder="Communication, product knowledge, field experience…" /></div>
           <button className="lms-btn lms-btn-pri" style={{ width: '100%', justifyContent: 'center', opacity: outId && !savingOutcome ? 1 : .55, cursor: outId && !savingOutcome ? 'pointer' : 'not-allowed' }} disabled={!outId || savingOutcome} onClick={saveOutcome}>{savingOutcome ? 'Saving…' : 'Save outcome'}</button>
-          {outMsg && <div className="lms-muted" style={{ fontSize: 12.5, marginTop: 8 }}>{outMsg}</div>}
+          {outMsg && (
+            <div style={{
+              marginTop: 10, padding: '9px 12px', borderRadius: 'var(--r-md)', fontSize: 13, fontWeight: 600,
+              background: outMsg.startsWith('✓') ? 'var(--lms-green-soft, #E7F5EA)' : '#FBEAEA',
+              color: outMsg.startsWith('✓') ? 'var(--lms-green-ink, #1E7A3D)' : '#B3261E',
+            }}>{outMsg}</div>
+          )}
           <div className="lms-muted" style={{ fontSize: 12, marginTop: 10 }}>A <b>Pass</b> clears the candidate for training — go to <b>Candidates</b> and unlock their training window to actually start it. A <b>Fail</b> rejects them with a reason.</div>
         </div>
       </div>

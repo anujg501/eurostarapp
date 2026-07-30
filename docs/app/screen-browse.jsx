@@ -990,6 +990,12 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   // sheet (window.moissRate). Falls back to the grade's flat basePrice when a
   // size/grade isn't in the sheet (and for Lab Grown, which has no sheet).
   const moissPerCt = (size) => {
+    // Admin > Pricing edit (₹ per carat) wins — for Moissanite today; the same
+    // hook will serve Lab Grown once its per-carat rates are mirrored.
+    if (category.id === 'moissanite' && window.priceOverride) {
+      const o = window.priceOverride(category.id, grade && grade.id, color && color.id, shape, size);
+      if (o != null) return o;
+    }
     if (lgCreated) { const r = window.lgCreatedCt(shape, size); if (r != null) return r; }
     if (lgPriced) {
       // Return the per-CARAT rate implied by the per-piece price, so the existing

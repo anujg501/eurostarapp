@@ -2241,6 +2241,7 @@ function moissRate(shape, size, gradeId) {
   return (typeof v === 'number' && v > 0) ? v : null;
 }
 window.moissRate = moissRate;
+window.MOISS_PRICE = MOISS_PRICE;
 
 // Euro Alp Green (Alpanite) price sheet — box-sold. Each row: [size, pcs per
 // box, final ₹ per piece]. Same price for every colour is NOT assumed — this

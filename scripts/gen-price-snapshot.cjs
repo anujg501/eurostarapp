@@ -213,6 +213,28 @@ if (typeof win.icecutRows === 'function' && win.TIER_COL && typeof win.ICECUT_MO
   console.log(`Ice Cut: ${n} rows.`);
 }
 
+// Moissanite — per CARAT (unit 'ct'). MOISS_PRICE[shape][size] = [def ₹/ct,
+// gh ₹/ct]; colour-agnostic, so grade-scoped. No packet (pcs 0).
+if (win.MOISS_PRICE && typeof win.moissRate === 'function') {
+  const grades = GRADES.moissanite || [];
+  const moissOut = {};
+  let n = 0;
+  for (const gr of grades) {
+    for (const sh of Object.keys(win.MOISS_PRICE)) {
+      for (const size of Object.keys(win.MOISS_PRICE[sh])) {
+        const rate = win.moissRate(sh, size, gr.id);
+        if (rate == null || !(rate > 0)) continue;
+        moissOut[[gr.id, '', String(sh).toLowerCase(), normSize(size)].join('|')] = { rate, pcs: 0, size };
+        n++;
+      }
+    }
+  }
+  if (n) { snapshot.moissanite = moissOut; rows += n; }
+  const mr = snapshot.moissanite || {};
+  const ms = Object.keys(mr).filter((k) => k.startsWith('def|') && k.includes('|round|')).slice(0, 4);
+  console.log(`Moissanite: ${n} carat rows. def round sample:`, ms.map((k) => `${mr[k].size}=₹${mr[k].rate}/ct`).join(', '));
+}
+
 const outPath = path.join(ROOT, 'docs', 'price-snapshot.json');
 fs.writeFileSync(outPath, JSON.stringify(snapshot));
 console.log(`Wrote ${outPath}: ${Object.keys(snapshot).length} categories, ${rows} priced rows.`);

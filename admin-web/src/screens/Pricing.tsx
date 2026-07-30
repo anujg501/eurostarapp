@@ -7,22 +7,175 @@ import {
   type PricingMatrix,
   type CategoryPricingOverride,
   type PricingOverrides,
+  type PriceSnapshot,
+  type SnapshotRow,
 } from '../lib/api';
 
 // Pricing section (Sales App + Admin). Flow: Category → Grade (multi-grade only)
 // → Colour → size × price editor. The editor writes per-category overrides
-// (adminApi.pricingOverrides) that the Sales App reads live; auto rates come
-// from the existing /admin/pricing matrix (base × size multiplier).
+// (adminApi.pricingOverrides) that the Sales App reads live. The "auto" rates it
+// shows come from the shop's real published prices (adminApi.priceSnapshot),
+// falling back to the /admin/pricing matrix estimate where a sheet has no entry.
 
 type Step = 'cats' | 'grades' | 'colours' | 'editor';
 const ALL = '__all__';
 
 // "9.00" → "9.00 mm"; "10x8" / "10*8" → "10×8 mm"; leaves an existing "mm" alone.
+// Used only for the "add size" input.
 function normSize(raw: string): string {
   const s = raw.trim();
   if (!s) return '';
   if (/mm\s*$/i.test(s)) return s.replace(/\s*mm\s*$/i, ' mm');
   return s.replace(/\s*[x×*]\s*/i, '×') + ' mm';
+}
+
+// Match a size to the snapshot / override key space: lower-case, ×→x, no spaces,
+// trailing zeros stripped ("7.50 mm" = "7.5" = "7.5mm"). Mirrors the storefront
+// and the /admin/pricing route, so an edit lands on the row it was made against.
+function snapNorm(s: string): string {
+  const t = String(s ?? '').trim().toLowerCase().replace(/×/g, 'x').replace(/\s+/g, '');
+  return t.replace(/(\d+(?:\.\d*?[1-9])?)\.?0*(?=\D|$)/g, '$1');
+}
+
+// Override price keys, most→least specific — the single source of truth shared
+// by the editor and the Excel export so both resolve a rate identically.
+function priceKeys(multiGrade: boolean, gradeId: string, colourId: string, shape: string, sizeNorm: string): string[] {
+  const k: string[] = [];
+  const colSpecific = colourId !== ALL;
+  if (multiGrade) {
+    if (colSpecific) k.push(`${gradeId}@${colourId}|${shape}|${sizeNorm}`);
+    k.push(`${gradeId}@${shape}|${sizeNorm}`);
+  }
+  if (colSpecific) k.push(`${colourId}|${shape}|${sizeNorm}`);
+  k.push(`${shape}|${sizeNorm}`);
+  return k;
+}
+
+// The shop's real price for (grade, colour, shape, size). The snapshot keys a
+// row on whichever of grade/colour its sheet is scoped by, so we try the
+// specific pair first and fall back to the colour- or grade-agnostic entry.
+function snapLook(
+  catSnap: Record<string, SnapshotRow> | undefined,
+  gradeId: string,
+  colourId: string,
+  shape: string,
+  sizeNorm: string
+): SnapshotRow | null {
+  if (!catSnap) return null;
+  const cid = colourId === ALL ? '' : colourId;
+  const cands = [
+    [gradeId, cid, shape, sizeNorm],
+    ['', cid, shape, sizeNorm],
+    [gradeId, '', shape, sizeNorm],
+    ['', '', shape, sizeNorm],
+  ];
+  for (const a of cands) {
+    const v = catSnap[a.join('|')];
+    if (v) return v;
+  }
+  return null;
+}
+
+const rateUnitSuffix = (unit?: string) => (unit === 'ct' ? '/ct' : '/pc');
+
+function csvCell(s: string): string {
+  return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+function downloadCsv(filename: string, rows: string[][]): void {
+  const text = rows.map((r) => r.map((c) => csvCell(String(c))).join(',')).join('\r\n');
+  // BOM so Excel opens ₹ and × correctly.
+  const blob = new Blob(['﻿' + text], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// Build a colour's whole price list across every shape × size, using the same
+// override-aware rate the editor shows. Sourced from the snapshot (real prices)
+// plus any admin add/remove-size edits.
+function exportColourCsv(
+  cat: Category,
+  multiGrade: boolean,
+  gradeId: string,
+  gradeName: string,
+  colourId: string,
+  colourName: string,
+  catSnap: Record<string, SnapshotRow> | undefined,
+  ovr: CategoryPricingOverride
+): void {
+  const unit = cat.unit || 'pc';
+  const packet = unit === 'pkt';
+  const cid = colourId === ALL ? '' : colourId;
+
+  // Every (shape, size) the snapshot has for this grade/colour scope.
+  type Cell = { shape: string; sizeNorm: string; sizeLabel: string };
+  const cells: Cell[] = [];
+  const seen = new Set<string>();
+  Object.keys(catSnap ?? {}).forEach((key) => {
+    const [kg, kc, kshape, ksize] = key.split('|');
+    if (kg !== gradeId && kg !== '') return;
+    if (colourId === ALL ? kc !== '' : kc !== cid && kc !== '') return;
+    const row = catSnap![key];
+    const id = `${kshape}|${ksize}`;
+    if (seen.has(id)) return;
+    seen.add(id);
+    cells.push({ shape: kshape, sizeNorm: ksize, sizeLabel: row.size || ksize });
+  });
+  // Admin-added sizes that aren't in the snapshot.
+  Object.entries(ovr.addSizes ?? {}).forEach(([shape, sizes]) => {
+    (sizes || []).forEach((s) => {
+      const sn = snapNorm(s);
+      const id = `${shape}|${sn}`;
+      if (!seen.has(id)) {
+        seen.add(id);
+        cells.push({ shape, sizeNorm: sn, sizeLabel: s });
+      }
+    });
+  });
+  // Drop admin-removed sizes.
+  const del = new Set<string>();
+  Object.entries(ovr.delSizes ?? {}).forEach(([shape, sizes]) => {
+    (sizes || []).forEach((s) => del.add(`${shape}|${snapNorm(s)}`));
+  });
+
+  const resolveRate = (shape: string, sizeNorm: string, auto: number): number => {
+    for (const k of priceKeys(multiGrade, gradeId, colourId, shape, sizeNorm)) {
+      const v = ovr.price?.[k];
+      if (v != null) return v;
+    }
+    return auto;
+  };
+  const resolvePcs = (sizeNorm: string, auto: number): number => {
+    const v = ovr.pcs?.[sizeNorm];
+    return v != null ? v : auto;
+  };
+
+  const header = ['Shape', 'Size', `Rate ₹ ${rateUnitSuffix(unit)}`];
+  if (packet) header.push('Pcs per packet');
+  const rows: string[][] = [header];
+
+  cells
+    .filter((c) => !del.has(`${c.shape}|${c.sizeNorm}`))
+    .sort((a, b) => (a.shape === b.shape ? a.sizeLabel.localeCompare(b.sizeLabel, undefined, { numeric: true }) : a.shape.localeCompare(b.shape)))
+    .forEach((c) => {
+      const snap = snapLook(catSnap, gradeId, colourId, c.shape, c.sizeNorm);
+      const rate = resolveRate(c.shape, c.sizeNorm, snap?.rate ?? 0);
+      const line = [c.shape, c.sizeLabel, String(rate)];
+      if (packet) line.push(String(resolvePcs(c.sizeNorm, snap?.pcs ?? 0)));
+      rows.push(line);
+    });
+
+  const gradePart = multiGrade && gradeId ? `-${gradeId}` : '';
+  const colourPart = colourId === ALL ? 'all-colours' : colourId;
+  downloadCsv(`${cat.key}${gradePart}-${colourPart}-pricing.csv`, rows);
+  void gradeName;
+  void colourName;
 }
 
 export function Pricing() {
@@ -31,6 +184,7 @@ export function Pricing() {
   const [colours, setColours] = useState<Record<string, Colour[]>>({});
   const [swatches, setSwatches] = useState<Record<string, string>>({});
   const [ovr, setOvr] = useState<PricingOverrides>({});
+  const [snap, setSnap] = useState<PriceSnapshot>({});
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -42,18 +196,20 @@ export function Pricing() {
   useEffect(() => {
     (async () => {
       try {
-        const [c, g, cl, sw, ov] = await Promise.all([
+        const [c, g, cl, sw, ov, sp] = await Promise.all([
           adminApi.categories(),
           adminApi.grades(),
           adminApi.colours(),
           adminApi.colourSwatches(),
           adminApi.pricingOverrides(),
+          adminApi.priceSnapshot().catch(() => ({}) as PriceSnapshot),
         ]);
         setCats(c);
         setGrades(g ?? {});
         setColours(cl ?? {});
         setSwatches(sw ?? {});
         setOvr(ov ?? {});
+        setSnap(sp ?? {});
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Could not load pricing.');
       } finally {
@@ -93,7 +249,25 @@ export function Pricing() {
     }
   };
 
-  if (loading) return <div className="ad-body"><section className="ad-card ad-card-pad ad-muted">Loading…</section></div>;
+  const exportCsv = (colId: string) =>
+    cat &&
+    exportColourCsv(
+      cat,
+      multiGrade,
+      gradeId,
+      grade?.name || '',
+      colId,
+      colId === ALL ? 'All colours' : catColours.find((c) => c.id === colId)?.name || colId,
+      snap[cat.key],
+      ovr[cat.key] ?? {}
+    );
+
+  if (loading)
+    return (
+      <div className="ad-body">
+        <section className="ad-card ad-card-pad ad-muted">Loading…</section>
+      </div>
+    );
 
   return (
     <div className="ad-body">
@@ -151,26 +325,32 @@ export function Pricing() {
           <h3 className="pr-h3">
             {cat.name}{grade ? ` · ${grade.name}` : ''} — choose a colour
           </h3>
-          <p className="ad-muted" style={{ marginTop: -6 }}>Edit one colour's pricing, or the base rates every colour inherits.</p>
+          <p className="ad-muted" style={{ marginTop: -6 }}>Edit one colour's pricing, or the base rates every colour inherits. Use ⬇ Excel to download a colour's whole price list.</p>
           <div className="pr-grid">
-            <button className="pr-colour-card" onClick={() => { setColourId(ALL); setStep('editor'); }}>
+            <div className="pr-colour-card">
               <div className="pr-swatch pr-swatch-all" />
               <div className="pr-colour-name">All colours</div>
               <div className="pr-colour-sub">Base rates — used by every colour without its own override.</div>
-              <span className="pr-cat-go">Edit pricing ›</span>
-            </button>
+              <div className="pr-card-actions">
+                <button className="ad-btn ad-btn-pri ad-btn-sm" onClick={() => { setColourId(ALL); setStep('editor'); }}>Edit pricing</button>
+                <button className="ad-btn ad-btn-ghost ad-btn-sm" onClick={() => exportCsv(ALL)}>⬇ Excel</button>
+              </div>
+            </div>
             {catColours.map((col) => {
               const photo = swatches[`${cat.key}|${col.id}`];
               return (
-                <button key={col.id} className="pr-colour-card" onClick={() => { setColourId(col.id); setStep('editor'); }}>
+                <div key={col.id} className="pr-colour-card">
                   {photo ? (
                     <div className="pr-swatch" style={{ backgroundImage: `url(${photo})`, backgroundSize: 'cover' }} />
                   ) : (
                     <div className="pr-swatch"><span className="pr-ball" style={{ background: col.hex || '#ccc' }} /></div>
                   )}
                   <div className="pr-colour-name">{col.name}</div>
-                  <span className="pr-cat-go">Edit pricing ›</span>
-                </button>
+                  <div className="pr-card-actions">
+                    <button className="ad-btn ad-btn-pri ad-btn-sm" onClick={() => { setColourId(col.id); setStep('editor'); }}>Edit pricing</button>
+                    <button className="ad-btn ad-btn-ghost ad-btn-sm" onClick={() => exportCsv(col.id)}>⬇ Excel</button>
+                  </div>
+                </div>
               );
             })}
           </div>
@@ -186,8 +366,10 @@ export function Pricing() {
           colourId={colourId}
           colourName={colourId === ALL ? 'All colours' : (catColours.find((c) => c.id === colourId)?.name || colourId)}
           ovr={ovr[cat.key] ?? {}}
+          snap={snap[cat.key]}
           onBack={() => setStep('colours')}
           onChange={(next) => persist({ ...ovr, [cat.key]: next })}
+          onExport={() => exportCsv(colourId)}
         />
       )}
     </div>
@@ -203,8 +385,10 @@ function PriceEditor({
   colourId,
   colourName,
   ovr,
+  snap,
   onBack,
   onChange,
+  onExport,
 }: {
   cat: Category;
   multiGrade: boolean;
@@ -213,8 +397,10 @@ function PriceEditor({
   colourId: string;
   colourName: string;
   ovr: CategoryPricingOverride;
+  snap: Record<string, SnapshotRow> | undefined;
   onBack: () => void;
   onChange: (next: CategoryPricingOverride) => void;
+  onExport: () => void;
 }) {
   const [matrix, setMatrix] = useState<PricingMatrix | null>(null);
   const [shape, setShape] = useState('');
@@ -239,27 +425,34 @@ function PriceEditor({
 
   const activeShape = shape || matrix?.shape || '';
   const unit = matrix?.unit || cat.unit || 'pc';
-  const packet = unit === 'pkt' || matrix?.rows.some((r) => r.pcsPerPacket > 0) || false;
   const colSpecific = colourId !== ALL;
 
   const flashSaved = () => { setFlash(true); window.setTimeout(() => setFlash(false), 1400); };
 
-  // Price keys, most→least specific. First match wins at read time.
-  const priceKeys = (size: string) => {
-    const k: string[] = [];
-    if (multiGrade) {
-      if (colSpecific) k.push(`${gradeId}@${colourId}|${activeShape}|${size}`);
-      k.push(`${gradeId}@${activeShape}|${size}`);
-    }
-    if (colSpecific) k.push(`${colourId}|${activeShape}|${size}`);
-    k.push(`${activeShape}|${size}`);
-    return k;
+  // The shop's real price/pcs for a row (falls back to the matrix estimate).
+  const snapFor = (size: string): SnapshotRow | null => snapLook(snap, gradeId, colourId, activeShape, snapNorm(size));
+  const autoRate = (size: string): number => {
+    const s = snapFor(size);
+    if (s) return s.rate;
+    return matrix?.rows.find((r) => r.size === size)?.rate ?? 0;
   };
-  const writeKey = (size: string) => priceKeys(size)[0];
+  const autoPcsOf = (size: string): number => {
+    const s = snapFor(size);
+    if (s && s.pcs > 0) return s.pcs;
+    return matrix?.rows.find((r) => r.size === size)?.pcsPerPacket ?? 0;
+  };
+
+  // Whether the category is packet-sold — decides the Pcs column. Driven by the
+  // unit/matrix only: the snapshot carries pcsPerPacket 1 for per-piece sheets
+  // (e.g. Corundum), which must NOT turn on a packet column.
+  const packet = unit === 'pkt' || (matrix?.rows.some((r) => r.pcsPerPacket > 0) ?? false);
+
+  const keysFor = (size: string) => priceKeys(multiGrade, gradeId, colourId, activeShape, snapNorm(size));
+  const writeKey = (size: string) => keysFor(size)[0];
 
   const resolve = (size: string, auto: number): { rate: number; source: 'own' | 'inherit' | 'auto' } => {
-    const keys = priceKeys(size);
-    const own = writeKey(size);
+    const keys = keysFor(size);
+    const own = keys[0];
     for (const key of keys) {
       const v = ovr.price?.[key];
       if (v != null) return { rate: v, source: key === own ? 'own' : 'inherit' };
@@ -271,7 +464,7 @@ function PriceEditor({
     const key = writeKey(size);
     const price = { ...(ovr.price ?? {}) };
     const n = parseFloat(raw);
-    const auto = matrix?.rows.find((r) => r.size === size)?.rate ?? 0;
+    const auto = autoRate(size);
     if (raw.trim() === '' || Number.isNaN(n) || n === auto) delete price[key];
     else price[key] = n;
     onChange({ ...ovr, price });
@@ -279,11 +472,12 @@ function PriceEditor({
   };
 
   const setPcs = (size: string, raw: string) => {
+    const sn = snapNorm(size);
     const pcs = { ...(ovr.pcs ?? {}) };
     const n = parseInt(raw, 10);
-    const auto = matrix?.rows.find((r) => r.size === size)?.pcsPerPacket ?? 0;
-    if (raw.trim() === '' || Number.isNaN(n) || n === auto) delete pcs[size];
-    else pcs[size] = n;
+    const auto = autoPcsOf(size);
+    if (raw.trim() === '' || Number.isNaN(n) || n === auto) delete pcs[sn];
+    else pcs[sn] = n;
     onChange({ ...ovr, pcs });
     flashSaved();
   };
@@ -294,7 +488,6 @@ function PriceEditor({
     const add = { ...(ovr.addSizes ?? {}) };
     const list = new Set([...(add[activeShape] ?? []), s]);
     add[activeShape] = [...list];
-    // If it was previously removed, un-remove it.
     const del = { ...(ovr.delSizes ?? {}) };
     if (del[activeShape]) del[activeShape] = del[activeShape].filter((x) => x !== s);
     onChange({ ...ovr, addSizes: add, delSizes: del });
@@ -326,11 +519,24 @@ function PriceEditor({
 
   const delList = ovr.delSizes?.[activeShape] ?? [];
   const addList = ovr.addSizes?.[activeShape] ?? [];
-  // Auto sizes from the matrix, minus removed, plus admin-added.
-  const autoSizes = matrix.rows.map((r) => r.size).filter((s) => !delList.includes(s));
+  // Sizes from the matrix and the snapshot, minus removed, plus admin-added.
+  const snapSizesForShape = Object.entries(snap ?? {})
+    .filter(([key]) => {
+      const [kg, kc, ksh] = key.split('|');
+      const cid = colourId === ALL ? '' : colourId;
+      return ksh === activeShape && (kg === gradeId || kg === '') && (colourId === ALL ? kc === '' : kc === cid || kc === '');
+    })
+    .map(([, r]) => r.size);
+  const baseSizes: string[] = [];
+  const seenNorm = new Set<string>();
+  [...matrix.rows.map((r) => r.size), ...snapSizesForShape].forEach((s) => {
+    const n = snapNorm(s);
+    if (!seenNorm.has(n)) { seenNorm.add(n); baseSizes.push(s); }
+  });
+  const autoSizes = baseSizes.filter((s) => !delList.includes(s));
   const rows = [
     ...autoSizes.map((s) => ({ size: s, added: false })),
-    ...addList.filter((s) => !autoSizes.includes(s)).map((s) => ({ size: s, added: true })),
+    ...addList.filter((s) => !autoSizes.some((a) => snapNorm(a) === snapNorm(s))).map((s) => ({ size: s, added: true })),
   ];
 
   const unitLabel = unit === 'ct' ? '₹ per carat' : unit === 'pkt' ? '₹ per piece · packet sold' : `₹ per ${unit}`;
@@ -342,7 +548,9 @@ function PriceEditor({
         <span className="ad-muted" style={{ fontSize: 13 }}>
           {cat.name}{multiGrade && gradeName ? ` · ${gradeName}` : ''} · <b>{colourName}</b>
         </span>
+        <span className="pr-editor-spacer" />
         {flash && <span className="pr-flash">✓ Saved — live in the Sales App</span>}
+        <button className="ad-btn ad-btn-ghost ad-btn-sm" onClick={onExport}>⬇ Excel — {colourName}</button>
       </div>
 
       <div className="pr-chips">
@@ -372,18 +580,17 @@ function PriceEditor({
           </thead>
           <tbody>
             {rows.map(({ size, added }) => {
-              const autoRow = matrix.rows.find((r) => r.size === size);
-              const auto = autoRow?.rate ?? 0;
-              const autoPcs = autoRow?.pcsPerPacket ?? 0;
+              const auto = autoRate(size);
+              const autoPcs = autoPcsOf(size);
               const r = resolve(size, auto);
-              const pcsVal = ovr.pcs?.[size] ?? autoPcs;
-              const pcsCustom = ovr.pcs?.[size] != null;
+              const pcsVal = ovr.pcs?.[snapNorm(size)] ?? autoPcs;
+              const pcsCustom = ovr.pcs?.[snapNorm(size)] != null;
               const note =
                 r.source === 'own'
                   ? colSpecific ? `custom for ${colourName}` : 'custom · overrides auto'
                   : r.source === 'inherit'
                     ? 'from All-colours rate'
-                    : 'auto from base × size multiplier';
+                    : snapFor(size) ? 'live Sales App price' : 'auto from base × size multiplier';
               return (
                 <tr key={size}>
                   <td>{size}{added && <span className="pr-added"> · added</span>}</td>

@@ -202,3 +202,8 @@ button { font-family: inherit; }
 .pr-added { color: var(--emerald-ink); font-size: 11px; }
 .pr-addrow { display: flex; gap: 10px; align-items: center; margin-top: 14px; }
 .pr-removed { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+/* Colour cards now carry two actions (Edit pricing + ⬇ Excel), so the card
+   itself is a container, not a button. */
+.pr-colour-card { cursor: default; }
+.pr-card-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.pr-editor-spacer { flex: 1 1 auto; }

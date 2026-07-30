@@ -291,6 +291,16 @@ export interface CategoryPricingOverride {
 }
 export type PricingOverrides = Record<string, CategoryPricingOverride>;
 
+// The shop's real price for one priced row, keyed `grade|colour|shape|normSize`
+// (grade/colour empty when the sheet isn't scoped that way). `size` is the
+// original, pretty size string for display/exports.
+export interface SnapshotRow {
+  rate: number;
+  pcs: number;
+  size: string;
+}
+export type PriceSnapshot = Record<string, Record<string, SnapshotRow>>;
+
 /** Product photo map. Key format is fixed by the storefront (see
  *  docs/app/product-images.jsx): `cat|colour|shape`, or `cat|grade|colour|shape`
  *  for grade-scoped categories. */
@@ -629,6 +639,11 @@ export const adminApi = {
   // Pricing overrides per category: { price, pcs, addSizes, delSizes }.
   pricingOverrides: () => api.get<PricingOverrides>('/admin/pricing-overrides'),
   savePricingOverrides: (m: PricingOverrides) => api.put('/admin/pricing-overrides', m),
+
+  // The shop's real, hand-entered prices (Corundum, Colour CZ, Alpanite, …),
+  // published as a static file by scripts/gen-price-snapshot.cjs. The Pricing
+  // editor uses it as the "auto" baseline so it shows true numbers, not ₹0.
+  priceSnapshot: () => api.get<PriceSnapshot>('/price-snapshot.json'),
 
   productImages: () => api.get<ProductImages>('/admin/product-images'),
   saveProductImages: (m: ProductImages) => api.put('/admin/product-images', m),

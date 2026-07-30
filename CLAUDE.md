@@ -19,6 +19,11 @@ When the user uploads a price-list spreadsheet for a colour/grade:
   - Add `alp<Colour>Sizes(shape)` and `alp<Colour>Sku(shape, size)` (returns `{ price, pcsPerPacket, moq, ... }`), exported on `window`.
   - Wire `docs/app/screen-browse.jsx` `SizeOrderPad`: gate `sizes` and `skuFor(size)` to that `color.id`, alongside the green/blue branches.
 - Never fabricate prices. Parse the sheet programmatically and spot-check a few values before committing.
+- **After changing any price sheet in `docs/app/data.jsx`, regenerate the Admin price mirror** so the Admin > Pricing editor and its ⬇ Excel export show the new numbers (they read this file, not the DB):
+  ```bash
+  node scripts/gen-price-snapshot.cjs   # writes docs/price-snapshot.json
+  ```
+  The generator loads `data.jsx` and calls the shop's own `*Sizes`/`*Sku` functions, so the mirror is exact — never re-typed. Commit `docs/price-snapshot.json` alongside the `data.jsx` change. If you add a whole new sheet-priced category, add a descriptor for it in `scripts/gen-price-snapshot.cjs` (`DESCS`).
 - **Autonomy: when the user gives an Excel price file, just do it — parse (RIVEN), spot-check, commit and deploy to `sunny-branch` without asking permission.** Don't ask routine confirmations (which sheet when the rule already answers it, whether to deploy, minor shape/size trimming that follows "keep exactly what's in the file"). Report what was deployed afterwards.
   - **Only pause to ask on a genuine anomaly**, e.g.: data that won't parse or is internally contradictory; prices that look mis-read/implausible (esp. from a *screenshot* — non-monotonic, out-of-sequence); two price sources that materially disagree with no rule to pick between them; or a change that would clearly misprice/mislead if the guess is wrong. Screenshots (not files) still get a quick "show me before deploy".
 - **Default MOQ / pieces-per-box standard (authoritative — from `moq.xlsx` Deccan packing list; supersedes the older `moq_standard.xlsx`)** — use whenever a sheet gives price but no pcs-per-box. Pick the block by shape, then the size (mm; `a*b` = length×width, `a*b*c` = tapered/3-dim). If a size falls outside a block and isn't in the file, use the nearest larger listed size (or ask on a real anomaly).

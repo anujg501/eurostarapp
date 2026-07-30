@@ -43,21 +43,6 @@ export function Dashboard({ onGo }: { onGo: (s: 'catalog' | 'bulk' | 'media' | '
         <p className="ad-muted">Catalog &amp; store overview</p>
       </div>
 
-      <div
-        style={{
-          background: '#0E5C4A',
-          color: '#F6F1E6',
-          padding: '10px 16px',
-          borderRadius: 10,
-          fontWeight: 800,
-          fontSize: 16,
-          marginBottom: 16,
-          display: 'inline-block',
-        }}
-      >
-        🔖 VERSION 1 — live update test
-      </div>
-
       {error && <div className="ad-error">{error}</div>}
 
       <div className="ad-kpis">

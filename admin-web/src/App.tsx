@@ -18,6 +18,7 @@ type ScreenId =
   | 'newcat'
   | 'bulk'
   | 'media'
+  | 'colourimages'
   | 'homethumbs'
   | 'splash'
   | 'repbroadcast'
@@ -32,6 +33,7 @@ const NAV: { id: ScreenId; label: string }[] = [
   { id: 'newcat', label: '＋ Add category' },
   { id: 'bulk', label: 'Bulk upload' },
   { id: 'media', label: 'Product images' },
+  { id: 'colourimages', label: 'Colour images' },
   { id: 'homethumbs', label: 'Home thumbnails' },
   { id: 'splash', label: 'Pop-up window' },
   { id: 'repbroadcast', label: 'Rep broadcast' },
@@ -46,6 +48,7 @@ const TITLES: Record<ScreenId, string> = {
   newcat: '＋ Add category',
   bulk: 'Bulk upload',
   media: 'Product images',
+  colourimages: 'Colour images',
   homethumbs: 'Home thumbnails',
   splash: 'Pop-up window',
   repbroadcast: 'Rep broadcast',
@@ -199,6 +202,7 @@ export function App() {
         {screen === 'newcat' && <AddCategory key="newcat" onDone={() => setScreen('catalog')} />}
         {screen === 'bulk' && <BulkUploadPage />}
         {screen === 'media' && <Media key="products" initialTab="products" />}
+        {screen === 'colourimages' && <Media key="colours" initialTab="colours" />}
         {screen === 'homethumbs' && <Media key="thumbs" initialTab="thumbs" />}
         {screen === 'splash' && <Marketing only="splash" />}
         {screen === 'repbroadcast' && <Marketing only="broadcast" />}

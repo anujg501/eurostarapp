@@ -21,7 +21,7 @@ import { useImageCropper } from './ImageCropper';
 // land directly on the right tab, like the original panel's separate pages.
 // Both sidebar entries are their own pages, like the original panel — no tab
 // pills, page-level headings, the content below.
-export function Media({ initialTab = 'thumbs' }: { initialTab?: 'thumbs' | 'products' } = {}) {
+export function Media({ initialTab = 'thumbs' }: { initialTab?: 'thumbs' | 'products' | 'colours' } = {}) {
   if (initialTab === 'products') {
     return (
       <div className="ad-body">
@@ -30,6 +30,21 @@ export function Media({ initialTab = 'thumbs' }: { initialTab?: 'thumbs' | 'prod
           <p className="ad-muted">Upload a photo per colour + shape — and per grade wherever a Grade selector appears</p>
         </div>
         <ProductPhotos standalone />
+      </div>
+    );
+  }
+
+  if (initialTab === 'colours') {
+    return (
+      <div className="ad-body">
+        <div className="ad-pagehead">
+          <h2>Colour images</h2>
+          <p className="ad-muted">
+            Upload a real photo for each colour — it replaces the plain colour ball on the Sales App's ‘Choose a
+            colour’ step. Square close-ups work best.
+          </p>
+        </div>
+        <ColourImages />
       </div>
     );
   }
@@ -54,16 +69,26 @@ function ThumbCell({
   busy,
   onPick,
   onRemove,
+  swatch,
 }: {
   label: string;
   img?: string;
   busy: boolean;
   onPick: (file: File | undefined) => void;
   onRemove: () => void;
+  swatch?: string;
 }) {
   return (
     <div className="ad-thumb-cell">
-      <div className="ad-thumb-art">{img ? <img src={img} alt={label} /> : <span className="ad-thumb-empty" />}</div>
+      <div className="ad-thumb-art">
+        {img ? (
+          <img src={img} alt={label} />
+        ) : swatch ? (
+          <span className="ad-thumb-empty" style={{ background: swatch }} />
+        ) : (
+          <span className="ad-thumb-empty" />
+        )}
+      </div>
       <div className="ad-thumb-label">{label}</div>
       <div className="ad-thumb-hint">Square image works best</div>
       <div className="ad-row">
@@ -401,6 +426,125 @@ function ProductPhotos({ standalone = false }: { standalone?: boolean } = {}) {
           </p>
         </>
       )}
+    </section>
+  );
+}
+
+// One photo per colour (keyed "cat|colour") — replaces the plain colour swatch
+// on the storefront's "Choose a colour" step. Category picker + a grid of
+// colour cards, reusing the same upload cell as the thumbnails.
+function ColourImages() {
+  const [cats, setCats] = useState<Category[]>([]);
+  const [cat, setCat] = useState('');
+  const [colours, setColours] = useState<Colour[]>([]);
+  const [map, setMap] = useState<Record<string, string>>({});
+  const [error, setError] = useState('');
+  const [busyKey, setBusyKey] = useState('');
+  const [loading, setLoading] = useState(true);
+  const { cropNode, requestCrop } = useImageCropper();
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [c, m] = await Promise.all([adminApi.categories(), adminApi.colourThumbs()]);
+        setCats(c);
+        setMap(m ?? {});
+        setCat(c[0]?.key ?? '');
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Could not load colour images.');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!cat) return;
+    (async () => {
+      try {
+        const cl = await adminApi.colours();
+        setColours(cl[cat] ?? []);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Could not load this category.');
+      }
+    })();
+  }, [cat]);
+
+  const save = async (key: string, dataUrl: string | null) => {
+    setBusyKey(key);
+    setError('');
+    try {
+      const next = { ...map };
+      if (dataUrl) next[key] = dataUrl;
+      else delete next[key];
+      await adminApi.saveColourThumbs(next);
+      setMap(next);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not save that image.');
+    } finally {
+      setBusyKey('');
+    }
+  };
+
+  const pick = async (key: string, file: File | undefined) => {
+    if (!file) return;
+    const cropped = await requestCrop(file);
+    if (!cropped) return; // operator cancelled the crop
+    try {
+      await save(key, await uploadImage(cropped, 'thumbs'));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not read that image.');
+    }
+  };
+
+  if (loading) return <section className="ad-card ad-card-pad ad-muted">Loading…</section>;
+
+  return (
+    <section className="ad-card ad-card-pad">
+      {cropNode}
+      <div className="ad-field-v" style={{ marginBottom: 0, maxWidth: 280 }}>
+        <span className="ad-label">Category</span>
+        <select className="ad-input" style={{ width: '100%' }} value={cat} onChange={(e) => setCat(e.target.value)}>
+          {cats.map((c) => (
+            <option key={c.key} value={c.key}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {error && (
+        <div className="ad-error" style={{ marginTop: 12 }}>
+          {error}
+        </div>
+      )}
+
+      {colours.length === 0 ? (
+        <p className="ad-hint" style={{ marginTop: 14 }}>
+          This category has no colours yet — add them under Catalog → {cats.find((c) => c.key === cat)?.name} first.
+        </p>
+      ) : (
+        <div className="ad-thumb-grid" style={{ marginTop: 16 }}>
+          {colours.map((col) => {
+            const key = `${cat}|${col.id}`;
+            return (
+              <ThumbCell
+                key={col.id}
+                label={col.name}
+                img={map[key]}
+                busy={busyKey === key}
+                onPick={(f) => void pick(key, f)}
+                onRemove={() => void save(key, null)}
+                swatch={col.hex || '#ccc'}
+              />
+            );
+          })}
+        </div>
+      )}
+
+      <p className="ad-hint" style={{ marginTop: 10 }}>
+        Colours without an uploaded photo keep showing the plain colour swatch.
+      </p>
     </section>
   );
 }

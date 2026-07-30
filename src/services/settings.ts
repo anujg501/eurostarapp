@@ -47,6 +47,7 @@ export const KEYS = {
   productImages: 'eurostar-product-images-v1',
   catThumbs: 'eurostar-cat-thumbs-v1',
   shapeThumbs: 'eurostar-shape-thumbs-v1',
+  colourThumbs: 'eurostar-colour-thumbs-v1',
   catOrder: 'eurostar.catOrder.v1',
   splashImage: 'eurostar-splash-image',
   splashActive: 'eurostar-splash-active',

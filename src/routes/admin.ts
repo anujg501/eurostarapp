@@ -55,6 +55,9 @@ kv(adminRouter, '/catalog/grades', KEYS.gradeOverrides, z.record(z.any()), {});
 kv(adminRouter, '/product-images', KEYS.productImages, z.record(z.string()), {});
 kv(adminRouter, '/thumbs/categories', KEYS.catThumbs, z.record(z.string()), {});
 kv(adminRouter, '/thumbs/shapes', KEYS.shapeThumbs, z.record(z.string()), {});
+// Colour images: one photo per colour, keyed "cat|colour" — replaces the plain
+// colour swatch on the storefront's "Choose a colour" step.
+kv(adminRouter, '/thumbs/colours', KEYS.colourThumbs, z.record(z.string()), {});
 
 // LMS interview links: a map of candidate id -> Google Meet (or any) link. The
 // LMS admin sets it; the candidate sees a "Join interview" button.

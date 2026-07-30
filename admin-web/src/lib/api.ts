@@ -606,6 +606,10 @@ export const adminApi = {
   shapeThumbs: () => api.get<Record<string, string>>('/admin/thumbs/shapes'),
   saveShapeThumbs: (m: Record<string, string>) => api.put('/admin/thumbs/shapes', m),
 
+  // Colour images — one photo per colour, keyed "cat|colour".
+  colourThumbs: () => api.get<Record<string, string>>('/admin/thumbs/colours'),
+  saveColourThumbs: (m: Record<string, string>) => api.put('/admin/thumbs/colours', m),
+
   productImages: () => api.get<ProductImages>('/admin/product-images'),
   saveProductImages: (m: ProductImages) => api.put('/admin/product-images', m),
 

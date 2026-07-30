@@ -1316,9 +1316,33 @@ function LmsReports({ cands }) {
 }
 
 /* ===================== NOTIFICATIONS + AUDIT ===================== */
-function LmsNotifications({ notifs, audit }) {
-  const N = notifs || window.LMS_NOTIFICATIONS;
-  const A = audit || window.LMS_AUDIT;
+function LmsNotifications({ notifs, audit, cands }) {
+  const C = cands || window.LMS_CANDIDATES;
+  const eff = (c) => (window.lmsEffectiveStage ? window.lmsEffectiveStage(c) : c.stage);
+  // Build the alerts and audit trail from the real candidate pipeline so they
+  // reflect actual activity (registrations, passes, hires, unlocks) — not the
+  // seed rows. Candidates arrive newest-first from the API, so keep that order.
+  const builtN = [];
+  const builtA = [];
+  C.forEach((c) => {
+    const name = c.name || c.candId || 'Candidate';
+    const lastPass = (c.attempts || []).filter((x) => x.passed).slice(-1)[0];
+    const es = eff(c);
+    if (es === 'hired' && c.repId) {
+      builtN.push({ id: 'n-h-' + c.id, icon: '🎉', who: name, read: true, time: (lastPass && lastPass.date) || c.testUnlockedOn || '', text: 'Hired · Rep ID ' + c.repId + ' issued — WhatsApp sent to staff' });
+      builtA.push({ id: 'a-h-' + c.id, actor: 'Admin (Office)', action: 'Hired & issued Rep ID ' + c.repId, target: name, time: (lastPass && lastPass.date) || '' });
+    } else if (c.score != null && c.score >= window.LMS_PASS_PCT) {
+      builtN.push({ id: 'n-p-' + c.id, icon: '✅', who: name, read: false, time: (lastPass && lastPass.date) || '', text: 'Cleared the assessment with ' + c.score + '% — awaiting approval' });
+    } else if (c.city && c.state && c.exp) {
+      builtN.push({ id: 'n-a-' + c.id, icon: '📥', who: name, read: false, time: c.applied || '', text: 'New application received — ' + c.city + ', ' + c.state });
+    }
+    if (c.unlockedOn) builtA.push({ id: 'a-ut-' + c.id, actor: 'Admin (Office)', action: 'Unlocked training', target: name, time: c.unlockedOn });
+    if (c.testUnlockedOn) builtA.push({ id: 'a-utest-' + c.id, actor: 'Admin (Office)', action: 'Unlocked test', target: name, time: c.testUnlockedOn });
+    if ((c.attempts || []).length > 1) builtA.push({ id: 'a-rt-' + c.id, actor: 'Admin (Office)', action: 'Granted re-test', target: name, time: (c.attempts.slice(-1)[0] || {}).date || '' });
+  });
+  // Never leave the panels blank — fall back to the seed if nothing derived.
+  const N = builtN.length ? builtN.slice(0, 15) : (notifs || window.LMS_NOTIFICATIONS);
+  const A = builtA.length ? builtA.slice(0, 15) : (audit || window.LMS_AUDIT);
   return (
     <div className="lms-body">
       <LmsPageHead title="Notifications & Activity" sub="Triggered alerts and the admin action log" />

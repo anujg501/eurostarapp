@@ -51,7 +51,7 @@ function AdminRoot({ cands, actions, questions, testCfg, settings, notifs, audit
   else if (page === 'training') screen = <LmsTraining />;
   else if (page === 'bank') screen = <LmsQuestionBank />;
   else if (page === 'reports') screen = <LmsReports cands={cands} />;
-  else if (page === 'notifications') screen = <LmsNotifications notifs={notifs} audit={audit} />;
+  else if (page === 'notifications') screen = <LmsNotifications notifs={notifs} audit={audit} cands={cands} />;
   else if (page === 'settings') screen = <LmsSettings settings={settings} actions={actions} />;
   const badgeVal = (n) => n.badgeKey === 'pending' ? pending : n.badgeKey === 'notif' ? unread : 0;
   return (

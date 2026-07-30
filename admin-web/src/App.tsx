@@ -10,11 +10,13 @@ import { Users } from './screens/Users';
 import { Marketing } from './screens/Marketing';
 import { AddCategory } from './screens/AddCategory';
 import { BulkUploadPage } from './screens/BulkUpload';
+import { PriceManager } from './screens/PriceManager';
 import { TweaksPanel } from './TweaksPanel';
 
 type ScreenId =
   | 'dashboard'
   | 'catalog'
+  | 'pricing'
   | 'newcat'
   | 'bulk'
   | 'media'
@@ -30,6 +32,7 @@ type ScreenId =
 const NAV: { id: ScreenId; label: string }[] = [
   { id: 'dashboard', label: 'Dashboard' },
   { id: 'catalog', label: 'Catalog' },
+  { id: 'pricing', label: 'Update price / size / MOQ' },
   { id: 'newcat', label: '＋ Add category' },
   { id: 'bulk', label: 'Bulk upload' },
   { id: 'media', label: 'Product images' },
@@ -45,6 +48,7 @@ const NAV: { id: ScreenId; label: string }[] = [
 const TITLES: Record<ScreenId, string> = {
   dashboard: 'Dashboard',
   catalog: 'Catalog',
+  pricing: 'Update price / size / MOQ',
   newcat: '＋ Add category',
   bulk: 'Bulk upload',
   media: 'Product images',
@@ -196,6 +200,7 @@ export function App() {
 
         {screen === 'dashboard' && <Dashboard onGo={setScreen} />}
         {screen === 'catalog' && <Catalog />}
+        {screen === 'pricing' && <PriceManager />}
         {/* "＋ Add category" is its own full-page questionnaire, like the
             original panel. The Catalog's own "＋ Create new category" button
             still opens the client's dialog. */}

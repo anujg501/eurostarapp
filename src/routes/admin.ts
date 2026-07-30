@@ -58,6 +58,21 @@ kv(adminRouter, '/thumbs/shapes', KEYS.shapeThumbs, z.record(z.string()), {});
 // Colour images: one photo per colour, keyed "cat|colour" — replaces the plain
 // colour swatch on the storefront's "Choose a colour" step.
 kv(adminRouter, '/thumbs/colours', KEYS.colourThumbs, z.record(z.string()), {});
+// Colour swatch photos (spec key), keyed "category|colour" — the canonical store
+// the Sales App "Choose a colour" step and the Pricing colour cards both read.
+kv(adminRouter, '/colour-swatches', KEYS.colourSwatches, z.record(z.string()), {});
+
+// Pricing overrides the Pricing editor writes and the Sales App reads live.
+// Per category: { price:{<key>:n}, pcs:{<size>:n}, addSizes:{<shape>:[]}, delSizes:{<shape>:[]} }.
+const priceOvrSchema = z.record(
+  z.object({
+    price: z.record(z.number()).optional(),
+    pcs: z.record(z.number()).optional(),
+    addSizes: z.record(z.array(z.string())).optional(),
+    delSizes: z.record(z.array(z.string())).optional(),
+  })
+);
+kv(adminRouter, '/pricing-overrides', KEYS.pricingOverrides, priceOvrSchema, {});
 
 // LMS interview links: a map of candidate id -> Google Meet (or any) link. The
 // LMS admin sets it; the candidate sees a "Join interview" button.

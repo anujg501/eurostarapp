@@ -48,6 +48,12 @@ export const KEYS = {
   catThumbs: 'eurostar-cat-thumbs-v1',
   shapeThumbs: 'eurostar-shape-thumbs-v1',
   colourThumbs: 'eurostar-colour-thumbs-v1',
+  // Per-category price / pcs / size-list overrides the Pricing editor writes and
+  // the Sales App reads live. Shape: { [catId]: { price, pcs, addSizes, delSizes } }.
+  pricingOverrides: 'eurostar-pricing-ovr-v1',
+  // Per-colour swatch photo shown on the storefront "Choose a colour" step,
+  // keyed "category|colour" (the Pricing colour cards reuse these).
+  colourSwatches: 'eurostar-color-swatch-v1',
   catOrder: 'eurostar.catOrder.v1',
   splashImage: 'eurostar-splash-image',
   splashActive: 'eurostar-splash-active',

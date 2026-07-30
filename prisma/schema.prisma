@@ -473,15 +473,17 @@ model Practice {
 
 // LMS training module + its practice checklist definition.
 model TrainingModule {
-  id        String   @id @default(cuid())
-  title     String
-  summary   String?
-  videoUrl  String? // link to the training video (hosted externally)
-  checklist String   @default("[]") // JSON-encoded list of checklist items
-  sortOrder Int      @default(0)
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String   @id @default(cuid())
+  title         String
+  summary       String?
+  videoUrl      String? // link to the training video (hosted externally)
+  videoDuration String? // mm:ss, shown next to the video title
+  checklist     String   @default("[]") // JSON-encoded list of checklist items
+  mandatory     Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 // Rep broadcast announcement (single active banner). Written by CRM/Admin,

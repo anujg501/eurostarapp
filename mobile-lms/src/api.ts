@@ -120,7 +120,9 @@ export type TrainingModule = {
   title: string;
   summary?: string | null;
   videoUrl?: string | null;
+  videoDuration?: string | null;
   checklist: string[];
+  mandatory?: boolean;
   sortOrder?: number;
 };
 

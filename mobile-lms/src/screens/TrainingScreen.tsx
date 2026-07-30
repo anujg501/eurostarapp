@@ -91,7 +91,11 @@ export default function TrainingScreen({ navigation }: any) {
   useEffect(() => {
     api.modules()
       .then((list) => {
-        if (!list || !list.length) { setMods(FALLBACK); return; }
+        // An empty list is a real answer, not a failure: it means the office
+        // has not published any modules yet. Showing the built-in demo course
+        // instead would tell the candidate to study material nobody assigned.
+        // FALLBACK is only for "we could not reach the back room at all".
+        if (!list) { setMods(FALLBACK); return; }
         // The back room stores one video per module; the screen groups them the
         // same way the web course does.
         setMods(
@@ -99,7 +103,9 @@ export default function TrainingScreen({ navigation }: any) {
             id: m.id,
             code: `M${i + 1}`,
             title: m.title,
-            videos: [{ id: m.id, title: m.summary || m.title, url: m.videoUrl || undefined }],
+            videos: (m.summary || m.videoUrl)
+              ? [{ id: m.id, title: m.summary || m.title, dur: m.videoDuration || undefined, url: m.videoUrl || undefined }]
+              : [],
             notes: m.checklist || [],
           }))
         );

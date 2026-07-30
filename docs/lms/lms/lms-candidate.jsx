@@ -523,13 +523,28 @@ function CandPractice({ practice, candId }) {
 
 function CandTraining({ go, cand, actions, lang }) {
   const L = lang || 'en';
+  // The curriculum comes from the office's Training Content Manager, not a
+  // hardcoded list — otherwise nothing an admin adds or edits ever reaches a
+  // candidate. Practice simulations still come from the built-in definitions,
+  // matched by position, since the database has no model for them.
+  const [mods, setMods] = cUseState(null);
+  const [loadErr, setLoadErr] = cUseState('');
+  React.useEffect(() => {
+    candApi('GET', '/modules').then(res => {
+      if (res.ok && Array.isArray(res.data)) setMods(res.data);
+      else setLoadErr('Could not load your training modules. Check your connection and try again.');
+    });
+  }, []);
+
   const watched = (cand && cand.watched) || [];
-  const allVids = window.LMS_MODULES.flatMap(m => m.videos.map(v => v.id));
-  const allDone = allVids.every(id => watched.includes(id));
+  const allVids = (mods || []).filter(m => m.summary || m.videoUrl).map(m => m.id);
+  const allDone = allVids.length > 0 && allVids.every(id => watched.includes(id));
   const watch = (vid) => actions && actions.markWatched(cand.id, vid);
+  const watchedCount = allVids.filter(id => watched.includes(id)).length;
+
   return (
     <>
-      <div className="cand-appbar"><button className="menu" onClick={() => go('home')}><CandIcon name="back" /></button><div><h3>Training</h3><small>{watched.length}/{allVids.length} watched</small></div></div>
+      <div className="cand-appbar"><button className="menu" onClick={() => go('home')}><CandIcon name="back" /></button><div><h3>Training</h3><small>{mods ? `${watchedCount}/${allVids.length} watched` : '…'}</small></div></div>
       <div className="cand-pad">
         <div style={{ marginBottom: 16, border: '1px solid #E6C9C9', background: '#FBF1F1', borderRadius: 12, padding: '12px 14px', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
           <span style={{ fontSize: 16, flex: '0 0 auto' }}>⚠️</span>
@@ -537,39 +552,54 @@ function CandTraining({ go, cand, actions, lang }) {
             <b>Confidential training material.</b> Do not record, screenshot, download or share these videos or any company data with anyone outside Eurostar. Violation will lead to <b>termination and legal action</b>.
           </div>
         </div>
-        {window.LMS_MODULES.map(m => (
-          <div key={m.id} style={{ marginBottom: 18 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span className="lms-tag lms-tag-mod">{m.code}</span>
-              <strong style={{ fontSize: 15 }}>{m.title}</strong>
-            </div>
-            {m.videos.map(v => {
-              const done = watched.includes(v.id);
-              return (
-                <div key={v.id} className="cand-vid">
+
+        {mods === null && !loadErr && <div style={{ textAlign: 'center', color: 'var(--lms-meta)', padding: '30px 0' }}>Loading…</div>}
+        {loadErr && <div style={{ background: '#FBEAEA', color: '#B3261E', borderRadius: 12, padding: '12px 14px', fontSize: 13 }}>{loadErr}</div>}
+        {mods && mods.length === 0 && <div style={{ textAlign: 'center', color: 'var(--lms-meta)', padding: '30px 0', fontSize: 13.5 }}>No training modules have been published yet. Please check back soon.</div>}
+
+        {(mods || []).map((m, i) => {
+          const done = watched.includes(m.id);
+          const notes = m.checklist || [];
+          const hasVideo = !!(m.summary || m.videoUrl);
+          const practice = (window.LMS_MODULES[i] || {}).practice;
+          return (
+            <div key={m.id} style={{ marginBottom: 18 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span className="lms-tag lms-tag-mod">M{i + 1}</span>
+                <strong style={{ fontSize: 15 }}>{m.title}</strong>
+              </div>
+              {hasVideo && (
+                <div className="cand-vid">
                   <span className="play" style={done ? { background: '#9A6B12' } : {}}><CandIcon name="play" /></span>
-                  <div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 600 }}>{v.title}</div><div style={{ fontSize: 12, color: 'var(--lms-meta)' }}>{v.dur} · Mandatory{L !== 'en' ? ' · ' + window.lmsLangLabel(L) : ''}</div></div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600 }}>{m.summary || m.title}</div>
+                    <div style={{ fontSize: 12, color: 'var(--lms-meta)' }}>{m.videoDuration ? m.videoDuration + ' · ' : ''}{m.mandatory ? 'Mandatory' : 'Optional'}</div>
+                  </div>
+                  {m.videoUrl && <a href={m.videoUrl} target="_blank" rel="noopener noreferrer" className="lms-btn lms-btn-ghost lms-btn-sm" style={{ textDecoration: 'none' }}>Watch</a>}
                   {done
                     ? <span className="lms-pill" style={{ background: 'var(--lms-green-soft)', color: 'var(--lms-green-ink)', fontSize: 11 }}>✓ Watched</span>
-                    : <button className="lms-btn lms-btn-ghost lms-btn-sm" onClick={() => watch(v.id)}>Mark watched</button>}
+                    : <button className="lms-btn lms-btn-ghost lms-btn-sm" onClick={() => watch(m.id)}>Mark watched</button>}
                 </div>
-              );
-            })}
-            {(() => { const notes = window.lmsNotesFor ? window.lmsNotesFor(m.id, L) : []; return notes.length ? (
-              <div className="cand-notes">
-                <div className="cand-notes-head"><span>📝</span> Module notes</div>
-                <ul>
-                  {notes.map((n, i) => <li key={i}>{n}</li>)}
-                </ul>
-              </div>
-            ) : null; })()}
-            {m.practice && <CandPractice practice={m.practice} candId={cand ? cand.id : 'demo'} />}
-          </div>
-        ))}
-        <div style={{ height: 8, background: '#EEEBE3', borderRadius: 8, margin: '6px 0 14px', overflow: 'hidden' }}><div style={{ height: '100%', width: `${(watched.length / allVids.length) * 100}%`, background: 'var(--lms-green)' }} /></div>
-        {allDone
-          ? <button className="cand-btn green" onClick={() => go('home')}>✓ Training complete — back to dashboard</button>
-          : <div style={{ textAlign: 'center', fontSize: 12.5, color: 'var(--lms-meta)' }}>Watch all videos to complete training. The test unlocks separately when the office opens it.</div>}
+              )}
+              {notes.length > 0 && (
+                <div className="cand-notes">
+                  <div className="cand-notes-head"><span>📝</span> Module notes</div>
+                  <ul>{notes.map((n, ni) => <li key={ni}>{n}</li>)}</ul>
+                </div>
+              )}
+              {practice && <CandPractice practice={practice} candId={cand ? cand.id : 'demo'} />}
+            </div>
+          );
+        })}
+
+        {mods && allVids.length > 0 && (
+          <>
+            <div style={{ height: 8, background: '#EEEBE3', borderRadius: 8, margin: '6px 0 14px', overflow: 'hidden' }}><div style={{ height: '100%', width: `${(watchedCount / allVids.length) * 100}%`, background: 'var(--lms-green)' }} /></div>
+            {allDone
+              ? <button className="cand-btn green" onClick={() => go('home')}>✓ Training complete — back to dashboard</button>
+              : <div style={{ textAlign: 'center', fontSize: 12.5, color: 'var(--lms-meta)' }}>Watch all videos to complete training. The test unlocks separately when the office opens it.</div>}
+          </>
+        )}
       </div>
     </>
   );

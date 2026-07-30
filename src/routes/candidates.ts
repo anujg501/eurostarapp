@@ -299,7 +299,32 @@ candidatesRouter.put(
 // --- Training modules -------------------------------------------------------
 export const modulesRouter = Router();
 
-// GET /modules — training modules (with video links + checklists).
+function serialiseModule(m: {
+  id: string;
+  title: string;
+  summary: string | null;
+  videoUrl: string | null;
+  videoDuration: string | null;
+  checklist: string;
+  mandatory: boolean;
+  sortOrder: number;
+  active: boolean;
+}) {
+  return {
+    id: m.id,
+    title: m.title,
+    summary: m.summary,
+    videoUrl: m.videoUrl,
+    videoDuration: m.videoDuration,
+    checklist: safeList(m.checklist),
+    mandatory: m.mandatory,
+    sortOrder: m.sortOrder,
+    active: m.active,
+  };
+}
+
+// GET /modules — training modules candidates actually see (active only, no
+// auth). Used by both the web and mobile Training screens.
 modulesRouter.get(
   '/',
   asyncHandler(async (_req, res) => {
@@ -307,17 +332,20 @@ modulesRouter.get(
       where: { active: true },
       orderBy: { sortOrder: 'asc' },
     });
-    return ok(
-      res,
-      modules.map((m) => ({
-        id: m.id,
-        title: m.title,
-        summary: m.summary,
-        videoUrl: m.videoUrl,
-        checklist: safeList(m.checklist),
-        sortOrder: m.sortOrder,
-      }))
-    );
+    return ok(res, modules.map(serialiseModule));
+  })
+);
+
+// GET /modules/all — office/admin management view: everything, including
+// modules an admin has switched off, so a hidden module doesn't just vanish
+// from the editor with no way to find and re-enable it.
+modulesRouter.get(
+  '/all',
+  authenticate,
+  requireInternal,
+  asyncHandler(async (_req, res) => {
+    const modules = await prisma.trainingModule.findMany({ orderBy: { sortOrder: 'asc' } });
+    return ok(res, modules.map(serialiseModule));
   })
 );
 
@@ -327,7 +355,9 @@ const moduleSchema = z.object({
   title: z.string().min(1),
   summary: z.string().optional(),
   videoUrl: z.string().optional(),
+  videoDuration: z.string().optional(),
   checklist: z.array(z.string()).optional(),
+  mandatory: z.boolean().optional(),
   sortOrder: z.number().int().optional(),
   active: z.boolean().optional(),
 });
@@ -344,14 +374,30 @@ modulesRouter.put(
       title: d.title,
       summary: d.summary,
       videoUrl: d.videoUrl,
+      videoDuration: d.videoDuration,
       ...(d.checklist ? { checklist: JSON.stringify(d.checklist) } : {}),
+      ...(d.mandatory != null ? { mandatory: d.mandatory } : {}),
       ...(d.sortOrder != null ? { sortOrder: d.sortOrder } : {}),
       ...(d.active != null ? { active: d.active } : {}),
     };
     const m = d.id
       ? await prisma.trainingModule.update({ where: { id: d.id }, data })
       : await prisma.trainingModule.create({ data });
-    return ok(res, { id: m.id, title: m.title, videoUrl: m.videoUrl, checklist: safeList(m.checklist) }, d.id ? 200 : 201);
+    return ok(res, serialiseModule(m), d.id ? 200 : 201);
+  })
+);
+
+// DELETE /modules/:id — office/admin removes a module for good (not just a
+// soft "active: false" hide — Remove in the editor means gone).
+modulesRouter.delete(
+  '/:id',
+  authenticate,
+  requireInternal,
+  asyncHandler(async (req, res) => {
+    const existing = await prisma.trainingModule.findUnique({ where: { id: req.params.id } });
+    if (!existing) return fail(res, 404, 'Module not found');
+    await prisma.trainingModule.delete({ where: { id: req.params.id } });
+    return ok(res, { deleted: true });
   })
 );
 

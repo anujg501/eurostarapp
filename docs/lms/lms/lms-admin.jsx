@@ -361,176 +361,231 @@ function LmsApproval({ cands, actions }) {
 }
 
 // ---------- Training Content Manager ----------
+// Real backend client for the module editor. GET is public (candidates read
+// it too); /all and every write require a staff token.
+function modApi(path, opts) {
+  let token = ''; try { token = localStorage.getItem('eurostar-admin-token') || ''; } catch (e) {}
+  const headers = { accept: 'application/json' };
+  if (token) headers.authorization = 'Bearer ' + token;
+  if (opts && opts.body) headers['content-type'] = 'application/json';
+  return fetch((window.EUROSTAR_API || location.origin) + '/modules' + path, { ...opts, headers })
+    .then(r => r.text().then(t => { let d = null; try { d = t ? JSON.parse(t) : null; } catch (e) {} return { ok: r.ok, status: r.status, data: d }; }))
+    .catch(() => ({ ok: false, status: 0, data: null }));
+}
+
 function LmsTraining() {
-  const [mods, setMods] = aUseState(window.LMS_MODULES.map(m => ({ ...m, on: m.mandatory })));
-  const [compose, setCompose] = aUseState(null); // null | {kind:'module'} | {kind:'video', modId}
+  const [mods, setMods] = aUseState(null); // null = still loading
+  const [loadErr, setLoadErr] = aUseState('');
+  const [compose, setCompose] = aUseState(null); // null | {kind:'module'} | {kind:'video', modId} | {kind:'notes', modId}
   const [mTitle, setMTitle] = aUseState('');
   const [vTitle, setVTitle] = aUseState('');
   const [vDur, setVDur] = aUseState('');
+  const [vUrl, setVUrl] = aUseState('');
   const [vMod, setVMod] = aUseState('');
   const [nText, setNText] = aUseState('');
-  // Which language's notes are shown per module (default English).
-  const [notesLang, setNotesLang] = aUseState({});
-  const LANGS = window.LMS_LANGS || [{ id: 'en', label: 'English', native: 'English' }];
-  const langOf = (modId) => notesLang[modId] || 'en';
-  const setLangOf = (modId, lang) => setNotesLang(s => ({ ...s, [modId]: lang }));
-  const notesFor = (modId, lang) => (window.lmsNotesFor ? window.lmsNotesFor(modId, lang) : []);
-  // A language "has its own" notes only if that language key exists in the i18n table.
-  const langFilled = (lang) => !!(window.LMS_NOTES_I18N && window.LMS_NOTES_I18N[lang]);
-  const toggle = (id) => setMods(ms => ms.map(m => m.id === id ? { ...m, on: !m.on } : m));
-  const today = () => new Date(window.LMS_TODAY).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  const [busy, setBusy] = aUseState(false);
+  const [composeErr, setComposeErr] = aUseState('');
+  const [pendingId, setPendingId] = aUseState(''); // module id mid-toggle/remove
 
-  const openModule = () => { setMTitle(''); setCompose({ kind: 'module' }); };
-  const openVideo = (modId) => { setVTitle(''); setVDur(''); setVMod(modId || (mods[0] && mods[0].id) || ''); setCompose({ kind: 'video', modId }); };
-  const openNotes = (modId, lang) => { setNText(notesFor(modId, lang).join('\n')); setCompose({ kind: 'notes', modId, lang }); };
-  const cancel = () => setCompose(null);
+  const load = () => modApi('/all').then(res => {
+    if (res.ok && Array.isArray(res.data)) { setMods(res.data); setLoadErr(''); }
+    else setLoadErr('Could not load training modules — check your connection and reload.');
+  });
+  React.useEffect(() => { load(); }, []);
+
+  const cancel = () => { setCompose(null); setComposeErr(''); };
+  const openModule = () => { setMTitle(''); setComposeErr(''); setCompose({ kind: 'module' }); };
+  const openVideo = (modId) => {
+    const m = modId && mods && mods.find(x => x.id === modId);
+    setVTitle((m && m.summary) || ''); setVDur((m && m.videoDuration) || ''); setVUrl((m && m.videoUrl) || '');
+    setVMod(modId || (mods && mods[0] && mods[0].id) || ''); setComposeErr('');
+    setCompose({ kind: 'video', modId });
+  };
+  const openNotes = (modId) => {
+    const m = mods.find(x => x.id === modId);
+    setNText((m.checklist || []).join('\n')); setComposeErr('');
+    setCompose({ kind: 'notes', modId });
+  };
 
   const saveModule = () => {
-    const title = mTitle.trim(); if (!title) return;
-    const code = 'M' + (mods.length + 1);
-    setMods(ms => [...ms, { id: code, code, title, mandatory: true, on: true, videos: [] }]);
-    setCompose(null);
+    const title = mTitle.trim(); if (!title || busy) return;
+    setBusy(true); setComposeErr('');
+    modApi('/', { method: 'PUT', body: JSON.stringify({ title, sortOrder: (mods || []).length + 1, mandatory: true, active: true }) }).then(res => {
+      setBusy(false);
+      if (!res.ok || !res.data) { setComposeErr('Could not save — try again.'); return; }
+      setMods(ms => [...(ms || []), res.data]);
+      setCompose(null);
+    });
   };
-  const saveVideo = () => {
-    const title = vTitle.trim(); if (!title) return;
-    const modId = compose.modId || vMod;
-    const dur = vDur.trim() || '00:00';
-    const vid = { id: 'v' + Date.now(), title, dur, added: today(), mandatory: true };
-    setMods(ms => ms.map(m => m.id === modId ? { ...m, videos: [...m.videos, vid] } : m));
-    setCompose(null);
-  };
-  const removeModule = (id) => setMods(ms => ms.filter(m => m.id !== id));
-  const removeVideo = (modId, vid) => setMods(ms => ms.map(m => m.id === modId ? { ...m, videos: m.videos.filter(v => v.id !== vid) } : m));
 
-  // Save edited notes into the in-memory i18n table (demo — persists for the session;
-  // Bright Code wires this to the backend so notes save per module + language).
+  const saveVideo = () => {
+    const title = vTitle.trim(); if (!title || busy) return;
+    const modId = compose.modId || vMod;
+    const mod = mods.find(m => m.id === modId);
+    if (!mod) return;
+    setBusy(true); setComposeErr('');
+    modApi('/', { method: 'PUT', body: JSON.stringify({ id: modId, title: mod.title, summary: title, videoDuration: vDur.trim() || undefined, videoUrl: vUrl.trim() || undefined, checklist: mod.checklist }) }).then(res => {
+      setBusy(false);
+      if (!res.ok || !res.data) { setComposeErr('Could not save — try again.'); return; }
+      setMods(ms => ms.map(m => m.id === modId ? res.data : m));
+      setCompose(null);
+    });
+  };
+
+  const removeVideo = (modId) => {
+    const mod = mods.find(m => m.id === modId); if (!mod) return;
+    setPendingId(modId);
+    modApi('/', { method: 'PUT', body: JSON.stringify({ id: modId, title: mod.title, summary: '', videoUrl: '', videoDuration: '', checklist: mod.checklist }) }).then(res => {
+      setPendingId('');
+      if (res.ok && res.data) setMods(ms => ms.map(m => m.id === modId ? res.data : m));
+      else alert('Could not remove the video — try again.');
+    });
+  };
+
   const saveNotes = () => {
-    const { modId, lang } = compose;
+    if (busy) return;
+    const { modId } = compose;
+    const mod = mods.find(m => m.id === modId); if (!mod) return;
     const lines = nText.split('\n').map(s => s.trim()).filter(Boolean);
-    if (!window.LMS_NOTES_I18N) window.LMS_NOTES_I18N = { en: {} };
-    if (!window.LMS_NOTES_I18N[lang]) window.LMS_NOTES_I18N[lang] = {};
-    window.LMS_NOTES_I18N[lang][modId] = lines;
-    setCompose(null);
-    // nudge a re-render by touching module state
-    setMods(ms => ms.slice());
+    setBusy(true); setComposeErr('');
+    modApi('/', { method: 'PUT', body: JSON.stringify({ id: modId, title: mod.title, summary: mod.summary, videoUrl: mod.videoUrl, videoDuration: mod.videoDuration, checklist: lines }) }).then(res => {
+      setBusy(false);
+      if (!res.ok || !res.data) { setComposeErr('Could not save — try again.'); return; }
+      setMods(ms => ms.map(m => m.id === modId ? res.data : m));
+      setCompose(null);
+    });
+  };
+
+  const toggleMandatory = (id) => {
+    const mod = mods.find(m => m.id === id); if (!mod || pendingId) return;
+    const next = !mod.mandatory;
+    setMods(ms => ms.map(m => m.id === id ? { ...m, mandatory: next } : m)); // optimistic
+    setPendingId(id);
+    modApi('/', { method: 'PUT', body: JSON.stringify({ id, title: mod.title, summary: mod.summary, videoUrl: mod.videoUrl, videoDuration: mod.videoDuration, checklist: mod.checklist, mandatory: next }) }).then(res => {
+      setPendingId('');
+      if (!res.ok) { setMods(ms => ms.map(m => m.id === id ? { ...m, mandatory: !next } : m)); alert('Could not save — try again.'); } // revert
+    });
+  };
+
+  const removeModule = (id, title) => {
+    if (pendingId) return;
+    if (!window.confirm('Remove "' + title + '"? This deletes the module, its video and its notes for good — candidates will no longer see it.')) return;
+    setPendingId(id);
+    modApi('/' + id, { method: 'DELETE' }).then(res => {
+      setPendingId('');
+      if (res.ok) setMods(ms => ms.filter(m => m.id !== id));
+      else alert('Could not remove the module — try again.');
+    });
   };
 
   const fieldStyle = { width: '100%', padding: '9px 12px', border: '1px solid var(--lms-border)', borderRadius: 'var(--r-md)', fontSize: 13.5, fontFamily: 'inherit', background: '#fff' };
+
+  if (mods === null) {
+    return <div className="lms-body"><LmsPageHead title="Training Content Manager" />
+      {loadErr ? <div className="lms-card lms-card-pad" style={{ color: '#9A3B3B' }}>{loadErr}</div> : <div className="lms-muted">Loading…</div>}
+    </div>;
+  }
 
   return (
     <div className="lms-body">
       <LmsPageHead title="Training Content Manager" />
       <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
         <button className="lms-btn lms-btn-ghost" onClick={openModule}>+ Add Module</button>
-        <button className="lms-btn lms-btn-pri" onClick={() => openVideo(null)}>+ Upload Video</button>
+        {mods.length > 0 && <button className="lms-btn lms-btn-pri" onClick={() => openVideo(null)}>+ Set a module's video</button>}
       </div>
 
       {compose && compose.kind === 'module' && (
         <div className="lms-card lms-card-pad" style={{ marginBottom: 16, borderColor: 'var(--lms-green)' }}>
           <strong style={{ display: 'block', marginBottom: 10 }}>New module</strong>
           <input style={fieldStyle} placeholder="Module title — e.g. Objection Handling" value={mTitle} autoFocus onChange={e => setMTitle(e.target.value)} onKeyDown={e => e.key === 'Enter' && saveModule()} />
+          {composeErr && <div style={{ marginTop: 10, color: '#9A3B3B', fontSize: 13 }}>{composeErr}</div>}
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button className="lms-btn lms-btn-pri lms-btn-sm" onClick={saveModule} disabled={!mTitle.trim()} style={!mTitle.trim() ? { opacity: .5 } : {}}>Add module</button>
+            <button className="lms-btn lms-btn-pri lms-btn-sm" onClick={saveModule} disabled={!mTitle.trim() || busy} style={!mTitle.trim() || busy ? { opacity: .5 } : {}}>{busy ? 'Adding…' : 'Add module'}</button>
             <button className="lms-btn lms-btn-ghost lms-btn-sm" onClick={cancel}>Cancel</button>
           </div>
         </div>
       )}
       {compose && compose.kind === 'video' && (
         <div className="lms-card lms-card-pad" style={{ marginBottom: 16, borderColor: 'var(--lms-green)' }}>
-          <strong style={{ display: 'block', marginBottom: 10 }}>{compose.modId ? 'Add video to module' : 'Upload video'}</strong>
+          <strong style={{ display: 'block', marginBottom: 10 }}>{compose.modId ? 'Set this module’s video' : 'Set a module’s video'}</strong>
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10 }}>
             <input style={fieldStyle} placeholder="Video title — e.g. Closing the Sale" value={vTitle} autoFocus onChange={e => setVTitle(e.target.value)} />
             <input style={fieldStyle} placeholder="Length mm:ss" value={vDur} onChange={e => setVDur(e.target.value)} />
           </div>
           {!compose.modId && (
-            <select style={{ ...fieldStyle, marginTop: 10 }} value={vMod} onChange={e => setVMod(e.target.value)}>
-              {mods.map(m => <option key={m.id} value={m.id}>{m.code}: {m.title}</option>)}
+            <select style={{ ...fieldStyle, marginTop: 10 }} value={vMod} onChange={e => { setVMod(e.target.value); const m = mods.find(x => x.id === e.target.value); setVTitle((m && m.summary) || ''); setVDur((m && m.videoDuration) || ''); setVUrl((m && m.videoUrl) || ''); }}>
+              {mods.map((m, i) => <option key={m.id} value={m.id}>M{i + 1}: {m.title}</option>)}
             </select>
           )}
-          <div style={{ marginTop: 10, padding: '14px', border: '1.5px dashed var(--lms-green)', borderRadius: 'var(--r-md)', background: '#F4F6F4', textAlign: 'center', color: 'var(--lms-green-ink)', fontSize: 13 }}>
-            ⬆ Drag &amp; drop a video file here, or click to browse — MP4 · streamed via S3 + CloudFront
-          </div>
+          <input style={{ ...fieldStyle, marginTop: 10 }} placeholder="Video URL — YouTube (unlisted), Vimeo, or wherever it's already hosted" value={vUrl} onChange={e => setVUrl(e.target.value)} />
+          <div className="lms-muted" style={{ fontSize: 12, marginTop: 8 }}>No file upload here — object storage isn't configured for video. Paste a link to a video already hosted elsewhere.</div>
+          {composeErr && <div style={{ marginTop: 10, color: '#9A3B3B', fontSize: 13 }}>{composeErr}</div>}
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button className="lms-btn lms-btn-pri lms-btn-sm" onClick={saveVideo} disabled={!vTitle.trim()} style={!vTitle.trim() ? { opacity: .5 } : {}}>Save video</button>
+            <button className="lms-btn lms-btn-pri lms-btn-sm" onClick={saveVideo} disabled={!vTitle.trim() || busy} style={!vTitle.trim() || busy ? { opacity: .5 } : {}}>{busy ? 'Saving…' : 'Save video'}</button>
             <button className="lms-btn lms-btn-ghost lms-btn-sm" onClick={cancel}>Cancel</button>
           </div>
         </div>
       )}
 
       {compose && compose.kind === 'notes' && (() => {
-        const L = (window.LMS_LANGS || []).find(l => l.id === compose.lang) || { native: 'English' };
         const mod = mods.find(m => m.id === compose.modId) || {};
+        const idx = mods.findIndex(m => m.id === compose.modId);
         return (
         <div className="lms-card lms-card-pad" style={{ marginBottom: 16, borderColor: 'var(--lms-green)' }}>
-          <strong style={{ display: 'block', marginBottom: 4 }}>Notes · {mod.code} {mod.title}</strong>
-          <div className="lms-muted" style={{ fontSize: 12.5, marginBottom: 10 }}>Language: <b>{L.native}</b> · one point per line — this is exactly what the rep reads below the video.</div>
+          <strong style={{ display: 'block', marginBottom: 4 }}>Notes · M{idx + 1} {mod.title}</strong>
+          <div className="lms-muted" style={{ fontSize: 12.5, marginBottom: 10 }}>English only for now · one point per line — this is exactly what the rep reads below the video.</div>
           <textarea style={{ ...fieldStyle, minHeight: 180, resize: 'vertical', lineHeight: 1.5 }} value={nText} autoFocus onChange={e => setNText(e.target.value)} placeholder={'Type one revision point per line...'} />
+          {composeErr && <div style={{ marginTop: 10, color: '#9A3B3B', fontSize: 13 }}>{composeErr}</div>}
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button className="lms-btn lms-btn-pri lms-btn-sm" onClick={saveNotes}>Save notes</button>
+            <button className="lms-btn lms-btn-pri lms-btn-sm" onClick={saveNotes} disabled={busy} style={busy ? { opacity: .5 } : {}}>{busy ? 'Saving…' : 'Save notes'}</button>
             <button className="lms-btn lms-btn-ghost lms-btn-sm" onClick={cancel}>Cancel</button>
           </div>
         </div>
       );})()}
 
-      <div className="lms-muted" style={{ fontSize: 13, marginBottom: 18 }}>{mods.length} modules · each with a Mira video + written notes in every rep language · video streamed via AWS S3 + CloudFront (signed URLs)</div>
-      {mods.map(m => {
-        const lang = langOf(m.id);
-        const notes = notesFor(m.id, lang);
-        const filled = langFilled(lang);
+      <div className="lms-muted" style={{ fontSize: 13, marginBottom: 18 }}>{mods.length} module{mods.length === 1 ? '' : 's'} · video by URL (already hosted elsewhere) · English notes</div>
+      {mods.length === 0 && <div className="lms-card lms-card-pad lms-muted" style={{ textAlign: 'center', padding: '30px 0' }}>No training modules yet — add one to get started.</div>}
+      {mods.map((m, i) => {
+        const notes = m.checklist || [];
+        const hasVideo = !!(m.summary || m.videoUrl);
         return (
-        <div key={m.id} className="lms-card" style={{ marginBottom: 18, overflow: 'hidden' }}>
+        <div key={m.id} className="lms-card" style={{ marginBottom: 18, overflow: 'hidden', opacity: m.active === false ? .6 : 1 }}>
           {/* Module header */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 18px', background: '#F4F6F4', flexWrap: 'wrap' }}>
-            <span className="lms-tag lms-tag-mod">{m.code}</span>
+            <span className="lms-tag lms-tag-mod">M{i + 1}</span>
             <strong style={{ fontSize: 15, flex: 1, minWidth: 120 }}>{m.title}</strong>
-            <button className="lms-btn lms-btn-danger lms-btn-sm" onClick={() => removeModule(m.id)}>Remove</button>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--lms-meta)' }}>Mandatory <button className={'lms-toggle' + (m.on ? ' on' : '')} onClick={() => toggle(m.id)}><span className="knob" /></button></span>
+            {m.active === false && <span className="lms-tag" style={{ background: '#EEE', color: 'var(--lms-meta)' }}>Hidden from candidates</span>}
+            <button className="lms-btn lms-btn-danger lms-btn-sm" disabled={pendingId === m.id} onClick={() => removeModule(m.id, m.title)}>{pendingId === m.id ? '…' : 'Remove'}</button>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--lms-meta)' }}>Mandatory <button className={'lms-toggle' + (m.mandatory ? ' on' : '')} disabled={pendingId === m.id} onClick={() => toggleMandatory(m.id)}><span className="knob" /></button></span>
           </div>
 
-          {/* ---- Part 1 · Mira video ---- */}
+          {/* ---- Part 1 · video ---- */}
           <div style={{ padding: '13px 18px 4px' }}>
-            <div className="lms-part-label"><span className="lms-part-num">1</span> Mira video</div>
+            <div className="lms-part-label"><span className="lms-part-num">1</span> Video</div>
           </div>
-          {m.videos.length === 0 && <div className="lms-muted" style={{ padding: '4px 18px 12px', fontSize: 13 }}>No Mira video yet — add one below.</div>}
-          {m.videos.map(v => (
-            <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 18px', flexWrap: 'wrap' }}>
+          {!hasVideo && <div className="lms-muted" style={{ padding: '4px 18px 12px', fontSize: 13 }}>No video set yet — add one below.</div>}
+          {hasVideo && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 18px', flexWrap: 'wrap' }}>
               <span style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--lms-green)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto' }}>▶</span>
-              <div style={{ flex: 1, minWidth: 120 }}><div style={{ fontWeight: 600 }}>{v.title}</div><div className="lms-muted" style={{ fontSize: 12 }}>{v.dur} · Added {v.added}{v.srcByLang ? ' · localised' : ''}</div></div>
-              <span className="lms-tag lms-tag-mod">Mandatory</span>
-              <button className="lms-btn lms-btn-danger lms-btn-sm" onClick={() => removeVideo(m.id, v.id)}>Remove</button>
+              <div style={{ flex: 1, minWidth: 120 }}>
+                <div style={{ fontWeight: 600 }}>{m.summary || '(no title set)'}</div>
+                <div className="lms-muted" style={{ fontSize: 12 }}>{m.videoDuration || '—'}{m.videoUrl ? '' : ' · no URL set yet'}</div>
+              </div>
+              <button className="lms-btn lms-btn-danger lms-btn-sm" disabled={pendingId === m.id} onClick={() => removeVideo(m.id)}>{pendingId === m.id ? '…' : 'Remove'}</button>
             </div>
-          ))}
-          <div style={{ padding: '4px 18px 14px' }}><button className="lms-btn lms-btn-ghost lms-btn-sm" onClick={() => openVideo(m.id)}>+ Add / replace Mira video</button></div>
+          )}
+          <div style={{ padding: '4px 18px 14px' }}><button className="lms-btn lms-btn-ghost lms-btn-sm" onClick={() => openVideo(m.id)}>+ Add / replace video</button></div>
 
           {/* ---- Part 2 · Written notes ---- */}
           <div style={{ padding: '13px 18px 6px', borderTop: '1px solid var(--lms-divider)', background: '#FBFBF9' }}>
-            <div className="lms-part-label"><span className="lms-part-num">2</span> Written notes <span className="lms-muted" style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>— shown to the rep below the video (in the language they picked at login)</span></div>
+            <div className="lms-part-label"><span className="lms-part-num">2</span> Written notes <span className="lms-muted" style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>— shown to the rep below the video</span></div>
           </div>
           <div style={{ padding: '4px 18px 16px', background: '#FBFBF9' }}>
             {notes.length === 0
               ? <div className="lms-muted" style={{ fontSize: 13, padding: '8px 0' }}>No notes for this module yet.</div>
-              : <ul className="lms-note-list">{notes.map((n, i) => <li key={i}>{n}</li>)}</ul>}
-            <button className="lms-btn lms-btn-ghost lms-btn-sm" style={{ marginTop: 10 }} onClick={() => openNotes(m.id, 'en')}>Edit notes</button>
+              : <ul className="lms-note-list">{notes.map((n, ni) => <li key={ni}>{n}</li>)}</ul>}
+            <button className="lms-btn lms-btn-ghost lms-btn-sm" style={{ marginTop: 10 }} onClick={() => openNotes(m.id)}>Edit notes</button>
           </div>
-
-          {/* ---- Part 3 · Hands-on practice (clickable app simulation) ---- */}
-          {m.practice && (
-            <div style={{ padding: '13px 18px 16px', borderTop: '1px solid var(--lms-divider)' }}>
-              <div className="lms-part-label"><span className="lms-part-num">3</span> Hands-on practice <span className="lms-muted" style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>— a clickable {m.practice.app === 'crm' ? 'CRM' : 'Sales App'} simulation the rep uses right here</span></div>
-              <div className="lms-practice-admin">
-                <div className="lms-practice-admin-head">
-                  <span className="lms-tag lms-tag-mod">{m.practice.app === 'crm' ? 'Rep CRM' : 'Sales App'}</span>
-                  <strong style={{ fontSize: 13.5 }}>{m.practice.label}</strong>
-                  <span className="lms-muted" style={{ fontSize: 12, marginLeft: 'auto' }}>{m.practice.tasks.length} tasks</span>
-                </div>
-                <div className="lms-practice-admin-intro">{m.practice.intro}</div>
-                <ol className="lms-practice-admin-tasks">
-                  {m.practice.tasks.map((t, i) => <li key={i}>{t}</li>)}
-                </ol>
-                <div className="lms-muted" style={{ fontSize: 11.5, marginTop: 8 }}>Dummy data · resets each session — nothing the rep does here reaches the office.</div>
-              </div>
-            </div>
-          )}
         </div>
       );})}
     </div>

@@ -256,6 +256,26 @@ if (typeof win.navPrice === 'function' && typeof win.navSizes === 'function') {
   console.log(`Navratna: ${n} set rows.`);
 }
 
+// Multi-Sapphire — msRate is ₹/carat for Natural (aaa) and ₹/strip for the
+// other grades; grade-scoped, colour-agnostic. No packet column (pcs 0).
+if (typeof win.msRate === 'function' && typeof win.msSizes === 'function' && typeof win.msShapes === 'function') {
+  const grades = GRADES.multisapphire || [];
+  const msOut = {};
+  let n = 0;
+  for (const gr of grades) {
+    for (const sh of win.msShapes(gr.id) || []) {
+      for (const size of win.msSizes(gr.id, sh) || []) {
+        const rate = win.msRate(gr.id, sh, size);
+        if (rate == null || !(rate > 0)) continue;
+        msOut[[gr.id, '', String(sh).toLowerCase(), normSize(size)].join('|')] = { rate, pcs: 0, size };
+        n++;
+      }
+    }
+  }
+  if (n) { snapshot.multisapphire = msOut; rows += n; }
+  console.log(`Multi-Sapphire: ${n} rows (carat + strip).`);
+}
+
 const outPath = path.join(ROOT, 'docs', 'price-snapshot.json');
 fs.writeFileSync(outPath, JSON.stringify(snapshot));
 console.log(`Wrote ${outPath}: ${Object.keys(snapshot).length} categories, ${rows} priced rows.`);

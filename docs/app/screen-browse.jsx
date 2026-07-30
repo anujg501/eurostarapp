@@ -950,8 +950,14 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   const natStrip = msHasSheet && msCaratGrade;       // carats/strip × ₹/ct display
   const msActive = msHasSheet && !msCaratGrade;      // direct ₹/strip display
   const natCarats = (size) => natStrip && window.msCarats ? (window.msCarats(grade.id, shape, size) || 0) : stripCarats(size);
+  // Admin > Pricing edit (₹/ct for Natural, ₹/strip for the other grades) wins
+  // over the RIVEN rate sheet.
+  const msRateFor = (size) => {
+    if (window.priceOverride) { const o = window.priceOverride(category.id, grade && grade.id, color && color.id, shape, size); if (o != null) return o; }
+    return window.msRate ? window.msRate(grade.id, shape, size) : null;
+  };
   // Natural: per-size ₹/ct comes from the rate sheet (falls back to grade base rate).
-  const natRateCt = (size) => natStrip && window.msRate ? (window.msRate(grade.id, shape, size) || product.price) : product.price;
+  const natRateCt = (size) => natStrip ? (msRateFor(size) || product.price) : product.price;
   const msRows = msActive ? window.msSizes(grade.id, shape).map((s) => window.msRow(grade.id, shape, s)) : [];
   const msHasInch = msRows.some((r) => r && r[4] != null);
   const msHasCt = msRows.some((r) => r && r[3] != null);
@@ -1322,7 +1328,7 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
     return stringMode ? pearlStringPrice(size) :
     lotMode ? LOT_PRICE :
     ctLotMode ? OP_LOT_CT * opRowRate(size) :
-    msActive ? window.msRate(grade.id, shape, size) :
+    msActive ? msRateFor(size) :
     natStrip ? Math.round(natCarats(size) * natRateCt(size)) :
     byStrip ? product.price :
     unitRate(product, size, rowUnit(size), category.id);

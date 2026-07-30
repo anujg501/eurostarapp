@@ -25,6 +25,23 @@ const ALL = '__all__';
 // labels it accordingly and hides the editable pieces-per-packet column.
 const FLAT_SET_LABEL: Record<string, string> = { navratna: '₹ per set (9 pieces)' };
 
+// Categories priced by the carat or the strip — never per-piece × packet, so
+// they must never show the editable pieces-per-packet column.
+const CARAT_STRIP = new Set(['moissanite', 'labgrown', 'beads', 'multisapphire']);
+
+// The "Rate ₹" unit for a category (and grade, where it varies by grade).
+function rateUnitLabel(catKey: string, gradeId: string, unit?: string): string {
+  if (FLAT_SET_LABEL[catKey]) return FLAT_SET_LABEL[catKey];
+  if (catKey === 'multisapphire') return gradeId === 'aaa' ? '₹ per carat' : '₹ per strip';
+  return unit === 'ct' ? '₹ per carat' : unit === 'pkt' ? '₹ per piece · packet sold' : `₹ per ${unit}`;
+}
+// Short suffix for the CSV "Rate ₹" header.
+function rateCsvSuffix(catKey: string, gradeId: string, unit?: string): string {
+  if (FLAT_SET_LABEL[catKey]) return '/set';
+  if (catKey === 'multisapphire') return gradeId === 'aaa' ? '/ct' : '/strip';
+  return unit === 'ct' ? '/ct' : '/pc';
+}
+
 // "9.00" → "9.00 mm"; "10x8" / "10*8" → "10×8 mm"; leaves an existing "mm" alone.
 // Used only for the "add size" input.
 function normSize(raw: string): string {
@@ -83,8 +100,6 @@ function snapLook(
   return null;
 }
 
-const rateUnitSuffix = (unit?: string) => (unit === 'ct' ? '/ct' : '/pc');
-
 function csvCell(s: string): string {
   return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
@@ -116,9 +131,8 @@ function exportColourCsv(
   catSnap: Record<string, SnapshotRow> | undefined,
   ovr: CategoryPricingOverride
 ): void {
-  const flat = !!FLAT_SET_LABEL[cat.key];
   const unit = cat.unit || 'pc';
-  const packet = !flat && unit === 'pkt';
+  const packet = !FLAT_SET_LABEL[cat.key] && !CARAT_STRIP.has(cat.key) && unit === 'pkt';
   const cid = colourId === ALL ? '' : colourId;
 
   // Every (shape, size) the snapshot has for this grade/colour scope.
@@ -164,7 +178,7 @@ function exportColourCsv(
     return v != null ? v : auto;
   };
 
-  const header = ['Shape', 'Size', flat ? 'Rate ₹ /set' : `Rate ₹ ${rateUnitSuffix(unit)}`];
+  const header = ['Shape', 'Size', `Rate ₹ ${rateCsvSuffix(cat.key, gradeId, unit)}`];
   if (packet) header.push('Pcs per packet');
   const rows: string[][] = [header];
 
@@ -450,13 +464,14 @@ function PriceEditor({
     return matrix?.rows.find((r) => r.size === size)?.pcsPerPacket ?? 0;
   };
 
-  // Flat-set categories (e.g. Navratna) price by the whole packet, so no
-  // editable pieces-per-packet column.
+  // Flat-set (Navratna) and carat/strip categories price by the whole set / by
+  // the carat or strip — none of them has an editable pieces-per-packet column.
   const flatSet = !!FLAT_SET_LABEL[cat.key];
+  const noPacket = flatSet || CARAT_STRIP.has(cat.key);
   // Whether the category is packet-sold — decides the Pcs column. Driven by the
   // unit/matrix only: the snapshot carries pcsPerPacket 1 for per-piece sheets
   // (e.g. Corundum), which must NOT turn on a packet column.
-  const packet = !flatSet && (unit === 'pkt' || (matrix?.rows.some((r) => r.pcsPerPacket > 0) ?? false));
+  const packet = !noPacket && (unit === 'pkt' || (matrix?.rows.some((r) => r.pcsPerPacket > 0) ?? false));
 
   const keysFor = (size: string) => priceKeys(multiGrade, gradeId, colourId, activeShape, snapNorm(size));
   const writeKey = (size: string) => keysFor(size)[0];
@@ -555,7 +570,7 @@ function PriceEditor({
     ...addList.filter((s) => !autoSizes.some((a) => snapNorm(a) === snapNorm(s))).map((s) => ({ size: s, added: true })),
   ];
 
-  const unitLabel = FLAT_SET_LABEL[cat.key] || (unit === 'ct' ? '₹ per carat' : unit === 'pkt' ? '₹ per piece · packet sold' : `₹ per ${unit}`);
+  const unitLabel = rateUnitLabel(cat.key, gradeId, unit);
 
   return (
     <section className="ad-card ad-card-pad">

@@ -606,42 +606,95 @@ function CandTraining({ go, cand, actions, lang }) {
 }
 
 // ---- Take Test ----
-function CandTest({ go, onSubmit, onAbort, questions, testCfg, cand }) {
-  const cfg = testCfg || window.LMS_TEST_CONFIG;
-  const bank = questions || window.LMS_QUESTIONS;
-  // Build the question set once (count + optional randomize).
-  const [qs] = cUseState(() => {
-    let pool = bank.slice();
-    if (cfg.randomize) { for (let k = pool.length - 1; k > 0; k--) { const j = Math.floor(Math.random() * (k + 1)); [pool[k], pool[j]] = [pool[j], pool[k]]; } }
-    return pool.slice(0, Math.min(cfg.count, pool.length));
-  });
+function CandTest({ go, onSubmit, onAbort, cand }) {
+  // The paper comes from the server WITHOUT the answer key, and the server
+  // marks it. Previously the whole bank — correct answers included — was handed
+  // to the browser and scored there, so the answers were readable in the page
+  // source before the test even started.
+  const [paper, setPaper] = cUseState(null); // null = loading
+  const [cfg, setCfg] = cUseState(null);
+  const [loadErr, setLoadErr] = cUseState('');
   const [started, setStarted] = cUseState(false);
   const [i, setI] = cUseState(0);
   const [ans, setAns] = cUseState({});
-  const [secs, setSecs] = cUseState(cfg.durationMin * 60);
+  const [secs, setSecs] = cUseState(0);
+  const [submitting, setSubmitting] = cUseState(false);
+  const submittedRef = React.useRef(false);
+
+  React.useEffect(() => {
+    candApi('GET', '/questions/paper').then(res => {
+      if (res.ok && res.data && Array.isArray(res.data.questions)) {
+        setPaper(res.data.questions);
+        setCfg(res.data.config);
+        setSecs((res.data.config.durationMin || 15) * 60);
+      } else {
+        setLoadErr('Could not load the test. Check your connection and try again.');
+      }
+    });
+  }, []);
+
+  const qs = paper || [];
   const q = qs[i];
-  const opts = q.type === 'True-False' ? ['True', 'False'] : q.options;
-  const pick = (oi) => setAns(a => ({ ...a, [q.id]: oi }));
   const last = i === qs.length - 1;
-  const score = () => {
-    let correct = 0;
-    qs.forEach(qq => { const a = ans[qq.id]; const right = qq.type === 'True-False' ? (a === 0) === (qq.answer === true) : a === qq.answer; if (right) correct++; });
-    return Math.round((correct / qs.length) * 100);
-  };
-  const submit = () => (onSubmit ? onSubmit(score()) : go('result'));
+  const pick = (oi) => q && setAns(a => ({ ...a, [q.id]: oi }));
+
+  const submit = React.useCallback(() => {
+    // Guarded: the timer hitting zero and a tap on Submit can both fire.
+    if (submittedRef.current) return;
+    submittedRef.current = true;
+    setSubmitting(true);
+    candApi('POST', '/questions/score', { answers: ans }).then(res => {
+      setSubmitting(false);
+      if (!res.ok || !res.data) {
+        submittedRef.current = false;
+        alert('Could not submit your test — check your connection and try again.');
+        return;
+      }
+      if (onSubmit) onSubmit(res.data); else go('result');
+    });
+  }, [ans, onSubmit, go]);
+
   // countdown timer while the test is running
   React.useEffect(() => {
-    if (!started) return;
+    if (!started || submittedRef.current) return;
     if (secs <= 0) { submit(); return; }
     const t = setTimeout(() => setSecs(s => s - 1), 1000);
     return () => clearTimeout(t);
-  }, [started, secs]);
+  }, [started, secs, submit]);
   const mmss = `${String(Math.floor(secs / 60)).padStart(2, '0')}:${String(secs % 60).padStart(2, '0')}`;
 
-  // training-completion gate
+  // training-completion gate — watched ids are module ids, matching Training.
   const watched = (cand && cand.watched) || [];
-  const allVids = window.LMS_MODULES.flatMap(m => m.videos.map(v => v.id));
-  const trainingDone = allVids.every(id => watched.includes(id));
+  const [modIds, setModIds] = cUseState(null);
+  React.useEffect(() => {
+    candApi('GET', '/modules').then(res => {
+      if (res.ok && Array.isArray(res.data)) setModIds(res.data.filter(m => m.summary || m.videoUrl).map(m => m.id));
+      else setModIds([]);
+    });
+  }, []);
+  const trainingDone = modIds !== null && modIds.length > 0 && modIds.every(id => watched.includes(id));
+
+  if (paper === null || modIds === null) {
+    return (
+      <>
+        <div className="cand-appbar"><button className="menu" onClick={() => go('home')}><CandIcon name="back" /></button><div><h3>Take Test</h3></div></div>
+        <div className="cand-pad" style={{ textAlign: 'center', padding: '50px 20px', color: 'var(--lms-meta)' }}>{loadErr || 'Loading…'}</div>
+      </>
+    );
+  }
+
+  if (qs.length === 0) {
+    return (
+      <>
+        <div className="cand-appbar"><button className="menu" onClick={() => go('home')}><CandIcon name="back" /></button><div><h3>Take Test</h3></div></div>
+        <div className="cand-pad" style={{ textAlign: 'center', padding: '40px 20px' }}>
+          <div style={{ fontSize: 34 }}>📝</div>
+          <p className="cand-sub" style={{ marginTop: 12 }}>No assessment has been published yet. Please check back once the office has set it up.</p>
+          <button className="cand-btn" onClick={() => go('home')}>Back to dashboard</button>
+        </div>
+      </>
+    );
+  }
 
   // Start gate — one-shot warning before the test begins.
   if (!started) {
@@ -652,8 +705,8 @@ function CandTest({ go, onSubmit, onAbort, questions, testCfg, cand }) {
           <div style={{ fontSize: 40, marginTop: 16 }}>⚠️</div>
           <div style={{ fontSize: 19, fontWeight: 700, marginTop: 8 }}>One attempt — finish in one sitting</div>
           <p className="cand-sub" style={{ textAlign: 'left', marginTop: 14 }}>
-            • {qs.length} questions{cfg.randomize ? ' (random order)' : ''} · pass mark <b>{cfg.passPct}%</b><br/>
-            • Time limit: <b>{cfg.durationMin} minutes</b> — the test auto-submits when time runs out.<br/>
+            • {qs.length} questions{cfg && cfg.randomize ? ' (random order)' : ''} · pass mark <b>{cfg ? cfg.passPct : 70}%</b><br/>
+            • Time limit: <b>{cfg ? cfg.durationMin : 15} minutes</b> — the test auto-submits when time runs out.<br/>
             • Once you tap <b>Start</b>, finish in a <b>single sitting</b>. Leaving uses up your attempt.<br/>
             • You can only retake it if the office grants a <b>re-test</b>.
           </p>
@@ -673,6 +726,7 @@ function CandTest({ go, onSubmit, onAbort, questions, testCfg, cand }) {
   }
   const abandon = () => { if (onAbort) onAbort(); else go('home'); };
   const lowTime = secs <= 30;
+  const opts = q.type === 'True-False' ? ['True', 'False'] : q.options;
   return (
     <>
       <div className="cand-appbar"><button className="menu" onClick={abandon}><CandIcon name="back" /></button><div style={{ flex: 1 }}><h3>Take Test</h3><small>Question {i + 1} of {qs.length} · ⚠️ one attempt</small></div>
@@ -681,13 +735,13 @@ function CandTest({ go, onSubmit, onAbort, questions, testCfg, cand }) {
       <div className="cand-pad">
         <div style={{ height: 6, background: '#EEEBE3', borderRadius: 6, marginBottom: 20 }}><div style={{ height: '100%', width: `${((i + 1) / qs.length) * 100}%`, background: 'var(--lms-purple)', borderRadius: 6 }} /></div>
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}><span className={'lms-tag ' + (q.type === 'MCQ' ? 'lms-tag-mcq' : 'lms-tag-tf')}>{q.type}</span></div>
-        <div style={{ fontSize: 18, fontWeight: 600, lineHeight: 1.4, marginBottom: 20 }}>{q.q}</div>
+        <div style={{ fontSize: 18, fontWeight: 600, lineHeight: 1.4, marginBottom: 20 }}>{q.prompt}</div>
         {opts.map((o, oi) => (
           <div key={oi} className={'cand-qopt' + (ans[q.id] === oi ? ' sel' : '')} onClick={() => pick(oi)}><span className="rd" />{o}</div>
         ))}
         <div style={{ marginTop: 18 }}>
           {last
-            ? <button className="cand-btn green" disabled={ans[q.id] === undefined} style={ans[q.id] === undefined ? { opacity: .5 } : {}} onClick={submit}>Submit Test</button>
+            ? <button className="cand-btn green" disabled={ans[q.id] === undefined || submitting} style={ans[q.id] === undefined || submitting ? { opacity: .5 } : {}} onClick={submit}>{submitting ? 'Submitting…' : 'Submit Test'}</button>
             : <button className="cand-btn" onClick={() => setI(i + 1)} disabled={ans[q.id] === undefined} style={ans[q.id] === undefined ? { opacity: .5 } : {}}>Next</button>}
         </div>
       </div>
@@ -1029,13 +1083,20 @@ function CandidateApp({ questions, testCfg }) {
     setOnboarding: (id, patch) => setCand(c => c ? { ...c, onboarding: { ...(c.onboarding || {}), ...patch } } : c),
     signConfidentiality: () => setCand(c => c ? { ...c, onboarding: { ...(c.onboarding || {}), confidentiality: true } } : c),
   };
-  const submitTest = (score) => {
+  // `result` is the server's marking ({score, passed, passPct}) — the pass mark
+  // is whatever the office set in Test config, not a hardcoded 70.
+  const submitTest = (result) => {
+    const score = typeof result === 'number' ? result : result.score;
+    const passed = typeof result === 'number' ? score >= (window.LMS_PASS_PCT || 70) : !!result.passed;
     setCand(c => {
       if (!c) return c;
       const n = (c.attempts || []).length + 1;
-      const passed = score >= (window.LMS_PASS_PCT || 70);
       const attempts = [...(c.attempts || []), { n, score, date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }), passed }];
-      return { ...c, score, attempts, testConsumed: true, stage: passed ? 'recommended' : c.stage };
+      const next = { ...c, score, attempts, testConsumed: true, stage: passed ? 'recommended' : c.stage, passPct: typeof result === 'number' ? c.passPct : result.passPct };
+      // The office needs to see the result — it decides who reaches the
+      // approval queue. Without this the score only ever lived in the browser.
+      candApi('POST', '/candidates/me/test-result', { score, passed });
+      return next;
     });
     setScreen('result');
   };
@@ -1045,7 +1106,7 @@ function CandidateApp({ questions, testCfg }) {
   else if (screen === 'apply') view = <CandApply go={go} cand={cand} onSaved={setCand} />;
   else if (screen === 'status') view = <CandStatus go={go} stage={cand.stage} cand={cand} />;
   else if (screen === 'training') view = <CandTraining go={go} cand={cand} actions={localActions} lang={lang || 'en'} />;
-  else if (screen === 'test') view = <CandTest go={go} onSubmit={submitTest} onAbort={() => { localActions.consumeTest(); setScreen('home'); }} questions={questions} testCfg={testCfg} cand={cand} />;
+  else if (screen === 'test') view = <CandTest go={go} onSubmit={submitTest} onAbort={() => { localActions.consumeTest(); setScreen('home'); }} cand={cand} />;
   else if (screen === 'result') view = <CandResult go={go} cand={cand} />;
   else if (screen === 'onboarding') view = <CandOnboarding go={go} cand={cand} actions={localActions} />;
   else view = <CandDashboard cand={cand} go={go} onMenu={() => setMenuOpen(true)} />;

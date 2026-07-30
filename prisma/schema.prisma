@@ -484,6 +484,30 @@ model TrainingModule {
   active        Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  questions TestQuestion[]
+}
+
+// LMS assessment question. Belongs to a training module so the Question Bank
+// can be filtered by module and the paper can be built to cover the course.
+model TestQuestion {
+  id       String @id @default(cuid())
+  moduleId String?
+  module   TrainingModule? @relation(fields: [moduleId], references: [id], onDelete: SetNull)
+
+  // 'MCQ' | 'True-False'
+  type    String @default("MCQ")
+  prompt  String
+  // MCQ: JSON array of option strings. True-False: empty.
+  options String @default("[]")
+  // MCQ: index into options. True-False: 0 = True, 1 = False. Kept as an int
+  // for both so scoring has one code path.
+  answer  Int    @default(0)
+
+  sortOrder Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Rep broadcast announcement (single active banner). Written by CRM/Admin,

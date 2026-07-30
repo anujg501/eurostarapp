@@ -5,6 +5,7 @@ import { prisma } from '../db';
 import { asyncHandler, fail, ok, failValidation } from '../util/http';
 import { AuthedRequest, authenticate, requireCandidate, requireInternal, requireRole } from '../auth/middleware';
 import { ALLOWED_DOC_MIME, MAX_DOC_BYTES, getPrivateFile, putPrivateFile } from '../services/storage';
+import { getSetting, setSetting } from '../services/settings';
 
 export const candidatesRouter = Router();
 
@@ -125,6 +126,45 @@ candidatesRouter.post(
     const c = await prisma.candidate.update({
       where: { id: existing.id },
       data: { city, state, exp, source, stage, data: JSON.stringify(blob) },
+    });
+    return ok(res, serialise(c));
+  })
+);
+
+// POST /candidates/me/test-result — record the candidate's own test result.
+// The score itself is computed server-side (POST /questions/score); this writes
+// it onto their pipeline row so the office actually sees it. Without this the
+// result only ever existed in the candidate's browser.
+const testResultSchema = z.object({
+  score: z.number().int().min(0).max(100),
+  passed: z.boolean(),
+});
+
+candidatesRouter.post(
+  '/me/test-result',
+  ...candidateOnly,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = testResultSchema.safeParse(req.body);
+    if (!parsed.success) return failValidation(res, parsed.error);
+    const { score, passed } = parsed.data;
+
+    const existing = await ownCandidate(req.user!.sub);
+    if (!existing) return fail(res, 404, 'No application found for this account');
+
+    let blob: Record<string, any> = {};
+    if (existing.data) { try { blob = JSON.parse(existing.data); } catch { blob = {}; } }
+    const attempts = Array.isArray(blob.attempts) ? blob.attempts : [];
+    attempts.push({ n: attempts.length + 1, score, passed, date: new Date().toISOString().slice(0, 10) });
+    blob.attempts = attempts;
+    blob.testConsumed = true;
+
+    // Passing moves them into the approval queue. Failing never walks the
+    // stage backwards — the office decides what happens next.
+    const stage = passed ? 'recommended' : existing.stage;
+
+    const c = await prisma.candidate.update({
+      where: { id: existing.id },
+      data: { score, stage, data: JSON.stringify(blob) },
     });
     return ok(res, serialise(c));
   })
@@ -409,3 +449,250 @@ function safeList(text: string): unknown[] {
     return [];
   }
 }
+
+// --- Assessment: question bank + test config --------------------------------
+export const questionsRouter = Router();
+
+// The paper's shape (how many questions, pass mark, duration, shuffle) lives in
+// the shared settings store rather than its own table — it is a single small
+// object, exactly what that store is for.
+const TEST_CONFIG_KEY = 'eurostar-lms-test-config-v1';
+const DEFAULT_TEST_CONFIG = { count: 15, passPct: 70, durationMin: 15, randomize: true };
+
+function serialiseQuestion(q: {
+  id: string;
+  moduleId: string | null;
+  type: string;
+  prompt: string;
+  options: string;
+  answer: number;
+  sortOrder: number;
+  active: boolean;
+}) {
+  return {
+    id: q.id,
+    moduleId: q.moduleId,
+    type: q.type,
+    prompt: q.prompt,
+    options: safeList(q.options) as string[],
+    answer: q.answer,
+    sortOrder: q.sortOrder,
+    active: q.active,
+  };
+}
+
+// GET /questions — the full bank, staff only. This includes the correct
+// answers, so it must never be candidate-readable: the paper is served
+// separately, without them.
+questionsRouter.get(
+  '/',
+  authenticate,
+  requireInternal,
+  asyncHandler(async (req, res) => {
+    const moduleId = typeof req.query.moduleId === 'string' ? req.query.moduleId : undefined;
+    const questions = await prisma.testQuestion.findMany({
+      where: { ...(moduleId ? { moduleId } : {}) },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+    });
+    return ok(res, questions.map(serialiseQuestion));
+  })
+);
+
+// GET /questions/config + PUT /questions/config — the test settings.
+questionsRouter.get(
+  '/config',
+  asyncHandler(async (_req, res) => ok(res, await getSetting(TEST_CONFIG_KEY, DEFAULT_TEST_CONFIG)))
+);
+
+const testConfigSchema = z.object({
+  count: z.number().int().min(1).max(200).optional(),
+  passPct: z.number().int().min(1).max(100).optional(),
+  durationMin: z.number().int().min(1).max(300).optional(),
+  randomize: z.boolean().optional(),
+});
+
+questionsRouter.put(
+  '/config',
+  authenticate,
+  requireInternal,
+  asyncHandler(async (req, res) => {
+    const parsed = testConfigSchema.safeParse(req.body);
+    if (!parsed.success) return failValidation(res, parsed.error);
+    const current = await getSetting(TEST_CONFIG_KEY, DEFAULT_TEST_CONFIG);
+    const next = { ...current, ...parsed.data };
+    await setSetting(TEST_CONFIG_KEY, next);
+    return ok(res, next);
+  })
+);
+
+// GET /questions/paper — what a candidate actually sits.
+//
+// Deliberately strips `answer` before sending. The old screen was handed the
+// whole bank, correct answers included, and marked the paper in the browser —
+// anyone could read the answers out of the page source before starting.
+// Scoring now happens on the server (POST /questions/score).
+questionsRouter.get(
+  '/paper',
+  ...[authenticate, requireCandidate],
+  asyncHandler(async (_req, res) => {
+    const cfg = await getSetting(TEST_CONFIG_KEY, DEFAULT_TEST_CONFIG);
+    const all = await prisma.testQuestion.findMany({
+      where: { active: true },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+    });
+    let pool = all;
+    if (cfg.randomize) {
+      pool = all.slice();
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }
+    }
+    const paper = pool.slice(0, Math.min(cfg.count, pool.length)).map((q) => ({
+      id: q.id,
+      type: q.type,
+      prompt: q.prompt,
+      options: safeList(q.options) as string[],
+    }));
+    return ok(res, { config: cfg, questions: paper });
+  })
+);
+
+// POST /questions/score — mark a submitted paper server-side.
+const scoreSchema = z.object({
+  answers: z.record(z.number().int()),
+});
+
+questionsRouter.post(
+  '/score',
+  ...[authenticate, requireCandidate],
+  asyncHandler(async (req, res) => {
+    const parsed = scoreSchema.safeParse(req.body);
+    if (!parsed.success) return failValidation(res, parsed.error);
+    const submitted = parsed.data.answers;
+    const ids = Object.keys(submitted);
+    if (!ids.length) return fail(res, 400, 'No answers were submitted');
+
+    const cfg = await getSetting(TEST_CONFIG_KEY, DEFAULT_TEST_CONFIG);
+    const questions = await prisma.testQuestion.findMany({ where: { id: { in: ids } } });
+    let correct = 0;
+    for (const q of questions) {
+      if (submitted[q.id] === q.answer) correct++;
+    }
+    const total = questions.length || 1;
+    const score = Math.round((correct / total) * 100);
+    return ok(res, { score, correct, total: questions.length, passPct: cfg.passPct, passed: score >= cfg.passPct });
+  })
+);
+
+// PUT /questions — office/admin create or update one question.
+const questionSchema = z.object({
+  id: z.string().optional(),
+  moduleId: z.string().nullable().optional(),
+  type: z.enum(['MCQ', 'True-False']),
+  prompt: z.string().min(1),
+  options: z.array(z.string()).optional(),
+  answer: z.number().int().min(0),
+  sortOrder: z.number().int().optional(),
+  active: z.boolean().optional(),
+});
+
+questionsRouter.put(
+  '/',
+  authenticate,
+  requireInternal,
+  asyncHandler(async (req, res) => {
+    const parsed = questionSchema.safeParse(req.body);
+    if (!parsed.success) return failValidation(res, parsed.error);
+    const d = parsed.data;
+    // An MCQ needs at least two options, and the answer must point at one of
+    // them — otherwise the question is unanswerable and would mark everyone
+    // wrong once it reached a real paper.
+    const options = d.type === 'MCQ' ? (d.options ?? []).map((o) => o.trim()).filter(Boolean) : [];
+    if (d.type === 'MCQ') {
+      if (options.length < 2) return fail(res, 400, 'An MCQ needs at least two options');
+      if (d.answer >= options.length) return fail(res, 400, 'The correct answer must be one of the options');
+    } else if (d.answer > 1) {
+      return fail(res, 400, 'A True/False answer must be True (0) or False (1)');
+    }
+
+    const data = {
+      moduleId: d.moduleId ?? null,
+      type: d.type,
+      prompt: d.prompt,
+      options: JSON.stringify(options),
+      answer: d.answer,
+      ...(d.sortOrder != null ? { sortOrder: d.sortOrder } : {}),
+      ...(d.active != null ? { active: d.active } : {}),
+    };
+    const q = d.id
+      ? await prisma.testQuestion.update({ where: { id: d.id }, data })
+      : await prisma.testQuestion.create({ data });
+    return ok(res, serialiseQuestion(q), d.id ? 200 : 201);
+  })
+);
+
+// POST /questions/bulk — the CSV / spreadsheet import.
+const bulkSchema = z.object({
+  questions: z.array(
+    z.object({
+      moduleId: z.string().nullable().optional(),
+      type: z.enum(['MCQ', 'True-False']),
+      prompt: z.string().min(1),
+      options: z.array(z.string()).optional(),
+      answer: z.number().int().min(0),
+    })
+  ).min(1),
+});
+
+questionsRouter.post(
+  '/bulk',
+  authenticate,
+  requireInternal,
+  asyncHandler(async (req, res) => {
+    const parsed = bulkSchema.safeParse(req.body);
+    if (!parsed.success) return failValidation(res, parsed.error);
+
+    const base = await prisma.testQuestion.count();
+    const rows: { moduleId: string | null; type: string; prompt: string; options: string; answer: number; sortOrder: number }[] = [];
+    const skipped: string[] = [];
+
+    parsed.data.questions.forEach((q, i) => {
+      const options = q.type === 'MCQ' ? (q.options ?? []).map((o) => o.trim()).filter(Boolean) : [];
+      // Same validity rules as a single save — a bad row is reported, never
+      // imported as an unanswerable question.
+      if (q.type === 'MCQ' && (options.length < 2 || q.answer >= options.length)) {
+        skipped.push(q.prompt.slice(0, 60));
+        return;
+      }
+      if (q.type === 'True-False' && q.answer > 1) {
+        skipped.push(q.prompt.slice(0, 60));
+        return;
+      }
+      rows.push({
+        moduleId: q.moduleId ?? null,
+        type: q.type,
+        prompt: q.prompt,
+        options: JSON.stringify(options),
+        answer: q.answer,
+        sortOrder: base + i + 1,
+      });
+    });
+
+    if (rows.length) await prisma.testQuestion.createMany({ data: rows });
+    return ok(res, { added: rows.length, skipped: skipped.length, skippedPrompts: skipped.slice(0, 10) }, 201);
+  })
+);
+
+// DELETE /questions/:id
+questionsRouter.delete(
+  '/:id',
+  authenticate,
+  requireInternal,
+  asyncHandler(async (req, res) => {
+    const existing = await prisma.testQuestion.findUnique({ where: { id: req.params.id } });
+    if (!existing) return fail(res, 404, 'Question not found');
+    await prisma.testQuestion.delete({ where: { id: req.params.id } });
+    return ok(res, { deleted: true });
+  })
+);

@@ -49,7 +49,7 @@ function AdminRoot({ cands, actions, questions, testCfg, settings, notifs, audit
   else if (page === 'screening') screen = <LmsScreening cands={cands} actions={actions} settings={settings} />;
   else if (page === 'approval') screen = <LmsApproval cands={cands} actions={actions} />;
   else if (page === 'training') screen = <LmsTraining />;
-  else if (page === 'bank') screen = <LmsQuestionBank questions={questions} testCfg={testCfg} actions={actions} />;
+  else if (page === 'bank') screen = <LmsQuestionBank />;
   else if (page === 'reports') screen = <LmsReports cands={cands} />;
   else if (page === 'notifications') screen = <LmsNotifications notifs={notifs} audit={audit} />;
   else if (page === 'settings') screen = <LmsSettings settings={settings} actions={actions} />;

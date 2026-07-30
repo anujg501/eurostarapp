@@ -593,21 +593,91 @@ function LmsTraining() {
 }
 
 // ---------- Question Bank ----------
-function LmsQuestionBank({ questions, testCfg, actions }) {
-  const QALL = questions || window.LMS_QUESTIONS;
-  const cfg = testCfg || window.LMS_TEST_CONFIG;
+// Question-bank API client. Everything here is staff-only — the bank contains
+// the correct answers, so none of it is candidate-readable.
+function qApi(path, opts) {
+  let token = ''; try { token = localStorage.getItem('eurostar-admin-token') || ''; } catch (e) {}
+  const headers = { accept: 'application/json' };
+  if (token) headers.authorization = 'Bearer ' + token;
+  if (opts && opts.body) headers['content-type'] = 'application/json';
+  return fetch((window.EUROSTAR_API || location.origin) + '/questions' + path, { ...opts, headers })
+    .then(r => r.text().then(t => { let d = null; try { d = t ? JSON.parse(t) : null; } catch (e) {} return { ok: r.ok, status: r.status, data: d }; }))
+    .catch(() => ({ ok: false, status: 0, data: null }));
+}
+
+function LmsQuestionBank() {
+  const [QALL, setQALL] = aUseState(null);   // null = loading
+  const [mods, setMods] = aUseState([]);
+  const [cfg, setCfg] = aUseState(null);
+  const [loadErr, setLoadErr] = aUseState('');
   const [mod, setMod] = aUseState('');
   const [limit, setLimit] = aUseState(10);
-  const [editing, setEditing] = aUseState(null); // null | {q...} (new or existing)
+  const [editing, setEditing] = aUseState(null); // null | {…} (new or existing)
   const [showCfg, setShowCfg] = aUseState(false);
-  const modName = (id) => (window.LMS_MODULES.find(m => m.id === id) || {}).title || id;
-  let Q = QALL;
-  if (mod) Q = Q.filter(q => q.mod === mod);
+  const [busy, setBusy] = aUseState(false);
+  const [msg, setMsg] = aUseState('');
+  const [editErr, setEditErr] = aUseState('');
+
+  const load = () => Promise.all([
+    qApi(''),
+    qApi('/config'),
+    modApi('/all'),
+  ]).then(([qr, cr, mr]) => {
+    if (qr.ok && Array.isArray(qr.data)) setQALL(qr.data); else setLoadErr('Could not load the question bank — check your connection and reload.');
+    if (cr.ok && cr.data) setCfg(cr.data);
+    if (mr.ok && Array.isArray(mr.data)) setMods(mr.data);
+  });
+  React.useEffect(() => { load(); }, []);
+
+  const modIndex = (id) => mods.findIndex(m => m.id === id);
+  const modName = (id) => { const m = mods.find(x => x.id === id); return m ? m.title : '—'; };
+  const modCode = (id) => { const i = modIndex(id); return i >= 0 ? 'M' + (i + 1) : '—'; };
+
+  let Q = QALL || [];
+  if (mod) Q = Q.filter(q => q.moduleId === mod);
   const shown = Q.slice(0, limit);
 
-  const blank = () => ({ id: '', mod: window.LMS_MODULES[0].id, type: 'MCQ', q: '', options: ['', '', '', ''], answer: 0 });
+  const blank = () => ({ id: '', moduleId: (mods[0] || {}).id || null, type: 'MCQ', prompt: '', options: ['', '', '', ''], answer: 0 });
   const fieldStyle = { width: '100%', padding: '9px 12px', border: '1px solid var(--lms-border)', borderRadius: 'var(--r-md)', fontSize: 13.5, fontFamily: 'inherit', background: '#fff' };
   const fileRef = React.useRef(null);
+
+  const flash = (t) => { setMsg(t); setTimeout(() => setMsg(''), 5000); };
+
+  const saveQuestion = () => {
+    if (busy || !editing || !editing.prompt.trim()) return;
+    setBusy(true); setEditErr('');
+    const body = {
+      ...(editing.id ? { id: editing.id } : {}),
+      moduleId: editing.moduleId || null,
+      type: editing.type,
+      prompt: editing.prompt.trim(),
+      options: editing.type === 'MCQ' ? editing.options : undefined,
+      answer: editing.answer,
+    };
+    qApi('/', { method: 'PUT', body: JSON.stringify(body) }).then(res => {
+      setBusy(false);
+      if (!res.ok || !res.data) { setEditErr((res.data && res.data.error) || 'Could not save — try again.'); return; }
+      setQALL(qs => editing.id ? qs.map(q => q.id === editing.id ? res.data : q) : [...qs, res.data]);
+      setEditing(null);
+      flash(editing.id ? '✓ Question updated.' : '✓ Question added.');
+    });
+  };
+
+  const deleteQuestion = (id) => {
+    if (!window.confirm('Delete this question? It will be removed from the bank and from future tests.')) return;
+    qApi('/' + id, { method: 'DELETE' }).then(res => {
+      if (res.ok) { setQALL(qs => qs.filter(q => q.id !== id)); flash('✓ Question deleted.'); }
+      else alert('Could not delete — try again.');
+    });
+  };
+
+  const saveCfg = (patch) => {
+    const next = { ...cfg, ...patch };
+    setCfg(next); // optimistic — the inputs must stay responsive while typing
+    qApi('/config', { method: 'PUT', body: JSON.stringify(patch) }).then(res => {
+      if (!res.ok) { flash('✕ Could not save the test settings.'); load(); }
+    });
+  };
 
   // Parse a CSV line respecting quotes.
   const parseCsvLine = (line) => {
@@ -617,40 +687,56 @@ function LmsQuestionBank({ questions, testCfg, actions }) {
       else { if (ch === '"') inQ = true; else if (ch === ',') { out.push(cur); cur = ''; } else cur += ch; } }
     out.push(cur); return out.map(s => s.trim());
   };
-  const modIdOf = (v) => { const s = String(v || '').trim().toUpperCase();
-    const byId = window.LMS_MODULES.find(m => m.id.toUpperCase() === s);
-    const byName = window.LMS_MODULES.find(m => m.title.toUpperCase() === s);
-    return (byId || byName || window.LMS_MODULES[0]).id; };
+  // "M3" or the module's title — matched against the real modules loaded from
+  // the server, not a hardcoded list.
+  const modIdOf = (v) => {
+    const s = String(v || '').trim().toUpperCase();
+    const byCode = s.match(/^M(\d+)$/);
+    if (byCode) { const m = mods[+byCode[1] - 1]; if (m) return m.id; }
+    const byName = mods.find(m => m.title.toUpperCase() === s);
+    return byName ? byName.id : ((mods[0] || {}).id || null);
+  };
   const rowsToQuestions = (rows) => {
     const items = []; let skipped = 0;
     rows.forEach((r, i) => {
       if (!r || r.length < 3) return;
       if (i === 0 && /^(module|mod)$/i.test(String(r[0]).trim())) return; // header
-      const mod = modIdOf(r[0]);
+      const moduleId = modIdOf(r[0]);
       const type = /true|false|tf/i.test(String(r[1])) ? 'True-False' : 'MCQ';
-      const q = String(r[2] || '').trim(); if (!q) { skipped++; return; }
+      const prompt = String(r[2] || '').trim(); if (!prompt) { skipped++; return; }
       if (type === 'MCQ') {
-        const options = [r[3], r[4], r[5], r[6]].map(x => String(x || '').trim());
-        if (options.filter(Boolean).length < 2) { skipped++; return; }
+        const options = [r[3], r[4], r[5], r[6]].map(x => String(x || '').trim()).filter(Boolean);
+        if (options.length < 2) { skipped++; return; }
         const ansRaw = String(r[7] || '').trim();
         let answer = 0;
         if (/^[A-D]$/i.test(ansRaw)) answer = ansRaw.toUpperCase().charCodeAt(0) - 65;
         else if (/^[1-4]$/.test(ansRaw)) answer = +ansRaw - 1;
         else { const idx = options.findIndex(o => o.toLowerCase() === ansRaw.toLowerCase()); answer = idx >= 0 ? idx : 0; }
-        items.push({ mod, type, q, options, answer });
+        if (answer >= options.length) { skipped++; return; }
+        items.push({ moduleId, type, prompt, options, answer });
       } else {
-        const answer = /^t|true|yes|1$/i.test(String(r[7] || r[3] || '').trim());
-        items.push({ mod, type, q, answer });
+        // True stores as 0, False as 1 — same convention the server scores on.
+        const isTrue = /^(t|true|yes|1)$/i.test(String(r[7] || r[3] || '').trim());
+        items.push({ moduleId, type, prompt, answer: isTrue ? 0 : 1 });
       }
     });
     return { items, skipped };
   };
   const onFile = (e) => {
     const f = e.target.files && e.target.files[0]; if (!f) return; const ext = (f.name.split('.').pop() || '').toLowerCase();
-    const handle = (rows) => { const { items, skipped } = rowsToQuestions(rows);
+    const handle = (rows) => {
+      const { items, skipped } = rowsToQuestions(rows);
       if (!items.length) { alert('No valid questions found. Check the template format.'); return; }
-      actions && actions.bulkAddQuestions(items);
-      alert(items.length + ' question(s) added to the bank' + (skipped ? ' · ' + skipped + ' row(s) skipped (missing question/options).' : '.')); };
+      qApi('/bulk', { method: 'POST', body: JSON.stringify({ questions: items }) }).then(res => {
+        if (!res.ok || !res.data) { alert('Upload failed — nothing was imported.'); return; }
+        const d = res.data;
+        // Reload rather than guessing what the server accepted — it applies the
+        // same validity rules and may reject rows this parser let through.
+        load().then(() => {
+          alert(d.added + ' question(s) added' + (d.skipped ? ' · ' + d.skipped + ' row(s) skipped (invalid options or answer).' : '.') + (skipped ? '\n' + skipped + ' row(s) skipped before upload (missing question/options).' : ''));
+        });
+      });
+    };
     const reader = new FileReader();
     if (ext === 'csv') { reader.onload = () => handle(reader.result.split(/\r?\n/).filter(l => l.trim()).map(parseCsvLine)); reader.readAsText(f); }
     else { const go = () => { reader.onload = () => { const wb = window.XLSX.read(new Uint8Array(reader.result), { type: 'array' }); const sh = wb.Sheets[wb.SheetNames[0]]; handle(window.XLSX.utils.sheet_to_json(sh, { header: 1 })); }; reader.readAsArrayBuffer(f); };
@@ -668,42 +754,55 @@ function LmsQuestionBank({ questions, testCfg, actions }) {
     const a = document.createElement('a'); a.href = url; a.download = 'eurostar-question-template.csv'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
+  if (QALL === null) {
+    return <div className="lms-body"><LmsPageHead title="Question Bank" />
+      {loadErr ? <div className="lms-card lms-card-pad" style={{ color: '#9A3B3B' }}>{loadErr}</div> : <div className="lms-muted">Loading…</div>}
+    </div>;
+  }
+
   return (
     <div className="lms-body">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
-        <LmsPageHead title="Question Bank" sub={`${QALL.length} questions · ${window.LMS_MODULES.length} modules · MCQ & True/False`} />
+        <LmsPageHead title="Question Bank" sub={`${QALL.length} question${QALL.length === 1 ? '' : 's'} · ${mods.length} module${mods.length === 1 ? '' : 's'} · MCQ & True/False`} />
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" onChange={onFile} style={{ display: 'none' }} />
           <button className="lms-btn lms-btn-ghost" onClick={downloadTemplate}>↓ Template</button>
           <button className="lms-btn lms-btn-ghost" onClick={() => fileRef.current && fileRef.current.click()}>⬆ Bulk upload</button>
           <button className="lms-btn lms-btn-ghost" onClick={() => setShowCfg(s => !s)}>⚙ Test config</button>
-          <button className="lms-btn lms-btn-pri" onClick={() => setEditing(blank())}>+ Add Question</button>
+          <button className="lms-btn lms-btn-pri" onClick={() => { setEditErr(''); setEditing(blank()); }}>+ Add Question</button>
         </div>
       </div>
 
-      {showCfg && (
+      {msg && <div style={{ marginBottom: 14, padding: '9px 12px', borderRadius: 'var(--r-md)', fontSize: 13, fontWeight: 600, background: msg.startsWith('✓') ? 'var(--lms-green-soft, #E7F5EA)' : '#FBEAEA', color: msg.startsWith('✓') ? 'var(--lms-green-ink, #1E7A3D)' : '#B3261E' }}>{msg}</div>}
+
+      {showCfg && cfg && (
         <div className="lms-card lms-card-pad" style={{ marginBottom: 16, borderColor: 'var(--lms-green)' }}>
           <strong style={{ display: 'block', marginBottom: 12 }}>Assessment settings</strong>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 14 }}>
-            <div className="lms-field"><label>Questions per test</label><input style={fieldStyle} type="number" min="1" max={QALL.length} value={cfg.count} onChange={e => actions && actions.saveTestConfig({ count: Math.max(1, +e.target.value || 1) })} /></div>
-            <div className="lms-field"><label>Pass mark (%)</label><input style={fieldStyle} type="number" min="1" max="100" value={cfg.passPct} onChange={e => actions && actions.saveTestConfig({ passPct: Math.min(100, Math.max(1, +e.target.value || 1)) })} /></div>
-            <div className="lms-field"><label>Time limit (min)</label><input style={fieldStyle} type="number" min="1" value={cfg.durationMin} onChange={e => actions && actions.saveTestConfig({ durationMin: Math.max(1, +e.target.value || 1) })} /></div>
+            <div className="lms-field"><label>Questions per test</label><input style={fieldStyle} type="number" min="1" max={Math.max(1, QALL.length)} value={cfg.count} onChange={e => saveCfg({ count: Math.max(1, +e.target.value || 1) })} /></div>
+            <div className="lms-field"><label>Pass mark (%)</label><input style={fieldStyle} type="number" min="1" max="100" value={cfg.passPct} onChange={e => saveCfg({ passPct: Math.min(100, Math.max(1, +e.target.value || 1)) })} /></div>
+            <div className="lms-field"><label>Time limit (min)</label><input style={fieldStyle} type="number" min="1" value={cfg.durationMin} onChange={e => saveCfg({ durationMin: Math.max(1, +e.target.value || 1) })} /></div>
             <div className="lms-field"><label>Randomize order</label>
-              <button className={'lms-toggle' + (cfg.randomize ? ' on' : '')} style={{ marginTop: 4 }} onClick={() => actions && actions.saveTestConfig({ randomize: !cfg.randomize })}><span className="knob" /></button>
+              <button className={'lms-toggle' + (cfg.randomize ? ' on' : '')} style={{ marginTop: 4 }} onClick={() => saveCfg({ randomize: !cfg.randomize })}><span className="knob" /></button>
             </div>
           </div>
-          <div className="lms-muted" style={{ fontSize: 12, marginTop: 10 }}>The candidate's test draws <b>{cfg.count}</b> question{cfg.count === 1 ? '' : 's'} {cfg.randomize ? 'at random' : 'in order'} from this bank · pass ≥ <b>{cfg.passPct}%</b> · <b>{cfg.durationMin} min</b> limit.</div>
+          <div className="lms-muted" style={{ fontSize: 12, marginTop: 10 }}>The candidate's test draws <b>{cfg.count}</b> question{cfg.count === 1 ? '' : 's'} {cfg.randomize ? 'at random' : 'in order'} from this bank · pass ≥ <b>{cfg.passPct}%</b> · <b>{cfg.durationMin} min</b> limit.
+            {cfg.count > QALL.length && <span style={{ color: '#B3261E' }}> · Only {QALL.length} question{QALL.length === 1 ? '' : 's'} exist, so the test will be that short.</span>}
+          </div>
         </div>
       )}
 
       {editing && (
         <div className="lms-card lms-card-pad" style={{ marginBottom: 16, borderColor: 'var(--lms-green)' }}>
-          <strong style={{ display: 'block', marginBottom: 12 }}>{editing.id ? 'Edit question ' + editing.id : 'New question'}</strong>
+          <strong style={{ display: 'block', marginBottom: 12 }}>{editing.id ? 'Edit question' : 'New question'}</strong>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-            <div className="lms-field"><label>Module</label><select style={fieldStyle} value={editing.mod} onChange={e => setEditing({ ...editing, mod: e.target.value })}>{window.LMS_MODULES.map(m => <option key={m.id} value={m.id}>{m.code}: {m.title}</option>)}</select></div>
+            <div className="lms-field"><label>Module</label><select style={fieldStyle} value={editing.moduleId || ''} onChange={e => setEditing({ ...editing, moduleId: e.target.value || null })}>
+              <option value="">— no module —</option>
+              {mods.map((m, i) => <option key={m.id} value={m.id}>M{i + 1}: {m.title}</option>)}
+            </select></div>
             <div className="lms-field"><label>Type</label><select style={fieldStyle} value={editing.type} onChange={e => setEditing({ ...editing, type: e.target.value, answer: 0 })}><option>MCQ</option><option>True-False</option></select></div>
           </div>
-          <div className="lms-field" style={{ marginBottom: 12 }}><label>Question</label><input style={fieldStyle} value={editing.q} autoFocus onChange={e => setEditing({ ...editing, q: e.target.value })} /></div>
+          <div className="lms-field" style={{ marginBottom: 12 }}><label>Question</label><input style={fieldStyle} value={editing.prompt} autoFocus onChange={e => setEditing({ ...editing, prompt: e.target.value })} /></div>
           {editing.type === 'MCQ' ? (
             <div style={{ display: 'grid', gap: 8 }}>
               {editing.options.map((o, oi) => (
@@ -712,43 +811,48 @@ function LmsQuestionBank({ questions, testCfg, actions }) {
                   <input style={fieldStyle} placeholder={'Option ' + (oi + 1)} value={o} onChange={e => { const opts = editing.options.slice(); opts[oi] = e.target.value; setEditing({ ...editing, options: opts }); }} />
                 </label>
               ))}
-              <span className="lms-muted" style={{ fontSize: 12 }}>● Select the radio next to the correct answer.</span>
+              <span className="lms-muted" style={{ fontSize: 12 }}>● Select the radio next to the correct answer. Blank options are ignored — at least two are needed.</span>
             </div>
           ) : (
             <div style={{ display: 'flex', gap: 10 }}>
               {['True', 'False'].map((o, oi) => (
-                <button key={o} className={'lms-btn lms-btn-sm ' + ((editing.answer === true && oi === 0) || (editing.answer === false && oi === 1) ? 'lms-btn-pri' : 'lms-btn-ghost')} onClick={() => setEditing({ ...editing, answer: oi === 0 })}>{o}</button>
+                <button key={o} className={'lms-btn lms-btn-sm ' + (editing.answer === oi ? 'lms-btn-pri' : 'lms-btn-ghost')} onClick={() => setEditing({ ...editing, answer: oi })}>{o}</button>
               ))}
               <span className="lms-muted" style={{ fontSize: 12, alignSelf: 'center' }}>Pick the correct answer.</span>
             </div>
           )}
+          {editErr && <div style={{ marginTop: 12, color: '#9A3B3B', fontSize: 13 }}>{editErr}</div>}
           <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-            <button className="lms-btn lms-btn-pri lms-btn-sm" disabled={!editing.q.trim()} style={!editing.q.trim() ? { opacity: .5 } : {}} onClick={() => { actions && actions.saveQuestion(editing); setEditing(null); }}>Save</button>
-            <button className="lms-btn lms-btn-ghost lms-btn-sm" onClick={() => setEditing(null)}>Cancel</button>
+            <button className="lms-btn lms-btn-pri lms-btn-sm" disabled={!editing.prompt.trim() || busy} style={!editing.prompt.trim() || busy ? { opacity: .5 } : {}} onClick={saveQuestion}>{busy ? 'Saving…' : 'Save'}</button>
+            <button className="lms-btn lms-btn-ghost lms-btn-sm" onClick={() => { setEditing(null); setEditErr(''); }}>Cancel</button>
           </div>
         </div>
       )}
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '4px 0 18px' }}>
         <button className={'lms-btn lms-btn-sm ' + (mod === '' ? 'lms-btn-pri' : 'lms-btn-ghost')} onClick={() => { setMod(''); setLimit(10); }}>All Modules</button>
-        {window.LMS_MODULES.map(m => (
-          <button key={m.id} className={'lms-btn lms-btn-sm ' + (mod === m.id ? 'lms-btn-pri' : 'lms-btn-ghost')} onClick={() => { setMod(m.id); setLimit(10); }}>{m.code}: {m.title}</button>
+        {mods.map((m, i) => (
+          <button key={m.id} className={'lms-btn lms-btn-sm ' + (mod === m.id ? 'lms-btn-pri' : 'lms-btn-ghost')} onClick={() => { setMod(m.id); setLimit(10); }}>M{i + 1}: {m.title}</button>
         ))}
       </div>
-      {shown.map(q => (
+      {QALL.length === 0 && <div className="lms-card lms-card-pad lms-muted" style={{ textAlign: 'center', padding: '30px 0' }}>No questions yet — add one, or bulk-upload a CSV.</div>}
+      {shown.map((q, qi) => (
         <div key={q.id} className="lms-card lms-card-pad" style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-            <strong style={{ fontSize: 14, color: 'var(--lms-meta)', flex: '0 0 auto', width: 34 }}>{q.id}</strong>
+            <strong style={{ fontSize: 14, color: 'var(--lms-meta)', flex: '0 0 auto', width: 34 }}>Q{QALL.indexOf(q) + 1}</strong>
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-                <span className="lms-tag lms-tag-mod">{modName(q.mod)}</span>
+                <span className="lms-tag lms-tag-mod">{modName(q.moduleId)}</span>
                 <span className={'lms-tag ' + (q.type === 'MCQ' ? 'lms-tag-mcq' : 'lms-tag-tf')}>{q.type}</span>
               </div>
-              <div style={{ fontWeight: 600, fontSize: 15, lineHeight: 1.4 }}>{q.q}</div>
+              <div style={{ fontWeight: 600, fontSize: 15, lineHeight: 1.4 }}>{q.prompt}</div>
+              <div className="lms-muted" style={{ fontSize: 12.5, marginTop: 6 }}>
+                Answer: <b>{q.type === 'MCQ' ? (q.options[q.answer] || '(not set)') : (q.answer === 0 ? 'True' : 'False')}</b>
+              </div>
             </div>
             <div style={{ display: 'flex', gap: 8, flex: '0 0 auto' }}>
-              <button className="lms-btn lms-btn-ghost lms-btn-sm" onClick={() => setEditing({ ...q, options: q.options ? q.options.slice() : ['', '', '', ''] })}>Edit</button>
-              <button className="lms-btn lms-btn-danger lms-btn-sm" onClick={() => actions && actions.deleteQuestion(q.id)}>Delete</button>
+              <button className="lms-btn lms-btn-ghost lms-btn-sm" onClick={() => { setEditErr(''); setEditing({ ...q, options: (q.options && q.options.length ? q.options.slice() : ['', '', '', '']) }); }}>Edit</button>
+              <button className="lms-btn lms-btn-danger lms-btn-sm" onClick={() => deleteQuestion(q.id)}>Delete</button>
             </div>
           </div>
         </div>

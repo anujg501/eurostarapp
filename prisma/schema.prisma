@@ -24,9 +24,10 @@ model User {
   role         String // "customer" | "rep" | "office"
   name         String
   phone        String?  @unique // customers log in with phone + OTP
+  email        String?  @unique // LMS candidates log in with email + password
   gstin        String? // captured at first customer sign-up
   userId       String?  @unique // login id for rep/office (e.g. "REP001", "office")
-  passwordHash String? // set for rep/office only
+  passwordHash String? // set for rep/office, and for candidates who set one
   repId        String? // if this user IS a rep, their public rep id
   active       Boolean  @default(true)
   // Rep-only settings, managed from the CRM's "Reps & commission" screen.

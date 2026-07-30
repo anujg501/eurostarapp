@@ -1,23 +1,109 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Linking } from 'react-native';
-import { api, TrainingModule } from '../api';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Feather } from '@expo/vector-icons';
+import { api } from '../api';
 import { theme } from '../theme';
 import { useCandidate } from '../state';
+import MiraFab from '../components/MiraFab';
 
-// Shown if the back room has no modules configured yet, so the flow still works.
-const FALLBACK: TrainingModule[] = [
-  { id: 'm1', title: 'Welcome to Eurostar', summary: 'Who we are and what we sell — CZ, moissanite & coloured gemstones.', videoUrl: '', checklist: [] },
-  { id: 'm2', title: 'The product range', summary: 'Categories, grades, shapes and how customers order.', videoUrl: '', checklist: [] },
-  { id: 'm3', title: 'Selling & field visits', summary: 'Check-in/out, logging payments and building trust.', videoUrl: '', checklist: [] },
+type Vid = { id: string; title: string; dur?: string; url?: string };
+type Mod = { id: string; code: string; title: string; videos: Vid[]; notes: string[] };
+
+// Shown when the back room has no modules configured yet, so training still
+// works. Mirrors the web candidate course (docs/lms/lms/lms-data.jsx).
+const FALLBACK: Mod[] = [
+  {
+    id: 'M1', code: 'M1', title: 'Welcome to Eurostar',
+    videos: [{ id: 'v1', title: 'Who we are — 40 years of trust', dur: '04:00' }],
+    notes: [
+      'Eurostar has supplied the jewellery trade since 1980 — 40+ years; authorised distributor for the Asia-Pacific region.',
+      'We sell to manufacturers & wholesalers, NOT the public — the people who set our stones into rings, pendants and bangles.',
+      'Our three promises: consistent quality · consistent sizing · reliable supply.',
+      'Two-sentence intro to memorise: "I’m from Eurostar. We’ve supplied calibrated stones to the trade since 1980 — moissanite, zirconia, pearls, natural stones — all in matched sizes, ready for casting."',
+      'The one big idea behind everything: specials open the door → the relationship builds trust → White Round Zirconia is the goal.',
+    ],
+  },
+  {
+    id: 'M2', code: 'M2', title: 'The Product Range — Overview',
+    videos: [{ id: 'v2', title: 'Product families & the four ways we sell', dur: '10:00' }],
+    notes: [
+      'The four ways we sell: Piece (pc) · Carat (ct, by weight) · Packet (pkt) · Strip.',
+      'Packet model: the pieces inside one packet change with size — small size = many pieces, big size = few.',
+      'Carat is used for moissanite, lab-grown and beads; strip is used for Multi Sapphire.',
+      'Our families at a glance: showpieces (moissanite, HD zirconia, alpanite, lab-grown), everyday workhorses (Colour CZ, pearls, MOP, corundums, cabochons, navratnas), and the volume core — White Round CZ.',
+    ],
+  },
+  {
+    id: 'M3', code: 'M3', title: 'Product Knowledge — Deep Dive',
+    videos: [{ id: 'v3', title: 'Know every product — grade by grade', dur: '16:00' }],
+    notes: [
+      'White Round is your volume — but big business often comes from the OTHER products. Know them all and pitch what fits the customer.',
+      'MOISSANITE: diamond alternative, extreme sparkle & hardness. Colour grades DEF and GH; clarity VVS. Sold by carat; larger stones by piece.',
+      'HD (HIGH DENSITY) ZIRCONIA: ~25% heavier than normal CZ for the same size — gives gold jewellers more gross weight.',
+      'ALPANITE: Eurostar’s proprietary wax-castable coloured synthetics — full colour range, economical.',
+      'LAB-GROWN / CREATED gems: IGI-certifiable, real gemstone properties at a fraction of natural cost.',
+      'COLOUR CZ: calibrated cubic zirconia in 80+ heat-stable shades — the everyday workhorse across all metals.',
+      'Golden habit: match the product to the customer’s metal, budget and product line. Every category is a chance for a big order.',
+    ],
+  },
+  {
+    id: 'M4', code: 'M4', title: 'Hero Product — White Round CZ',
+    videos: [{ id: 'v4', title: 'The grades & the metal-first decision tree', dur: '12:00' }],
+    notes: [
+      'White Round CZ is the centre of our business — your steady volume and commission. Know it cold.',
+      'Ask the METAL first — it drives the whole grade choice.',
+      'GOLD (gross wt): HD Zirconia → Elements H/HH/HEA → GQ. GOLD (net wt): Elements Thin/Normal, GQ, Euro AAA, Laser.',
+      'SILVER: GQ → Euro AAA → Prizma → Eternal → Rajkot.',
+      'BRASS (imitation): Rajkot Silver / Shampoo Packet only.',
+      'Grades finest → cheapest: Eurostar Laser Engraved · Elements · GQ · Euro AAA · Prizma · Eternal · Rajkot.',
+      'Pitch: fully castable, withstands 1000°C+, doesn’t break in hand setting. Invite a small trial — never attack the competitor.',
+    ],
+  },
+  {
+    id: 'M5', code: 'M5', title: 'Knowing Your Customer',
+    videos: [{ id: 'v5', title: 'Who buys, and what they care about', dur: '07:00' }],
+    notes: [
+      'Our customers are manufacturers & wholesalers — they buy to set & resell, not to wear.',
+      'They judge on cost per piece, consistency across a bulk order, and casting behaviour — not retail display.',
+      'Premium gold & diamond houses → Elements / Euro AAA, Moissanite, IGI lab-grown.',
+      'Fine & mid gold / premium silver → GQ, Euro AAA, Prizma.',
+      'Mass silver & imitation → Prizma, Eternal, Alpanite economy, Rajkot Zirconia.',
+      'Golden listening rule: in the first meeting, ask and listen more than you talk.',
+    ],
+  },
+  {
+    id: 'M6', code: 'M6', title: 'Marketing & Building Your Territory',
+    videos: [{ id: 'v6', title: 'Finding customers & covering your market', dur: '09:00' }],
+    notes: [],
+  },
+  {
+    id: 'M7', code: 'M7', title: 'The Eurostar Selling Strategy',
+    videos: [{ id: 'v7', title: 'Relationship first, white round next', dur: '09:00' }],
+    notes: [],
+  },
 ];
 
 export default function TrainingScreen({ navigation }: any) {
   const { cand, markWatched } = useCandidate();
-  const [mods, setMods] = useState<TrainingModule[] | null>(null);
+  const [mods, setMods] = useState<Mod[] | null>(null);
 
   useEffect(() => {
     api.modules()
-      .then((m) => setMods(m && m.length ? m : FALLBACK))
+      .then((list) => {
+        if (!list || !list.length) { setMods(FALLBACK); return; }
+        // The back room stores one video per module; the screen groups them the
+        // same way the web course does.
+        setMods(
+          list.map((m, i) => ({
+            id: m.id,
+            code: `M${i + 1}`,
+            title: m.title,
+            videos: [{ id: m.id, title: m.summary || m.title, url: m.videoUrl || undefined }],
+            notes: m.checklist || [],
+          }))
+        );
+      })
       .catch(() => setMods(FALLBACK));
   }, []);
 
@@ -25,90 +111,168 @@ export default function TrainingScreen({ navigation }: any) {
     return <View style={styles.center}><ActivityIndicator color={theme.purple} size="large" /></View>;
   }
 
-  const done = mods.every((m) => cand.watched.includes(m.id));
-  const watchedCount = mods.filter((m) => cand.watched.includes(m.id)).length;
+  const allVids = mods.flatMap((m) => m.videos.map((v) => v.id));
+  const watchedCount = allVids.filter((id) => cand.watched.includes(id)).length;
+  const allDone = allVids.length > 0 && watchedCount === allVids.length;
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 18 }}>
-      <View style={styles.progressCard}>
-        <Text style={styles.progressTitle}>{watchedCount} / {mods.length} modules watched</Text>
-        <View style={styles.bar}>
-          <View style={[styles.barFill, { width: `${(watchedCount / mods.length) * 100}%` }]} />
-        </View>
-      </View>
-
-      <View style={styles.confidential}>
-        <Text style={styles.confTxt}>
-          <Text style={{ fontWeight: '800' }}>Confidential training material.</Text> Do not record,
-          screenshot or share these videos or any company data with anyone outside Eurostar.
-        </Text>
-      </View>
-
-      {mods.map((m, i) => {
-        const watched = cand.watched.includes(m.id);
-        return (
-          <View key={m.id} style={styles.card}>
-            <View style={styles.cardHead}>
-              <View style={styles.num}><Text style={styles.numTxt}>{i + 1}</Text></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitle}>{m.title}</Text>
-                {!!m.summary && <Text style={styles.cardSummary}>{m.summary}</Text>}
-              </View>
-              {watched && <Text style={styles.check}>✓</Text>}
-            </View>
-            <View style={styles.actions}>
-              {!!m.videoUrl && (
-                <TouchableOpacity style={styles.playBtn} onPress={() => Linking.openURL(m.videoUrl!)}>
-                  <Text style={styles.playTxt}>▶ Watch video</Text>
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity
-                style={[styles.markBtn, watched && styles.markBtnDone]}
-                onPress={() => markWatched(m.id)}
-                disabled={watched}
-              >
-                <Text style={[styles.markTxt, watched && { color: theme.green }]}>
-                  {watched ? 'Completed' : 'Mark as watched'}
-                </Text>
-              </TouchableOpacity>
-            </View>
+    <View style={{ flex: 1, backgroundColor: theme.surface }}>
+      <SafeAreaView edges={['top']} style={styles.appbarWrap}>
+        <View style={styles.appbar}>
+          <TouchableOpacity style={styles.back} onPress={() => navigation.goBack()} accessibilityLabel="Back">
+            <Feather name="chevron-left" size={20} color={theme.ink} />
+          </TouchableOpacity>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.appbarTitle}>Training</Text>
+            <Text style={styles.appbarSub}>{watchedCount}/{allVids.length} watched</Text>
           </View>
-        );
-      })}
+        </View>
+      </SafeAreaView>
 
-      <TouchableOpacity
-        style={[styles.cta, !done && styles.ctaOff]}
-        onPress={() => done && navigation.replace('Test')}
-        disabled={!done}
-      >
-        <Text style={styles.ctaTxt}>{done ? 'Continue to assessment →' : 'Watch all modules to unlock the test'}</Text>
-      </TouchableOpacity>
-    </ScrollView>
+      <ScrollView contentContainerStyle={styles.pad}>
+        <View style={styles.confid}>
+          <Text style={{ fontSize: 16 }}>⚠️</Text>
+          <Text style={styles.confidTxt}>
+            <Text style={{ fontWeight: '700' }}>Confidential training material.</Text> Do not record,
+            screenshot, download or share these videos or any company data with anyone outside Eurostar.
+            Violation will lead to <Text style={{ fontWeight: '700' }}>termination and legal action</Text>.
+          </Text>
+        </View>
+
+        {mods.map((m) => (
+          <View key={m.id} style={{ marginBottom: 18 }}>
+            <View style={styles.modHead}>
+              <View style={styles.tag}><Text style={styles.tagTxt}>{m.code}</Text></View>
+              <Text style={styles.modTitle}>{m.title}</Text>
+            </View>
+
+            {m.videos.map((v) => {
+              const done = cand.watched.includes(v.id);
+              return (
+                <View key={v.id} style={styles.vid}>
+                  <TouchableOpacity
+                    style={[styles.play, done && styles.playDone]}
+                    onPress={() => v.url && Linking.openURL(v.url)}
+                    disabled={!v.url}
+                  >
+                    <Feather name="play" size={18} color="#fff" />
+                  </TouchableOpacity>
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.vidTitle}>{v.title}</Text>
+                    <Text style={styles.vidMeta}>{v.dur ? `${v.dur} · Mandatory` : 'Mandatory'}</Text>
+                  </View>
+
+                  {done ? (
+                    <View style={styles.watchedPill}><Text style={styles.watchedTxt}>✓ Watched</Text></View>
+                  ) : (
+                    <TouchableOpacity style={styles.markBtn} onPress={() => markWatched(v.id)}>
+                      <Text style={styles.markTxt}>Mark watched</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              );
+            })}
+
+            {m.notes.length > 0 && (
+              <View style={styles.notes}>
+                <Text style={styles.notesHead}>📝  MODULE NOTES</Text>
+                {m.notes.map((n, i) => (
+                  <View key={i} style={styles.noteRow}>
+                    <Text style={styles.bullet}>•</Text>
+                    <Text style={styles.noteTxt}>{n}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        ))}
+
+        <View style={styles.bar}>
+          <View style={[styles.barFill, { width: `${allVids.length ? (watchedCount / allVids.length) * 100 : 0}%` }]} />
+        </View>
+
+        {allDone ? (
+          <TouchableOpacity style={styles.cta} onPress={() => navigation.goBack()}>
+            <Text style={styles.ctaTxt}>✓ Training complete — back to dashboard</Text>
+          </TouchableOpacity>
+        ) : (
+          <Text style={styles.hint}>
+            Watch all videos to complete training. The test unlocks separately when the office opens it.
+          </Text>
+        )}
+      </ScrollView>
+
+      <MiraFab who={cand.name || undefined} />
+    </View>
   );
 }
 
+// Mirrors .cand-appbar / .cand-vid / .cand-notes / .lms-tag-mod in lms.css.
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  progressCard: { backgroundColor: theme.surface, borderRadius: theme.radius.lg, borderWidth: 1, borderColor: theme.border, padding: 16, marginBottom: 14 },
-  progressTitle: { fontSize: 15, fontWeight: '700', color: theme.ink, marginBottom: 10 },
-  bar: { height: 8, backgroundColor: theme.paper, borderRadius: 999, overflow: 'hidden' },
-  barFill: { height: 8, backgroundColor: theme.green, borderRadius: 999 },
-  confidential: { backgroundColor: '#FBEDED', borderRadius: theme.radius.md, padding: 12, marginBottom: 16 },
-  confTxt: { fontSize: 11.5, color: theme.maroonInk, lineHeight: 17 },
-  card: { backgroundColor: theme.surface, borderRadius: theme.radius.lg, borderWidth: 1, borderColor: theme.border, padding: 14, marginBottom: 12 },
-  cardHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  num: { width: 28, height: 28, borderRadius: 14, backgroundColor: theme.purpleSoft, alignItems: 'center', justifyContent: 'center' },
-  numTxt: { color: theme.purpleInk, fontWeight: '800', fontSize: 13 },
-  cardTitle: { fontSize: 15.5, fontWeight: '700', color: theme.ink },
-  cardSummary: { fontSize: 12.5, color: theme.meta, marginTop: 3, lineHeight: 18 },
-  check: { color: theme.green, fontSize: 20, fontWeight: '800' },
-  actions: { flexDirection: 'row', gap: 10, marginTop: 12 },
-  playBtn: { backgroundColor: theme.purpleSoft, borderRadius: theme.radius.md, paddingHorizontal: 14, paddingVertical: 9 },
-  playTxt: { color: theme.purpleInk, fontWeight: '700', fontSize: 13 },
-  markBtn: { flex: 1, borderWidth: 1, borderColor: theme.purple, borderRadius: theme.radius.md, paddingVertical: 9, alignItems: 'center' },
-  markBtnDone: { borderColor: theme.green, backgroundColor: theme.greenSoft },
-  markTxt: { color: theme.purpleInk, fontWeight: '700', fontSize: 13 },
-  cta: { backgroundColor: theme.purple, borderRadius: theme.radius.md, paddingVertical: 15, alignItems: 'center', marginTop: 8 },
-  ctaOff: { backgroundColor: theme.border },
-  ctaTxt: { color: '#fff', fontWeight: '800', fontSize: 14.5 },
+
+  appbarWrap: { backgroundColor: theme.surface },
+  appbar: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: 18, paddingVertical: 16,
+    borderBottomWidth: 1, borderBottomColor: theme.divider,
+  },
+  back: {
+    width: 38, height: 38, borderRadius: 10, borderWidth: 1, borderColor: theme.border,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: theme.surface,
+  },
+  appbarTitle: { fontSize: 17, fontWeight: '700', color: theme.ink },
+  appbarSub: { fontSize: 12, color: theme.meta, marginTop: 1 },
+
+  pad: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 96, backgroundColor: theme.surface },
+
+  confid: {
+    flexDirection: 'row', gap: 10, alignItems: 'flex-start', marginBottom: 16,
+    borderWidth: 1, borderColor: '#E6C9C9', backgroundColor: '#FBF1F1', borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 12,
+  },
+  confidTxt: { flex: 1, fontSize: 12, color: '#9A3B3B', lineHeight: 18 },
+
+  modHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  tag: { backgroundColor: '#EDEAE2', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 3 },
+  tagTxt: { fontSize: 11.5, fontWeight: '600', color: theme.ink2 },
+  modTitle: { flex: 1, fontSize: 15, fontWeight: '700', color: theme.ink },
+
+  // .cand-vid
+  vid: {
+    flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14,
+    borderBottomWidth: 1, borderBottomColor: theme.divider,
+  },
+  play: { width: 44, height: 44, borderRadius: 22, backgroundColor: theme.green, alignItems: 'center', justifyContent: 'center' },
+  playDone: { backgroundColor: '#9A6B12' },
+  vidTitle: { fontSize: 14, fontWeight: '600', color: theme.ink },
+  vidMeta: { fontSize: 12, color: theme.meta, marginTop: 2 },
+  watchedPill: { backgroundColor: theme.greenSoft, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+  watchedTxt: { fontSize: 11, fontWeight: '700', color: theme.greenInk },
+  markBtn: {
+    borderWidth: 1, borderColor: theme.border, borderRadius: 8,
+    paddingHorizontal: 12, paddingVertical: 8, backgroundColor: theme.surface,
+  },
+  markTxt: { fontSize: 12.5, fontWeight: '600', color: theme.ink2 },
+
+  // .cand-notes
+  notes: {
+    backgroundColor: theme.greenSoft, borderWidth: 1, borderColor: '#C9E3D3', borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 12, marginTop: 8,
+  },
+  notesHead: {
+    fontSize: 11, fontWeight: '700', color: theme.greenInk,
+    letterSpacing: 0.6, marginBottom: 8,
+  },
+  noteRow: { flexDirection: 'row', gap: 8, marginBottom: 7 },
+  bullet: { fontSize: 12.5, color: theme.ink2, lineHeight: 19 },
+  noteTxt: { flex: 1, fontSize: 12.5, color: theme.ink2, lineHeight: 19 },
+
+  bar: { height: 8, backgroundColor: '#EEEBE3', borderRadius: 8, overflow: 'hidden', marginTop: 6, marginBottom: 14 },
+  barFill: { height: 8, backgroundColor: theme.green },
+
+  cta: { backgroundColor: theme.green, borderRadius: 14, paddingVertical: 15, alignItems: 'center' },
+  ctaTxt: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  hint: { textAlign: 'center', fontSize: 12.5, color: theme.meta, lineHeight: 18 },
 });

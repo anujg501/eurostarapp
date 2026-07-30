@@ -60,12 +60,15 @@ export default function AuthScreen({ onSignedIn }: { onSignedIn: () => void }) {
   const [busy, setBusy] = useState(false);
   const otpRefs = useRef<(TextInput | null)[]>([]);
 
+  const [remember, setRemember] = useState(true);
+
   const reg = mode === 'register';
   const validPhone = /^[6-9]\d{9}$/.test(phone);
   const otpFull = otp.join('').length === OTP_LEN;
-  // Login is OTP-based here too (the web demo's login pane used a password), so
-  // both modes need a verified number before the button does anything.
-  const canSubmit = validPhone && otpStage === 'verified';
+  const validEmail = /^\S+@\S+\.\S+$/.test(email.trim());
+  // Sign-up proves the number by OTP; coming back is email + password, which is
+  // what the web login pane does and why registration stores both.
+  const canSubmit = reg ? validPhone && otpStage === 'verified' : validEmail && password.length > 0;
 
   function setDigit(i: number, v: string) {
     // Autofill/paste can drop the whole code into one box — spread it instead.
@@ -115,13 +118,18 @@ export default function AuthScreen({ onSignedIn }: { onSignedIn: () => void }) {
     if (reg && !password) { Alert.alert('Set a password'); return; }
     setBusy(true);
     try {
-      const name = reg ? `${first.trim()} ${last.trim()}` : undefined;
-      // Email is optional, but the server validates it as an email when present
-      // — sending "" for a blank field failed the whole registration with a
-      // validation error rather than being treated as "not given".
-      const mail = reg && email.trim() ? email.trim() : undefined;
-      const r = await api.verifyOtp(phone, otp.join(''), name, mail);
-      await setToken(r.accessToken);
+      let accessToken: string;
+      if (reg) {
+        const name = `${first.trim()} ${last.trim()}`;
+        // Email is optional, but the server validates it as an email when present
+        // — sending "" for a blank field failed the whole registration with a
+        // validation error rather than being treated as "not given".
+        const mail = email.trim() ? email.trim() : undefined;
+        ({ accessToken } = await api.verifyOtp(phone, otp.join(''), name, mail, password));
+      } else {
+        ({ accessToken } = await api.login(email.trim(), password, remember));
+      }
+      await setToken(accessToken);
       onSignedIn();
     } catch (e: any) {
       Alert.alert(reg ? 'Registration failed' : 'Login failed', e.message || 'Please try again.');
@@ -146,7 +154,11 @@ export default function AuthScreen({ onSignedIn }: { onSignedIn: () => void }) {
             </>
           )}
 
-          <Text style={[styles.label, !reg && { marginTop: 0 }]}>Mobile Number</Text>
+          {/* The number is only proved at sign-up. Logging back in is email +
+              password, exactly as the web login pane does it. */}
+          {reg && (
+          <>
+          <Text style={styles.label}>Mobile Number</Text>
           <View style={styles.phoneRow}>
             <View style={[styles.iptWrap, { flex: 1 }, otpStage === 'verified' && styles.iptLocked]}>
               <Feather name="phone" size={18} color={theme.purple} style={styles.ic} />
@@ -211,9 +223,20 @@ export default function AuthScreen({ onSignedIn }: { onSignedIn: () => void }) {
               <Text style={styles.verifiedTxt}>Mobile number verified</Text>
             </View>
           )}
+          </>
+          )}
 
-          <Field label="Email Address" icon="mail" value={email} onChangeText={setEmail} placeholder="you@email.com" keyboardType="email-address" autoCapitalize="none" />
+          <Field first={!reg} label="Email Address" icon="mail" value={email} onChangeText={setEmail} placeholder="you@email.com" keyboardType="email-address" autoCapitalize="none" />
           <Field label="Password" icon="lock" value={password} onChangeText={setPassword} placeholder={reg ? 'Create a password' : 'Your password'} secureTextEntry autoCapitalize="none" />
+
+          {!reg && (
+            <TouchableOpacity style={styles.rememberRow} activeOpacity={0.7} onPress={() => setRemember((r) => !r)}>
+              <View style={[styles.checkbox, remember && styles.checkboxOn]}>
+                {remember && <Feather name="check" size={13} color="#fff" />}
+              </View>
+              <Text style={styles.rememberTxt}>Remember me</Text>
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             style={[styles.btn, { marginTop: 20 }, (!canSubmit || busy) && styles.btnOff]}
@@ -223,9 +246,7 @@ export default function AuthScreen({ onSignedIn }: { onSignedIn: () => void }) {
             {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnTxt}>{reg ? 'Register' : 'Sign In'}</Text>}
           </TouchableOpacity>
 
-          {!canSubmit && (
-            <Text style={styles.hint}>Verify your mobile number to {reg ? 'register' : 'log in'}.</Text>
-          )}
+          {reg && !canSubmit && <Text style={styles.hint}>Verify your mobile number to register.</Text>}
 
           <TouchableOpacity onPress={() => setMode(reg ? 'login' : 'register')}>
             <Text style={styles.link}>
@@ -289,6 +310,15 @@ const styles = StyleSheet.create({
   btnInline: { paddingVertical: 0, paddingHorizontal: 16 },
   btnInlineTxt: { color: '#fff', fontSize: 13.5, fontWeight: '700' },
   btnOff: { opacity: 0.5 },
+
+  // Login's "Remember me" — the web pane's checkbox row.
+  rememberRow: { flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 14, marginLeft: 2 },
+  checkbox: {
+    width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, borderColor: theme.border,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: theme.surface,
+  },
+  checkboxOn: { backgroundColor: theme.purple, borderColor: theme.purple },
+  rememberTxt: { fontSize: 13.5, color: theme.ink2 },
 
   hint: { textAlign: 'center', fontSize: 12, color: theme.meta, marginTop: 10 },
   link: { textAlign: 'center', fontSize: 13.5, color: theme.meta, marginTop: 16 },

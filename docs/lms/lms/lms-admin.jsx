@@ -52,7 +52,7 @@ function LmsDashboard({ go, cands, actions, openCand }) {
             <div><strong style={{ fontFamily: 'var(--font-serif)', fontWeight: 500, fontSize: 17 }}>Recent Applications</strong><div className="lms-muted" style={{ fontSize: 12.5 }}>Latest applications across the system</div></div>
             <button className="lms-btn lms-btn-ghost lms-btn-sm" onClick={() => go('candidates')}>View all</button>
           </div>
-          <div style={{ overflowX: 'auto' }}><table className="lms-table"><thead><tr><th>Candidate</th><th>Location</th><th>Stage</th></tr></thead>
+          <div className="lms-tablewrap"><table className="lms-table"><thead><tr><th>Candidate</th><th>Location</th><th>Stage</th></tr></thead>
             <tbody>{C.map(c => (
               <tr key={c.id} style={{ cursor: 'pointer' }} onClick={() => openCand && openCand(c.id)}><td><div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><span className="lms-av" style={{ background: `hsl(${c.hue} 60% 45%)` }}>{c.avatar}</span><div><div style={{ fontWeight: 600 }}>{c.name}</div><div className="lms-muted" style={{ fontSize: 12 }}>{c.email}</div></div></div></td>
               <td className="lms-muted">{c.city}, {c.state}</td><td><StagePill id={c.stage} /></td></tr>
@@ -129,8 +129,8 @@ function LmsCandidates({ cands, actions, openCand }) {
           <button className="lms-btn lms-btn-ghost lms-btn-sm" onClick={clear} style={{ height: 38 }}>✕ Clear</button>
         </div>
       </div>
-      <div className="lms-card" style={{ overflowX: 'auto' }}>
-        <table className="lms-table" style={{ minWidth: 1240 }}>
+      <div className="lms-card lms-tablewrap">
+        <table className="lms-table lms-table-wide">
           <thead><tr><th>#</th><th>Candidate</th><th>Location</th><th>Stage</th><th>Training Window</th><th>Test Window</th><th>Test Score</th><th>Rep ID</th><th>Actions</th></tr></thead>
           <tbody>{C.map(c => {
             const w = window.lmsWindow(c);
@@ -147,12 +147,20 @@ function LmsCandidates({ cands, actions, openCand }) {
               <td>
                 {actions && c.stage !== 'hired' && <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 150 }}>
                   {(w.state === 'locked' || w.state === 'expired')
-                    ? <button className="lms-btn lms-btn-pri lms-btn-sm" onClick={() => actions.unlockTraining(c.id)}>🔓 Unlock training</button>
+                    ? (window.lmsBaseStage(c) === 'registered'
+                        ? <button className="lms-btn lms-btn-ghost lms-btn-sm" disabled
+                            title="This candidate has only created an account — they have not submitted the Apply Now form yet."
+                            style={{ opacity: .55, cursor: 'not-allowed' }}>🔒 Not applied yet</button>
+                        : <button className="lms-btn lms-btn-pri lms-btn-sm" onClick={() => actions.unlockTraining(c.id)}>🔓 Unlock training</button>)
                     : <button className="lms-btn lms-btn-ghost lms-btn-sm" onClick={() => actions.lockTraining(c.id)}>Lock training</button>}
                   {t.state === 'used'
                     ? <button className="lms-btn lms-btn-pri lms-btn-sm" style={{ background: '#1D4ED8' }} onClick={() => actions.allowRetest(c.id)}>↻ Allow re-test</button>
                     : (t.state === 'locked' || t.state === 'expired')
-                      ? <button className="lms-btn lms-btn-pri lms-btn-sm" style={{ background: '#1D4ED8' }} onClick={() => actions.unlockTest(c.id)}>🔓 Unlock test</button>
+                      ? (window.lmsBaseStage(c) === 'registered'
+                          ? <button className="lms-btn lms-btn-ghost lms-btn-sm" disabled
+                              title="This candidate has only created an account — they have not submitted the Apply Now form yet."
+                              style={{ opacity: .55, cursor: 'not-allowed' }}>🔒 Not applied yet</button>
+                          : <button className="lms-btn lms-btn-pri lms-btn-sm" style={{ background: '#1D4ED8' }} onClick={() => actions.unlockTest(c.id)}>🔓 Unlock test</button>)
                       : t.state === 'open'
                         ? <button className="lms-btn lms-btn-ghost lms-btn-sm" onClick={() => actions.lockTest(c.id)}>Lock test</button>
                         : <span className="lms-muted" style={{ fontSize: 12 }}>Test taken</span>}
@@ -173,13 +181,39 @@ function LmsScreening({ cands, actions, settings }) {
   const [result, setResult] = aUseState('pass');
   const [rating, setRating] = aUseState(4);
   const [note, setNote] = aUseState('');
+  // Scheduling side — was entirely dead: the candidate dropdown had no value/
+  // onChange, and the "Schedule" button had no onClick at all.
+  const todayISO = () => { try { return (window.LMS_TODAY || new Date()).toISOString().slice(0, 10); } catch (e) { return ''; } };
+  const [schedId, setSchedId] = aUseState('');
+  const [schedDate, setSchedDate] = aUseState(todayISO);
+  const [schedLink, setSchedLink] = aUseState('');
+  const [scheduling, setScheduling] = aUseState(false);
+  const [schedMsg, setSchedMsg] = aUseState('');
   const zoom = (settings || window.LMS_SETTINGS).zoomConnected;
   const all = cands || window.LMS_CANDIDATES;
   const toScreen = all.filter(c => c.stage === 'applied' || c.stage === 'screening');
+  const [savingOutcome, setSavingOutcome] = aUseState(false);
+  const [outMsg, setOutMsg] = aUseState('');
   const saveOutcome = () => {
-    if (!outId || !actions) return;
-    actions.markScreen(outId, result, note, rating);
-    setOutId(''); setNote(''); setResult('pass'); setRating(4);
+    if (!outId || !actions || savingOutcome) return;
+    setSavingOutcome(true); setOutMsg('');
+    Promise.resolve(actions.markScreen(outId, result, note, rating)).then((ok) => {
+      setSavingOutcome(false);
+      setOutMsg(ok ? '✓ Outcome saved.' : '✕ Could not save — check your connection and try again.');
+      if (ok) { setOutId(''); setNote(''); setResult('pass'); setRating(4); }
+      setTimeout(() => setOutMsg(''), 4000);
+    });
+  };
+  const canSchedule = schedId && schedDate && slot;
+  const doSchedule = () => {
+    if (!canSchedule || !actions) return;
+    setScheduling(true); setSchedMsg('');
+    Promise.resolve(actions.scheduleScreening(schedId, { date: schedDate, slot, link: schedLink })).then((ok) => {
+      setScheduling(false);
+      setSchedMsg(ok ? '✓ Screening scheduled.' : '✓ Scheduled — but the meeting link could not be saved. Add it from the candidate’s own record instead.');
+      setSchedId(''); setSlot(''); setSchedLink('');
+      setTimeout(() => setSchedMsg(''), 4000);
+    });
   };
   const fieldStyle = { width: '100%', padding: '9px 12px', border: '1px solid var(--lms-border)', borderRadius: 'var(--r-md)', fontSize: 13.5, fontFamily: 'inherit', background: '#fff' };
   return (
@@ -192,8 +226,13 @@ function LmsScreening({ cands, actions, settings }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'start' }}>
         <div className="lms-card lms-card-pad">
           <strong style={{ fontFamily: 'var(--font-serif)', fontWeight: 500, fontSize: 18, display: 'block', marginBottom: 16, paddingBottom: 14, borderBottom: '1px solid var(--lms-divider)' }}>Schedule New Screening</strong>
-          <div className="lms-field" style={{ marginBottom: 14 }}><label>Select Candidate *</label><select className="lms-select"><option>Choose a candidate…</option>{toScreen.map(c => <option key={c.id}>{c.name} · {c.city}</option>)}</select></div>
-          <div className="lms-field" style={{ marginBottom: 14 }}><label>Date *</label><input className="lms-input" type="date" defaultValue="2026-06-22" /></div>
+          <div className="lms-field" style={{ marginBottom: 14 }}><label>Select Candidate *</label>
+            <select className="lms-select" value={schedId} onChange={e => setSchedId(e.target.value)}>
+              <option value="">Choose a candidate…</option>
+              {toScreen.map(c => <option key={c.id} value={c.id}>{c.name} · {c.city || 'no city on file'}</option>)}
+            </select>
+          </div>
+          <div className="lms-field" style={{ marginBottom: 14 }}><label>Date *</label><input className="lms-input" type="date" value={schedDate} onChange={e => setSchedDate(e.target.value)} /></div>
           <div className="lms-field"><label>Time Slot * <span className="lms-muted" style={{ fontWeight: 400 }}>· 15–20 min · strikethrough = booked</span></label>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginTop: 4 }}>
               {window.LMS_SLOTS.map(s => {
@@ -202,7 +241,18 @@ function LmsScreening({ cands, actions, settings }) {
               })}
             </div>
           </div>
-          <div style={{ marginTop: 18 }}><button className="lms-btn lms-btn-pri" style={{ width: '100%', justifyContent: 'center', background: '#4F46E5' }}>{zoom ? 'Generate Zoom Link & Schedule' : 'Schedule (manual link)'}</button></div>
+          {!zoom && (
+            <div className="lms-field" style={{ marginTop: 14 }}><label>Meeting link <span className="lms-muted" style={{ fontWeight: 400 }}>· optional, paste one you already have</span></label>
+              <input className="lms-input" placeholder="https://meet.google.com/…" value={schedLink} onChange={e => setSchedLink(e.target.value)} />
+            </div>
+          )}
+          <div style={{ marginTop: 18 }}>
+            <button className="lms-btn lms-btn-pri" style={{ width: '100%', justifyContent: 'center', background: '#4F46E5', opacity: canSchedule && !scheduling ? 1 : .55, cursor: canSchedule && !scheduling ? 'pointer' : 'not-allowed' }}
+              disabled={!canSchedule || scheduling} onClick={doSchedule}>
+              {scheduling ? 'Scheduling…' : (zoom ? 'Generate Zoom Link & Schedule' : 'Schedule (manual link)')}
+            </button>
+            {schedMsg && <div className="lms-muted" style={{ fontSize: 12.5, marginTop: 8 }}>{schedMsg}</div>}
+          </div>
         </div>
         <div className="lms-card lms-card-pad">
           <strong style={{ fontFamily: 'var(--font-serif)', fontWeight: 500, fontSize: 18, display: 'block', marginBottom: 16, paddingBottom: 14, borderBottom: '1px solid var(--lms-divider)' }}>Record Screening Outcome</strong>
@@ -223,8 +273,9 @@ function LmsScreening({ cands, actions, settings }) {
             </div>
           )}
           <div className="lms-field" style={{ marginBottom: 14 }}><label>Interview notes</label><textarea style={{ ...fieldStyle, minHeight: 70, resize: 'vertical' }} value={note} onChange={e => setNote(e.target.value)} placeholder="Communication, product knowledge, field experience…" /></div>
-          <button className="lms-btn lms-btn-pri" style={{ width: '100%', justifyContent: 'center' }} disabled={!outId} onClick={saveOutcome}>Save outcome</button>
-          <div className="lms-muted" style={{ fontSize: 12, marginTop: 10 }}>A <b>Pass</b> moves the candidate to In-Training (then unlock their training window from Candidates). A <b>Fail</b> rejects them with a reason.</div>
+          <button className="lms-btn lms-btn-pri" style={{ width: '100%', justifyContent: 'center', opacity: outId && !savingOutcome ? 1 : .55, cursor: outId && !savingOutcome ? 'pointer' : 'not-allowed' }} disabled={!outId || savingOutcome} onClick={saveOutcome}>{savingOutcome ? 'Saving…' : 'Save outcome'}</button>
+          {outMsg && <div className="lms-muted" style={{ fontSize: 12.5, marginTop: 8 }}>{outMsg}</div>}
+          <div className="lms-muted" style={{ fontSize: 12, marginTop: 10 }}>A <b>Pass</b> clears the candidate for training — go to <b>Candidates</b> and unlock their training window to actually start it. A <b>Fail</b> rejects them with a reason.</div>
         </div>
       </div>
     </div>
@@ -937,7 +988,7 @@ function LmsReports({ cands }) {
   // source ROI
   const bySrc = {}; C.forEach(c => { const k = c.source; bySrc[k] = bySrc[k] || { n: 0, hired: 0 }; bySrc[k].n++; if (c.stage === 'hired') bySrc[k].hired++; });
   // funnel
-  const stages = ['applied', 'screening', 'training', 'recommended', 'hired'];
+  const stages = ['registered', 'applied', 'screening', 'training', 'recommended', 'hired'];
   const stageCount = {}; window.LMS_STAGES.forEach(s => stageCount[s.id] = 0);
   C.forEach(c => { stageCount[c.stage] = (stageCount[c.stage] || 0) + 1; });
   const kpi = [

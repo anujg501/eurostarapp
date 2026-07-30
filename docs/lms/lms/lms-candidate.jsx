@@ -15,69 +15,194 @@ function CandIcon({ name }) {
   return null;
 }
 
-function CandShell({ children, onMenu }) {
+// `overlay` is rendered as a sibling of the scroll area rather than inside it,
+// so a drawer or sheet covers the handset without scrolling away with the
+// content underneath it.
+function CandShell({ children, overlay }) {
   return (
     <div className="cand-stage">
       <div className="cand-phone">
         <div className="cand-statusbar" />
         <div className="cand-scroll">{children}</div>
+        {overlay}
       </div>
     </div>
   );
 }
 
-// ---- Create account / login ----
-function CandAuth({ mode, setMode, onDone }) {
+// ---- Real backend client for the candidate portal (mirrors mobile-lms/src/api.ts) ----
+const CAND_TOKEN_KEY = 'eurostar-candidate-token';
+const OTP_LEN = 6;
+
+function candApi(method, path, body, isForm) {
+  let token = '';
+  try { token = localStorage.getItem(CAND_TOKEN_KEY) || ''; } catch (e) {}
+  const headers = { accept: 'application/json' };
+  if (token) headers.authorization = 'Bearer ' + token;
+  const opts = { method, headers };
+  if (body != null) {
+    if (isForm) opts.body = body;
+    else { headers['content-type'] = 'application/json'; opts.body = JSON.stringify(body); }
+  }
+  // Signing in and registering answer 401 for an ordinary wrong password or a
+  // bad OTP, and changing a password answers 401 for the wrong current one.
+  // None of those mean "your session died", so they are excluded below.
+  const isAuthCall = path.indexOf('/auth/candidate/') === 0;
+
+  return fetch((window.EUROSTAR_API || location.origin) + path, opts).then(r =>
+    r.text().then(t => {
+      let data = null;
+      try { data = t ? JSON.parse(t) : null; } catch (e) { data = null; }
+      // We sent a token and it was refused: the session is gone. Say so at once
+      // instead of leaving a filled-in form on screen that cannot submit —
+      // that is exactly how a whole application got typed out and then lost.
+      if (token && !isAuthCall && (r.status === 401 || r.status === 403)) {
+        try { window.dispatchEvent(new CustomEvent('cand-session-ended')); } catch (e) {}
+      }
+      return { ok: r.ok, status: r.status, data };
+    })
+  ).catch(() => ({ ok: false, status: 0, data: null }));
+}
+
+// ---- Create account / login (real OTP + email/password against the backend) ----
+function CandAuth({ mode, setMode, onDone, notice }) {
   const reg = mode === 'register';
-  // DEMO ONLY: pre-filled + mobile pre-verified so Register works in one click.
-  // Bright Code: start phone empty and otpStage 'idle' for the real app.
-  const [phone, setPhone] = cUseState('7710065480');
-  const [otpStage, setOtpStage] = cUseState('verified');
-  const [otp, setOtp] = cUseState(['1', '2', '3', '4']);
+  const [firstName, setFirstName] = cUseState('');
+  const [lastName, setLastName] = cUseState('');
+  const [phone, setPhone] = cUseState('');
+  const [otpStage, setOtpStage] = cUseState('idle'); // idle | sending | sent | verifying | verified
+  const [otp, setOtp] = cUseState(Array(OTP_LEN).fill(''));
+  const [devCode, setDevCode] = cUseState('');
+  const [email, setEmail] = cUseState('');
+  const [password, setPassword] = cUseState('');
+  const [remember, setRemember] = cUseState(true);
+  const [busy, setBusy] = cUseState(false);
+  const [err, setErr] = cUseState('');
+
   const validPhone = /^[6-9]\d{9}$/.test(phone);
-  const otpFull = otp.join('').length === 4;
+  const otpFull = otp.join('').length === OTP_LEN;
   const setDigit = (i, v) => {
     if (!/^\d?$/.test(v)) return;
     const next = otp.slice(); next[i] = v; setOtp(next);
-    if (v && i < 3) { const el = document.getElementById('otp-' + (i + 1)); if (el) el.focus(); }
+    if (v && i < OTP_LEN - 1) { const el = document.getElementById('otp-' + (i + 1)); if (el) el.focus(); }
   };
-  const canSubmit = reg ? (validPhone && otpStage === 'verified') : true;
+
+  const sendOtp = () => {
+    if (!validPhone || busy) return;
+    setErr(''); setBusy(true); setOtpStage('sending');
+    candApi('POST', '/auth/candidate/otp/request', { phone, mode: 'signup' }).then(res => {
+      setBusy(false);
+      if (!res.ok) {
+        setOtpStage('idle');
+        setErr((res.data && res.data.error) || 'Could not send the code — try again.');
+        return;
+      }
+      setDevCode(res.data && res.data.devCode ? res.data.devCode : '');
+      setOtpStage('sent');
+      setOtp(Array(OTP_LEN).fill(''));
+    });
+  };
+
+  const verifyOtpOnly = () => {
+    if (!otpFull || busy) return;
+    setErr(''); setBusy(true); setOtpStage('verifying');
+    // /check only checks — it creates nothing and does not retire the code, so
+    // the same code is still good for Register below. (Calling /verify here
+    // instead silently completed the sign-up for any number that already had an
+    // account, spending the code and leaving Register with "expired".)
+    candApi('POST', '/auth/candidate/otp/check', { phone, otp: otp.join('') }).then(res => {
+      setBusy(false);
+      if (res.ok) { setOtpStage('verified'); return; }
+      setOtpStage('sent');
+      setErr((res.data && res.data.error) || 'Incorrect or expired code — try again.');
+    });
+  };
+
+  const register = () => {
+    if (busy) return;
+    setErr('');
+    if (!validPhone || otpStage !== 'verified') { setErr('Verify your mobile number first.'); return; }
+    if (!firstName.trim() || !lastName.trim()) { setErr('Enter your first and last name.'); return; }
+    if (password && password.length < 6) { setErr('Password must be at least 6 characters.'); return; }
+    setBusy(true);
+    candApi('POST', '/auth/candidate/otp/verify', {
+      phone,
+      otp: otp.join(''),
+      name: (firstName.trim() + ' ' + lastName.trim()).trim(),
+      email: email.trim() || undefined,
+      password: password || undefined,
+      remember: true,
+    }).then(res => {
+      setBusy(false);
+      if (!res.ok) {
+        if (res.status === 401) setOtpStage('sent'); // code expired between verify and register — re-enter it
+        setErr((res.data && res.data.error) || 'Could not register — try again.');
+        return;
+      }
+      onDone(res.data.accessToken);
+    });
+  };
+
+  const signIn = () => {
+    if (busy) return;
+    setErr('');
+    if (!email.trim() || !password) { setErr('Enter your email and password.'); return; }
+    setBusy(true);
+    candApi('POST', '/auth/candidate/login', { email: email.trim(), password, remember }).then(res => {
+      setBusy(false);
+      if (!res.ok) {
+        setErr((res.data && res.data.error) || 'Incorrect email or password');
+        return;
+      }
+      onDone(res.data.accessToken);
+    });
+  };
+
+  const canSubmit = reg
+    ? (validPhone && otpStage === 'verified' && firstName.trim() && lastName.trim() && !busy)
+    : (email.trim() && password && !busy);
+
   return (
     <div className="cand-pad">
       <div className="cand-logo"><img src={window.EUROSTAR_LOGO_PNG || 'assets/eurostar-logo.png'} alt="Eurostar" /></div>
       <div className="cand-h1">{reg ? 'Create Account' : 'Welcome Back!'}</div>
       <p className="cand-sub">{reg ? 'Register to continue' : 'Please login to your account'}</p>
+      {notice && (
+        <div style={{ background: '#FBF3DF', border: '1px solid #EAD9AE', color: '#8A6314', borderRadius: 12, padding: '11px 13px', fontSize: 13, marginBottom: 14 }}>
+          {notice}
+        </div>
+      )}
       {reg && <>
         <div className="cand-label">First Name</div>
-        <div className="cand-ipt-wrap"><span className="ic"><CandIcon name="user" /></span><input className="cand-ipt" defaultValue="Anuj" /></div>
+        <div className="cand-ipt-wrap"><span className="ic"><CandIcon name="user" /></span><input className="cand-ipt" placeholder="First name" value={firstName} onChange={e => setFirstName(e.target.value)} /></div>
         <div className="cand-label">Last Name</div>
-        <div className="cand-ipt-wrap"><span className="ic"><CandIcon name="user" /></span><input className="cand-ipt" placeholder="Last name" defaultValue="Gupta" /></div>
+        <div className="cand-ipt-wrap"><span className="ic"><CandIcon name="user" /></span><input className="cand-ipt" placeholder="Last name" value={lastName} onChange={e => setLastName(e.target.value)} /></div>
         <div className="cand-label">Mobile Number</div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
           <div className="cand-ipt-wrap" style={{ flex: 1 }}>
             <span className="ic"><CandIcon name="phone" /></span>
             <input className={'cand-ipt' + (otpStage === 'verified' ? ' locked' : '')} inputMode="numeric" maxLength={10} placeholder="10-digit mobile" value={phone}
-              onChange={e => { setPhone(e.target.value.replace(/\D/g, '')); setOtpStage('idle'); setOtp(['', '', '', '']); }}
+              onChange={e => { setPhone(e.target.value.replace(/\D/g, '')); setOtpStage('idle'); setOtp(Array(OTP_LEN).fill('')); setDevCode(''); }}
               readOnly={otpStage === 'verified'} />
             {otpStage === 'verified' && <span className="lock" style={{ color: 'var(--lms-green)' }}>✓</span>}
           </div>
           {otpStage !== 'verified' &&
-            <button type="button" className="cand-btn" style={{ width: 'auto', padding: '0 16px', fontSize: 13.5, opacity: validPhone ? 1 : .5 }}
-              onClick={() => validPhone && setOtpStage('sent')} disabled={!validPhone}>
-              {otpStage === 'sent' ? 'Resend' : 'Send OTP'}
+            <button type="button" className="cand-btn" style={{ width: 'auto', padding: '0 16px', fontSize: 13.5, opacity: validPhone && !busy ? 1 : .5 }}
+              onClick={sendOtp} disabled={!validPhone || busy}>
+              {otpStage === 'sending' ? 'Sending…' : otpStage === 'sent' ? 'Resend' : 'Send OTP'}
             </button>}
         </div>
-        {otpStage === 'sent' && <>
+        {(otpStage === 'sent' || otpStage === 'verifying') && <>
           <div style={{ background: 'var(--lms-purple-soft)', border: '1px solid #DDD0F5', borderRadius: 12, padding: '12px 14px', marginTop: 12, fontSize: 13, color: 'var(--lms-purple-ink)' }}>
-            OTP sent to <b>+91 {phone}</b>. For this demo, enter any 4 digits.
+            OTP sent to <b>+91 {phone}</b>.{devCode ? <> Dev code: <b>{devCode}</b></> : null}
           </div>
-          <div style={{ display: 'flex', gap: 10, marginTop: 12, justifyContent: 'center' }}>
+          <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'center' }}>
             {otp.map((d, i) => (
-              <input key={i} id={'otp-' + i} className="cand-ipt" style={{ width: 54, textAlign: 'center', fontSize: 20, fontWeight: 700, padding: '12px 0' }}
+              <input key={i} id={'otp-' + i} className="cand-ipt" style={{ width: 40, textAlign: 'center', fontSize: 18, fontWeight: 700, padding: '12px 0' }}
                 inputMode="numeric" maxLength={1} value={d} onChange={e => setDigit(i, e.target.value)} />
             ))}
           </div>
-          <button type="button" className="cand-btn green" style={{ marginTop: 14, opacity: otpFull ? 1 : .5 }} disabled={!otpFull} onClick={() => setOtpStage('verified')}>Verify OTP</button>
+          <button type="button" className="cand-btn green" style={{ marginTop: 14, opacity: otpFull ? 1 : .5 }} disabled={!otpFull || busy} onClick={verifyOtpOnly}>Verify OTP</button>
         </>}
         {otpStage === 'verified' &&
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, color: 'var(--lms-green-ink)', fontSize: 13.5, fontWeight: 600 }}>
@@ -86,22 +211,27 @@ function CandAuth({ mode, setMode, onDone }) {
           </div>}
       </>}
       <div className="cand-label">Email Address</div>
-      <div className="cand-ipt-wrap"><span className="ic"><CandIcon name="mail" /></span><input className="cand-ipt" placeholder="you@email.com" defaultValue="anujg501@gmail.com" /></div>
+      <div className="cand-ipt-wrap"><span className="ic"><CandIcon name="mail" /></span><input className="cand-ipt" type="email" placeholder="you@email.com" value={email} onChange={e => setEmail(e.target.value)} /></div>
       <div className="cand-label">Password</div>
-      <div className="cand-ipt-wrap"><span className="ic"><CandIcon name="lock" /></span><input className="cand-ipt" type="password" defaultValue="•••••" /></div>
-      {!reg && <label style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 13.5, margin: '14px 2px 0' }}><input type="checkbox" defaultChecked /> Remember me</label>}
-      <div style={{ marginTop: 20 }}><button className="cand-btn" onClick={() => canSubmit && onDone()} disabled={!canSubmit} style={!canSubmit ? { opacity: .5 } : {}}>{reg ? 'Register' : 'Sign In'}</button></div>
-      {reg && !canSubmit && <p style={{ textAlign: 'center', fontSize: 12, color: 'var(--lms-meta)', marginTop: 10 }}>Verify your mobile number to register.</p>}
+      <div className="cand-ipt-wrap"><span className="ic"><CandIcon name="lock" /></span><input className="cand-ipt" type="password" placeholder={reg ? 'Choose a password' : 'Your password'} value={password} onChange={e => setPassword(e.target.value)} /></div>
+      {!reg && <label style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 13.5, margin: '14px 2px 0' }}><input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} /> Remember me</label>}
+      {err && <div style={{ marginTop: 12, color: '#9A3B3B', fontSize: 13, background: '#F6E7E7', border: '1px solid #E6C9C9', borderRadius: 10, padding: '10px 12px' }}>{err}</div>}
+      <div style={{ marginTop: 20 }}>
+        <button className="cand-btn" onClick={reg ? register : signIn} disabled={!canSubmit} style={!canSubmit ? { opacity: .5 } : {}}>
+          {busy ? (reg ? 'Registering…' : 'Signing in…') : (reg ? 'Register' : 'Sign In')}
+        </button>
+      </div>
+      {reg && otpStage !== 'verified' && <p style={{ textAlign: 'center', fontSize: 12, color: 'var(--lms-meta)', marginTop: 10 }}>Verify your mobile number to register.</p>}
       <div className="cand-link">
-        {reg ? <>Already have an account? <b onClick={() => setMode('login')}>Login</b></>
-             : <>New here? <b onClick={() => setMode('register')}>Create account</b></>}
+        {reg ? <>Already have an account? <b onClick={() => { setMode('login'); setErr(''); }}>Login</b></>
+             : <>New here? <b onClick={() => { setMode('register'); setErr(''); }}>Create account</b></>}
       </div>
     </div>
   );
 }
 
 // ---- Candidate dashboard (5 tiles) ----
-function CandDashboard({ cand, go }) {
+function CandDashboard({ cand, go, onMenu }) {
   const J = window.LMS_JOURNEY;
   const w = window.lmsWindow(cand);
   const t = window.lmsTestWindow(cand);
@@ -119,8 +249,8 @@ function CandDashboard({ cand, go }) {
   return (
     <>
       <div className="cand-appbar">
-        <button className="menu"><CandIcon name="menu" /></button>
-        <div><h3>Dashboard</h3><small>Hey {cand.name.split(' ')[0]} 👋 · <b style={{ fontFamily: 'monospace', color: 'var(--lms-purple-ink)' }}>{cand.candId}</b></small></div>
+        <button className="menu" onClick={onMenu}><CandIcon name="menu" /></button>
+        <div><h3>Dashboard</h3><small>Hey {(cand.name || '').split(' ')[0]} 👋 · <b style={{ fontFamily: 'monospace', color: 'var(--lms-purple-ink)' }}>{cand.candId}</b></small></div>
       </div>
       <div className="cand-pad">
         {hired && (
@@ -179,8 +309,45 @@ function CandDashboard({ cand, go }) {
   );
 }
 
-// ---- Apply Now form ----
-function CandApply({ go }) {
+// ---- Apply Now form (real: POST /candidates/me/apply + /candidates/me/resume) ----
+function CandApply({ go, cand, onSaved }) {
+  const [city, setCity] = cUseState(cand.city || '');
+  const [state, setStateV] = cUseState(cand.state || '');
+  const [exp, setExp] = cUseState(cand.exp || '');
+  const [source, setSource] = cUseState(cand.source || '');
+  const [file, setFile] = cUseState(null);
+  const [resumeName, setResumeName] = cUseState(cand.resumeName || '');
+  const [busy, setBusy] = cUseState(false);
+  const [err, setErr] = cUseState('');
+  const fileRef = React.useRef(null);
+
+  const pickFile = (e) => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    if (f.size > 5 * 1024 * 1024) { setErr('That file is larger than 5MB.'); return; }
+    setFile(f); setResumeName(f.name); setErr('');
+  };
+
+  const submit = () => {
+    if (busy) return;
+    setErr('');
+    if (!city.trim() || !state || !exp || !source) { setErr('Please fill all required fields.'); return; }
+    setBusy(true);
+    candApi('POST', '/candidates/me/apply', { city: city.trim(), state, exp, source }).then(res => {
+      if (!res.ok) { setBusy(false); setErr((res.data && res.data.error) || 'Could not submit — try again.'); return; }
+      if (!file) { setBusy(false); onSaved(res.data); go('home'); return; }
+      const form = new FormData();
+      form.append('file', file);
+      candApi('POST', '/candidates/me/resume', form, true).then(r2 => {
+        setBusy(false);
+        onSaved(r2.ok ? r2.data : res.data);
+        if (!r2.ok) setErr((r2.data && r2.data.error) || 'Application saved, but the resume upload failed.');
+        else go('home');
+      });
+    });
+  };
+
   return (
     <>
       <div className="cand-appbar">
@@ -194,28 +361,30 @@ function CandApply({ go }) {
         </div>
         <div className="cand-sec" style={{ marginTop: 0 }}>Personal Information</div>
         <div className="cand-label">Full Name *</div>
-        <div className="cand-ipt-wrap"><span className="ic"><CandIcon name="user" /></span><input className="cand-ipt locked" defaultValue="anuj gupta" readOnly /><span className="lock"><CandIcon name="lock" /></span></div>
+        <div className="cand-ipt-wrap"><span className="ic"><CandIcon name="user" /></span><input className="cand-ipt locked" value={cand.name || ''} readOnly /><span className="lock"><CandIcon name="lock" /></span></div>
         <div className="cand-label">Mobile Number *</div>
-        <div className="cand-ipt-wrap"><span className="ic"><CandIcon name="phone" /></span><input className="cand-ipt" placeholder="Enter mobile number" /></div>
+        <div className="cand-ipt-wrap"><span className="ic"><CandIcon name="phone" /></span><input className="cand-ipt locked" value={cand.phone || ''} readOnly /><span className="lock"><CandIcon name="lock" /></span></div>
         <div className="cand-label">Email Address *</div>
-        <div className="cand-ipt-wrap"><span className="ic"><CandIcon name="mail" /></span><input className="cand-ipt locked" defaultValue="anujg501@gmail.com" readOnly /><span className="lock"><CandIcon name="lock" /></span></div>
+        <div className="cand-ipt-wrap"><span className="ic"><CandIcon name="mail" /></span><input className="cand-ipt locked" value={cand.email || ''} readOnly /><span className="lock"><CandIcon name="lock" /></span></div>
         <div className="cand-label">City *</div>
-        <div className="cand-ipt-wrap"><span className="ic"><CandIcon name="city" /></span><input className="cand-ipt" placeholder="e.g. Mumbai" /></div>
+        <div className="cand-ipt-wrap"><span className="ic"><CandIcon name="city" /></span><input className="cand-ipt" placeholder="e.g. Mumbai" value={city} onChange={e => setCity(e.target.value)} /></div>
         <div className="cand-label">State *</div>
-        <select className="cand-ipt" style={{ paddingLeft: 14 }}><option>Select State</option>{window.LMS_STATES.map(s => <option key={s}>{s}</option>)}</select>
+        <select className="cand-ipt" style={{ paddingLeft: 14 }} value={state} onChange={e => setStateV(e.target.value)}><option value="">Select State</option>{window.LMS_STATES.map(s => <option key={s} value={s}>{s}</option>)}</select>
 
         <div className="cand-sec">Experience &amp; Documents</div>
         <div className="cand-label">Years of Experience *</div>
-        <select className="cand-ipt" style={{ paddingLeft: 14 }}><option>Select</option>{window.LMS_EXP.map(s => <option key={s}>{s}</option>)}</select>
+        <select className="cand-ipt" style={{ paddingLeft: 14 }} value={exp} onChange={e => setExp(e.target.value)}><option value="">Select</option>{window.LMS_EXP.map(s => <option key={s} value={s}>{s}</option>)}</select>
         <div className="cand-label">Resume / CV *</div>
-        <div style={{ border: '1.5px dashed var(--lms-purple)', background: 'var(--lms-purple-soft)', borderRadius: 14, padding: '26px 14px', textAlign: 'center', color: 'var(--lms-purple-ink)' }}>
+        <div onClick={() => fileRef.current && fileRef.current.click()} style={{ cursor: 'pointer', border: '1.5px dashed var(--lms-purple)', background: 'var(--lms-purple-soft)', borderRadius: 14, padding: '26px 14px', textAlign: 'center', color: 'var(--lms-purple-ink)' }}>
           <div style={{ fontSize: 24 }}><CandIcon name="doc" /></div>
-          <div style={{ fontWeight: 600, marginTop: 6 }}>Click to upload or drag &amp; drop</div>
-          <div style={{ fontSize: 12, color: 'var(--lms-meta)' }}>PDF or Word · Max 5MB</div>
+          <div style={{ fontWeight: 600, marginTop: 6 }}>{resumeName || 'Click to upload or drag & drop'}</div>
+          <div style={{ fontSize: 12, color: 'var(--lms-meta)' }}>{resumeName ? 'Tap to replace' : 'PDF or Word · Max 5MB'}</div>
         </div>
+        <input ref={fileRef} type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style={{ display: 'none' }} onChange={pickFile} />
         <div className="cand-label">How did you know about this *</div>
-        <select className="cand-ipt" style={{ paddingLeft: 14 }}><option>Select Source</option>{window.LMS_SOURCES.map(s => <option key={s.id}>{s.label}</option>)}</select>
-        <div style={{ marginTop: 20 }}><button className="cand-btn" onClick={() => go('home')}>Submit Application</button></div>
+        <select className="cand-ipt" style={{ paddingLeft: 14 }} value={source} onChange={e => setSource(e.target.value)}><option value="">Select Source</option>{window.LMS_SOURCES.map(s => <option key={s.id} value={s.label}>{s.label}</option>)}</select>
+        {err && <div style={{ marginTop: 14, color: '#9A3B3B', fontSize: 13, background: '#F6E7E7', border: '1px solid #E6C9C9', borderRadius: 10, padding: '10px 12px' }}>{err}</div>}
+        <div style={{ marginTop: 20 }}><button className="cand-btn" onClick={submit} disabled={busy} style={busy ? { opacity: .6 } : {}}>{busy ? 'Submitting…' : 'Submit Application'}</button></div>
         <p style={{ textAlign: 'center', fontSize: 11.5, color: 'var(--lms-meta)', marginTop: 12 }}>Your data is confidential and used only for hiring purposes.</p>
       </div>
     </>
@@ -237,6 +406,7 @@ function CandStatus({ go, stage, cand }) {
   const t = window.lmsTestWindow(c);
   // per-stage date + next-action hints
   const meta = {
+    registered:  { date: 'Not submitted', next: 'Fill in the Apply Now form to submit your application — we cannot review you until you do.' },
     applied:     { date: c.applied || '—', next: 'Our team will review your application and call to schedule a short screening.' },
     screening:   { date: c.screenResult ? 'Screened' : 'Scheduled', next: c.screenResult === 'pass' ? 'You cleared screening — training will be unlocked shortly.' : 'Attend your screening call. Be ready to talk about your experience.' },
     training:    { date: w.state === 'open' ? w.daysLeft + ' days left' : w.state === 'expired' ? 'Window expired' : 'Locked', next: 'Watch all training videos, then your test will be unlocked.' },
@@ -577,7 +747,7 @@ function CandLangSheet({ onPick }) {
   ];
   const [sel, setSel] = cUseState('en');
   return (
-    <div style={{ position: 'absolute', inset: 0, background: 'rgba(20,16,40,0.5)', display: 'flex', alignItems: 'flex-end', zIndex: 60 }}>
+    <div className="cand-overlay cand-overlay-bottom">
       <div style={{ background: '#fff', width: '100%', borderRadius: '22px 22px 0 0', padding: '22px 20px 26px', boxShadow: '0 -10px 40px rgba(0,0,0,0.2)' }}>
         <div style={{ width: 40, height: 4, borderRadius: 4, background: '#E0DCD2', margin: '0 auto 16px' }} />
         <div style={{ textAlign: 'center', marginBottom: 4 }}><span style={{ fontSize: 26 }}>🌐</span></div>
@@ -697,26 +867,170 @@ function CandOnboarding({ go, cand, actions }) {
   );
 }
 
-function CandidateApp({ cands, actions, questions, testCfg }) {
+// ---- Account menu (hamburger): change password / sign out ----
+function CandMenu({ cand, onClose, onSignOut }) {
+  const [changing, setChanging] = cUseState(false);
+  const [cur, setCur] = cUseState('');
+  const [nw, setNw] = cUseState('');
+  const [nw2, setNw2] = cUseState('');
+  const [busy, setBusy] = cUseState(false);
+  const [err, setErr] = cUseState('');
+  const [done, setDone] = cUseState(false);
+
+  const initials = (cand.name || '?').trim().split(/\s+/).map(s => s[0]).slice(0, 2).join('').toUpperCase();
+
+  const savePassword = () => {
+    setErr('');
+    if (nw.length < 6) { setErr('Use at least 6 characters.'); return; }
+    if (nw !== nw2) { setErr('New passwords do not match.'); return; }
+    setBusy(true);
+    candApi('POST', '/auth/candidate/password', { currentPassword: cur || undefined, newPassword: nw }).then(res => {
+      setBusy(false);
+      if (!res.ok) { setErr((res.data && res.data.error) || 'Could not change your password.'); return; }
+      setDone(true); setCur(''); setNw(''); setNw2('');
+    });
+  };
+
+  return (
+    <div className="cand-overlay" style={{ zIndex: 70 }} onClick={onClose}>
+      <div className="cand-drawer" onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+          <div style={{ width: 46, height: 46, borderRadius: '50%', background: 'var(--lms-purple)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 16 }}>{initials}</div>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 15 }}>{cand.name}</div>
+            <div style={{ fontSize: 12, color: 'var(--lms-meta)', fontFamily: 'monospace' }}>{cand.candId}</div>
+          </div>
+        </div>
+        <div style={{ fontSize: 12.5, color: 'var(--lms-meta)', lineHeight: 1.7, marginBottom: 18 }}>
+          {cand.email && <div>✉️ {cand.email}</div>}
+          {cand.phone && <div>📱 {cand.phone}</div>}
+        </div>
+
+        {!changing && (
+          <button className="cand-btn cand-btn-ghost" style={{ marginBottom: 10 }} onClick={() => { setChanging(true); setDone(false); }}>Change password</button>
+        )}
+        {changing && (
+          <div style={{ border: '1px solid var(--lms-border)', borderRadius: 12, padding: 14, marginBottom: 12 }}>
+            {done ? (
+              <div style={{ color: 'var(--lms-green-ink)', fontSize: 13.5, fontWeight: 600 }}>✓ Password changed.</div>
+            ) : (
+              <>
+                <div className="cand-label" style={{ marginTop: 0 }}>Current password</div>
+                <div className="cand-ipt-wrap"><span className="ic"><CandIcon name="lock" /></span><input className="cand-ipt" type="password" placeholder="Enter current password" value={cur} onChange={e => setCur(e.target.value)} /></div>
+                <div className="cand-label">New password</div>
+                <div className="cand-ipt-wrap"><span className="ic"><CandIcon name="lock" /></span><input className="cand-ipt" type="password" placeholder="Enter new password" value={nw} onChange={e => setNw(e.target.value)} /></div>
+                <div className="cand-label">Confirm new password</div>
+                <div className="cand-ipt-wrap"><span className="ic"><CandIcon name="lock" /></span><input className="cand-ipt" type="password" placeholder="Re-enter new password" value={nw2} onChange={e => setNw2(e.target.value)} /></div>
+                <div style={{ fontSize: 11.5, color: 'var(--lms-meta)', marginTop: 4 }}>Use at least 6 characters.</div>
+                {err && <div style={{ marginTop: 10, color: '#9A3B3B', fontSize: 12.5 }}>{err}</div>}
+                <button className="cand-btn" style={{ marginTop: 12 }} onClick={savePassword} disabled={busy}>{busy ? 'Saving…' : 'Save password'}</button>
+              </>
+            )}
+          </div>
+        )}
+
+        <button className="cand-btn" style={{ marginTop: 18, background: '#F6E7E7', color: '#9A3B3B' }}
+          onClick={() => { if (window.confirm('Sign out of your Eurostar Academy account?')) onSignOut(); }}>
+          Sign out
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function CandidateApp({ questions, testCfg }) {
   const [authed, setAuthed] = cUseState(false);
+  const [checking, setChecking] = cUseState(true);
   const [mode, setMode] = cUseState('register');
   const [screen, setScreen] = cUseState('home');
   const [lang, setLang] = cUseState(null); // null until chosen on first dashboard arrival
-  // The logged-in rep — prefer a hired rep (post-hire onboarding flow), else the C1 prospect.
-  const cand = (cands || window.LMS_CANDIDATES).find(c => c.stage === 'hired') || (cands || window.LMS_CANDIDATES).find(c => c.id === 'C1') || (cands || window.LMS_CANDIDATES)[0];
-  if (!authed) return <CandShell><CandAuth mode={mode} setMode={setMode} onDone={() => setAuthed(true)} /></CandShell>;
+  const [cand, setCand] = cUseState(null);
+  const [menuOpen, setMenuOpen] = cUseState(false);
+  const [notice, setNotice] = cUseState('');
+
+  const loadCand = () => candApi('GET', '/candidates/me').then(res => {
+    if (res.ok && res.data) { setCand(res.data); setAuthed(true); return true; }
+    if (res.status === 401 || res.status === 403) { try { localStorage.removeItem(CAND_TOKEN_KEY); } catch (e) {} }
+    setAuthed(false);
+    return false;
+  });
+
+  React.useEffect(() => {
+    let token = '';
+    try { token = localStorage.getItem(CAND_TOKEN_KEY) || ''; } catch (e) {}
+    if (!token) { setChecking(false); return; }
+    loadCand().then(() => setChecking(false));
+  }, []);
+
+  // Any call refused with 401/403 means this session is over. Drop straight to
+  // the sign-in screen with a reason, rather than leaving a screen that looks
+  // signed in but fails on every action.
+  React.useEffect(() => {
+    const onEnded = () => {
+      try { localStorage.removeItem(CAND_TOKEN_KEY); } catch (e) {}
+      setAuthed(false); setCand(null); setMenuOpen(false);
+      setNotice('Your session has ended. Please sign in again to submit your application.');
+    };
+    window.addEventListener('cand-session-ended', onEnded);
+    return () => window.removeEventListener('cand-session-ended', onEnded);
+  }, []);
+
+  const onSignedIn = (token) => {
+    try { localStorage.setItem(CAND_TOKEN_KEY, token); } catch (e) {}
+    setNotice('');
+    setChecking(true);
+    loadCand().then(() => setChecking(false));
+  };
+  const signOut = () => {
+    try { localStorage.removeItem(CAND_TOKEN_KEY); } catch (e) {}
+    setAuthed(false); setCand(null); setScreen('home'); setMenuOpen(false); setLang(null);
+  };
+
+  if (checking) return <CandShell><div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--lms-meta)' }}>Loading…</div></CandShell>;
+  if (!authed || !cand) return <CandShell><CandAuth mode={mode} setMode={setMode} onDone={onSignedIn} notice={notice} /></CandShell>;
+
   const go = (s) => setScreen(s);
-  const submitTest = (score) => { if (actions) actions.setScore(cand.id, score); setScreen('result'); };
+  // These mutate the candidate's OWN record only, without an office/admin token —
+  // watched-videos and test attempts have no self-service endpoint yet, so they
+  // update the local view but (unlike Apply/Resume, which are real) don't persist.
+  const localActions = {
+    markWatched: (id, vid) => setCand(c => c ? { ...c, watched: (c.watched || []).includes(vid) ? c.watched : [...(c.watched || []), vid] } : c),
+    consumeTest: () => setCand(c => c ? { ...c, testConsumed: true } : c),
+    setOnboarding: (id, patch) => setCand(c => c ? { ...c, onboarding: { ...(c.onboarding || {}), ...patch } } : c),
+    signConfidentiality: () => setCand(c => c ? { ...c, onboarding: { ...(c.onboarding || {}), confidentiality: true } } : c),
+  };
+  const submitTest = (score) => {
+    setCand(c => {
+      if (!c) return c;
+      const n = (c.attempts || []).length + 1;
+      const passed = score >= (window.LMS_PASS_PCT || 70);
+      const attempts = [...(c.attempts || []), { n, score, date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }), passed }];
+      return { ...c, score, attempts, testConsumed: true, stage: passed ? 'recommended' : c.stage };
+    });
+    setScreen('result');
+  };
+
   let view;
-  if (screen === 'home') view = <CandDashboard cand={cand} go={go} />;
-  else if (screen === 'apply') view = <CandApply go={go} />;
+  if (screen === 'home') view = <CandDashboard cand={cand} go={go} onMenu={() => setMenuOpen(true)} />;
+  else if (screen === 'apply') view = <CandApply go={go} cand={cand} onSaved={setCand} />;
   else if (screen === 'status') view = <CandStatus go={go} stage={cand.stage} cand={cand} />;
-  else if (screen === 'training') view = <CandTraining go={go} cand={cand} actions={actions} lang={lang || 'en'} />;
-  else if (screen === 'test') view = <CandTest go={go} onSubmit={submitTest} onAbort={() => { if (actions) actions.consumeTest(cand.id); setScreen('home'); }} questions={questions} testCfg={testCfg} cand={cand} />;
+  else if (screen === 'training') view = <CandTraining go={go} cand={cand} actions={localActions} lang={lang || 'en'} />;
+  else if (screen === 'test') view = <CandTest go={go} onSubmit={submitTest} onAbort={() => { localActions.consumeTest(); setScreen('home'); }} questions={questions} testCfg={testCfg} cand={cand} />;
   else if (screen === 'result') view = <CandResult go={go} cand={cand} />;
-  else if (screen === 'onboarding') view = <CandOnboarding go={go} cand={cand} actions={actions} />;
-  else view = <CandDashboard cand={cand} go={go} />;
-  return <CandShell>{view}{screen === 'home' && lang === null && <CandLangSheet onPick={setLang} />}</CandShell>;
+  else if (screen === 'onboarding') view = <CandOnboarding go={go} cand={cand} actions={localActions} />;
+  else view = <CandDashboard cand={cand} go={go} onMenu={() => setMenuOpen(true)} />;
+  return (
+    <CandShell
+      overlay={
+        <>
+          {screen === 'home' && lang === null && <CandLangSheet onPick={setLang} />}
+          {menuOpen && <CandMenu cand={cand} onClose={() => setMenuOpen(false)} onSignOut={signOut} />}
+        </>
+      }
+    >
+      {view}
+    </CandShell>
+  );
 }
 
 Object.assign(window, { CandidateApp });

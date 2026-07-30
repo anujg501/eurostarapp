@@ -51,7 +51,11 @@ a { color: inherit; text-decoration: none; }
 .lms-role { display: flex; gap: 4px; background: #ECECEC; padding: 4px; border-radius: var(--r-md); }
 .lms-role button { padding: 7px 13px; border-radius: 7px; border: none; background: transparent; font-size: 12.5px; font-weight: 600; color: var(--lms-meta); }
 .lms-role button.active { background: #fff; color: var(--lms-ink); box-shadow: var(--shadow-sm); }
-.lms-body { padding: 24px 26px 60px; max-width: 1180px; width: 100%; }
+/* The candidates table asks for 1240px across its nine columns. Capped at
+   1180px (1128px inside the padding) it could never fit — the Actions column
+   was clipped and the row scrolled sideways on every screen, however wide,
+   while several hundred pixels sat empty to the right of the card. */
+.lms-body { padding: 24px 26px 60px; max-width: 1560px; width: 100%; }
 
 /* ============ shared bits ============ */
 .lms-pagehead { margin-bottom: 18px; }
@@ -80,6 +84,14 @@ a { color: inherit; text-decoration: none; }
 .lms-table td { padding: 12px 14px; border-top: 1px solid var(--lms-divider); font-size: 13.5px; vertical-align: middle; }
 .lms-table tbody tr:hover { background: #FAFAF8; }
 .lms-table tbody tr:first-child td { border-top: none; }
+/* A wide data table scrolls inside its own card, never widening the page —
+   otherwise the whole layout gains a horizontal scrollbar and the sidebar
+   slides off. Keep these on the card, not on .lms-body. */
+.lms-tablewrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+/* Floor, not a fixed width: the table is width:100% so it fills whatever the
+   card gives it and only scrolls once there is genuinely less than this. The
+   old 1240px floor exceeded the page's own max-width, so it always scrolled. */
+.lms-table-wide { min-width: 1080px; }
 .lms-av { width: 34px; height: 34px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 12px; }
 .lms-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 11px; border-radius: 999px; font-size: 12px; font-weight: 600; }
 .lms-pill .dot { width: 6px; height: 6px; border-radius: 50%; }
@@ -119,10 +131,28 @@ a { color: inherit; text-decoration: none; }
 
 /* ============ CANDIDATE (purple mobile) ============ */
 .cand-stage { background: linear-gradient(160deg,#EEE9FB 0%, #F7F8FA 60%); min-height: 100vh; display: flex; align-items: flex-start; justify-content: center; padding: 30px 16px 60px; }
-.cand-phone { width: 390px; max-width: 100%; background: #fff; border-radius: 30px; box-shadow: var(--shadow-lg); overflow: hidden; border: 1px solid var(--lms-border); min-height: 760px; display: flex; flex-direction: column; }
+/* position: relative matters — the menu drawer and the language sheet are
+   absolutely positioned, and without a positioned ancestor they resolve against
+   the viewport and cover the whole browser window instead of the handset. */
+.cand-phone { position: relative; width: 390px; max-width: 100%; background: #fff; border-radius: 30px; box-shadow: var(--shadow-lg); overflow: hidden; border: 1px solid var(--lms-border); min-height: 760px; display: flex; flex-direction: column; }
 .cand-statusbar { height: 30px; background: #6D28D9; }
 .cand-scroll { flex: 1; overflow-y: auto; scrollbar-width: none; }
 .cand-scroll::-webkit-scrollbar { width: 0; height: 0; }
+
+/* Sheets and drawers sit over the handset, as a sibling of the scroll area so
+   they stay put while the page behind them scrolls. */
+.cand-overlay { position: absolute; inset: 0; z-index: 60; display: flex; background: rgba(20,16,40,0.5); animation: candFade .18s ease both; }
+.cand-overlay-bottom { align-items: flex-end; }
+.cand-drawer {
+  background: #fff; width: 84%; max-width: 320px; height: 100%;
+  box-shadow: 4px 0 30px rgba(0,0,0,0.2); padding: 22px 18px; overflow-y: auto;
+  animation: candSlideIn .24s cubic-bezier(.2,.8,.2,1) both;
+}
+@keyframes candFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes candSlideIn { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .cand-overlay, .cand-drawer { animation: none; }
+}
 .cand-pad { padding: 22px 20px 30px; }
 .cand-appbar { display: flex; align-items: center; gap: 12px; padding: 16px 18px; border-bottom: 1px solid var(--lms-divider); }
 .cand-appbar .menu { width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--lms-border); display: flex; align-items: center; justify-content: center; background: #fff; }
@@ -162,6 +192,25 @@ a { color: inherit; text-decoration: none; }
 .cand-qopt.sel .rd { border-color: var(--lms-purple); background: var(--lms-purple); box-shadow: inset 0 0 0 3px #fff; }
 
 .lms-mobnav { display: none; }
+
+/* Laptops. A 1366- or 1440-wide screen is the common case, and at the full
+   236px sidebar + 26px gutters the nine-column table lands ~2px short of
+   fitting — close enough that trimming the chrome removes the sideways scroll
+   entirely rather than *almost* removing it. 1366 → 1122px of table. */
+@media (max-width: 1440px) {
+  .lms-side { width: 208px; flex: 0 0 208px; }
+  .lms-body { padding: 22px 18px 56px; }
+  .lms-top { padding: 12px 18px; }
+  .lms-table { font-size: 13px; }
+  .lms-table th, .lms-table td { padding: 10px 9px; }
+}
+
+/* Tablets. Below this the table genuinely cannot fit, so let it scroll inside
+   its card rather than shrinking text to the point of being unreadable. */
+@media (max-width: 1024px) {
+  .lms-kpis { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+  .lms-pagehead h2 { font-size: 23px; }
+}
 
 @media (max-width: 820px) {
   .lms-side { display: none; }

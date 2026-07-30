@@ -1,6 +1,7 @@
 import crypto from 'crypto';
+import fs from 'fs';
 import path from 'path';
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { config } from '../config';
 
 // Object storage for admin-uploaded images (DigitalOcean Spaces, S3-compatible).
@@ -86,4 +87,78 @@ export async function putImage(
   );
 
   return { url: publicUrl(key), key, bytes: buffer.length };
+}
+
+// --- Private documents (candidate CVs) --------------------------------------
+// A CV is personal data belonging to a job applicant, so unlike product images
+// these are never public-read and never handed out as a plain URL. They are
+// stored under an unguessable key and can only be read back through an
+// authenticated endpoint.
+
+const DOC_EXT_BY_MIME: Record<string, string> = {
+  'application/pdf': '.pdf',
+  'application/msword': '.doc',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+};
+
+export const ALLOWED_DOC_MIME = Object.keys(DOC_EXT_BY_MIME);
+export const MAX_DOC_BYTES = 5 * 1024 * 1024; // the form promises "Max 5MB"
+
+// Where private files live when object storage is not configured (local dev).
+// Deliberately outside docs/, which is served statically — a CV must never be
+// reachable by guessing a URL.
+const LOCAL_DIR = path.join(process.cwd(), 'var', 'uploads');
+
+/** Store a private document. Returns an opaque key, not a URL. */
+export async function putPrivateFile(
+  buffer: Buffer,
+  mime: string,
+  folder = 'docs'
+): Promise<{ key: string; bytes: number }> {
+  const ext = DOC_EXT_BY_MIME[mime] ?? '.bin';
+  const safeFolder = folder.replace(/[^a-z0-9_-]/gi, '').slice(0, 40) || 'docs';
+  const name = `${Date.now()}-${crypto.randomBytes(12).toString('hex')}${ext}`;
+
+  if (config.spaces.configured) {
+    const key = path.posix.join(config.spaces.prefix, safeFolder, name);
+    await s3().send(
+      new PutObjectCommand({
+        Bucket: config.spaces.bucket,
+        Key: key,
+        Body: buffer,
+        ContentType: mime,
+        ACL: 'private',
+      })
+    );
+    return { key: `s3:${key}`, bytes: buffer.length };
+  }
+
+  const dir = path.join(LOCAL_DIR, safeFolder);
+  await fs.promises.mkdir(dir, { recursive: true });
+  await fs.promises.writeFile(path.join(dir, name), buffer);
+  return { key: `local:${safeFolder}/${name}`, bytes: buffer.length };
+}
+
+/** Read a private document back for an authorised caller. */
+export async function getPrivateFile(key: string): Promise<Buffer> {
+  if (key.startsWith('s3:')) {
+    if (!config.spaces.configured) throw new Error('Object storage is not configured');
+    const out = await s3().send(
+      new GetObjectCommand({ Bucket: config.spaces.bucket, Key: key.slice(3) })
+    );
+    const chunks: Buffer[] = [];
+    for await (const chunk of out.Body as AsyncIterable<Uint8Array>) chunks.push(Buffer.from(chunk));
+    return Buffer.concat(chunks);
+  }
+
+  if (key.startsWith('local:')) {
+    const rel = key.slice('local:'.length);
+    // The key is generated here, never supplied by a caller, but resolve and
+    // check anyway so a malformed one can never escape the uploads directory.
+    const full = path.resolve(LOCAL_DIR, rel);
+    if (!full.startsWith(path.resolve(LOCAL_DIR))) throw new Error('Invalid file key');
+    return fs.promises.readFile(full);
+  }
+
+  throw new Error('Unknown file key');
 }

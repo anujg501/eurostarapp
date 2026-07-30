@@ -58,6 +58,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     accept: 'application/json',
     ...(options.headers as Record<string, string>),
   };
+  // A caller can clear a default by passing it as undefined — a multipart upload
+  // must let the runtime set content-type itself so the boundary is included.
+  for (const k of Object.keys(headers)) {
+    if (headers[k] === undefined) delete headers[k];
+  }
   const token = await loadToken();
   if (token) headers.authorization = `Bearer ${token}`;
 
@@ -88,10 +93,27 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   }
   if (!resp.ok) {
     const message = (data && data.error) || `Request failed (${resp.status})`;
-    throw new Error(message);
+    // Carry the status: callers need to tell "the server rejected you" apart
+    // from "the server could not be reached", which look identical otherwise.
+    throw Object.assign(new Error(message), { status: resp.status });
   }
   return data as T;
 }
+
+export type Candidate = {
+  id: string;
+  candId?: string | null;
+  name: string;
+  email?: string | null;
+  phone?: string | null;
+  city?: string | null;
+  state?: string | null;
+  source?: string | null;
+  exp?: string | null;
+  stage: string; // applied | screening | training | test | recommended | hired | rejected
+  score?: number | null;
+  repId?: string | null;
+};
 
 export type TrainingModule = {
   id: string;
@@ -116,13 +138,60 @@ export const api = {
       body: JSON.stringify({ phone, mode }),
     }),
 
-  verifyOtp: (phone: string, otp: string, name?: string, email?: string) =>
+  verifyOtp: (phone: string, otp: string, name?: string, email?: string, password?: string) =>
     request<{ accessToken: string; user: any }>('/auth/candidate/otp/verify', {
       method: 'POST',
-      body: JSON.stringify({ phone, otp, name, email, remember: true }),
+      body: JSON.stringify({ phone, otp, name, email, password, remember: true }),
     }),
 
-  me: () => request<{ id: string; role: string; name: string }>('/auth/me'),
+  // Coming back after sign-up: email + password, no SMS round-trip.
+  login: (email: string, password: string, remember = true) =>
+    request<{ accessToken: string; user: any }>('/auth/candidate/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password, remember }),
+    }),
+
+  me: () =>
+    request<{
+      id: string;
+      role: string;
+      name: string;
+      phone?: string;
+      email?: string;
+      candId?: string;
+      hasPassword?: boolean;
+    }>('/auth/me'),
+
+  // Set or change the password used for email login. `currentPassword` is only
+  // needed by candidates who already have one.
+  changePassword: (newPassword: string, currentPassword?: string) =>
+    request<{ changed: boolean }>('/auth/candidate/password', {
+      method: 'POST',
+      body: JSON.stringify({ newPassword, currentPassword }),
+    }),
+
+  // The candidate's own pipeline record — stage, city, score…
+  myCandidate: () => request<Candidate>('/candidates/me'),
+
+  // Submit the Apply Now form against their own record.
+  apply: (body: { city: string; state: string; exp: string; source: string }) =>
+    request<Candidate>('/candidates/me/apply', { method: 'POST', body: JSON.stringify(body) }),
+
+  // Attach a CV. Sent as multipart — the content-type header is deliberately
+  // left off so the runtime sets it with the multipart boundary.
+  uploadResume: (file: { uri: string; name: string; mimeType: string }) => {
+    const form = new FormData();
+    form.append('file', {
+      uri: file.uri,
+      name: file.name,
+      type: file.mimeType,
+    } as unknown as Blob);
+    return request<Candidate>('/candidates/me/resume', {
+      method: 'POST',
+      body: form,
+      headers: { 'content-type': undefined as unknown as string },
+    });
+  },
 
   // Training modules the candidate must watch before the test.
   modules: () => request<TrainingModule[]>('/modules'),

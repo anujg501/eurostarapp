@@ -1,12 +1,15 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import multer from 'multer';
 import { prisma } from '../db';
 import { asyncHandler, fail, ok, failValidation } from '../util/http';
-import { authenticate, requireStaff } from '../auth/middleware';
+import { AuthedRequest, authenticate, requireCandidate, requireInternal, requireRole } from '../auth/middleware';
+import { ALLOWED_DOC_MIME, MAX_DOC_BYTES, getPrivateFile, putPrivateFile } from '../services/storage';
 
 export const candidatesRouter = Router();
 
-const STAGES = ['applied', 'screening', 'training', 'test', 'recommended', 'hired', 'rejected'] as const;
+// 'registered' = account created, Apply Now form not submitted yet.
+const STAGES = ['registered', 'applied', 'screening', 'training', 'test', 'recommended', 'hired', 'rejected'] as const;
 
 function serialise(c: any) {
   let data: any = {};
@@ -49,7 +52,7 @@ function splitCandidate(body: any) {
 candidatesRouter.get(
   '/',
   authenticate,
-  requireStaff,
+  requireInternal,
   asyncHandler(async (req, res) => {
     const stage = typeof req.query.stage === 'string' ? req.query.stage : undefined;
     const candidates = await prisma.candidate.findMany({
@@ -61,11 +64,155 @@ candidatesRouter.get(
   })
 );
 
+// --- The candidate's own record --------------------------------------------
+// Everything above is staff-only. These two let an applicant read and submit
+// their OWN application from the mobile app, resolved from the signed-in user
+// rather than an id in the URL, so one candidate can never touch another's.
+// Declared before "/:id" or Express would match "me" as an id.
+
+async function ownCandidate(userId: string) {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user?.phone) return null;
+  return prisma.candidate.findFirst({ where: { phone: user.phone } });
+}
+
+// Not requireRole('candidate'): an applicant who already had a customer account
+// keeps role 'customer', and every handler below resolves the record from the
+// signed-in user's own phone, so ownership — not the role string — is what
+// actually scopes these routes.
+const candidateOnly = [authenticate, requireCandidate];
+
+// GET /candidates/me — used by the dashboard to show the real stage.
+candidatesRouter.get(
+  '/me',
+  ...candidateOnly,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const c = await ownCandidate(req.user!.sub);
+    if (!c) return fail(res, 404, 'No application found for this account');
+    return ok(res, serialise(c));
+  })
+);
+
+// POST /candidates/me/apply — submit the Apply Now form.
+const applySchema = z.object({
+  city: z.string().min(1),
+  state: z.string().min(1),
+  exp: z.string().min(1),
+  source: z.string().min(1),
+});
+
+candidatesRouter.post(
+  '/me/apply',
+  ...candidateOnly,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = applySchema.safeParse(req.body);
+    if (!parsed.success) return failValidation(res, parsed.error);
+    const { city, state, exp, source } = parsed.data;
+
+    const existing = await ownCandidate(req.user!.sub);
+    if (!existing) return fail(res, 404, 'No application found for this account');
+
+    // Submitting the form is what turns a registration into an application.
+    // Never walk the pipeline backwards, though: someone already in training
+    // who edits their city must not be dropped back to "applied".
+    const beforeApplied = !existing.stage || existing.stage === 'registered' || existing.stage === 'applied';
+    const stage = beforeApplied ? 'applied' : existing.stage;
+
+    let blob: Record<string, unknown> = {};
+    if (existing.data) { try { blob = JSON.parse(existing.data); } catch { blob = {}; } }
+    blob.applied = blob.applied || new Date().toISOString().slice(0, 10);
+
+    const c = await prisma.candidate.update({
+      where: { id: existing.id },
+      data: { city, state, exp, source, stage, data: JSON.stringify(blob) },
+    });
+    return ok(res, serialise(c));
+  })
+);
+
+// POST /candidates/me/resume — the applicant attaches their CV.
+const resumeUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_DOC_BYTES, files: 1 },
+});
+
+candidatesRouter.post(
+  '/me/resume',
+  ...candidateOnly,
+  (req, res, next) => {
+    resumeUpload.single('file')(req, res, (err: unknown) => {
+      // Multer's own errors (too large, too many files) arrive here and would
+      // otherwise surface as an unhandled 500.
+      if (err) {
+        const msg = (err as { code?: string }).code === 'LIMIT_FILE_SIZE'
+          ? 'That file is larger than 5MB'
+          : 'Could not read the uploaded file';
+        return fail(res, 400, msg);
+      }
+      return next();
+    });
+  },
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const file = (req as unknown as { file?: Express.Multer.File }).file;
+    if (!file) return fail(res, 400, 'No file was uploaded');
+    if (!ALLOWED_DOC_MIME.includes(file.mimetype)) {
+      return fail(res, 400, 'Upload a PDF or Word document');
+    }
+
+    const existing = await ownCandidate(req.user!.sub);
+    if (!existing) return fail(res, 404, 'No application found for this account');
+
+    const { key, bytes } = await putPrivateFile(file.buffer, file.mimetype, 'resumes');
+
+    let blob: Record<string, unknown> = {};
+    if (existing.data) { try { blob = JSON.parse(existing.data); } catch { blob = {}; } }
+    blob.resumeKey = key;
+    blob.resumeName = file.originalname?.slice(0, 120) || 'resume';
+    blob.resumeMime = file.mimetype;
+    blob.resumeSize = bytes;
+    blob.resumeAt = new Date().toISOString();
+
+    const c = await prisma.candidate.update({
+      where: { id: existing.id },
+      data: { data: JSON.stringify(blob) },
+    });
+    return ok(res, serialise(c));
+  })
+);
+
+// GET /candidates/:id/resume — the office downloads the CV. Never a public URL:
+// the stored key is private and only ever read back through this check.
+// Deliberately office/admin rather than requireStaff — a CV is personal data
+// belonging to an applicant, and field reps have no reason to read one.
+candidatesRouter.get(
+  '/:id/resume',
+  authenticate,
+  requireRole('office', 'admin'),
+  asyncHandler(async (req, res) => {
+    const c = await prisma.candidate.findFirst({
+      where: { OR: [{ id: req.params.id }, { candId: req.params.id }] },
+    });
+    if (!c) return fail(res, 404, 'Candidate not found');
+
+    let blob: Record<string, any> = {};
+    if (c.data) { try { blob = JSON.parse(c.data); } catch { blob = {}; } }
+    if (!blob.resumeKey) return fail(res, 404, 'This candidate has not attached a CV');
+
+    const buf = await getPrivateFile(blob.resumeKey);
+    res.setHeader('Content-Type', blob.resumeMime || 'application/octet-stream');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${String(blob.resumeName || 'resume').replace(/["\r\n]/g, '')}"`
+    );
+    return res.send(buf);
+  })
+);
+
 // GET /candidates/:id
 candidatesRouter.get(
   '/:id',
   authenticate,
-  requireStaff,
+  requireInternal,
   asyncHandler(async (req, res) => {
     const c = await prisma.candidate.findUnique({ where: { id: req.params.id } });
     if (!c) return fail(res, 404, 'Candidate not found');
@@ -76,7 +223,7 @@ candidatesRouter.get(
 candidatesRouter.post(
   '/',
   authenticate,
-  requireStaff,
+  requireInternal,
   asyncHandler(async (req, res) => {
     if (!req.body || typeof req.body.name !== 'string' || !req.body.name.trim()) {
       return fail(res, 400, 'Candidate name is required');
@@ -97,7 +244,7 @@ candidatesRouter.post(
 candidatesRouter.put(
   '/:id',
   authenticate,
-  requireStaff,
+  requireInternal,
   asyncHandler(async (req, res) => {
     // A candidate may be addressed by its DB id or its display candId.
     const existing = await prisma.candidate.findFirst({
@@ -188,7 +335,7 @@ const moduleSchema = z.object({
 modulesRouter.put(
   '/',
   authenticate,
-  requireStaff,
+  requireInternal,
   asyncHandler(async (req, res) => {
     const parsed = moduleSchema.safeParse(req.body);
     if (!parsed.success) return failValidation(res, parsed.error);

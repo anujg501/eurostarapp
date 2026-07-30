@@ -15,6 +15,9 @@ prisma/dev.db-journal
 *.sqlite
 *.sqlite-journal
 
+# Uploaded private files (candidate CVs) when object storage is not configured
+var/uploads/
+
 # Logs
 *.log
 npm-debug.log*

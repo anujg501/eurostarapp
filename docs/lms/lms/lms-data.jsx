@@ -1,6 +1,11 @@
 // lms-data.jsx — Eurostar LMS / recruitment sample data
 
 const LMS_STAGES = [
+  // Creating a login is not the same as applying. Someone who has registered
+  // but not yet submitted the Apply Now form sits here, so the office can see
+  // at a glance who still owes an application instead of every new account
+  // showing up as "Applied" with no city, experience or CV against it.
+  { id: 'registered',  label: 'Registered',  color: '#6B7280' },
   { id: 'applied',     label: 'Applied',     color: '#2563EB' },
   { id: 'screening',   label: 'Screening',   color: '#7C3AED' },
   { id: 'training',    label: 'In Training', color: '#B7791F' },
@@ -41,6 +46,27 @@ const LMS_TEST_DAYS = 2;      // once test is unlocked, must be taken within 2 d
 const LMS_STATE_CODE = { Maharashtra:'MH', Kerala:'KL', Karnataka:'KA', Jharkhand:'JH', Gujarat:'GJ', 'Tamil Nadu':'TN', Telangana:'TG', Rajasthan:'RJ', Delhi:'DL', 'West Bengal':'WB', 'Uttar Pradesh':'UP', 'Madhya Pradesh':'MP' };
 
 function lmsDaysBetween(a, b) { return Math.floor((b - a) / 86400000); }
+
+/**
+ * Where a candidate belongs when they are NOT inside a training window.
+ *
+ * Opening or closing a window is scheduling — it must never be the thing that
+ * decides how far along someone is. Unlocking training used to set the stage to
+ * "In Training" outright, and locking it again left that stage behind, so a bare
+ * registration ended up reading "In Training" next to a locked window.
+ */
+function lmsBaseStage(c) {
+  if (!c) return 'registered';
+  if (c.screenResult && c.screenResult !== 'fail') return 'screening';
+  return (c.city && c.state && c.exp) ? 'applied' : 'registered';
+}
+
+// Has the candidate actually started the training/testing part of the journey?
+// If so, closing a window must not walk their stage backwards.
+function lmsHasProgressed(c) {
+  if (!c) return false;
+  return c.score != null || (c.attempts || []).length > 0 || (c.watched || []).length > 0;
+}
 
 // Training access window status for a candidate.
 function lmsWindow(c) {
@@ -569,5 +595,5 @@ Object.assign(window, {
   LMS_SLOTS, LMS_SLOTS_BOOKED, LMS_JOURNEY, LMS_STATES, LMS_EXP,
   LMS_TODAY, LMS_PASS_PCT, LMS_WINDOW_DAYS, LMS_TRAIN_DAYS, LMS_TEST_DAYS, LMS_STATE_CODE,
   LMS_TEST_CONFIG, LMS_ONBOARD_DOCS, LMS_SETTINGS, LMS_NOTIFICATIONS, LMS_AUDIT,
-  lmsWindow, lmsTestWindow, lmsNextRepId, lmsGenPassword, lmsDaysBetween,
+  lmsWindow, lmsTestWindow, lmsNextRepId, lmsGenPassword, lmsDaysBetween, lmsBaseStage, lmsHasProgressed,
 });

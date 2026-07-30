@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Eurostar LMS — Recruitment & Training</title>
-  <link rel="stylesheet" href="lms/lms.css?v=2">
+  <link rel="stylesheet" href="lms/lms.css?v=12">
   <style>
     /* Overlay scroll indicator (same as Sales App) — native scrollbar reserves no space. */
     html { scrollbar-width: none; -ms-overflow-style: none; }
@@ -155,9 +155,55 @@
       try { var savedUser = localStorage.getItem(AUTH_KEY); if (savedUser) userEl.value = savedUser; } catch (e) {}
       applyRole(role);
       function unlock() { gate.style.display = 'none'; document.documentElement.style.overflow = ''; document.body.style.overflow = ''; }
+      // Reads a JWT's payload without verifying its signature — fine here, this
+      // only decides whether to SHOW the panel optimistically. The signature is
+      // still checked server-side on every request the panel actually makes;
+      // a forged or tampered token gets the same 401 it always would.
+      function decodeJwtPayload(token) {
+        try {
+          var seg = token.split('.')[1];
+          var b64 = seg.replace(/-/g, '+').replace(/_/g, '/');
+          while (b64.length % 4) b64 += '=';
+          return JSON.parse(atob(b64));
+        } catch (e) { return null; }
+      }
+      var qrole = null;
+      try { qrole = new URLSearchParams(location.search).get('role'); } catch (e) {}
       // A candidate coming in (or returning) skips this staff gate entirely — the
       // candidate app below has its own apply/register/login (mobile OTP).
-      try { if (new URLSearchParams(location.search).get('role') === 'candidate') unlock(); } catch (e) {}
+      // A staff token already in this browser is left alone: the candidate app
+      // never reads it, the panel only opens after a real sign-in on this page
+      // load, and clearing it here would sign the office out of another tab.
+      if (qrole === 'candidate' || qrole === 'rep') {
+        unlock();
+      } else {
+        // Every page load used to show this gate again even with a perfectly
+        // good token already sitting in localStorage from a few minutes ago —
+        // "Sign in" was re-typing a password to re-enter a session that was
+        // already open. Restore it optimistically from the token's own claims;
+        // the app's own /auth/me check (in lms-app.jsx) still runs right after
+        // and signs out for real if the server has actually revoked it — this
+        // only skips redundant re-typing, it doesn't skip re-verification.
+        var existing = null;
+        try { existing = localStorage.getItem('eurostar-admin-token'); } catch (e) {}
+        var payload = existing ? decodeJwtPayload(existing) : null;
+        var stillValid = payload && payload.exp && payload.exp * 1000 > Date.now();
+        var isStaff = payload && ['rep', 'office', 'admin'].indexOf(payload.role) !== -1;
+        if (stillValid && isStaff) {
+          // Just hide the overlay — do NOT dispatch lms-signed-in here. This
+          // script runs during initial HTML parse, long before React mounts and
+          // attaches that listener (React loads via the text/babel scripts near
+          // the bottom of the page); an event fired now has nobody to hear it
+          // and the app renders blank. The React app reaches the same
+          // conclusion on its own, from the same token — see lmsInitialRole()
+          // in lms-app.jsx.
+          unlock();
+        } else if (existing) {
+          // Expired or unreadable — do not leave it lying around to be retried
+          // forever; a clean sign-in is one click either way.
+          try { localStorage.removeItem('eurostar-admin-token'); } catch (e) {}
+        }
+      }
       var API = window.EUROSTAR_API || location.origin;
       var btn = form.querySelector('.lgbtn');
       form.addEventListener('submit', function (e) {
@@ -177,9 +223,18 @@
             if (!res.ok || !res.d || !res.d.accessToken) throw new Error((res.d && res.d.error) || 'Incorrect username or password.');
             try {
               localStorage.setItem('eurostar-admin-token', res.d.accessToken);
+              // Deliberately does NOT touch the candidate token. localStorage is
+              // shared by every tab on this origin, so clearing it here silently
+              // signed an applicant out of a form they had open elsewhere — they
+              // only found out when Submit came back "Not signed in". The two
+              // apps read different keys and the server checks the role on every
+              // request, so holding both is not a way around anything.
               if (remember) localStorage.setItem(AUTH_KEY, username); else localStorage.removeItem(AUTH_KEY);
             } catch (e) {}
             unlock();
+            // The app renders nothing until it is told who signed in — it no
+            // longer assumes "admin" just because a token exists somewhere.
+            window.dispatchEvent(new CustomEvent('lms-signed-in', { detail: { role: 'admin' } }));
           })
           .catch(function (ex) {
             btn.disabled = false; btn.textContent = 'Sign in';
@@ -215,10 +270,10 @@
   <!-- Phase 4: mirror LMS "Onboard to CRM" reps to the live back room. -->
   <script src="lms/api-bridge.js"></script>
   <script src="assets/logo-data.js"></script>
-  <script type="text/babel" src="lms/lms-data.jsx"></script>
-  <script type="text/babel" src="lms/lms-candidate.jsx"></script>
-  <script type="text/babel" src="lms/lms-admin.jsx"></script>
-  <script type="text/babel" src="lms/lms-app.jsx?v=3"></script>
+  <script type="text/babel" src="lms/lms-data.jsx?v=12"></script>
+  <script type="text/babel" src="lms/lms-candidate.jsx?v=12"></script>
+  <script type="text/babel" src="lms/lms-admin.jsx?v=12"></script>
+  <script type="text/babel" src="lms/lms-app.jsx?v=12"></script>
   <script src="app/mira-claude-shim.js"></script>
   <script src="app/mira-staff.js"></script>
 

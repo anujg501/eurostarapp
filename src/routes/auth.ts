@@ -14,7 +14,7 @@ import {
   hashPassword,
   Role,
 } from '../auth/tokens';
-import { AuthedRequest, authenticate } from '../auth/middleware';
+import { AuthedRequest, authenticate, requireCandidate } from '../auth/middleware';
 
 export const authRouter = Router();
 
@@ -166,14 +166,33 @@ authRouter.post(
 // use the customer routes above (those answer 422 "please provide your name and
 // GSTIN" for every new number). Same OTP service, different sign-up rules.
 
-// "Registered" for a candidate means a candidate login exists, or the office
-// already has them in the recruitment pipeline. Deliberately does NOT consult
-// the customer master — buying from Eurostar is not applying to work there.
-async function candidateRegistered(phone: string): Promise<boolean> {
+// Staff accounts are never "candidates" for the purposes of the LMS app, even
+// if someone put them in the pipeline: their token carries real back-office
+// power, so the applicant routes must not become a second way to mint one.
+const STAFF_ROLES = ['rep', 'office', 'admin'];
+
+/**
+ * Who this phone number is, as far as the Academy is concerned.
+ *
+ * `canLogIn` — they have an application (or a candidate login), so the app is
+ * theirs to enter. Note this deliberately accepts a `customer` account that
+ * also has a pipeline row: someone who buys from Eurostar and later applies for
+ * a job is one person with one phone number, and User.phone is unique, so there
+ * is no second row to give them. Their role stays `customer` — see the
+ * `candidateAccess` guard, which authorises on having an application rather
+ * than on the role string.
+ *
+ * `signupBlocked` — they can ALREADY sign in with a password, so sending them
+ * through account creation again would be wrong. A bare pipeline row is not
+ * enough: the office adds applicants by hand, and those people have no login
+ * yet — blocking them here left them permanently unable to create one.
+ */
+async function candidateStatus(phone: string) {
   const user = await prisma.user.findUnique({ where: { phone } });
-  if (user && user.role === 'candidate') return true;
   const cand = await prisma.candidate.findFirst({ where: { phone } });
-  return !!cand;
+  const isStaff = !!user && STAFF_ROLES.includes(user.role);
+  const canLogIn = !isStaff && (!!cand || user?.role === 'candidate');
+  return { user, cand, canLogIn, signupBlocked: canLogIn && !!user?.passwordHash };
 }
 
 const candOtpRequestSchema = z.object({
@@ -189,17 +208,39 @@ authRouter.post(
     const { phone, mode } = parsed.data;
 
     if (mode === 'login' || mode === 'signup') {
-      const registered = await candidateRegistered(phone);
-      if (mode === 'login' && !registered) {
+      const status = await candidateStatus(phone);
+      if (mode === 'login' && !status.canLogIn) {
         return fail(res, 404, 'No application with this number yet — please register first.', { signupRequired: true });
       }
-      if (mode === 'signup' && registered) {
+      if (mode === 'signup' && status.signupBlocked) {
         return fail(res, 409, 'This number has already applied — just log in.', { alreadyRegistered: true });
       }
     }
 
     const { devCode } = await requestOtp(phone);
     return ok(res, { sent: true, ...(devCode ? { devCode } : {}) });
+  })
+);
+
+// --- Candidate OTP check (does NOT sign in, does NOT create anything) -------
+// The sign-up form verifies the code on its own step, before it has collected a
+// name, email and password. Doing that by calling /verify was a mistake: for a
+// number that already had a User row, /verify completed the whole sign-up and
+// retired the code, so the real Register that followed came back "Incorrect or
+// expired code". This checks the code and nothing else. It still counts against
+// the attempt limit, so it cannot be used to brute-force one.
+const candOtpCheckSchema = z.object({ phone: z.string().min(6), otp: z.string().min(3) });
+
+authRouter.post(
+  '/candidate/otp/check',
+  asyncHandler(async (req, res) => {
+    const parsed = candOtpCheckSchema.safeParse(req.body);
+    if (!parsed.success) return failValidation(res, parsed.error);
+    const { phone, otp } = parsed.data;
+
+    const valid = await verifyOtp(phone, otp, { consume: false });
+    if (!valid) return fail(res, 401, 'Incorrect or expired code');
+    return ok(res, { valid: true });
   })
 );
 
@@ -221,16 +262,23 @@ const candOtpVerifySchema = z.object({
   otp: z.string().min(3),
   name: z.string().min(1).optional(),
   email: z.string().email().optional(),
+  // Set at sign-up so the candidate can come back with email + password
+  // instead of waiting for an SMS every time.
+  password: z.string().min(4).optional(),
   city: z.string().optional(),
   remember: z.boolean().optional(),
 });
+
+const normEmail = (e?: string) => (e ? e.trim().toLowerCase() : undefined);
 
 authRouter.post(
   '/candidate/otp/verify',
   asyncHandler(async (req, res) => {
     const parsed = candOtpVerifySchema.safeParse(req.body);
     if (!parsed.success) return failValidation(res, parsed.error);
-    const { phone, otp, name, email, city, remember } = parsed.data;
+    const { phone, otp, name, city, remember } = parsed.data;
+    const email = normEmail(parsed.data.email);
+    const password = parsed.data.password;
 
     // Checked without spending it, exactly as the customer flow does: a missing
     // name comes back as 422 and the same code is presented again.
@@ -239,13 +287,41 @@ authRouter.post(
 
     let user = await prisma.user.findUnique({ where: { phone } });
 
+    // The email is the candidate's login id, so it cannot be shared with
+    // another account. Checked before writing so the answer is a clear 409
+    // rather than a unique-constraint crash.
+    if (email) {
+      const taken = await prisma.user.findFirst({
+        where: { email, ...(user ? { NOT: { id: user.id } } : {}) },
+        select: { id: true },
+      });
+      if (taken) {
+        return fail(res, 409, 'That email is already registered — please log in instead.', { emailTaken: true });
+      }
+    }
+
     if (!user) {
       // A first-time applicant only has to give a name. No GSTIN — that is a
       // business registration number and means nothing for a job application.
       if (!name) {
         return fail(res, 422, 'New applicant: please provide your name', { signupRequired: true });
       }
-      user = await prisma.user.create({ data: { role: 'candidate', name, phone } });
+      user = await prisma.user.create({
+        data: {
+          role: 'candidate',
+          name,
+          phone,
+          email: email ?? null,
+          passwordHash: password ? await hashPassword(password) : null,
+        },
+      });
+    } else {
+      // Returning through sign-up: fill in an email or password they did not
+      // have before, without touching one they already set.
+      const patch: { email?: string; passwordHash?: string } = {};
+      if (email && !user.email) patch.email = email;
+      if (password && !user.passwordHash) patch.passwordHash = await hashPassword(password);
+      if (Object.keys(patch).length) user = await prisma.user.update({ where: { id: user.id }, data: patch });
     }
     // If the number already belongs to a customer or staff account, their role
     // is left alone — this signs them in as who they already are rather than
@@ -263,16 +339,110 @@ authRouter.post(
           email: email ?? null,
           city: city ?? null,
           source: 'Mobile app',
-          stage: 'applied',
+          // Registering only creates the account. They become 'applied' when
+          // they actually submit the Apply Now form (POST /candidates/me/apply)
+          // — starting them at 'applied' made every new sign-up look like a
+          // finished application with no city, experience or CV behind it.
+          stage: 'registered',
           candId: await nextCandId(),
         },
       });
-    } else if (email && !existing.email) {
-      await prisma.candidate.update({ where: { id: existing.id }, data: { email } });
+    } else {
+      // The pipeline row may pre-date this sign-up — the office added them by
+      // hand, or they already had a customer account under this number, in
+      // which case the row carries their *trading* name ("Tejas Gold") rather
+      // than the applicant's. What they type on their own application wins.
+      const patch: { email?: string; name?: string } = {};
+      if (email && !existing.email) patch.email = email;
+      if (name && name.trim() && name.trim() !== existing.name) patch.name = name.trim();
+      if (Object.keys(patch).length) {
+        await prisma.candidate.update({ where: { id: existing.id }, data: patch });
+      }
     }
 
     await consumeOtp(phone);
     return ok(res, await issueSession(user, remember ?? false));
+  })
+);
+
+// --- Candidate email + password login ---------------------------------------
+// Registering sets an email and password, so coming back does not need another
+// SMS. Wrong email and wrong password give the same answer on purpose — telling
+// them apart would confirm which addresses have accounts.
+const candLoginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+  remember: z.boolean().optional(),
+});
+
+authRouter.post(
+  '/candidate/login',
+  asyncHandler(async (req, res) => {
+    const parsed = candLoginSchema.safeParse(req.body);
+    if (!parsed.success) return failValidation(res, parsed.error);
+    const { password, remember } = parsed.data;
+    const email = normEmail(parsed.data.email)!;
+
+    const user = await prisma.user.findFirst({ where: { email } });
+    if (!user?.passwordHash) return fail(res, 401, 'Incorrect email or password');
+    if (!user.active) return fail(res, 403, 'This account has been disabled. Please contact the office.');
+
+    // Staff sign in through /auth/login with their own username; letting this
+    // route hand out a token for them would turn the applicant form into a
+    // second, weaker way into the back office. Everyone else needs a real
+    // application to their name — a plain customer cannot walk in here.
+    if (STAFF_ROLES.includes(user.role)) return fail(res, 401, 'Incorrect email or password');
+    if (user.role !== 'candidate') {
+      const cand = user.phone ? await prisma.candidate.findFirst({ where: { phone: user.phone } }) : null;
+      if (!cand) return fail(res, 403, 'This account has not applied for a role yet.');
+    }
+
+    const match = await checkPassword(password, user.passwordHash);
+    if (!match) return fail(res, 401, 'Incorrect email or password');
+
+    return ok(res, await issueSession(user, remember ?? false));
+  })
+);
+
+// --- Candidate: change (or first-time set) their password -------------------
+// Candidates who signed up before passwords were stored have no hash yet, so
+// they are allowed to set one without proving an old one — they have already
+// proved who they are with a valid session token. Anyone who does have a
+// password must present it.
+const candPasswordSchema = z.object({
+  currentPassword: z.string().optional(),
+  newPassword: z.string().min(6, 'Use at least 6 characters'),
+});
+
+authRouter.post(
+  '/candidate/password',
+  authenticate,
+  requireCandidate,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = candPasswordSchema.safeParse(req.body);
+    if (!parsed.success) return failValidation(res, parsed.error);
+    const { currentPassword, newPassword } = parsed.data;
+
+    const user = await prisma.user.findUnique({ where: { id: req.user!.sub } });
+    if (!user) return fail(res, 404, 'User not found');
+
+    if (user.passwordHash) {
+      if (!currentPassword) return fail(res, 400, 'Enter your current password');
+      if (!(await checkPassword(currentPassword, user.passwordHash))) {
+        return fail(res, 401, 'Your current password is not correct');
+      }
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash: await hashPassword(newPassword) },
+    });
+
+    // Every other device holding a refresh token for this account is cut off —
+    // changing a password is how someone locks out whoever they think has it.
+    await prisma.refreshToken.updateMany({ where: { userId: user.id }, data: { revoked: true } });
+
+    return ok(res, { changed: true });
   })
 );
 
@@ -373,13 +543,34 @@ authRouter.get(
   asyncHandler(async (req: AuthedRequest, res) => {
     const user = await prisma.user.findUnique({ where: { id: req.user!.sub } });
     if (!user) return fail(res, 404, 'User not found');
+
+    // A candidate's display id (EC-1008) lives on their pipeline row, not the
+    // login. The LMS app shows it next to their name, so hand it over here
+    // rather than making the app guess or fetch a staff-only endpoint.
+    // Looked up for anyone non-staff who has one, not just role 'candidate':
+    // an applicant who is also a customer keeps the customer role, and the app
+    // still has to show them their EC-#### id.
+    let candId: string | null = null;
+    if (user.phone && !['rep', 'office', 'admin'].includes(user.role)) {
+      const cand = await prisma.candidate.findFirst({
+        where: { phone: user.phone },
+        select: { candId: true },
+      });
+      candId = cand?.candId ?? null;
+    }
+
     return ok(res, {
       id: user.id,
       role: user.role,
       name: user.name,
       phone: user.phone,
+      email: user.email,
+      // Lets the app ask for the current password only when there is one to
+      // ask for, instead of showing a field with a "leave blank" caveat.
+      hasPassword: !!user.passwordHash,
       gstin: user.gstin,
       repId: user.repId,
+      ...(candId ? { candId } : {}),
     });
   })
 );

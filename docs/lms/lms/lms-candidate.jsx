@@ -394,8 +394,13 @@ function CandApply({ go, cand, onSaved }) {
 // ---- My Status (stage tracker) ----
 function CandStatus({ go, stage, cand }) {
   const steps = window.LMS_STAGES.filter(s => s.id !== 'rejected');
-  const idx = steps.findIndex(s => s.id === stage);
   const c = cand || {};
+  // Use the derived current stage (screening result, training/test windows,
+  // score, hire) — the same truth the office sees — instead of the raw `stage`
+  // field, which lags. Otherwise the candidate sits at "screening" while the
+  // office has already moved them into training.
+  const effStage = window.lmsEffectiveStage ? window.lmsEffectiveStage(c) : stage;
+  const idx = steps.findIndex(s => s.id === effStage);
   const [meetLink, setMeetLink] = cUseState('');
   React.useEffect(() => {
     if (!c.candId) return;
@@ -414,7 +419,7 @@ function CandStatus({ go, stage, cand }) {
     recommended: { date: c.score != null ? 'Scored ' + c.score + '%' : '—', next: 'Awaiting the office\u2019s final hiring decision.' },
     hired:       { date: c.repId || '—', next: 'You\u2019re hired! Use your Rep ID to log in to the Eurostar Sales App.' },
   };
-  const m = meta[stage] || {};
+  const m = meta[effStage] || {};
   return (
     <>
       <div className="cand-appbar"><button className="menu" onClick={() => go('home')}><CandIcon name="back" /></button><div><h3>My Status</h3><small>{c.candId}</small></div></div>
@@ -578,15 +583,26 @@ function CandTraining({ go, cand, actions, lang }) {
               </div>
               {hasVideo && (
                 <div className="cand-vid">
-                  <span className="play" style={done ? { background: '#9A6B12' } : {}}><CandIcon name="play" /></span>
+                  {/* Greyed out when there is nothing to play. A green play
+                      button with no video behind it reads as a broken player,
+                      not as "the office hasn't uploaded this one yet". */}
+                  <span className="play" style={!m.videoUrl ? { background: '#C9C6BD' } : (done ? { background: '#9A6B12' } : {})}><CandIcon name="play" /></span>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 14, fontWeight: 600 }}>{m.summary || m.title}</div>
-                    <div style={{ fontSize: 12, color: 'var(--lms-meta)' }}>{m.videoDuration ? m.videoDuration + ' · ' : ''}{m.mandatory ? 'Mandatory' : 'Optional'}</div>
+                    <div style={{ fontSize: 12, color: 'var(--lms-meta)' }}>
+                      {m.videoDuration ? m.videoDuration + ' · ' : ''}{m.mandatory ? 'Mandatory' : 'Optional'}
+                      {!m.videoUrl && ' · not uploaded yet'}
+                    </div>
                   </div>
                   {m.videoUrl && !isPlayable(m.videoUrl) && <a href={m.videoUrl} target="_blank" rel="noopener noreferrer" className="lms-btn lms-btn-ghost lms-btn-sm" style={{ textDecoration: 'none' }}>Watch</a>}
                   {done
                     ? <span className="lms-pill" style={{ background: 'var(--lms-green-soft)', color: 'var(--lms-green-ink)', fontSize: 11 }}>✓ Watched</span>
                     : <button className="lms-btn lms-btn-ghost lms-btn-sm" onClick={() => watch(m.id)}>Mark watched</button>}
+                </div>
+              )}
+              {hasVideo && !m.videoUrl && (
+                <div style={{ fontSize: 12.5, color: 'var(--lms-meta)', background: '#F4F2EC', borderRadius: 10, padding: '9px 12px', marginTop: 8 }}>
+                  🎬 The video for this module hasn’t been uploaded yet — read the notes below in the meantime.
                 </div>
               )}
               {/* An uploaded file plays inline; an external link (YouTube etc.)

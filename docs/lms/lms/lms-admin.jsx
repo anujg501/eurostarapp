@@ -55,7 +55,7 @@ function LmsDashboard({ go, cands, actions, openCand }) {
           <div className="lms-tablewrap"><table className="lms-table"><thead><tr><th>Candidate</th><th>Location</th><th>Stage</th></tr></thead>
             <tbody>{C.map(c => (
               <tr key={c.id} style={{ cursor: 'pointer' }} onClick={() => openCand && openCand(c.id)}><td><div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><span className="lms-av" style={{ background: `hsl(${c.hue} 60% 45%)` }}>{c.avatar}</span><div><div style={{ fontWeight: 600 }}>{c.name}</div><div className="lms-muted" style={{ fontSize: 12 }}>{c.email}</div></div></div></td>
-              <td className="lms-muted">{c.city}, {c.state}</td><td><StagePill id={c.stage} /></td></tr>
+              <td className="lms-muted">{c.city}, {c.state}</td><td><StagePill id={window.lmsEffectiveStage(c)} /></td></tr>
             ))}</tbody></table></div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -139,7 +139,7 @@ function LmsCandidates({ cands, actions, openCand }) {
             <tr key={c.id}><td className="lms-muted">{c.n}</td>
               <td><div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }} onClick={() => openCand && openCand(c.id)}><span className="lms-av" style={{ background: `hsl(${c.hue} 60% 45%)` }}>{c.avatar}</span><div><div style={{ fontWeight: 600, textDecoration: 'underline', textDecorationColor: 'var(--lms-border)' }}>{c.name}</div><div className="lms-muted" style={{ fontSize: 11.5, fontFamily: 'monospace' }}>{c.candId} · {c.phone}</div></div></div></td>
               <td className="lms-muted">{c.city}<div style={{ fontSize: 12 }}>{c.state}</div></td>
-              <td><StagePill id={c.stage} /></td>
+              <td><StagePill id={window.lmsEffectiveStage(c)} /></td>
               <td>{winLabel(w)}</td>
               <td>{testLabel(t)}</td>
               <td>{c.score != null ? <strong style={{ color: c.score >= window.LMS_PASS_PCT ? 'var(--lms-green-ink)' : '#A23B3B' }}>{c.score}%</strong> : <span className="lms-muted">—</span>}</td>
@@ -1038,8 +1038,12 @@ function LmsCandidateDrawer({ cand, actions, onClose }) {
   const [onboardOpen, setOnboardOpen] = aUseState(false);
   const [zoom, setZoom] = aUseState(null);
   const stars = (n) => '★★★★★'.slice(0, n) + '☆☆☆☆☆'.slice(0, 5 - n);
+  // Registration creates the pipeline row, but the person has only *applied*
+  // once they submit the Apply Now form (city/state/experience). Don't tick
+  // "Applied" for someone who has merely signed up.
+  const hasApplied = !!(cand.city && cand.state && cand.exp);
   const timeline = [
-    { label: 'Applied', val: cand.applied, done: true },
+    { label: 'Applied', val: hasApplied ? (cand.applied || 'Submitted') : 'Pending', done: hasApplied },
     { label: 'Screening', val: cand.screenResult ? (cand.screenResult === 'pass' ? 'Passed · ' + stars(cand.screenRating) : 'Failed') : 'Pending', done: !!cand.screenResult },
     { label: 'Training', val: w.state === 'open' ? w.daysLeft + 'd left' : w.state === 'expired' ? 'Expired' : w.state === 'hired' ? 'Done' : 'Locked', done: cand.watched && cand.watched.length > 0 },
     { label: 'Test', val: cand.score != null ? cand.score + '%' : t.state === 'open' ? t.daysLeft + 'd left' : 'Not taken', done: cand.score != null },
@@ -1062,7 +1066,7 @@ function LmsCandidateDrawer({ cand, actions, onClose }) {
               <div><div className="lms-muted" style={{ fontSize: 11 }}>Location</div>{cand.city}, {cand.state}</div>
               <div><div className="lms-muted" style={{ fontSize: 11 }}>Experience</div>{cand.exp}</div>
               <div><div className="lms-muted" style={{ fontSize: 11 }}>Source</div>{(window.LMS_SOURCES.find(s => s.id === cand.source) || {}).label || cand.source}</div>
-              <div><div className="lms-muted" style={{ fontSize: 11 }}>Stage</div><StagePill id={cand.stage} /></div>
+              <div><div className="lms-muted" style={{ fontSize: 11 }}>Stage</div><StagePill id={window.lmsEffectiveStage(cand)} /></div>
             </div>
             {cand.resume && <div style={{ marginTop: 12 }}><button className="lms-btn lms-btn-ghost lms-btn-sm">📄 {cand.resume}</button></div>}
           </div>

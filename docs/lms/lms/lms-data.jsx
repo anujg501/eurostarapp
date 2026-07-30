@@ -61,6 +61,23 @@ function lmsBaseStage(c) {
   return (c.city && c.state && c.exp) ? 'applied' : 'registered';
 }
 
+// The candidate's TRUE current stage, derived from what has actually happened
+// (screening result, training/test windows, score, hire) rather than the stored
+// `stage` field, which lags — unlocking training or passing screening does not
+// always rewrite it. Every place that DISPLAYS a stage (candidate status, admin
+// stage pill, the mobile app) must use this so the candidate and the office
+// never see different stages for the same person.
+function lmsEffectiveStage(c) {
+  if (!c) return 'registered';
+  if (c.stage === 'rejected') return 'rejected';
+  if (c.stage === 'hired' || c.repId) return 'hired';
+  if (c.score != null && c.score >= LMS_PASS_PCT) return 'recommended';
+  if (c.score != null || c.testUnlockedOn || c.testConsumed) return 'testing';
+  if (c.unlockedOn || (c.watched || []).length > 0) return 'training';
+  if (c.screenResult && c.screenResult !== 'fail') return 'screening';
+  return (c.city && c.state && c.exp) ? 'applied' : 'registered';
+}
+
 // Has the candidate actually started the training/testing part of the journey?
 // If so, closing a window must not walk their stage backwards.
 function lmsHasProgressed(c) {
@@ -595,5 +612,5 @@ Object.assign(window, {
   LMS_SLOTS, LMS_SLOTS_BOOKED, LMS_JOURNEY, LMS_STATES, LMS_EXP,
   LMS_TODAY, LMS_PASS_PCT, LMS_WINDOW_DAYS, LMS_TRAIN_DAYS, LMS_TEST_DAYS, LMS_STATE_CODE,
   LMS_TEST_CONFIG, LMS_ONBOARD_DOCS, LMS_SETTINGS, LMS_NOTIFICATIONS, LMS_AUDIT,
-  lmsWindow, lmsTestWindow, lmsNextRepId, lmsGenPassword, lmsDaysBetween, lmsBaseStage, lmsHasProgressed,
+  lmsWindow, lmsTestWindow, lmsNextRepId, lmsGenPassword, lmsDaysBetween, lmsBaseStage, lmsEffectiveStage, lmsHasProgressed,
 });

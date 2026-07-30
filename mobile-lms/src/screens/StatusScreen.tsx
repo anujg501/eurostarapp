@@ -26,6 +26,22 @@ const STEPS = [
 // the same step rather than failing to find the row.
 const normalise = (stage?: string | null) => (stage === 'test' ? 'testing' : stage || 'registered');
 
+// The candidate's TRUE current stage, derived from what actually happened
+// (screening result, training/test windows, score, hire) — mirrors
+// window.lmsEffectiveStage in docs/lms/lms/lms-data.jsx. The stored `stage`
+// field lags, which made the app show "screening" while the office had already
+// moved the candidate into training.
+function effectiveStage(c: any): string {
+  if (!c) return 'registered';
+  if (c.stage === 'rejected') return 'rejected';
+  if (c.stage === 'hired' || c.repId) return 'hired';
+  if (c.score != null && c.score >= LMS_PASS_PCT) return 'recommended';
+  if (c.score != null || c.testUnlockedOn || c.testConsumed) return 'testing';
+  if (c.unlockedOn || (c.watched || []).length > 0) return 'training';
+  if (c.screenResult && c.screenResult !== 'fail') return 'screening';
+  return c.city && c.state && c.exp ? 'applied' : 'registered';
+}
+
 const HELP_NUMBER = '+91 77100 65480';
 
 export default function StatusScreen({ navigation }: any) {
@@ -42,7 +58,7 @@ export default function StatusScreen({ navigation }: any) {
     return () => { alive = false; };
   }, []);
 
-  const stage = normalise(record?.stage ?? cand.stage);
+  const stage = record ? effectiveStage(record) : normalise(cand.stage);
   const score = record?.score ?? cand.score;
   const repId = record?.repId;
   const candId = record?.candId ?? cand.candId;

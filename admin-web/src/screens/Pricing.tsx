@@ -33,12 +33,14 @@ const CARAT_STRIP = new Set(['moissanite', 'labgrown', 'beads', 'multisapphire']
 function rateUnitLabel(catKey: string, gradeId: string, unit?: string): string {
   if (FLAT_SET_LABEL[catKey]) return FLAT_SET_LABEL[catKey];
   if (catKey === 'multisapphire') return gradeId === 'aaa' ? '₹ per carat' : '₹ per strip';
+  if (catKey === 'labgrown') return gradeId === 'created' ? '₹ per carat' : '₹ per piece';
   return unit === 'ct' ? '₹ per carat' : unit === 'pkt' ? '₹ per piece · packet sold' : `₹ per ${unit}`;
 }
 // Short suffix for the CSV "Rate ₹" header.
 function rateCsvSuffix(catKey: string, gradeId: string, unit?: string): string {
   if (FLAT_SET_LABEL[catKey]) return '/set';
   if (catKey === 'multisapphire') return gradeId === 'aaa' ? '/ct' : '/strip';
+  if (catKey === 'labgrown') return gradeId === 'created' ? '/ct' : '/pc';
   return unit === 'ct' ? '/ct' : '/pc';
 }
 

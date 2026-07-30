@@ -996,24 +996,23 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   // sheet (window.moissRate). Falls back to the grade's flat basePrice when a
   // size/grade isn't in the sheet (and for Lab Grown, which has no sheet).
   const moissPerCt = (size) => {
-    // Admin > Pricing edit (₹ per carat) wins — for Moissanite today; the same
-    // hook will serve Lab Grown once its per-carat rates are mirrored.
-    if (category.id === 'moissanite' && window.priceOverride) {
-      const o = window.priceOverride(category.id, grade && grade.id, color && color.id, shape, size);
-      if (o != null) return o;
-    }
-    if (lgCreated) { const r = window.lgCreatedCt(shape, size); if (r != null) return r; }
+    // Admin > Pricing edit. Moissanite & Lab-Grown Created are edited in ₹/carat
+    // (used directly); Lab-Grown Beryl/Corundum are edited in ₹/PIECE, which is
+    // converted to the per-carat basis this function returns.
+    const ovr = window.priceOverride ? window.priceOverride(category.id, grade && grade.id, color && color.id, shape, size) : null;
+    if (lgCreated) { if (ovr != null) return ovr; const r = window.lgCreatedCt(shape, size); if (r != null) return r; }
     if (lgPriced) {
       // Return the per-CARAT rate implied by the per-piece price, so the existing
       // billedCt × rate math yields pieces × ₹/pc for the line total.
-      const pc = lgCorundum
+      const pc = ovr != null ? ovr : (lgCorundum
         ? (window.lgCorPrice ? window.lgCorPrice(shape, size) : null)
-        : (window.lgPricePc ? window.lgPricePc(color.id, shape, size) : null);
+        : (window.lgPricePc ? window.lgPricePc(color.id, shape, size) : null));
       const w = moissCtEach(shape, size);
       if (pc != null && w) return pc / w;
       return product.price;
     }
     if (category.id === 'moissanite') {
+      if (ovr != null) return ovr;
       const r = window.moissRate ? window.moissRate(shape, size, grade.id) : null;
       if (r != null) return r;
     }

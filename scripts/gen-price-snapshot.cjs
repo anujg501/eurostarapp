@@ -276,6 +276,43 @@ if (typeof win.msRate === 'function' && typeof win.msSizes === 'function' && typ
   console.log(`Multi-Sapphire: ${n} rows (carat + strip).`);
 }
 
+// Lab Grown — three grades, three models:
+//  · created     → ₹/carat  (lgCreatedCt), colour-agnostic
+//  · labcorundum → ₹/piece  (lgCorPrice),  colour-agnostic
+//  · labgrown    → ₹/piece  (lgPricePc),   per colour (Beryl)
+{
+  const shapes = SHAPES.labgrown || [];
+  const colours = COLORS.labgrown || [];
+  const lgOut = {};
+  let n = 0;
+  if (typeof win.lgCreatedCt === 'function' && typeof win.lgCreatedSizes === 'function') {
+    for (const sh of shapes) for (const size of win.lgCreatedSizes(sh) || []) {
+      const rate = win.lgCreatedCt(sh, size);
+      if (rate == null || !(rate > 0)) continue;
+      lgOut[['created', '', String(sh).toLowerCase(), normSize(size)].join('|')] = { rate, pcs: 0, size };
+      n++;
+    }
+  }
+  if (typeof win.lgCorPrice === 'function' && typeof win.lgCorSizes === 'function') {
+    for (const sh of shapes) for (const size of win.lgCorSizes(sh) || []) {
+      const rate = win.lgCorPrice(sh, size);
+      if (rate == null || !(rate > 0)) continue;
+      lgOut[['labcorundum', '', String(sh).toLowerCase(), normSize(size)].join('|')] = { rate, pcs: 0, size };
+      n++;
+    }
+  }
+  if (typeof win.lgPricePc === 'function' && typeof win.lgSizes === 'function') {
+    for (const co of colours) for (const sh of shapes) for (const size of win.lgSizes(co.id, sh) || []) {
+      const rate = win.lgPricePc(co.id, sh, size);
+      if (rate == null || !(rate > 0)) continue;
+      lgOut[['labgrown', co.id, String(sh).toLowerCase(), normSize(size)].join('|')] = { rate, pcs: 0, size };
+      n++;
+    }
+  }
+  if (n) { snapshot.labgrown = lgOut; rows += n; }
+  console.log(`Lab Grown: ${n} rows (created ₹/ct, corundum + beryl ₹/pc).`);
+}
+
 const outPath = path.join(ROOT, 'docs', 'price-snapshot.json');
 fs.writeFileSync(outPath, JSON.stringify(snapshot));
 console.log(`Wrote ${outPath}: ${Object.keys(snapshot).length} categories, ${rows} priced rows.`);

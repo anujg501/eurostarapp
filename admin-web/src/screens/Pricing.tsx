@@ -245,8 +245,34 @@ export function Pricing() {
   const cat = cats.find((c) => c.key === catKey);
   const catGrades = grades[catKey] ?? [];
   const multiGrade = catGrades.length > 1;
-  const catColours = colours[catKey] ?? [];
+  const allCatColours = colours[catKey] ?? [];
   const grade = catGrades.find((g) => g.id === gradeId);
+
+  // A grade only sells some of the category's colours (e.g. corundum EXCEL AAA
+  // sells Ruby 5, not Ruby 2). The backend colour list isn't grade-filtered, so
+  // without this the editor showed phantom grade×colour rows at ₹0 for products
+  // the shop doesn't sell. Restrict to colours that actually have priced rows
+  // for the chosen grade in the mirror; fall back to all when the category is
+  // colour-agnostic (no colour in its keys) or has no mirror yet.
+  const catColoursFor = (gid: string) => {
+    const s = snap[catKey] || {};
+    const keys = Object.keys(s);
+    if (!keys.length) return allCatColours;
+    // Only the rows that belong to this grade (or are grade-agnostic).
+    const gradeKeys = keys.filter((k) => {
+      const g = k.split('|')[0];
+      return g === gid || g === '';
+    });
+    // If this grade's rows carry no colour, it's colour-agnostic → show all.
+    if (!gradeKeys.some((k) => k.split('|')[1] !== '')) return allCatColours;
+    const offered = new Set<string>();
+    for (const k of gradeKeys) {
+      const c = k.split('|')[1];
+      if (c) offered.add(c);
+    }
+    return allCatColours.filter((col) => offered.has(col.id));
+  };
+  const catColours = catColoursFor(gradeId);
 
   const openCategory = (c: Category) => {
     setCatKey(c.key);

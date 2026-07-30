@@ -49,6 +49,8 @@ loadInto('docs/app/data.jsx');
 // laser-data.jsx references an undefined LASER_ROUND on its last line (only the
 // browser tolerates it); declare it so the file loads cleanly here too.
 loadInto('docs/app/laser-data.jsx', 'var LASER_ROUND;\n');
+loadInto('docs/app/mop-data.jsx');
+loadInto('docs/app/icecut-data.jsx');
 
 const COLORS = win.COLORS_BY_CATEGORY || {};
 const GRADES = win.GRADES_BY_CATEGORY || {};
@@ -157,6 +159,58 @@ if (typeof win.laserRows === 'function' && typeof win.laserDiscount === 'functio
   const lr = snapshot.laser || {};
   const ls = Object.keys(lr).filter((k) => k.split('|')[2] === 'round').slice(0, 5);
   console.log(`Laser: ${n} net rows. round sample:`, ls.map((k) => `${lr[k].size}=₹${lr[k].rate}`).join(', '));
+}
+
+// MOP — its own pad (mop-data.jsx): per-piece price by White/Black grade, keyed
+// on shape+size, with pcs-per-packet on the row. Grade-scoped (colour agnostic).
+if (typeof win.mopRows === 'function' && typeof win.mopPrice === 'function') {
+  const grades = GRADES.mop || [];
+  const shapes = SHAPES.mop || [];
+  const mopOut = {};
+  let n = 0;
+  for (const gr of grades) {
+    for (const sh of shapes) {
+      for (const r of win.mopRows(sh) || []) {
+        const price = win.mopPrice(sh, gr.id, r.s);
+        if (price == null || !(price > 0)) continue;
+        mopOut[[gr.id, '', String(sh).toLowerCase(), normSize(r.s)].join('|')] = {
+          rate: price,
+          pcs: Number(r.ppp) > 0 ? Number(r.ppp) : 0,
+          size: r.s,
+        };
+        n++;
+      }
+    }
+  }
+  if (n) { snapshot.mop = mopOut; rows += n; }
+  console.log(`MOP: ${n} rows.`);
+}
+
+// Ice Cut — its own pad (icecut-data.jsx): per-piece price by colour TIER
+// (white/normal/special1/special2/paribas) × shape-group, pcs by size (MOQ).
+if (typeof win.icecutRows === 'function' && win.TIER_COL && typeof win.ICECUT_MOQ === 'function') {
+  const colours = COLORS.icecut || [];
+  const shapes = SHAPES.icecut || [];
+  const iceOut = {};
+  let n = 0;
+  for (const co of colours) {
+    const col = win.TIER_COL[co.id];
+    if (!col) continue;
+    for (const sh of shapes) {
+      for (const r of win.icecutRows(sh) || []) {
+        const price = r[col];
+        if (price == null || !(price > 0)) continue;
+        iceOut[['', co.id, String(sh).toLowerCase(), normSize(r.s)].join('|')] = {
+          rate: price,
+          pcs: win.ICECUT_MOQ(r.s),
+          size: r.s,
+        };
+        n++;
+      }
+    }
+  }
+  if (n) { snapshot.icecut = iceOut; rows += n; }
+  console.log(`Ice Cut: ${n} rows.`);
 }
 
 const outPath = path.join(ROOT, 'docs', 'price-snapshot.json');

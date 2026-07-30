@@ -77,8 +77,23 @@ function IceCutOrderPad({ grade, color, shape, category, qtyBySize, setQtyBySize
   const tint = window.lightenTone ? window.lightenTone(hex) : 'var(--paper-2)';
   // Same resolver the shape cards use — see laser-data.jsx.
   const heroImg = window.productImageFor ? window.productImageFor(category.id, color.id, shape) : null;
-  const rows = icecutRows(shape);
-  const ppp = (r) => (r ? ICECUT_MOQ(r.s) : 1);
+
+  // Admin > Pricing edits reach this bespoke pad too (per-piece price, pcs, and
+  // add/remove sizes). The colour is the price tier.
+  const catId = category.id;
+  const ovrPrice = (s) => (window.priceOverride ? window.priceOverride(catId, grade && grade.id, color.id, shape, s) : null);
+  const ovrPk = (s) => (window.pcsOverride ? window.pcsOverride(catId, s) : null);
+  const baseRows = icecutRows(shape);
+  let rows = baseRows;
+  if (window.applySizeOverrides) {
+    const bySize = {};
+    baseRows.forEach((r) => { bySize[r.s] = r; });
+    rows = window.applySizeOverrides(catId, shape, baseRows.map((r) => r.s))
+      .map((s) => bySize[s] || { s });
+  }
+  // Per-piece price for this tier (an operator edit wins) and pcs per packet.
+  const priceOf = (r) => { if (!r) return 0; const o = ovrPrice(r.s); return o != null ? o : (r[col] || 0); };
+  const ppp = (r) => { const o = ovrPk(r && r.s); if (o != null) return o; return r ? ICECUT_MOQ(r.s) : 1; };
 
   const setQty = (size, v) => setQtyBySize((p) => ({ ...p, [size]: Math.max(0, parseInt(v, 10) || 0) }));
   const bump = (size, d) => setQtyBySize((p) => ({ ...p, [size]: Math.max(0, (p[size] || 0) + d) }));
@@ -87,13 +102,13 @@ function IceCutOrderPad({ grade, color, shape, category, qtyBySize, setQtyBySize
   const rowBySize = (size) => rows.find((r) => r.s === size);
   const totalPkts = lines.reduce((s, [, q]) => s + q, 0);
   const totalAmt = lines.reduce((s, [size, q]) => {
-    const r = rowBySize(size); return s + q * ppp(r) * ((r && r[col]) || 0);
+    const r = rowBySize(size); return s + q * ppp(r) * priceOf(r);
   }, 0);
 
   const onAddAll = () => {
     if (lines.length === 0) return;
     lines.forEach(([size, q]) => {
-      const r = rowBySize(size); const price = (r && r[col]) || 0; const pieces = q * ppp(r);
+      const r = rowBySize(size); const price = priceOf(r); const pieces = q * ppp(r);
       addToCart({
         pid: 'icecut-' + color.id + '-' + shape + '-' + size.replace(/\s/g, ''),
         name: color.name + ' Ice Cut ' + shapeMeta.name,
@@ -149,14 +164,14 @@ function IceCutOrderPad({ grade, color, shape, category, qtyBySize, setQtyBySize
           <span style={{ textAlign: 'right' }}>Line total</span>
         </div>
         {rows.map((r) => {
-          const price = r[col];
+          const price = priceOf(r);
           const q = qtyBySize[r.s] || 0;
           const pieces = q * ppp(r);
           return (
             <div key={r.s} className={`size-pad-row ${q > 0 ? 'filled' : ''}`}
               style={{ gridTemplateColumns: '1fr 110px 100px 1fr 130px' }}>
               <div className="size-pad-size"><div className="size-pad-mm" style={{ fontSize: 15 }}>{r.s}</div></div>
-              <div className="size-pad-pcs">{ICECUT_MOQ(r.s)}</div>
+              <div className="size-pad-pcs">{ppp(r)}</div>
               <div className="size-pad-price">{fmt(price)}</div>
               <div className="size-pad-input-wrap">
                 <div className="size-pad-stepper">
@@ -194,5 +209,5 @@ function IceCutOrderPad({ grade, color, shape, category, qtyBySize, setQtyBySize
 }
 
 Object.assign(window, {
-  ICECUT_TIERS, ICECUT_SHAPE_GROUP, ICECUT_PRICES, icecutRows, IceCutOrderPad,
+  ICECUT_TIERS, ICECUT_SHAPE_GROUP, ICECUT_PRICES, icecutRows, IceCutOrderPad, TIER_COL, ICECUT_MOQ,
 });

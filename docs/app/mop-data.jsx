@@ -268,18 +268,35 @@ function MopOrderPad({ grade, shape, category, qtyBySize, setQtyBySize, onBack, 
   // with that shared colour — each of White/Malachite/Black gets its own image.
   const mopColourId = (window.COLORS_BY_CATEGORY && window.COLORS_BY_CATEGORY.mop && window.COLORS_BY_CATEGORY.mop[0] && window.COLORS_BY_CATEGORY.mop[0].id) || 'mop';
   const heroImg = window.productImageFor ? window.productImageFor(category.id, mopColourId, shape, colorId) : null;
-  const rows = mopRows(shape);
+
+  // Admin > Pricing edits reach this bespoke pad too. MOP shares one colour
+  // ('mop') across the White/Black grades, so overrides are keyed by that colour
+  // and the current grade.
+  const catId = category.id;
+  const ovrPrice = (s) => (window.priceOverride ? window.priceOverride(catId, colorId, mopColourId, shape, s) : null);
+  const ovrPk = (s) => (window.pcsOverride ? window.pcsOverride(catId, s) : null);
+  const baseRows = mopRows(shape);
+  let rows = baseRows;
+  if (window.applySizeOverrides) {
+    const bySize = {};
+    baseRows.forEach((r) => { bySize[r.s] = r; });
+    rows = window.applySizeOverrides(catId, shape, baseRows.map((r) => r.s))
+      .map((s) => bySize[s] || { s, w: null, b: null, ppp: 0 });
+  }
+  // Per-piece price for the current grade's colour; an operator edit wins.
+  const priceOf = (r) => { if (!r) return null; const o = ovrPrice(r.s); return o != null ? o : r[MOP_COLOR_KEY[colorId] || 'w']; };
 
   const setQty = (size, v) => setQtyBySize((p) => ({ ...p, [size]: Math.max(0, parseInt(v, 10) || 0) }));
   const bump = (size, d) => setQtyBySize((p) => ({ ...p, [size]: Math.max(0, (p[size] || 0) + d) }));
 
   const lines = Object.entries(qtyBySize).filter(([, q]) => q > 0);
-  const ppp = (r) => r && r.ppp ? r.ppp : 1; // pieces per packet (set via bulk upload)
+  // Pieces per packet — an operator edit wins over the sheet's own count.
+  const ppp = (r) => { const o = ovrPk(r && r.s); if (o != null) return o; return r && r.ppp ? r.ppp : 1; };
   const rowBySize = (size) => rows.find((r) => r.s === size);
   const totalPkts = lines.reduce((s, [, q]) => s + q, 0);
   const totalPcs = lines.reduce((s, [size, q]) => s + q * ppp(rowBySize(size)), 0);
   const totalAmt = lines.reduce((s, [size, q]) => {
-    const r = rowBySize(size); const price = (r && r[MOP_COLOR_KEY[colorId] || 'w']) || 0;
+    const r = rowBySize(size); const price = priceOf(r) || 0;
     return s + q * ppp(r) * price;
   }, 0);
 
@@ -287,7 +304,7 @@ function MopOrderPad({ grade, shape, category, qtyBySize, setQtyBySize, onBack, 
     if (lines.length === 0) return;
     lines.forEach(([size, q]) => {
       const r = rowBySize(size);
-      const price = (r && r[MOP_COLOR_KEY[colorId] || 'w']) || 0;
+      const price = priceOf(r) || 0;
       const pieces = q * ppp(r);
       addToCart({
         pid: 'mop-' + colorId + '-' + shape + '-' + size.replace(/\s/g, ''),
@@ -341,15 +358,16 @@ function MopOrderPad({ grade, shape, category, qtyBySize, setQtyBySize, onBack, 
           <span style={{ textAlign: 'right' }}>Line total</span>
         </div>
         {rows.map((r) => {
-          const price = r[MOP_COLOR_KEY[colorId] || 'w'];
+          const price = priceOf(r);
+          const pk = ppp(r);
           const q = qtyBySize[r.s] || 0;
-          const avail = price != null;
-          const pieces = q * ppp(r);
+          const avail = price != null && price > 0;
+          const pieces = q * pk;
           return (
             <div key={r.s} className={`size-pad-row ${q > 0 ? 'filled' : ''}`}
               style={{ gridTemplateColumns: '1fr 110px 100px 1fr 130px', opacity: avail ? 1 : 0.45 }}>
               <div className="size-pad-size"><div className="size-pad-mm" style={{ fontSize: 15 }}>{r.s}</div></div>
-              <div className="size-pad-pcs">{r.ppp ? r.ppp : '—'}</div>
+              <div className="size-pad-pcs">{pk ? pk : '—'}</div>
               <div className="size-pad-price">{avail ? fmt(price) : '—'}</div>
               <div className="size-pad-input-wrap">
                 {avail ? (
@@ -364,7 +382,7 @@ function MopOrderPad({ grade, shape, category, qtyBySize, setQtyBySize, onBack, 
                     </button>
                   </div>
                 ) : <span style={{ fontSize: 12, color: 'var(--fg-meta)' }}>Not available</span>}
-                {q > 0 && r.ppp &&
+                {q > 0 && pk &&
                   <div className="size-pad-pcs-note">= {pieces.toLocaleString('en-IN')} pcs</div>}
               </div>
               <div className="size-pad-total">

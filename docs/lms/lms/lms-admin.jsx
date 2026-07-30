@@ -1241,19 +1241,36 @@ function LmsSettings({ settings, actions }) {
 /* ===================== REPORTS ===================== */
 function LmsReports({ cands }) {
   const C = cands || window.LMS_CANDIDATES;
+  // Count by the DERIVED stage (screening/window/score/hire), the same truth the
+  // candidate list pills and the candidate app show — not the raw `stage` field,
+  // which lags and would make the funnel disagree with the pipeline.
+  const eff = (c) => (window.lmsEffectiveStage ? window.lmsEffectiveStage(c) : c.stage);
   const total = C.length;
-  const hired = C.filter(c => c.stage === 'hired').length;
-  const rejected = C.filter(c => c.stage === 'rejected').length;
+  const hired = C.filter(c => eff(c) === 'hired').length;
+  const rejected = C.filter(c => eff(c) === 'rejected').length;
   const tested = C.filter(c => c.score != null);
   const passed = tested.filter(c => c.score >= window.LMS_PASS_PCT).length;
   const passRate = tested.length ? Math.round((passed / tested.length) * 100) : 0;
   const avgScore = tested.length ? Math.round(tested.reduce((s, c) => s + c.score, 0) / tested.length) : 0;
   // source ROI
-  const bySrc = {}; C.forEach(c => { const k = c.source; bySrc[k] = bySrc[k] || { n: 0, hired: 0 }; bySrc[k].n++; if (c.stage === 'hired') bySrc[k].hired++; });
+  const bySrc = {}; C.forEach(c => { const k = c.source; bySrc[k] = bySrc[k] || { n: 0, hired: 0 }; bySrc[k].n++; if (eff(c) === 'hired') bySrc[k].hired++; });
   // funnel
   const stages = ['registered', 'applied', 'screening', 'training', 'recommended', 'hired'];
   const stageCount = {}; window.LMS_STAGES.forEach(s => stageCount[s.id] = 0);
-  C.forEach(c => { stageCount[c.stage] = (stageCount[c.stage] || 0) + 1; });
+  C.forEach(c => { const s = eff(c); stageCount[s] = (stageCount[s] || 0) + 1; });
+  // Real time-to-hire: average days from application to the passing test (falls
+  // back to the test/training unlock date) across hired candidates. Shows "—"
+  // when there isn't enough date data, instead of a made-up number.
+  const parseD = (s) => { if (!s) return null; const d = new Date(String(s).split('·')[0].trim()); return isNaN(d.getTime()) ? null : d; };
+  const hireSpans = C.filter(c => eff(c) === 'hired').map(c => {
+    const a = parseD(c.applied) || parseD(c.createdAt);
+    const pass = (c.attempts || []).filter(x => x.passed).slice(-1)[0];
+    const h = parseD(pass && pass.date) || parseD(c.testUnlockedOn) || parseD(c.unlockedOn);
+    if (!a || !h) return null;
+    const days = Math.round((h - a) / 86400000);
+    return days >= 0 ? days : null;
+  }).filter(x => x != null);
+  const avgHireDays = hireSpans.length ? Math.round(hireSpans.reduce((s, d) => s + d, 0) / hireSpans.length) : null;
   const kpi = [
     { label: 'Applications', val: total, c: '#15803D' },
     { label: 'Hired', val: hired, c: '#7C3AED' },
@@ -1293,7 +1310,7 @@ function LmsReports({ cands }) {
           </div>
         </div>
       </div>
-      <div className="lms-muted" style={{ fontSize: 12.5, marginTop: 14 }}>Time-to-hire (avg, last 30d): <b>~6 days</b> from application to hire · {rejected} rejected.</div>
+      <div className="lms-muted" style={{ fontSize: 12.5, marginTop: 14 }}>Time-to-hire (avg): <b>{avgHireDays != null ? '~' + avgHireDays + ' day' + (avgHireDays === 1 ? '' : 's') : '—'}</b> from application to hire · {rejected} rejected.</div>
     </div>
   );
 }

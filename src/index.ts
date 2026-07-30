@@ -21,7 +21,7 @@ import { reportsRouter } from './routes/reports';
 import { franchiseRouter } from './routes/franchise';
 import { leadsRouter } from './routes/leads';
 import { announcementsRouter } from './routes/announcements';
-import { candidatesRouter, modulesRouter, questionsRouter } from './routes/candidates';
+import { candidatesRouter, mediaRouter, modulesRouter, questionsRouter } from './routes/candidates';
 import { adminRouter } from './routes/admin';
 import { usersRouter } from './routes/users';
 import { liftBuiltinCatalogOverlays } from './services/catalogOverlays';
@@ -78,6 +78,7 @@ app.use('/announcements', announcementsRouter);
 app.use('/candidates', candidatesRouter);
 app.use('/modules', modulesRouter);
 app.use('/questions', questionsRouter);
+app.use('/media', mediaRouter);
 // The Admin UI and the Admin API share the /admin prefix. The UI routes are
 // declared first and match only the exact page + its build assets; everything
 // else under /admin falls through to the API router below.

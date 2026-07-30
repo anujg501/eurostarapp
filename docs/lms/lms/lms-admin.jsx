@@ -382,7 +382,11 @@ function LmsTraining() {
   const [vDur, setVDur] = aUseState('');
   const [vUrl, setVUrl] = aUseState('');
   const [vMod, setVMod] = aUseState('');
+  const [vFile, setVFile] = aUseState(null);   // the picked/dropped video file
+  const [upPct, setUpPct] = aUseState(-1);     // -1 = not uploading
+  const [dragOver, setDragOver] = aUseState(false);
   const [nText, setNText] = aUseState('');
+  const videoFileRef = React.useRef(null);
   const [busy, setBusy] = aUseState(false);
   const [composeErr, setComposeErr] = aUseState('');
   const [pendingId, setPendingId] = aUseState(''); // module id mid-toggle/remove
@@ -399,6 +403,7 @@ function LmsTraining() {
     const m = modId && mods && mods.find(x => x.id === modId);
     setVTitle((m && m.summary) || ''); setVDur((m && m.videoDuration) || ''); setVUrl((m && m.videoUrl) || '');
     setVMod(modId || (mods && mods[0] && mods[0].id) || ''); setComposeErr('');
+    setVFile(null); setUpPct(-1); setDragOver(false);
     setCompose({ kind: 'video', modId });
   };
   const openNotes = (modId) => {
@@ -418,17 +423,52 @@ function LmsTraining() {
     });
   };
 
+  // Upload a video file to a module. XMLHttpRequest rather than fetch because
+  // it reports upload progress — a 300MB file with no progress bar looks frozen.
+  const uploadVideo = (modId, file) => new Promise((resolve) => {
+    let token = ''; try { token = localStorage.getItem('eurostar-admin-token') || ''; } catch (e) {}
+    const form = new FormData();
+    form.append('file', file);
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', (window.EUROSTAR_API || location.origin) + '/modules/' + modId + '/video');
+    if (token) xhr.setRequestHeader('authorization', 'Bearer ' + token);
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) setUpPct(Math.round((e.loaded / e.total) * 100)); };
+    xhr.onload = () => {
+      let d = null; try { d = JSON.parse(xhr.responseText); } catch (e) {}
+      resolve({ ok: xhr.status >= 200 && xhr.status < 300, data: d });
+    };
+    xhr.onerror = () => resolve({ ok: false, data: null });
+    xhr.send(form);
+  });
+
   const saveVideo = () => {
-    const title = vTitle.trim(); if (!title || busy) return;
+    const title = vTitle.trim(); if (busy) return;
     const modId = compose.modId || vMod;
     const mod = mods.find(m => m.id === modId);
     if (!mod) return;
+    // Either a file or a title is enough — the upload names the video from the
+    // filename when no title was typed.
+    if (!title && !vFile) { setComposeErr('Add a video title, or pick a file.'); return; }
     setBusy(true); setComposeErr('');
-    modApi('/', { method: 'PUT', body: JSON.stringify({ id: modId, title: mod.title, summary: title, videoDuration: vDur.trim() || undefined, videoUrl: vUrl.trim() || undefined, checklist: mod.checklist }) }).then(res => {
-      setBusy(false);
-      if (!res.ok || !res.data) { setComposeErr('Could not save — try again.'); return; }
+
+    // Save the text fields first, then upload the file (if any) — that way the
+    // title/duration are stored even if a large upload later fails.
+    modApi('/', { method: 'PUT', body: JSON.stringify({ id: modId, title: mod.title, summary: title || undefined, videoDuration: vDur.trim() || undefined, videoUrl: vUrl.trim() || undefined, checklist: mod.checklist }) }).then(res => {
+      if (!res.ok || !res.data) { setBusy(false); setComposeErr('Could not save — try again.'); return null; }
       setMods(ms => ms.map(m => m.id === modId ? res.data : m));
-      setCompose(null);
+      if (!vFile) return res;
+      setUpPct(0);
+      return uploadVideo(modId, vFile).then(up => {
+        if (!up.ok || !up.data) {
+          setComposeErr((up.data && up.data.error) || 'The details saved, but the video upload failed.');
+          return null;
+        }
+        setMods(ms => ms.map(m => m.id === modId ? up.data : m));
+        return up;
+      });
+    }).then(done => {
+      setBusy(false); setUpPct(-1);
+      if (done) { setVFile(null); setCompose(null); }
     });
   };
 
@@ -491,7 +531,7 @@ function LmsTraining() {
       <LmsPageHead title="Training Content Manager" />
       <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
         <button className="lms-btn lms-btn-ghost" onClick={openModule}>+ Add Module</button>
-        {mods.length > 0 && <button className="lms-btn lms-btn-pri" onClick={() => openVideo(null)}>+ Set a module's video</button>}
+        {mods.length > 0 && <button className="lms-btn lms-btn-pri" onClick={() => openVideo(null)}>+ Upload Video</button>}
       </div>
 
       {compose && compose.kind === 'module' && (
@@ -507,7 +547,7 @@ function LmsTraining() {
       )}
       {compose && compose.kind === 'video' && (
         <div className="lms-card lms-card-pad" style={{ marginBottom: 16, borderColor: 'var(--lms-green)' }}>
-          <strong style={{ display: 'block', marginBottom: 10 }}>{compose.modId ? 'Set this module’s video' : 'Set a module’s video'}</strong>
+          <strong style={{ display: 'block', marginBottom: 10 }}>{compose.modId ? 'Upload video for this module' : 'Upload video'}</strong>
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10 }}>
             <input style={fieldStyle} placeholder="Video title — e.g. Closing the Sale" value={vTitle} autoFocus onChange={e => setVTitle(e.target.value)} />
             <input style={fieldStyle} placeholder="Length mm:ss" value={vDur} onChange={e => setVDur(e.target.value)} />
@@ -517,12 +557,57 @@ function LmsTraining() {
               {mods.map((m, i) => <option key={m.id} value={m.id}>M{i + 1}: {m.title}</option>)}
             </select>
           )}
-          <input style={{ ...fieldStyle, marginTop: 10 }} placeholder="Video URL — YouTube (unlisted), Vimeo, or wherever it's already hosted" value={vUrl} onChange={e => setVUrl(e.target.value)} />
-          <div className="lms-muted" style={{ fontSize: 12, marginTop: 8 }}>No file upload here — object storage isn't configured for video. Paste a link to a video already hosted elsewhere.</div>
+          {/* Real dropzone: click to browse, or drag a file onto it. */}
+          <input
+            ref={videoFileRef}
+            type="file"
+            accept="video/mp4,video/webm,video/quicktime,video/x-m4v,.mp4,.webm,.mov,.m4v"
+            style={{ display: 'none' }}
+            onChange={e => { const f = e.target.files && e.target.files[0]; if (f) { setVFile(f); setComposeErr(''); } e.target.value = ''; }}
+          />
+          <div
+            onClick={() => !busy && videoFileRef.current && videoFileRef.current.click()}
+            onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={e => {
+              e.preventDefault(); setDragOver(false);
+              const f = e.dataTransfer.files && e.dataTransfer.files[0];
+              if (f) { setVFile(f); setComposeErr(''); }
+            }}
+            style={{
+              marginTop: 10, padding: '18px 14px', borderRadius: 'var(--r-md)', textAlign: 'center',
+              border: '1.5px dashed var(--lms-green)', cursor: busy ? 'default' : 'pointer',
+              background: dragOver ? '#E7F3E9' : '#F4F6F4', color: 'var(--lms-green-ink)', fontSize: 13,
+            }}
+          >
+            {vFile ? (
+              <>
+                <div style={{ fontWeight: 700 }}>🎬 {vFile.name}</div>
+                <div className="lms-muted" style={{ fontSize: 12, marginTop: 4 }}>{(vFile.size / (1024 * 1024)).toFixed(1)} MB · click to choose a different file</div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontWeight: 600 }}>⬆ Drag &amp; drop a video file here, or click to browse</div>
+                <div className="lms-muted" style={{ fontSize: 12, marginTop: 4 }}>MP4 · WebM · MOV — up to 500MB</div>
+              </>
+            )}
+          </div>
+          {upPct >= 0 && (
+            <div style={{ marginTop: 10 }}>
+              <div style={{ height: 8, background: '#EEEBE3', borderRadius: 8, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: upPct + '%', background: 'var(--lms-green)', transition: 'width .2s' }} />
+              </div>
+              <div className="lms-muted" style={{ fontSize: 12, marginTop: 5 }}>{upPct < 100 ? `Uploading… ${upPct}%` : 'Processing…'}</div>
+            </div>
+          )}
+
+          <div className="lms-muted" style={{ fontSize: 12, margin: '12px 0 6px' }}>…or paste a link instead, if the video is already hosted somewhere:</div>
+          <input style={fieldStyle} placeholder="Video URL — YouTube (unlisted), Vimeo, or a direct link" value={vUrl} onChange={e => setVUrl(e.target.value)} />
+
           {composeErr && <div style={{ marginTop: 10, color: '#9A3B3B', fontSize: 13 }}>{composeErr}</div>}
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button className="lms-btn lms-btn-pri lms-btn-sm" onClick={saveVideo} disabled={!vTitle.trim() || busy} style={!vTitle.trim() || busy ? { opacity: .5 } : {}}>{busy ? 'Saving…' : 'Save video'}</button>
-            <button className="lms-btn lms-btn-ghost lms-btn-sm" onClick={cancel}>Cancel</button>
+            <button className="lms-btn lms-btn-pri lms-btn-sm" onClick={saveVideo} disabled={busy || (!vTitle.trim() && !vFile)} style={busy || (!vTitle.trim() && !vFile) ? { opacity: .5 } : {}}>{busy ? (upPct >= 0 ? 'Uploading…' : 'Saving…') : 'Save video'}</button>
+            <button className="lms-btn lms-btn-ghost lms-btn-sm" onClick={cancel} disabled={busy} style={busy ? { opacity: .5 } : {}}>Cancel</button>
           </div>
         </div>
       )}
@@ -543,7 +628,7 @@ function LmsTraining() {
         </div>
       );})()}
 
-      <div className="lms-muted" style={{ fontSize: 13, marginBottom: 18 }}>{mods.length} module{mods.length === 1 ? '' : 's'} · video by URL (already hosted elsewhere) · English notes</div>
+      <div className="lms-muted" style={{ fontSize: 13, marginBottom: 18 }}>{mods.length} module{mods.length === 1 ? '' : 's'} · MP4 upload or link · English notes</div>
       {mods.length === 0 && <div className="lms-card lms-card-pad lms-muted" style={{ textAlign: 'center', padding: '30px 0' }}>No training modules yet — add one to get started.</div>}
       {mods.map((m, i) => {
         const notes = m.checklist || [];

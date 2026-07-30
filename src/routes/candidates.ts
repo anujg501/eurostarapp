@@ -1,10 +1,24 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import multer from 'multer';
+import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 import { prisma } from '../db';
 import { asyncHandler, fail, ok, failValidation } from '../util/http';
 import { AuthedRequest, authenticate, requireCandidate, requireInternal, requireRole } from '../auth/middleware';
-import { ALLOWED_DOC_MIME, MAX_DOC_BYTES, getPrivateFile, putPrivateFile } from '../services/storage';
+import {
+  ALLOWED_DOC_MIME,
+  ALLOWED_VIDEO_MIME,
+  MAX_DOC_BYTES,
+  MAX_VIDEO_BYTES,
+  getPrivateFile,
+  localVideoPath,
+  putPrivateFile,
+  putVideoFile,
+  videoExtFor,
+  videoUploadDir,
+} from '../services/storage';
 import { getSetting, setSetting } from '../services/settings';
 
 export const candidatesRouter = Router();
@@ -424,6 +438,118 @@ modulesRouter.put(
       ? await prisma.trainingModule.update({ where: { id: d.id }, data })
       : await prisma.trainingModule.create({ data });
     return ok(res, serialiseModule(m), d.id ? 200 : 201);
+  })
+);
+
+// POST /modules/:id/video — upload the module's video file.
+//
+// Streamed straight to disk by multer: a training video is hundreds of MB, and
+// the memory storage used for CVs would hold all of it in RAM per upload.
+const videoUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => {
+      try { cb(null, videoUploadDir()); } catch (e) { cb(e as Error, ''); }
+    },
+    // The name is generated here, never taken from the upload — a
+    // caller-supplied filename is a path-traversal risk and would let one
+    // upload silently overwrite another.
+    filename: (_req, file, cb) =>
+      cb(null, `${Date.now()}-${crypto.randomBytes(12).toString('hex')}${videoExtFor(file.mimetype)}`),
+  }),
+  limits: { fileSize: MAX_VIDEO_BYTES, files: 1 },
+  fileFilter: (_req, file, cb) => {
+    if (!ALLOWED_VIDEO_MIME.includes(file.mimetype)) {
+      return cb(new Error('UNSUPPORTED_TYPE'));
+    }
+    return cb(null, true);
+  },
+});
+
+modulesRouter.post(
+  '/:id/video',
+  authenticate,
+  requireInternal,
+  (req, res, next) => {
+    videoUpload.single('file')(req, res, (err: unknown) => {
+      if (err) {
+        const e = err as { code?: string; message?: string };
+        const msg = e.code === 'LIMIT_FILE_SIZE'
+          ? `That video is larger than ${Math.round(MAX_VIDEO_BYTES / (1024 * 1024))}MB`
+          : e.message === 'UNSUPPORTED_TYPE'
+            ? 'Upload an MP4, WebM or MOV video'
+            : 'Could not read the uploaded video';
+        return fail(res, 400, msg);
+      }
+      return next();
+    });
+  },
+  asyncHandler(async (req, res) => {
+    const file = (req as unknown as { file?: Express.Multer.File }).file;
+    if (!file) return fail(res, 400, 'No video was uploaded');
+
+    const existing = await prisma.trainingModule.findUnique({ where: { id: req.params.id } });
+    if (!existing) {
+      await fs.promises.unlink(file.path).catch(() => {});
+      return fail(res, 404, 'Module not found');
+    }
+
+    const { url, bytes } = await putVideoFile(file.path, file.mimetype);
+    const m = await prisma.trainingModule.update({
+      where: { id: existing.id },
+      data: {
+        videoUrl: url,
+        // Give the video a title if it has none, so the row is never blank.
+        summary: existing.summary || file.originalname.replace(/\.[^.]+$/, '').slice(0, 120),
+      },
+    });
+    return ok(res, { ...serialiseModule(m), bytes });
+  })
+);
+
+// GET /media/training-video/:name — stream a locally stored video.
+//
+// Range requests are handled properly: without a 206 response the browser
+// cannot seek, and the whole file has to download before playback starts.
+export const mediaRouter = Router();
+
+mediaRouter.get(
+  '/training-video/:name',
+  asyncHandler(async (req, res) => {
+    let full: string;
+    try {
+      full = localVideoPath(req.params.name);
+    } catch {
+      return fail(res, 400, 'Invalid video');
+    }
+    let stat: import('fs').Stats;
+    try {
+      stat = await fs.promises.stat(full);
+    } catch {
+      return fail(res, 404, 'Video not found');
+    }
+
+    const ext = path.extname(full).toLowerCase();
+    const type = ext === '.webm' ? 'video/webm' : ext === '.mov' ? 'video/quicktime' : 'video/mp4';
+    res.setHeader('Content-Type', type);
+    res.setHeader('Accept-Ranges', 'bytes');
+
+    const range = req.headers.range;
+    if (range) {
+      const m = /bytes=(\d*)-(\d*)/.exec(range);
+      const start = m && m[1] ? parseInt(m[1], 10) : 0;
+      const end = m && m[2] ? parseInt(m[2], 10) : stat.size - 1;
+      if (Number.isNaN(start) || Number.isNaN(end) || start > end || start >= stat.size) {
+        res.setHeader('Content-Range', `bytes */${stat.size}`);
+        return res.status(416).end();
+      }
+      res.status(206);
+      res.setHeader('Content-Range', `bytes ${start}-${end}/${stat.size}`);
+      res.setHeader('Content-Length', end - start + 1);
+      return fs.createReadStream(full, { start, end }).pipe(res);
+    }
+
+    res.setHeader('Content-Length', stat.size);
+    return fs.createReadStream(full).pipe(res);
   })
 );
 

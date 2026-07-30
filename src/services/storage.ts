@@ -139,6 +139,76 @@ export async function putPrivateFile(
   return { key: `local:${safeFolder}/${name}`, bytes: buffer.length };
 }
 
+// --- Training videos --------------------------------------------------------
+// Videos are far too big to hold in memory like an image or a CV, so these are
+// streamed to disk by multer and moved into place here, never buffered.
+
+const VIDEO_EXT_BY_MIME: Record<string, string> = {
+  'video/mp4': '.mp4',
+  'video/webm': '.webm',
+  'video/quicktime': '.mov',
+  'video/x-m4v': '.m4v',
+};
+
+export const ALLOWED_VIDEO_MIME = Object.keys(VIDEO_EXT_BY_MIME);
+export const MAX_VIDEO_BYTES = 500 * 1024 * 1024; // 500MB
+
+// Videos live under var/ alongside the other uploads — outside docs/, which is
+// served statically, so nothing here is reachable by guessing a path.
+const VIDEO_DIR = path.join(LOCAL_DIR, 'videos');
+
+export function videoUploadDir(): string {
+  fs.mkdirSync(VIDEO_DIR, { recursive: true });
+  return VIDEO_DIR;
+}
+
+export function videoExtFor(mime: string): string {
+  return VIDEO_EXT_BY_MIME[mime] ?? '.mp4';
+}
+
+/**
+ * Take a video multer has already written to disk and put it where it belongs.
+ *
+ * With object storage configured the file is streamed up and its public CDN URL
+ * returned. Without it the file simply stays on disk and is served back through
+ * the app (with range support) — which is what makes upload work at all on a
+ * box with no Spaces credentials.
+ */
+export async function putVideoFile(
+  tempPath: string,
+  mime: string
+): Promise<{ url: string; bytes: number }> {
+  const bytes = (await fs.promises.stat(tempPath)).size;
+  const name = path.basename(tempPath);
+
+  if (config.spaces.configured) {
+    const key = path.posix.join(config.spaces.prefix, 'training-videos', name);
+    await s3().send(
+      new PutObjectCommand({
+        Bucket: config.spaces.bucket,
+        Key: key,
+        Body: fs.createReadStream(tempPath),
+        ContentLength: bytes,
+        ContentType: mime,
+        ACL: 'public-read',
+        CacheControl: 'public, max-age=31536000, immutable',
+      })
+    );
+    await fs.promises.unlink(tempPath).catch(() => {});
+    return { url: publicUrl(key), bytes };
+  }
+
+  // Already in the right directory — multer wrote it straight there.
+  return { url: `/media/training-video/${name}`, bytes };
+}
+
+/** Resolve a stored video name to a path on disk, refusing anything outside. */
+export function localVideoPath(name: string): string {
+  const full = path.resolve(VIDEO_DIR, name);
+  if (!full.startsWith(path.resolve(VIDEO_DIR))) throw new Error('Invalid video name');
+  return full;
+}
+
 /** Read a private document back for an authorised caller. */
 export async function getPrivateFile(key: string): Promise<Buffer> {
   if (key.startsWith('s3:')) {

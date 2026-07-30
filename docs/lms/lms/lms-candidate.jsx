@@ -521,6 +521,14 @@ function CandPractice({ practice, candId }) {
   );
 }
 
+// A video we uploaded ourselves can be played inline. A YouTube/Vimeo page URL
+// cannot — a <video> tag needs the media file itself, not a watch page.
+function isPlayable(url) {
+  if (!url) return false;
+  if (url.indexOf('/media/training-video/') !== -1) return true;
+  return /\.(mp4|webm|mov|m4v)(\?|$)/i.test(url);
+}
+
 function CandTraining({ go, cand, actions, lang }) {
   const L = lang || 'en';
   // The curriculum comes from the office's Training Content Manager, not a
@@ -575,11 +583,24 @@ function CandTraining({ go, cand, actions, lang }) {
                     <div style={{ fontSize: 14, fontWeight: 600 }}>{m.summary || m.title}</div>
                     <div style={{ fontSize: 12, color: 'var(--lms-meta)' }}>{m.videoDuration ? m.videoDuration + ' · ' : ''}{m.mandatory ? 'Mandatory' : 'Optional'}</div>
                   </div>
-                  {m.videoUrl && <a href={m.videoUrl} target="_blank" rel="noopener noreferrer" className="lms-btn lms-btn-ghost lms-btn-sm" style={{ textDecoration: 'none' }}>Watch</a>}
+                  {m.videoUrl && !isPlayable(m.videoUrl) && <a href={m.videoUrl} target="_blank" rel="noopener noreferrer" className="lms-btn lms-btn-ghost lms-btn-sm" style={{ textDecoration: 'none' }}>Watch</a>}
                   {done
                     ? <span className="lms-pill" style={{ background: 'var(--lms-green-soft)', color: 'var(--lms-green-ink)', fontSize: 11 }}>✓ Watched</span>
                     : <button className="lms-btn lms-btn-ghost lms-btn-sm" onClick={() => watch(m.id)}>Mark watched</button>}
                 </div>
+              )}
+              {/* An uploaded file plays inline; an external link (YouTube etc.)
+                  cannot be put in a <video> tag, so that keeps the Watch link. */}
+              {m.videoUrl && isPlayable(m.videoUrl) && (
+                <video
+                  controls
+                  preload="metadata"
+                  controlsList="nodownload"
+                  onContextMenu={e => e.preventDefault()}
+                  onEnded={() => !done && watch(m.id)}
+                  style={{ width: '100%', borderRadius: 12, marginTop: 8, background: '#000', display: 'block' }}
+                  src={(window.EUROSTAR_API || '') + m.videoUrl}
+                />
               )}
               {notes.length > 0 && (
                 <div className="cand-notes">

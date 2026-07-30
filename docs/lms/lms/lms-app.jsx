@@ -210,6 +210,17 @@ function LMS() {
   const now = () => new Date(window.LMS_TODAY).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) + ' · now';
   const logAudit = (action, target) => setAudit(a => [{ id: 'A' + Date.now(), actor: 'Admin (Office)', action, target, time: now() }, ...a]);
   const notify = (icon, who, text) => setNotifs(n => [{ id: 'N' + Date.now(), icon, who, text, time: now(), read: false }, ...n]);
+  // Push an alert the CANDIDATE will see (their app's bell), keyed by candId in a
+  // shared store — read-merge-write so parallel actions don't clobber the list.
+  const notifyCandidate = (candId, icon, text) => {
+    if (!candId) return Promise.resolve();
+    const entry = { id: 'CN' + Date.now() + Math.random().toString(36).slice(2, 6), icon, text, time: now() };
+    return lmsApi('GET', '/admin/lms/notifs').then((res) => {
+      const m = (res.ok && res.data && typeof res.data === 'object') ? { ...res.data } : {};
+      m[candId] = [entry, ...(m[candId] || [])].slice(0, 30);
+      return lmsApi('PUT', '/admin/lms/notifs', m);
+    }).catch(() => {});
+  };
   const today = () => window.LMS_TODAY.toISOString().slice(0, 10);
 
   const actions = {
@@ -223,6 +234,7 @@ function LMS() {
       }
       update(id, { unlockedOn: today(), stage: 'training' });
       logAudit('Unlocked training', c && c.name);
+      notifyCandidate(c && c.candId, '🎬', 'Your training is unlocked — start watching the modules. Finish before the window closes.');
     },
     lockTraining: (id) => mutate(id, c => {
       // Closing the window has to undo the stage the window opened, or the row
@@ -244,9 +256,10 @@ function LMS() {
       update(id, { testUnlockedOn: today(), testConsumed: false });
       notify('🔔', c && c.name, 'Test unlocked — 2-day window started');
       logAudit('Unlocked test', c && c.name);
+      notifyCandidate(c && c.candId, '📝', 'Your assessment is unlocked — take it within 2 days. It is one-shot, so finish in a single sitting.');
     },
     lockTest: (id) => update(id, { testUnlockedOn: null }),
-    allowRetest: (id) => { update(id, { testUnlockedOn: today(), testConsumed: false, score: null, stage: 'training' }); const c = cands.find(x => x.id === id); logAudit('Granted re-test', c && c.name); },
+    allowRetest: (id) => { update(id, { testUnlockedOn: today(), testConsumed: false, score: null, stage: 'training' }); const c = cands.find(x => x.id === id); logAudit('Granted re-test', c && c.name); notifyCandidate(c && c.candId, '🔄', 'A re-test has been granted — you can take the assessment again.'); },
     consumeTest: (id) => update(id, { testConsumed: true }),
     markWatched: (id, vid) => mutate(id, c => ({ ...c, watched: (c.watched || []).includes(vid) ? c.watched : [...(c.watched || []), vid] })),
     // Booking the interview is what actually moves a candidate into screening —
@@ -259,6 +272,7 @@ function LMS() {
       if (!c) return Promise.resolve(false);
       if (c.stage === 'applied') update(id, { stage: 'screening' });
       logAudit('Scheduled screening — ' + date + ' ' + slot, c.name);
+      notifyCandidate(c.candId, '📅', 'Your screening is scheduled for ' + date + (slot ? ' at ' + slot : '') + '. Check your status screen for the join link.');
       const trimmed = (link || '').trim();
       if (!trimmed || !c.candId) return Promise.resolve(true);
       // Same shared key-value store the candidate app's own status screen reads
@@ -288,6 +302,9 @@ function LMS() {
       };
       setCands(cs => cs.map(x => (x.id === id ? next : x)));
       logAudit(result === 'pass' ? 'Passed screening' : 'Failed screening', c.name);
+      notifyCandidate(c.candId, result === 'pass' ? '✅' : 'ℹ️', result === 'pass'
+        ? 'Great news — you cleared the screening! Your training will be unlocked soon.'
+        : 'Thank you for your time. Unfortunately you were not selected to move forward.');
       return persistCand(next).then((res) => !!res.ok);
     },
     setScore: (id, score) => mutate(id, c => {
@@ -304,9 +321,10 @@ function LMS() {
       const pwd = c.tempPassword || window.lmsGenPassword();
       notify('🎉', c.name, `Hired · Rep ID ${rid} issued — WhatsApp sent to staff (${settings.staffWhatsApp})`);
       logAudit('Hired & issued Rep ID ' + rid, c.name);
+      notifyCandidate(c.candId, '🎉', "Congratulations — you're hired! Your Rep ID is " + rid + '. Use it to log in to the Eurostar Sales App.');
       mutate(id, x => ({ ...x, stage: 'hired', repId: rid, tempPassword: pwd, onboarding: { ...(x.onboarding || {}), confidentiality: x.onboarding && x.onboarding.confidentiality } }));
     },
-    reject: (id, reason) => { update(id, { stage: 'rejected', rejectReason: reason || 'Not a fit' }); const c = cands.find(x => x.id === id); logAudit('Rejected — ' + (reason || 'Not a fit'), c && c.name); },
+    reject: (id, reason) => { update(id, { stage: 'rejected', rejectReason: reason || 'Not a fit' }); const c = cands.find(x => x.id === id); logAudit('Rejected — ' + (reason || 'Not a fit'), c && c.name); notifyCandidate(c && c.candId, 'ℹ️', 'Thank you for applying. Unfortunately you were not selected at this time.'); },
     onboardToCrm: (id, form) => {
       const cand = cands.find(x => x.id === id);
       const rec = cand ? { id: cand.repId, name: cand.name, region: form.region || cand.state || '', city: form.city || cand.city || '',

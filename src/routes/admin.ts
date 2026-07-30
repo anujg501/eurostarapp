@@ -77,6 +77,15 @@ kv(adminRouter, '/pricing-overrides', KEYS.pricingOverrides, priceOvrSchema, {})
 // LMS interview links: a map of candidate id -> Google Meet (or any) link. The
 // LMS admin sets it; the candidate sees a "Join interview" button.
 kv(adminRouter, '/lms/meeting-links', KEYS.lmsMeetingLinks, z.record(z.string()), {});
+// Candidate-facing notifications, keyed by candId → newest-first list. The admin
+// (staff) writes; the candidate app reads its own via the public GET.
+kv(
+  adminRouter,
+  '/lms/notifs',
+  KEYS.lmsCandNotifs,
+  z.record(z.array(z.object({ id: z.string(), icon: z.string().optional(), text: z.string(), time: z.string().optional() }))),
+  {}
+);
 
 // Category display order.
 kv(adminRouter, '/catorder', KEYS.catOrder, z.array(z.string()), []);

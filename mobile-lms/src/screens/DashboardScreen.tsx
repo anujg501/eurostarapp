@@ -6,6 +6,7 @@ import { theme } from '../theme';
 import { useCandidate, LMS_PASS_PCT } from '../state';
 import MiraFab from '../components/MiraFab';
 import MenuDrawer from '../components/MenuDrawer';
+import CandBell from '../components/CandBell';
 
 // Mirrors LMS_JOURNEY in the web candidate UI (docs/lms/lms/lms-data.jsx) —
 // same order, icons, copy and hues, so the app and the web flow read alike.
@@ -63,6 +64,7 @@ export default function DashboardScreen({ navigation, onSignOut }: any) {
               ) : null}
             </Text>
           </View>
+          <CandBell candId={cand.candId} />
         </View>
       </SafeAreaView>
 

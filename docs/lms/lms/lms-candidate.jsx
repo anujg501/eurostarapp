@@ -231,6 +231,60 @@ function CandAuth({ mode, setMode, onDone, notice }) {
 }
 
 // ---- Candidate dashboard (5 tiles) ----
+// Bell in the candidate app bar — shows an unread count and opens the full
+// Notifications page (a separate screen, not a dropdown).
+function CandBell({ candId, go }) {
+  const [count, setCount] = cUseState(0);
+  const readKey = 'eurostar-lms-cand-notif-read-' + (candId || 'x');
+  React.useEffect(() => {
+    if (!candId) return;
+    const API = window.EUROSTAR_API || location.origin;
+    const pull = () => fetch(API + '/admin/lms/notifs').then(r => (r.ok ? r.json() : {})).then(m => {
+      const items = (m && m[candId]) || [];
+      let read = []; try { read = JSON.parse(localStorage.getItem(readKey) || '[]'); } catch (e) {}
+      setCount(items.filter(n => !read.includes(n.id)).length);
+    }).catch(() => {});
+    pull();
+    const iv = setInterval(pull, 12000);
+    return () => clearInterval(iv);
+  }, [candId]);
+  return (
+    <button className="menu" onClick={() => go && go('notifications')} aria-label="Notifications" style={{ position: 'relative', fontSize: 18 }}>🔔
+      {count > 0 && <span style={{ position: 'absolute', top: -3, right: -3, minWidth: 16, height: 16, padding: '0 4px', borderRadius: 999, background: 'var(--lms-purple)', color: '#fff', fontSize: 10, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{count}</span>}
+    </button>
+  );
+}
+
+// Full-page notifications list — updates the office pushed to this candidate.
+function CandNotifications({ candId, go }) {
+  const [items, setItems] = cUseState(null);
+  const readKey = 'eurostar-lms-cand-notif-read-' + (candId || 'x');
+  React.useEffect(() => {
+    if (!candId) { setItems([]); return; }
+    const API = window.EUROSTAR_API || location.origin;
+    fetch(API + '/admin/lms/notifs').then(r => (r.ok ? r.json() : {})).then(m => {
+      const its = (m && m[candId]) || [];
+      setItems(its);
+      try { localStorage.setItem(readKey, JSON.stringify(its.map(n => n.id))); } catch (e) {}
+    }).catch(() => setItems([]));
+  }, [candId]);
+  return (
+    <>
+      <div className="cand-appbar"><button className="menu" onClick={() => go('home')}><CandIcon name="back" /></button><div><h3>Notifications</h3><small>Updates from the hiring team</small></div></div>
+      <div className="cand-pad">
+        {items === null ? <div style={{ textAlign: 'center', color: 'var(--lms-meta)', padding: '30px 0' }}>…</div>
+          : items.length === 0 ? <div style={{ textAlign: 'center', padding: '50px 20px' }}><div style={{ fontSize: 36 }}>🔔</div><div style={{ fontWeight: 700, color: 'var(--lms-ink)', marginTop: 12, fontSize: 16 }}>No notifications yet</div><div style={{ fontSize: 13.5, color: 'var(--lms-meta)', marginTop: 8, lineHeight: '20px' }}>You'll see updates here when the office schedules your screening, unlocks training, or shares a decision.</div></div>
+            : items.map(n => (
+              <div key={n.id} style={{ display: 'flex', gap: 12, padding: '14px 0', borderBottom: '1px solid var(--lms-divider)' }}>
+                <span style={{ fontSize: 18 }}>{n.icon || '🔔'}</span>
+                <div style={{ flex: 1 }}><div style={{ fontSize: 13.5, color: 'var(--lms-ink-2)', lineHeight: '19px' }}>{n.text}</div>{n.time && <div style={{ fontSize: 11, color: 'var(--lms-meta)', marginTop: 3 }}>{n.time}</div>}</div>
+              </div>
+            ))}
+      </div>
+    </>
+  );
+}
+
 function CandDashboard({ cand, go, onMenu }) {
   const J = window.LMS_JOURNEY;
   const w = window.lmsWindow(cand);
@@ -250,7 +304,8 @@ function CandDashboard({ cand, go, onMenu }) {
     <>
       <div className="cand-appbar">
         <button className="menu" onClick={onMenu}><CandIcon name="menu" /></button>
-        <div><h3>Dashboard</h3><small>Hey {(cand.name || '').split(' ')[0]} 👋 · <b style={{ fontFamily: 'monospace', color: 'var(--lms-purple-ink)' }}>{cand.candId}</b></small></div>
+        <div style={{ flex: 1 }}><h3>Dashboard</h3><small>Hey {(cand.name || '').split(' ')[0]} 👋 · <b style={{ fontFamily: 'monospace', color: 'var(--lms-purple-ink)' }}>{cand.candId}</b></small></div>
+        <CandBell candId={cand.candId} go={go} />
       </div>
       <div className="cand-pad">
         {hired && (
@@ -1142,6 +1197,7 @@ function CandidateApp({ questions, testCfg }) {
   if (screen === 'home') view = <CandDashboard cand={cand} go={go} onMenu={() => setMenuOpen(true)} />;
   else if (screen === 'apply') view = <CandApply go={go} cand={cand} onSaved={setCand} />;
   else if (screen === 'status') view = <CandStatus go={go} stage={cand.stage} cand={cand} />;
+  else if (screen === 'notifications') view = <CandNotifications candId={cand.candId} go={go} />;
   else if (screen === 'training') view = <CandTraining go={go} cand={cand} actions={localActions} lang={lang || 'en'} />;
   else if (screen === 'test') view = <CandTest go={go} onSubmit={submitTest} onAbort={() => { localActions.consumeTest(); setScreen('home'); }} cand={cand} />;
   else if (screen === 'result') view = <CandResult go={go} cand={cand} />;

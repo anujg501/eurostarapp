@@ -571,8 +571,21 @@ function LmsTraining() {
             onDragLeave={() => setDragOver(false)}
             onDrop={e => {
               e.preventDefault(); setDragOver(false);
-              const f = e.dataTransfer.files && e.dataTransfer.files[0];
+              // A drag from Explorer/Finder puts the file in .files. A drag off a
+              // web page (e.g. a video preview dragged straight out of a WhatsApp
+              // Web / Gmail tab) often carries no real file there at all — only a
+              // reference in .items, sometimes not a file reference at all. Try
+              // both before giving up, and say something when neither works: this
+              // used to fail dead silent, no error, dropzone just sitting there.
+              let f = e.dataTransfer.files && e.dataTransfer.files[0];
+              if (!f && e.dataTransfer.items) {
+                for (let i = 0; i < e.dataTransfer.items.length; i++) {
+                  const it = e.dataTransfer.items[i];
+                  if (it.kind === 'file') { const got = it.getAsFile(); if (got) { f = got; break; } }
+                }
+              }
               if (f) { setVFile(f); setComposeErr(''); }
+              else { setComposeErr("Couldn't read a video file from that drop. If you dragged it from a browser tab (WhatsApp Web, Gmail, etc.), save it to your computer first, then drag it from File Explorer/Finder — or click here to browse."); }
             }}
             style={{
               marginTop: 10, padding: '18px 14px', borderRadius: 'var(--r-md)', textAlign: 'center',

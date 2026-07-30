@@ -61,6 +61,7 @@ export const KEYS = {
   miraEnabled: 'eurostar-mira-enabled',
   lang: 'eurostar-lang',
   lmsMeetingLinks: 'eurostar-lms-meeting-links-v1',
+  lmsCandNotifs: 'eurostar-lms-cand-notifs-v1', // candidate-facing alerts, keyed by candId
   // Admin "Settings" screen — the trading rules the storefront applies. These
   // were previously hardcoded in config.rules and the Settings inputs saved
   // nowhere; the API now reads overrides from here.

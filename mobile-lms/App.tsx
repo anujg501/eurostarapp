@@ -14,6 +14,7 @@ import StatusScreen from './src/screens/StatusScreen';
 import TrainingScreen from './src/screens/TrainingScreen';
 import TestScreen from './src/screens/TestScreen';
 import ResultScreen from './src/screens/ResultScreen';
+import NotificationsScreen from './src/screens/NotificationsScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -119,8 +120,11 @@ export default function App() {
             <Stack.Screen name="Apply" component={ApplyScreen} options={{ headerShown: false }} />
             <Stack.Screen name="Status" component={StatusScreen} options={{ headerShown: false }} />
             <Stack.Screen name="Training" component={TrainingScreen} options={{ headerShown: false }} />
-            <Stack.Screen name="Test" component={TestScreen} options={{ title: 'Assessment' }} />
+            {/* Test draws its own app bar so the countdown timer sits beside the
+                question counter, matching the web candidate flow. */}
+            <Stack.Screen name="Test" component={TestScreen} options={{ headerShown: false }} />
             <Stack.Screen name="Result" component={ResultScreen} options={{ title: 'Result' }} />
+            <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ headerShown: false }} />
           </Stack.Navigator>
         </NavigationContainer>
       </CandidateProvider>

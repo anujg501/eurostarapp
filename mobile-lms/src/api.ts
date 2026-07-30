@@ -126,6 +126,15 @@ export type TrainingModule = {
   sortOrder?: number;
 };
 
+export type TestConfig = { count: number; passPct: number; durationMin: number; randomize: boolean };
+// The paper the candidate sits — questions WITHOUT the answer key (the office
+// keeps that; the server marks the paper).
+export type TestPaper = {
+  config: TestConfig;
+  questions: { id: string; type: string; prompt: string; options: string[] }[];
+};
+export type TestResult = { score: number; correct: number; total: number; passPct: number; passed: boolean };
+
 export const api = {
   baseUrl: BASE_URL,
 
@@ -197,6 +206,28 @@ export const api = {
 
   // Training modules the candidate must watch before the test.
   modules: () => request<TrainingModule[]>('/modules'),
+
+  // The live assessment. The paper is drawn from the office's question bank
+  // (count / pass mark / time limit all set by the office) and comes down
+  // WITHOUT the answers — the server marks it. This replaces the old hard-coded
+  // 5-question quiz that scored itself in the app.
+  testPaper: () => request<TestPaper>('/questions/paper'),
+
+  // Server-side marking: send { questionId: chosenOptionIndex }, get the score.
+  scoreTest: (answers: Record<string, number>) =>
+    request<TestResult>('/questions/score', { method: 'POST', body: JSON.stringify({ answers }) }),
+
+  // Write the marked result onto the candidate's own pipeline row so the office
+  // actually sees it (passing moves them into the approval queue).
+  submitTestResult: (score: number, passed: boolean) =>
+    request<Candidate>('/candidates/me/test-result', {
+      method: 'POST',
+      body: JSON.stringify({ score, passed }),
+    }),
+
+  // Candidate-facing alerts the office pushed (screening scheduled, training/test
+  // unlocked, hired…), keyed by candId. Public read; filter to your own candId.
+  candNotifs: () => request<Record<string, { id: string; icon?: string; text: string; time?: string }[]>>('/admin/lms/notifs'),
 
   // Mira — the in-app assistant. Same brain as the web chat bubble.
   chat: (sessionId: string, message: string, who?: string) =>

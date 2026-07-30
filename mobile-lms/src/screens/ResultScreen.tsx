@@ -6,7 +6,10 @@ import { useCandidate, LMS_PASS_PCT } from '../state';
 export default function ResultScreen({ navigation }: any) {
   const { cand } = useCandidate();
   const score = cand.score ?? 0;
-  const passed = score >= LMS_PASS_PCT;
+  // The office sets the pass mark; the server told us what it was when it marked
+  // the paper, so use that rather than a baked-in 70.
+  const passPct = cand.passPct ?? LMS_PASS_PCT;
+  const passed = score >= passPct;
 
   return (
     <View style={styles.wrap}>
@@ -16,7 +19,7 @@ export default function ResultScreen({ navigation }: any) {
 
       <Text style={styles.score}>{score}%</Text>
       <Text style={[styles.verdict, { color: passed ? theme.green : '#8A6314' }]}>
-        {passed ? 'Passed — recommended for hiring!' : `Not cleared (need ≥ ${LMS_PASS_PCT}%)`}
+        {passed ? 'Passed — recommended for hiring!' : `Not cleared (need ≥ ${passPct}%)`}
       </Text>
 
       <Text style={styles.desc}>

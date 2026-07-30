@@ -11,6 +11,7 @@ export type CandidateState = {
   applied: boolean;
   watched: string[]; // module/video ids watched
   score: number | null;
+  passPct: number; // the pass mark the office set (the server is the source of truth)
   stage: Stage;
 };
 
@@ -19,7 +20,9 @@ type Ctx = {
   setName: (n: string) => void;
   submitApplication: () => void;
   markWatched: (id: string) => void;
-  setScore: (score: number) => void;
+  // The server marks the paper, so it decides pass/fail and reports the mark it
+  // used. Both are optional so the old local fallback still compiles.
+  setScore: (score: number, passed?: boolean, passPct?: number) => void;
 };
 
 const PASS_PCT = 70;
@@ -41,6 +44,7 @@ export function CandidateProvider({
     applied: false,
     watched: [],
     score: null,
+    passPct: PASS_PCT,
     stage: 'new',
   });
 
@@ -76,12 +80,12 @@ export function CandidateProvider({
   );
 
   const setScore = useCallback(
-    (score: number) =>
-      setCand((c) => ({
-        ...c,
-        score,
-        stage: score >= PASS_PCT ? 'recommended' : 'testing',
-      })),
+    (score: number, passed?: boolean, passPct?: number) =>
+      setCand((c) => {
+        const pp = passPct ?? c.passPct;
+        const ok = passed ?? score >= pp;
+        return { ...c, score, passPct: pp, stage: ok ? 'recommended' : 'testing' };
+      }),
     []
   );
 

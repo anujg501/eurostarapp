@@ -66,6 +66,7 @@
     getJson('/admin/catalog/grades'),
     getJson('/admin/thumbs/categories'),
     getJson('/admin/thumbs/shapes'),
+    getJson('/admin/thumbs/colours'),
     getJson('/admin/product-images'),
     getJson('/admin/catalog/colours'),
     getJson('/admin/catalog/shapes'),
@@ -78,11 +79,12 @@
       var extraGrades = res[2];
       var catThumbs = res[3];
       var shapeThumbs = res[4];
-      var productImages = res[5];
-      var extraColours = res[6];
-      var extraShapes = res[7];
-      var splash = res[8];
-      var pricingOvr = res[9];
+      var colourThumbs = res[5];
+      var productImages = res[6];
+      var extraColours = res[7];
+      var extraShapes = res[8];
+      var splash = res[9];
+      var pricingOvr = res[10];
 
       // Prices, pieces-per-packet and add/remove-size edits made in
       // Admin > Pricing. Loaded before the pads render so a saved edit is live.
@@ -92,6 +94,10 @@
 
       mirrorToLocal('eurostar-cat-thumbs-v1', catThumbs);
       mirrorToLocal('eurostar-shape-thumbs-v1', shapeThumbs);
+      // Admin's "Colour images" panel (keyed "cat|colour") — replaces the plain
+      // swatch on the storefront's "Choose a colour" step. This sync was missing
+      // entirely: the panel saved to the server but no screen ever read it back.
+      mirrorToLocal('eurostar-colour-thumbs-v1', colourThumbs);
       mirrorToLocal('eurostar-product-images-v1', productImages);
       mirrorToLocal('eurostar-extra-colors-v1', extraColours);
       mirrorToLocal('eurostar-extra-shapes-v1', extraShapes);

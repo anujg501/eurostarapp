@@ -396,8 +396,8 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
         <div className="color-pick-grid">
             {colors.map((c) =>
           <button key={c.id} className="color-pick-card" onClick={() => pickColor(c.id)}>
-                {productPhoto(c.id) ?
-            <img className="color-pick-swatch" src={productPhoto(c.id)} alt={c.name}
+                {(colourThumbFor(category.id, c.id) || productPhoto(c.id)) ?
+            <img className="color-pick-swatch" src={colourThumbFor(category.id, c.id) || productPhoto(c.id)} alt={c.name}
             loading="lazy"
             /* A missing file must leave the plain colour swatch behind, not a
                broken-image icon. */
@@ -610,6 +610,17 @@ const productPhoto = (colorId) =>
 // Shared so productImageFor() (product-images.jsx) resolves the stock photo the
 // same way everywhere, instead of each screen reimplementing the fallback.
 window.productPhoto = productPhoto;
+
+// The admin's "Colour images" panel (keyed "cat|colour", synced by
+// catalog-sync.jsx into this localStorage key). A real uploaded photo wins over
+// the generic gem render on the "Choose a colour" step.
+const COLOUR_THUMB_KEY = 'eurostar-colour-thumbs-v1';
+function colourThumbFor(catId, colorId) {
+  try {
+    const all = JSON.parse(localStorage.getItem(COLOUR_THUMB_KEY) || '{}');
+    return all[catId + '|' + colorId] || null;
+  } catch (e) { return null; }
+}
 
 // Pearls: custom header title + subtitle per (grade | drilling). Keyed "gradeId|shape".
 const PEARL_HEADERS = {

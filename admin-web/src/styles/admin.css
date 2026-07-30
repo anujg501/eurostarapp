@@ -169,3 +169,36 @@ button { font-family: inherit; }
 .ad-drop:hover { border-color: var(--emerald); background: var(--emerald-soft); }
 
 @media (max-width: 760px){ .ad-side { display: none; } .ad-body { padding: 18px 14px 50px; } }
+
+/* ---------- Pricing section (Category → Grade → Colour → editor) ---------- */
+.pr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; margin-top: 14px; }
+.pr-h3 { font-family: var(--font-serif, Georgia, serif); font-size: 22px; color: var(--ink); margin: 18px 0 4px; }
+.pr-cat-card, .pr-grade-card, .pr-colour-card {
+  text-align: left; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; padding: 16px; cursor: pointer; display: flex; flex-direction: column; gap: 4px;
+  transition: border-color .12s, box-shadow .12s;
+}
+.pr-cat-card:hover, .pr-grade-card:hover, .pr-colour-card:hover { border-color: var(--emerald); box-shadow: 0 2px 10px rgba(14,92,74,.08); }
+.pr-cat-name { font-weight: 700; font-size: 17px; color: var(--ink); }
+.pr-cat-meta { color: var(--ink-3); font-size: 13px; }
+.pr-cat-go { color: var(--emerald-ink); font-weight: 700; font-size: 13px; margin-top: 8px; }
+.pr-badge { align-self: flex-start; background: var(--emerald); color: var(--paper); font-size: 10.5px; font-weight: 800; letter-spacing: .06em; padding: 3px 9px; border-radius: 999px; }
+.pr-pill { align-self: flex-start; background: var(--paper-2); color: var(--ink-2); font-size: 11px; padding: 2px 9px; border-radius: 999px; }
+.pr-grade-name { font-family: var(--font-serif, Georgia, serif); text-transform: uppercase; letter-spacing: .02em; font-size: 18px; font-weight: 700; color: var(--ink); margin-top: 6px; }
+.pr-grade-desc { color: var(--ink-3); font-size: 13px; line-height: 1.4; }
+.pr-grade-from { color: var(--emerald-ink); font-weight: 700; font-size: 13px; margin-top: 4px; }
+.pr-swatch { height: 110px; border-radius: 10px; background: var(--paper-2); display: flex; align-items: center; justify-content: center; margin-bottom: 8px; }
+.pr-swatch-all { background: conic-gradient(#c0563f, #d8a13a, #4e8e57, #3f6cc4, #8a5fc4, #c0563f); }
+.pr-ball { width: 46px; height: 46px; border-radius: 999px; box-shadow: 0 0 0 4px rgba(0,0,0,.04); }
+.pr-colour-name { font-weight: 700; color: var(--ink); }
+.pr-colour-sub { color: var(--ink-3); font-size: 12.5px; }
+.pr-editor-top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }
+.pr-flash { color: var(--emerald-ink); background: var(--emerald-soft); border-radius: 999px; padding: 4px 12px; font-weight: 700; font-size: 12.5px; }
+.pr-chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 4px; }
+.pr-chip { border: 1px solid var(--border); background: var(--surface); color: var(--ink-2); border-radius: 999px; padding: 6px 14px; font-weight: 600; font-size: 13px; cursor: pointer; text-transform: capitalize; }
+.pr-chip.on { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.pr-num { width: 90px; }
+.pr-custom { border-color: var(--emerald) !important; font-weight: 700; box-shadow: 0 0 0 2px rgba(14,92,74,.12); }
+.pr-added { color: var(--emerald-ink); font-size: 11px; }
+.pr-addrow { display: flex; gap: 10px; align-items: center; margin-top: 14px; }
+.pr-removed { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; }

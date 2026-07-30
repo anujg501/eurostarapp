@@ -279,6 +279,18 @@ export interface Colour {
 export type ColoursByCat = Record<string, Colour[]>;
 export type ShapesByCat = Record<string, string[]>;
 
+/** Per-category pricing overrides (see PROMPT_FOR_CLAUDE_CODE §4).
+ *  price keyed by one of: `grade@colour|shape|size`, `grade@shape|size`,
+ *  `colour|shape|size`, `shape|size` (most→least specific). pcs keyed by size.
+ *  addSizes/delSizes keyed by shape. */
+export interface CategoryPricingOverride {
+  price?: Record<string, number>;
+  pcs?: Record<string, number>;
+  addSizes?: Record<string, string[]>;
+  delSizes?: Record<string, string[]>;
+}
+export type PricingOverrides = Record<string, CategoryPricingOverride>;
+
 /** Product photo map. Key format is fixed by the storefront (see
  *  docs/app/product-images.jsx): `cat|colour|shape`, or `cat|grade|colour|shape`
  *  for grade-scoped categories. */
@@ -609,6 +621,14 @@ export const adminApi = {
   // Colour images — one photo per colour, keyed "cat|colour".
   colourThumbs: () => api.get<Record<string, string>>('/admin/thumbs/colours'),
   saveColourThumbs: (m: Record<string, string>) => api.put('/admin/thumbs/colours', m),
+
+  // Colour swatch photos (spec store), keyed "category|colour".
+  colourSwatches: () => api.get<Record<string, string>>('/admin/colour-swatches'),
+  saveColourSwatches: (m: Record<string, string>) => api.put('/admin/colour-swatches', m),
+
+  // Pricing overrides per category: { price, pcs, addSizes, delSizes }.
+  pricingOverrides: () => api.get<PricingOverrides>('/admin/pricing-overrides'),
+  savePricingOverrides: (m: PricingOverrides) => api.put('/admin/pricing-overrides', m),
 
   productImages: () => api.get<ProductImages>('/admin/product-images'),
   saveProductImages: (m: ProductImages) => api.put('/admin/product-images', m),

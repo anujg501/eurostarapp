@@ -10,11 +10,13 @@ import { Users } from './screens/Users';
 import { Marketing } from './screens/Marketing';
 import { AddCategory } from './screens/AddCategory';
 import { BulkUploadPage } from './screens/BulkUpload';
+import { Pricing } from './screens/Pricing';
 import { TweaksPanel } from './TweaksPanel';
 
 type ScreenId =
   | 'dashboard'
   | 'catalog'
+  | 'pricing'
   | 'newcat'
   | 'bulk'
   | 'media'
@@ -29,7 +31,8 @@ type ScreenId =
 // The original panel's sidebar: one flat list under a single group label.
 const NAV: { id: ScreenId; label: string }[] = [
   { id: 'dashboard', label: 'Dashboard' },
-  { id: 'catalog', label: 'Catalog' },
+  { id: 'catalog', label: 'Catalog & availability' },
+  { id: 'pricing', label: 'Pricing' },
   { id: 'newcat', label: '＋ Add category' },
   { id: 'bulk', label: 'Bulk upload' },
   { id: 'media', label: 'Product images' },
@@ -44,7 +47,8 @@ const NAV: { id: ScreenId; label: string }[] = [
 
 const TITLES: Record<ScreenId, string> = {
   dashboard: 'Dashboard',
-  catalog: 'Catalog',
+  catalog: 'Catalog & availability',
+  pricing: 'Pricing',
   newcat: '＋ Add category',
   bulk: 'Bulk upload',
   media: 'Product images',
@@ -196,6 +200,7 @@ export function App() {
 
         {screen === 'dashboard' && <Dashboard onGo={setScreen} />}
         {screen === 'catalog' && <Catalog />}
+        {screen === 'pricing' && <Pricing />}
         {/* "＋ Add category" is its own full-page questionnaire, like the
             original panel. The Catalog's own "＋ Create new category" button
             still opens the client's dialog. */}

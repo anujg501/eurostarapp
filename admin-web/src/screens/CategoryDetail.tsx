@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { adminApi, type Category, type Colour, type Grade, type Product } from '../lib/api';
-import { PricingMatrixEditor } from './PricingMatrix';
 
 // Grades, colours and shapes for one category. In the prototype "＋ Add grade",
 // "Remove" and "Save grades" had no onClick at all, and the colour/shape chips
@@ -11,7 +10,7 @@ import { PricingMatrixEditor } from './PricingMatrix';
 
 const UNIT_LONG: Record<string, string> = { pc: 'per piece', ct: 'per carat', pkt: 'per packet', strip: 'per strip' };
 
-type Tab = 'grades' | 'colours' | 'shapes' | 'pricing' | 'availability';
+type Tab = 'grades' | 'colours' | 'shapes' | 'availability';
 
 // onDeleted: the catalogue cards no longer carry a Delete button (they match
 // the original panel's toggle-only cards), so deletion lives here instead.
@@ -95,7 +94,6 @@ export function CategoryDetail({ cat, onBack, onDeleted }: { cat: Category; onBa
     ['grades', 'Grades'],
     ['colours', 'Colours'],
     ['shapes', 'Shapes'],
-    ['pricing', 'Pricing'],
     ['availability', 'Availability'],
   ];
 
@@ -165,7 +163,6 @@ export function CategoryDetail({ cat, onBack, onDeleted }: { cat: Category; onBa
         ))}
       {tab === 'colours' && <Colours colours={colours} busy={busy} saved={saved === 'colours'} onSave={saveColours} />}
       {tab === 'shapes' && <Shapes shapes={shapes} busy={busy} saved={saved === 'shapes'} onSave={saveShapes} />}
-      {tab === 'pricing' && <PricingMatrixEditor cat={cat} />}
       {tab === 'availability' && <ProductEditor cat={cat} mode="availability" />}
     </div>
   );

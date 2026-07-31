@@ -53,7 +53,7 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
   baseColor;
   // Pearls: drilling options depend on the selected grade (Natural vs Created).
   // Per-grade shape options: Pearls (drilling) and Navratna (Natural vs Created).
-  const shapeIds = baseColor && baseColor.shapes ?
+  const rawShapeIds = baseColor && baseColor.shapes ?
   baseColor.shapes :
   route.cat === 'pearls' && grade && PEARL_SHAPES_BY_GRADE[grade.id] ?
   PEARL_SHAPES_BY_GRADE[grade.id] :
@@ -74,6 +74,16 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
   route.cat === 'multisapphire' && grade && window.msShapes && window.msShapes(grade.id).length ?
   window.msShapes(grade.id) :
   baseShapeIds;
+  // The lists above are per-grade/per-colour tables that say what the SHEETS
+  // carry; Admin > Catalog says what the shop actually offers for the category.
+  // Only `laser` had no table of its own, so it was the one category where an
+  // Admin edit visibly did anything — everywhere else the table won and the
+  // operator's add/remove silently did nothing. Honour Admin as the gate: a
+  // shape it removed disappears everywhere, while a shape it lists still needs
+  // real data behind it before it can show.
+  const shapeIds = (Array.isArray(baseShapeIds) && baseShapeIds.length && Array.isArray(rawShapeIds))
+    ? rawShapeIds.filter((s) => baseShapeIds.indexOf(s) !== -1)
+    : rawShapeIds;
   // Some shapes (e.g. Opaque · Cut Stones) open a second grid of cut shapes.
   const baseShapeMeta = shape ? findShape(shape) : null;
   const shapeSubs = baseShapeMeta && baseShapeMeta.subShapes ? baseShapeMeta.subShapes : null;

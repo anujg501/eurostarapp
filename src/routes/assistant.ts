@@ -265,7 +265,13 @@ async function replyWithAnthropic(message: string, systemPrompt: string): Promis
     }),
   });
 
-  if (!resp.ok) return REPLY_ERROR;
+  if (!resp.ok) {
+    // The visitor gets a calm apology, but the reason has to reach the server
+    // log — swallowing it left "having trouble replying" as the only clue for
+    // an expired key, a bad model name or an exhausted quota alike.
+    console.error(`[mira] Anthropic ${resp.status}: ${(await resp.text().catch(() => '')).slice(0, 400)}`);
+    return REPLY_ERROR;
+  }
   const data: any = await resp.json();
   return data?.content?.[0]?.text ?? "I didn't catch that — could you rephrase?";
 }
@@ -288,7 +294,11 @@ async function replyWithGemini(message: string, systemPrompt: string): Promise<s
     }),
   });
 
-  if (!resp.ok) return REPLY_ERROR;
+  if (!resp.ok) {
+    // Same reasoning as the Anthropic branch: log why, answer politely.
+    console.error(`[mira] Gemini ${resp.status}: ${(await resp.text().catch(() => '')).slice(0, 400)}`);
+    return REPLY_ERROR;
+  }
   const data: any = await resp.json();
   const parts = data?.candidates?.[0]?.content?.parts;
   const text = Array.isArray(parts) ? parts.map((p: any) => p?.text ?? '').join('').trim() : '';

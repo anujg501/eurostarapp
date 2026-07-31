@@ -313,6 +313,33 @@ if (typeof win.msRate === 'function' && typeof win.msSizes === 'function' && typ
   console.log(`Lab Grown: ${n} rows (created ₹/ct, corundum + beryl ₹/pc).`);
 }
 
+// Polki · White & Moissanite series — design-based (not size-based). Each series
+// (B/C/X/Z/PCJ/GJ) is a set of named designs with their own ₹/pc + pcs/packet.
+// Mapped series → shape, design → size so it fits the editor. (Kundan Foil uses
+// the standard polkiSku sheet, mirrored via DESCS.)
+{
+  const SETS = { white: win.POLKI_SERIES_DESIGNS, samosa: win.POLKI_SAMOSA_DESIGNS };
+  const out = snapshot.polki || {};
+  let n = 0;
+  for (const gradeId of Object.keys(SETS)) {
+    const set = SETS[gradeId];
+    if (!set) continue;
+    for (const series of Object.keys(set)) {
+      for (const d of set[series] || []) {
+        if (d.price == null || !(d.price > 0)) continue;
+        out[[gradeId, 'default', String(series).toLowerCase(), normSize(d.name)].join('|')] = {
+          rate: d.price,
+          pcs: Number(d.pcsPerPacket) > 0 ? Number(d.pcsPerPacket) : 0,
+          size: d.name,
+        };
+        n++;
+      }
+    }
+  }
+  if (n) snapshot.polki = out;
+  console.log(`Polki series designs: ${n} rows.`);
+}
+
 // Opaque · Natural-look — per grade+colour ₹/carat sheet (opaqueNatRate), sold
 // as a 100 ct lot. Separate from the Opal sheet (opaqueSku, already mirrored).
 if (typeof win.opaqueNatSizes === 'function' && typeof win.opaqueNatRate === 'function') {

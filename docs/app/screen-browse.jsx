@@ -763,27 +763,33 @@ function PolkiSeriesPad({ product, grade, color, category, seriesKey, designs,
   const dim = (d) => (d.dims || [d.w, d.h]).map((n) => n.toFixed(2)).join(' × ') + ' mm';
   const soldOutMap = (window.loadSoldOut ? window.loadSoldOut() : {});
   const dSoldOut = (d) => !!soldOutMap[window.soldOutKey(category.id, grade.id, color.id, 'uneven', d.id)];
+  // Admin > Pricing edits per design. The catalog grade is the base ('white'),
+  // the series is the shape, and the design name is the size — matching the
+  // mirror. grade.id carries the series suffix here, so strip it for the key.
+  const baseGrade = String(grade.id).replace(/-(b|c|x|z|pcj|gj)$/, '');
+  const dPrice = (d) => { const o = window.priceOverride ? window.priceOverride(category.id, baseGrade, color.id, seriesKey, d.name) : null; return o != null ? o : d['price']; };
+  const dPcs = (d) => { const o = window.pcsOverride ? window.pcsOverride(category.id, d.name) : null; return o != null ? o : d['pcsPerPacket']; };
   const lines = designs.filter((d) => (qtyBySize[d.id] || 0) > 0 && !dSoldOut(d));
   const totalPackets = lines.reduce((s, d) => s + (qtyBySize[d.id] || 0), 0);
-  const totalPcs = lines.reduce((s, d) => s + (qtyBySize[d.id] || 0) * d.pcsPerPacket, 0);
-  const totalWt = lines.reduce((s, d) => s + (qtyBySize[d.id] || 0) * d.pcsPerPacket * (d.wt || 0), 0);
+  const totalPcs = lines.reduce((s, d) => s + (qtyBySize[d.id] || 0) * dPcs(d), 0);
+  const totalWt = lines.reduce((s, d) => s + (qtyBySize[d.id] || 0) * dPcs(d) * (d.wt || 0), 0);
   const FOIL_FEE = product.foilCharge || 0;
-  const totalFoil = lines.reduce((s, d) => s + (qtyBySize[d.id] || 0) * d.pcsPerPacket * FOIL_FEE, 0);
-  const grandTotal = lines.reduce((s, d) => s + (qtyBySize[d.id] || 0) * d.pcsPerPacket * (d.price + FOIL_FEE), 0);
+  const totalFoil = lines.reduce((s, d) => s + (qtyBySize[d.id] || 0) * dPcs(d) * FOIL_FEE, 0);
+  const grandTotal = lines.reduce((s, d) => s + (qtyBySize[d.id] || 0) * dPcs(d) * (dPrice(d) + FOIL_FEE), 0);
 
   const onAddAll = () => {
     if (lines.length === 0) return;
     lines.forEach((d) => {
       const pkts = qtyBySize[d.id] || 0;
-      const pcs = pkts * d.pcsPerPacket;
+      const pcs = pkts * dPcs(d);
       addToCart({
         pid: product.id, name: product.name,
         shape: 'uneven', size: `${d.name} · ${dim(d)}`,
         quality: grade.name, color: color.name, colorHex: color.hex,
         qty: pcs, packets: pkts,
-        unitMode: 'pkt', unitPrice: d.price, perCtPrice: d.price,
+        unitMode: 'pkt', unitPrice: dPrice(d), perCtPrice: dPrice(d),
         foilFee: pcs * FOIL_FEE,
-        lineTotal: pcs * (d.price + FOIL_FEE), tone: product.tone, toneHex: color.hex,
+        lineTotal: pcs * (dPrice(d) + FOIL_FEE), tone: product.tone, toneHex: color.hex,
       });
     });
     setQtyBySize({});
@@ -855,8 +861,8 @@ function PolkiSeriesPad({ product, grade, color, category, seriesKey, designs,
                 </div>
               </div>
               <div className="size-pad-pcs polki-dim" style={{ textAlign: 'center', gridArea: 'dim' }}>{dim(d)}{d.wt != null && <span className="size-pad-unit" style={{ display: 'block', fontSize: 11 }}>{d.wt} g/pc</span>}</div>
-              <div className="size-pad-price" style={{ gridArea: 'price' }}>{formatINR(d.price)} <span className="size-pad-unit-sfx">/pc</span>{FOIL_FEE > 0 && <span className="size-pad-unit" style={{ display: 'block', fontSize: 11 }}>+{formatINR(FOIL_FEE)} foil</span>}</div>
-              <div className="size-pad-pcs polki-ppp" style={{ textAlign: 'center', gridArea: 'ppp' }}>{d.pcsPerPacket.toLocaleString('en-IN')}</div>
+              <div className="size-pad-price" style={{ gridArea: 'price' }}>{formatINR(dPrice(d))} <span className="size-pad-unit-sfx">/pc</span>{FOIL_FEE > 0 && <span className="size-pad-unit" style={{ display: 'block', fontSize: 11 }}>+{formatINR(FOIL_FEE)} foil</span>}</div>
+              <div className="size-pad-pcs polki-ppp" style={{ textAlign: 'center', gridArea: 'ppp' }}>{dPcs(d).toLocaleString('en-IN')}</div>
               <div className="size-pad-input-wrap" style={{ gridArea: 'input' }}>
                 <div className="size-pad-stepper">
                   <button onClick={() => bumpQty(d.id, -1)} disabled={q <= 0} aria-label="decrease"><IconMinus size={12} /></button>
@@ -865,10 +871,10 @@ function PolkiSeriesPad({ product, grade, color, category, seriesKey, designs,
                   <button onClick={() => bumpQty(d.id, 1)} aria-label="increase"><IconPlus size={12} /></button>
                 </div>
                 {q === 0 && <button className="size-pad-add" onClick={() => bumpQty(d.id, 1)}>+ Add 1 pkt</button>}
-                {isFilled && <div className="size-pad-pcs-note">= {(q * d.pcsPerPacket).toLocaleString('en-IN')} pcs</div>}
+                {isFilled && <div className="size-pad-pcs-note">= {(q * dPcs(d)).toLocaleString('en-IN')} pcs</div>}
               </div>
               <div className="size-pad-total" style={{ gridArea: 'total' }}>
-                {isFilled ? formatINR(q * d.pcsPerPacket * (d.price + FOIL_FEE)) : <span style={{ color: 'var(--ink-4)' }}>—</span>}
+                {isFilled ? formatINR(q * dPcs(d) * (dPrice(d) + FOIL_FEE)) : <span style={{ color: 'var(--ink-4)' }}>—</span>}
               </div>
             </div>);
         })}

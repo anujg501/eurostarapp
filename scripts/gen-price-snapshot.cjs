@@ -364,6 +364,21 @@ const BASE_OK = new Set(['corundum', 'cz', 'whitecz', 'clover', 'beads', 'rajkot
   console.log(`Base-priced rows: ${n}`);
 }
 
+// Bracelet — one flat price per style (grade.basePrice), no sizes/colours vary.
+// Publish a single synthetic row per grade so the flat price is editable in the
+// same panel; the storefront BraceletOrderPad reads the override.
+if ((GRADES.bracelet || []).length) {
+  const out = {};
+  let n = 0;
+  for (const g of GRADES.bracelet) {
+    if (!(g.basePrice > 0)) continue;
+    out[[g.id, '', 'bracelet', normSize('Per bracelet')].join('|')] = { rate: g.basePrice, pcs: 0, size: 'Per bracelet' };
+    n++;
+  }
+  if (n) snapshot.bracelet = out;
+  console.log(`Bracelet: ${n} flat style rows.`);
+}
+
 // ---- Navigation structure -------------------------------------------------
 // Publish the shop's EXACT Category → Grade → Colour flow so the Admin Pricing
 // screen matches the storefront (grade bifurcation, per-grade colours), instead

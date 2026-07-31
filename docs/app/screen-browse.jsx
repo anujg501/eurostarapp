@@ -631,7 +631,10 @@ const PEARL_HEADERS = {
 // ===== Bracelet order pad — one page: pick colour (real photo) + set quantity (per piece) =====
 function BraceletOrderPad({ grade, colors, imgPrefix, category, qtyBySize, setQtyBySize, onBack, addToCart, setRoute }) {
   const fmt = (n) => window.formatINR ? window.formatINR(n) : '₹' + Number(n).toLocaleString('en-IN');
-  const price = grade.basePrice || 0;
+  // Admin > Pricing edit (₹ per bracelet, per style) wins over the style's base
+  // price. Keyed on the same synthetic shape/size the mirror publishes.
+  const ovrPrice = window.priceOverride ? window.priceOverride(category.id, grade.id, '', 'bracelet', 'Per bracelet') : null;
+  const price = ovrPrice != null ? ovrPrice : (grade.basePrice || 0);
   const [selId, setSelId] = React.useState(colors[0].id);
   const sel = colors.find((c) => c.id === selId) || colors[0];
   // Prefer an admin-uploaded photo, keyed per style (grade) so Rolex and Cartier

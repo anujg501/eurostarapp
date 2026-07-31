@@ -23,7 +23,9 @@ const ALL = '__all__';
 // Categories sold as one flat price per packet/set (not ₹ per piece × pcs).
 // The rate IS the whole-packet price and the pcs count is fixed, so the editor
 // labels it accordingly and hides the editable pieces-per-packet column.
-const FLAT_SET_LABEL: Record<string, string> = { navratna: '₹ per set (9 pieces)' };
+const FLAT_SET_LABEL: Record<string, string> = { navratna: '₹ per set (9 pieces)', bracelet: '₹ per bracelet' };
+// The CSV "Rate ₹" suffix for flat-priced categories.
+const FLAT_SET_SUFFIX: Record<string, string> = { navratna: '/set', bracelet: '/bracelet' };
 
 // Categories priced by the carat or the strip — never per-piece × packet, so
 // they must never show the editable pieces-per-packet column.
@@ -38,7 +40,7 @@ function rateUnitLabel(catKey: string, gradeId: string, unit?: string): string {
 }
 // Short suffix for the CSV "Rate ₹" header.
 function rateCsvSuffix(catKey: string, gradeId: string, unit?: string): string {
-  if (FLAT_SET_LABEL[catKey]) return '/set';
+  if (FLAT_SET_SUFFIX[catKey]) return FLAT_SET_SUFFIX[catKey];
   if (catKey === 'multisapphire') return gradeId === 'aaa' ? '/ct' : '/strip';
   if (catKey === 'labgrown') return gradeId === 'created' ? '/ct' : '/pc';
   return unit === 'ct' ? '/ct' : '/pc';

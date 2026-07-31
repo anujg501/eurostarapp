@@ -320,12 +320,14 @@ if (typeof win.msRate === 'function' && typeof win.msSizes === 'function' && typ
 // numbers are identical. Restricted to categories that use the standard size
 // pad with no special pricing mode — carat-lot (opaque), string/lot (pearls),
 // design series (polki) and the grid-less Bracelet are left alone on purpose.
-const BASE_OK = new Set(['corundum', 'cz', 'whitecz', 'clover', 'beads']);
+const BASE_OK = new Set(['corundum', 'cz', 'whitecz', 'clover', 'beads', 'rajkot', 'pearls']);
 {
   const CATS = win.CATEGORIES || [];
   const CBG = {
     corundum: win.CORUNDUM_COLORS_BY_GRADE,
     cz: win.CZ_COLORS_BY_GRADE,
+    rajkot: win.RAJKOT_COLORS_BY_GRADE,
+    pearls: win.PEARL_COLORS_BY_GRADE,
   };
   const SIZES_CAT = win.SIZES_BY_CATEGORY || {};
   const FULL = win.FULL_SIZES || {};

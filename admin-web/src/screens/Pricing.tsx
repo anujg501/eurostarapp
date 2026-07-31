@@ -202,10 +202,22 @@ function exportColourCsv(
   void colourName;
 }
 
+// The shop's own Category → Grade → Colour flow, published in the snapshot as
+// `__catalog__` (see scripts/gen-price-snapshot.cjs). The Admin flow is driven
+// from this so it matches the storefront exactly, not the drifted backend
+// catalog: e.g. Corundum → EXCEL AAA / DECCAN AA, each with its own colours.
+interface CatalogEntry {
+  name: string;
+  grades: { id: string; name: string }[];
+  coloursByGrade: Record<string, { id: string; name: string; hex: string }[]>;
+}
+type CatalogStruct = Record<string, CatalogEntry>;
+
 export function Pricing() {
   const [cats, setCats] = useState<Category[]>([]);
   const [grades, setGrades] = useState<Record<string, Grade[]>>({});
   const [colours, setColours] = useState<Record<string, Colour[]>>({});
+  const [catalog, setCatalog] = useState<CatalogStruct>({});
   const [swatches, setSwatches] = useState<Record<string, string>>({});
   const [ovr, setOvr] = useState<PricingOverrides>({});
   const [snap, setSnap] = useState<PriceSnapshot>({});
@@ -233,7 +245,10 @@ export function Pricing() {
         setColours(cl ?? {});
         setSwatches(sw ?? {});
         setOvr(ov ?? {});
-        setSnap(sp ?? {});
+        // Split the shop navigation structure out of the price rows.
+        const { __catalog__, ...rows } = (sp ?? {}) as Record<string, unknown>;
+        setSnap(rows as PriceSnapshot);
+        setCatalog((__catalog__ as CatalogStruct) ?? {});
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Could not load pricing.');
       } finally {
@@ -243,7 +258,14 @@ export function Pricing() {
   }, []);
 
   const cat = cats.find((c) => c.key === catKey);
-  const catGrades = grades[catKey] ?? [];
+  const catEntry = catalog[catKey];
+  const backendGrades = grades[catKey] ?? [];
+  // Grades come from the shop structure; merge any extra display fields (tier,
+  // origin, base price) from the backend grade of the same id when present.
+  const catGrades: Grade[] = (catEntry?.grades ?? backendGrades).map((g) => ({
+    ...backendGrades.find((b) => b.id === g.id),
+    ...g,
+  })) as Grade[];
   const multiGrade = catGrades.length > 1;
   const allCatColours = colours[catKey] ?? [];
   const grade = catGrades.find((g) => g.id === gradeId);
@@ -272,12 +294,15 @@ export function Pricing() {
     }
     return allCatColours.filter((col) => offered.has(col.id));
   };
-  const catColours = catColoursFor(gradeId);
+  // Colours for the chosen grade come straight from the shop structure (which
+  // includes base-priced colours like Blue 34 / White); fall back to the
+  // mirror-derived list, then the raw backend list.
+  const catColours: Colour[] = (catEntry?.coloursByGrade?.[gradeId] as Colour[] | undefined) ?? catColoursFor(gradeId);
 
   const openCategory = (c: Category) => {
     setCatKey(c.key);
     setColourId(ALL);
-    const g = grades[c.key] ?? [];
+    const g = catalog[c.key]?.grades ?? (grades[c.key] ?? []);
     if (g.length > 1) {
       setGradeId('');
       setStep('grades');
@@ -330,12 +355,16 @@ export function Pricing() {
       {step === 'cats' && (
         <div className="pr-grid">
           {cats.map((c) => {
-            const nCol = (colours[c.key] ?? []).length;
+            const cg = catalog[c.key];
+            const nCol = cg
+              ? new Set(Object.values(cg.coloursByGrade).flat().map((x) => x.id)).size
+              : (colours[c.key] ?? []).length;
+            const nGr = cg?.grades.length ?? (grades[c.key] ?? []).length;
             return (
               <button key={c.key} className="pr-cat-card" onClick={() => openCategory(c)}>
                 <div className="pr-cat-name">{c.name}</div>
                 <div className="pr-cat-meta">
-                  {nCol} colour{nCol === 1 ? '' : 's'} · {c.unit?.toUpperCase?.() || ''}
+                  {nGr > 1 ? `${nGr} grades · ` : ''}{nCol} colour{nCol === 1 ? '' : 's'} · {c.unit?.toUpperCase?.() || ''}
                 </div>
                 <span className="pr-cat-go">Open ›</span>
               </button>
@@ -458,6 +487,24 @@ function PriceEditor({
   const [flash, setFlash] = useState(false);
   const [newSize, setNewSize] = useState('');
 
+  // Shapes the shop actually sells for this grade + colour, in sheet order, from
+  // the mirror — so the chips match the storefront rather than the backend's
+  // full shape list. Falls back to the backend matrix's shapes.
+  const snapShapeList = (): string[] => {
+    const cid = colourId === ALL ? '' : colourId;
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (const k of Object.keys(snap || {})) {
+      const [g, c, sh] = k.split('|');
+      const gOk = g === gradeId || g === '';
+      const cOk = colourId === ALL ? true : c === cid || c === '';
+      if (gOk && cOk && !seen.has(sh)) { seen.add(sh); out.push(sh); }
+    }
+    return out;
+  };
+  const shapes = snapShapeList();
+  const shapeChips = shapes.length ? shapes : matrix?.shapes ?? [];
+
   useEffect(() => {
     let stale = false;
     (async () => {
@@ -465,15 +512,16 @@ function PriceEditor({
         const d = await adminApi.pricing(cat.key, shape || undefined);
         if (stale) return;
         setMatrix(d);
-        if (!shape && d.shape) setShape(d.shape);
+        if (!shape) setShape(shapes[0] || d.shape || '');
       } catch (e) {
         if (!stale) setError(e instanceof Error ? e.message : 'Could not load prices.');
       }
     })();
     return () => { stale = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cat.key, shape]);
 
-  const activeShape = shape || matrix?.shape || '';
+  const activeShape = shape && shapeChips.includes(shape) ? shape : shapeChips[0] || matrix?.shape || '';
   const unit = matrix?.unit || cat.unit || 'pc';
   const colSpecific = colourId !== ALL;
 
@@ -614,7 +662,7 @@ function PriceEditor({
 
       <div className="pr-chips">
         <span className="ad-label" style={{ marginRight: 6 }}>SHAPE</span>
-        {matrix.shapes.map((s) => (
+        {shapeChips.map((s) => (
           <button key={s} className={`pr-chip ${s === activeShape ? 'on' : ''}`} onClick={() => setShape(s)}>{s}</button>
         ))}
       </div>

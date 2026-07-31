@@ -313,6 +313,40 @@ if (typeof win.msRate === 'function' && typeof win.msSizes === 'function' && typ
   console.log(`Lab Grown: ${n} rows (created ₹/ct, corundum + beryl ₹/pc).`);
 }
 
+// ---- Navigation structure -------------------------------------------------
+// Publish the shop's EXACT Category → Grade → Colour flow so the Admin Pricing
+// screen matches the storefront (grade bifurcation, per-grade colours), instead
+// of the drifted backend catalog. This mirrors screen-browse.jsx's own logic:
+// grades = GRADES_BY_CATEGORY[cat]; colours per grade come from the category's
+// *_COLORS_BY_GRADE map where one exists, else COLORS_BY_CATEGORY[cat].
+{
+  const CATS = win.CATEGORIES || [];
+  const CBG = {
+    opaque: win.OPAQUE_COLORS_BY_GRADE,
+    pearls: win.PEARL_COLORS_BY_GRADE,
+    corundum: win.CORUNDUM_COLORS_BY_GRADE,
+    labgrown: win.LABGROWN_COLORS_BY_GRADE,
+    cz: win.CZ_COLORS_BY_GRADE,
+    rajkot: win.RAJKOT_COLORS_BY_GRADE,
+  };
+  const slim = (list) => (list || []).map((x) => ({ id: x.id, name: x.name, hex: x.hex || '#CCCCCC' }));
+  const catalog = {};
+  for (const c of CATS) {
+    const cat = c.id;
+    const grades = (GRADES[cat] || []).map((g) => ({ id: g.id, name: g.name }));
+    const perGrade = CBG[cat];
+    const coloursByGrade = {};
+    const source = grades.length ? grades : [{ id: '', name: '' }];
+    for (const g of source) {
+      const list = perGrade && perGrade[g.id] ? perGrade[g.id] : COLORS[cat] || [{ id: 'white', name: 'White', hex: '#F2EFE8' }];
+      coloursByGrade[g.id] = slim(list);
+    }
+    catalog[cat] = { name: c.name, grades, coloursByGrade };
+  }
+  snapshot.__catalog__ = catalog;
+  console.log(`Catalog: ${Object.keys(catalog).length} categories with grade/colour flow.`);
+}
+
 const outPath = path.join(ROOT, 'docs', 'price-snapshot.json');
 fs.writeFileSync(outPath, JSON.stringify(snapshot));
 console.log(`Wrote ${outPath}: ${Object.keys(snapshot).length} categories, ${rows} priced rows.`);

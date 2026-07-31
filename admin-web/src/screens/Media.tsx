@@ -14,6 +14,58 @@ import {
 } from '../lib/api';
 import { useImageCropper } from './ImageCropper';
 
+// Shared "Save changes" UX for the image screens. Uploads still push the file
+// to storage on pick, but the key→url map (what the Sales App actually reads)
+// is staged locally and only written when the operator clicks Save changes —
+// so nothing goes live until they say so, matching the Pricing screen.
+type SaveState = 'idle' | 'saving' | 'saved';
+
+function useSaveBar() {
+  const [dirty, setDirty] = useState(false);
+  const [saveState, setSaveState] = useState<SaveState>('idle');
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty]);
+  return { dirty, setDirty, saveState, setSaveState };
+}
+
+function SaveBar({
+  dirty,
+  saveState,
+  onSave,
+}: {
+  dirty: boolean;
+  saveState: SaveState;
+  onSave: () => void;
+}) {
+  return (
+    <div className={`pr-savebar ${dirty || saveState !== 'idle' ? 'on' : ''}`}>
+      <span className="pr-savebar-msg">
+        {saveState === 'saving'
+          ? 'Saving…'
+          : saveState === 'saved'
+            ? '✓ Saved — live on the website'
+            : dirty
+              ? '● You have unsaved changes'
+              : 'All changes saved'}
+      </span>
+      <button
+        className="ad-btn ad-btn-pri"
+        disabled={!dirty || saveState === 'saving'}
+        onClick={onSave}
+      >
+        {saveState === 'saving' ? 'Saving…' : 'Save changes'}
+      </button>
+    </div>
+  );
+}
+
 // Home thumbnails and product photos. The prototype's thumbnail cells were
 // wired (via a synced localStorage key); its product-image "＋ Upload" buttons
 // had no onClick and no file input at all.
@@ -115,6 +167,7 @@ function Thumbs() {
   const [shapeMap, setShapeMap] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
   const [busyKey, setBusyKey] = useState('');
+  const { dirty, setDirty, saveState, setSaveState } = useSaveBar();
   const { cropNode, requestCrop } = useImageCropper();
 
   useEffect(() => {
@@ -139,46 +192,54 @@ function Thumbs() {
     })();
   }, []);
 
-  const saveCat = async (key: string, dataUrl: string | null) => {
-    setBusyKey(key);
-    setError('');
-    try {
-      const next = { ...map };
+  // Stage only — nothing reaches the website until Save changes (commitSave).
+  const stageCat = (key: string, dataUrl: string | null) => {
+    setMap((m) => {
+      const next = { ...m };
       if (dataUrl) next[key] = dataUrl;
       else delete next[key];
-      await adminApi.saveCatThumbs(next);
-      setMap(next);
+      return next;
+    });
+    setDirty(true);
+    setSaveState('idle');
+  };
+
+  const stageShape = (key: string, dataUrl: string | null) => {
+    setShapeMap((m) => {
+      const next = { ...m };
+      if (dataUrl) next[key] = dataUrl;
+      else delete next[key];
+      return next;
+    });
+    setDirty(true);
+    setSaveState('idle');
+  };
+
+  const commitSave = async () => {
+    setSaveState('saving');
+    setError('');
+    try {
+      await Promise.all([adminApi.saveCatThumbs(map), adminApi.saveShapeThumbs(shapeMap)]);
+      setDirty(false);
+      setSaveState('saved');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not save that image.');
-    } finally {
-      setBusyKey('');
+      setError(e instanceof Error ? e.message : 'Could not save your changes.');
+      setSaveState('idle');
     }
   };
 
-  const saveShape = async (key: string, dataUrl: string | null) => {
-    setBusyKey('shape:' + key);
-    setError('');
-    try {
-      const next = { ...shapeMap };
-      if (dataUrl) next[key] = dataUrl;
-      else delete next[key];
-      await adminApi.saveShapeThumbs(next);
-      setShapeMap(next);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not save that image.');
-    } finally {
-      setBusyKey('');
-    }
-  };
-
-  const pick = async (file: File | undefined, save: (dataUrl: string) => Promise<void>) => {
+  const pick = async (file: File | undefined, stage: (dataUrl: string) => void, busy: string) => {
     if (!file) return;
     const cropped = await requestCrop(file);
     if (!cropped) return; // operator cancelled the crop
+    setBusyKey(busy);
+    setError('');
     try {
-      await save(await uploadImage(cropped, 'thumbs'));
+      stage(await uploadImage(cropped, 'thumbs'));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not read that image.');
+    } finally {
+      setBusyKey('');
     }
   };
 
@@ -187,6 +248,7 @@ function Thumbs() {
   return (
     <>
       {cropNode}
+      <SaveBar dirty={dirty} saveState={saveState} onSave={() => void commitSave()} />
       {error && <div className="ad-error">{error}</div>}
 
       <section className="ad-card ad-card-pad" style={{ marginBottom: 16 }}>
@@ -201,8 +263,8 @@ function Thumbs() {
               label={c.name}
               img={map[c.key]}
               busy={busyKey === c.key}
-              onPick={(f) => void pick(f, (d) => saveCat(c.key, d))}
-              onRemove={() => void saveCat(c.key, null)}
+              onPick={(f) => void pick(f, (d) => stageCat(c.key, d), c.key)}
+              onRemove={() => stageCat(c.key, null)}
             />
           ))}
         </div>
@@ -223,8 +285,8 @@ function Thumbs() {
                 label={titleCase(s)}
                 img={shapeMap[s]}
                 busy={busyKey === 'shape:' + s}
-                onPick={(f) => void pick(f, (d) => saveShape(s, d))}
-                onRemove={() => void saveShape(s, null)}
+                onPick={(f) => void pick(f, (d) => stageShape(s, d), 'shape:' + s)}
+                onRemove={() => stageShape(s, null)}
               />
             ))}
           </div>
@@ -246,6 +308,7 @@ function ProductPhotos({ standalone = false }: { standalone?: boolean } = {}) {
   const [error, setError] = useState('');
   const [busyKey, setBusyKey] = useState('');
   const [loading, setLoading] = useState(true);
+  const { dirty, setDirty, saveState, setSaveState } = useSaveBar();
   const { cropNode, requestCrop } = useImageCropper();
 
   useEffect(() => {
@@ -290,19 +353,28 @@ function ProductPhotos({ standalone = false }: { standalone?: boolean } = {}) {
   const effColours = (scoped && GRADE_SCOPED_COLOURS[cat]?.[grade]) || colours;
   const effShapes = (scoped && GRADE_SCOPED_SHAPES[cat]?.[grade]) || shapes;
 
-  const save = async (key: string, dataUrl: string | null) => {
-    setBusyKey(key);
-    setError('');
-    try {
-      const next = { ...images };
+  // Stage only — nothing reaches the website until Save changes (commitSave).
+  const stage = (key: string, dataUrl: string | null) => {
+    setImages((imgs) => {
+      const next = { ...imgs };
       if (dataUrl) next[key] = dataUrl;
       else delete next[key];
-      await adminApi.saveProductImages(next);
-      setImages(next);
+      return next;
+    });
+    setDirty(true);
+    setSaveState('idle');
+  };
+
+  const commitSave = async () => {
+    setSaveState('saving');
+    setError('');
+    try {
+      await adminApi.saveProductImages(images);
+      setDirty(false);
+      setSaveState('saved');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not save that image.');
-    } finally {
-      setBusyKey('');
+      setError(e instanceof Error ? e.message : 'Could not save your changes.');
+      setSaveState('idle');
     }
   };
 
@@ -310,10 +382,14 @@ function ProductPhotos({ standalone = false }: { standalone?: boolean } = {}) {
     if (!file) return;
     const cropped = await requestCrop(file);
     if (!cropped) return; // operator cancelled the crop
+    setBusyKey(key);
+    setError('');
     try {
-      await save(key, await uploadImage(cropped, 'product-images'));
+      stage(key, await uploadImage(cropped, 'product-images'));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not read that image.');
+    } finally {
+      setBusyKey('');
     }
   };
 
@@ -322,6 +398,7 @@ function ProductPhotos({ standalone = false }: { standalone?: boolean } = {}) {
   return (
     <section className="ad-card ad-card-pad">
       {cropNode}
+      <SaveBar dirty={dirty} saveState={saveState} onSave={() => void commitSave()} />
       {!standalone && (
         <>
           <h3 className="ad-sechead-h">Product images</h3>
@@ -404,7 +481,7 @@ function ProductPhotos({ standalone = false }: { standalone?: boolean } = {}) {
                                 className="ad-btn ad-btn-ghost ad-btn-sm ad-danger"
                                 title="Remove"
                                 disabled={busyKey === key}
-                                onClick={() => save(key, null)}
+                                onClick={() => stage(key, null)}
                               >
                                 ✕
                               </button>
@@ -441,6 +518,7 @@ function ColourImages() {
   const [error, setError] = useState('');
   const [busyKey, setBusyKey] = useState('');
   const [loading, setLoading] = useState(true);
+  const { dirty, setDirty, saveState, setSaveState } = useSaveBar();
   const { cropNode, requestCrop } = useImageCropper();
 
   useEffect(() => {
@@ -470,19 +548,28 @@ function ColourImages() {
     })();
   }, [cat]);
 
-  const save = async (key: string, dataUrl: string | null) => {
-    setBusyKey(key);
-    setError('');
-    try {
-      const next = { ...map };
+  // Stage only — nothing reaches the website until Save changes (commitSave).
+  const stage = (key: string, dataUrl: string | null) => {
+    setMap((m) => {
+      const next = { ...m };
       if (dataUrl) next[key] = dataUrl;
       else delete next[key];
-      await adminApi.saveColourThumbs(next);
-      setMap(next);
+      return next;
+    });
+    setDirty(true);
+    setSaveState('idle');
+  };
+
+  const commitSave = async () => {
+    setSaveState('saving');
+    setError('');
+    try {
+      await adminApi.saveColourThumbs(map);
+      setDirty(false);
+      setSaveState('saved');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not save that image.');
-    } finally {
-      setBusyKey('');
+      setError(e instanceof Error ? e.message : 'Could not save your changes.');
+      setSaveState('idle');
     }
   };
 
@@ -490,10 +577,14 @@ function ColourImages() {
     if (!file) return;
     const cropped = await requestCrop(file);
     if (!cropped) return; // operator cancelled the crop
+    setBusyKey(key);
+    setError('');
     try {
-      await save(key, await uploadImage(cropped, 'thumbs'));
+      stage(key, await uploadImage(cropped, 'thumbs'));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not read that image.');
+    } finally {
+      setBusyKey('');
     }
   };
 
@@ -502,6 +593,7 @@ function ColourImages() {
   return (
     <section className="ad-card ad-card-pad">
       {cropNode}
+      <SaveBar dirty={dirty} saveState={saveState} onSave={() => void commitSave()} />
       <div className="ad-field-v" style={{ marginBottom: 0, maxWidth: 280 }}>
         <span className="ad-label">Category</span>
         <select className="ad-input" style={{ width: '100%' }} value={cat} onChange={(e) => setCat(e.target.value)}>
@@ -534,7 +626,7 @@ function ColourImages() {
                 img={map[key]}
                 busy={busyKey === key}
                 onPick={(f) => void pick(key, f)}
-                onRemove={() => void save(key, null)}
+                onRemove={() => stage(key, null)}
                 swatch={col.hex || '#ccc'}
               />
             );

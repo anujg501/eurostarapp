@@ -231,6 +231,9 @@ export function Pricing() {
   const [snap, setSnap] = useState<PriceSnapshot>({});
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  // Edits buffer locally until "Save changes" pushes them live.
+  const [dirty, setDirty] = useState(false);
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
 
   const [step, setStep] = useState<Step>('cats');
   const [catKey, setCatKey] = useState('');
@@ -341,17 +344,35 @@ export function Pricing() {
     }
   };
 
-  // Persist the whole override map after any editor change.
-  const persist = async (next: PricingOverrides) => {
+  // Stage an editor change locally (buffered until "Save changes").
+  const persist = (next: PricingOverrides) => {
     setOvr(next);
+    setDirty(true);
+    setSaveState('idle');
+  };
+
+  // Push all buffered changes to the server → live in the Sales App.
+  const commitSave = async () => {
+    setSaveState('saving');
+    setError('');
     try {
-      await adminApi.savePricingOverrides(next);
-      return true;
+      await adminApi.savePricingOverrides(ovr);
+      setDirty(false);
+      setSaveState('saved');
+      window.setTimeout(() => setSaveState((s) => (s === 'saved' ? 'idle' : s)), 2500);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save.');
-      return false;
+      setSaveState('idle');
     }
   };
+
+  // Warn before leaving/refreshing with unsaved changes.
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty]);
 
   const exportCsv = (colId: string) =>
     cat &&
@@ -375,9 +396,28 @@ export function Pricing() {
 
   return (
     <div className="ad-body">
+      <div className={`pr-savebar ${dirty || saveState !== 'idle' ? 'on' : ''}`}>
+        <span className="pr-savebar-msg">
+          {saveState === 'saving'
+            ? 'Saving…'
+            : saveState === 'saved'
+              ? '✓ Saved — live on the website'
+              : dirty
+                ? '● You have unsaved changes'
+                : 'All changes saved'}
+        </span>
+        <button
+          className="ad-btn ad-btn-pri"
+          disabled={!dirty || saveState === 'saving'}
+          onClick={() => void commitSave()}
+        >
+          {saveState === 'saving' ? 'Saving…' : 'Save changes'}
+        </button>
+      </div>
+
       <div className="ad-pagehead">
         <h2>Pricing</h2>
-        <p className="ad-muted">Edit rates, pieces-per-packet and sizes. Changes save automatically and go live in the Sales App.</p>
+        <p className="ad-muted">Edit rates, pieces-per-packet and sizes, then click <b>Save changes</b> to publish them to the Sales App.</p>
       </div>
       {error && <div className="ad-error">{error}</div>}
 
@@ -707,7 +747,7 @@ function PriceEditor({
           {cat.name}{multiGrade && gradeName ? ` · ${gradeName}` : ''} · <b>{colourName}</b>
         </span>
         <span className="pr-editor-spacer" />
-        {flash && <span className="pr-flash">✓ Saved — live in the Sales App</span>}
+        {flash && <span className="pr-flash">● Change staged — click Save changes</span>}
         <button className="ad-btn ad-btn-ghost ad-btn-sm" onClick={onExport}>⬇ Excel — {colourName}</button>
       </div>
 
@@ -720,7 +760,7 @@ function PriceEditor({
 
       <div className="th-head" style={{ marginTop: 8 }}>
         <h3 className="ad-sechead-h">Size × price ({activeShape} · {colourName})</h3>
-        <span className="th-count">{unitLabel} · changes save automatically</span>
+        <span className="th-count">{unitLabel} · edits are staged until you Save changes</span>
       </div>
 
       {error && <div className="ad-error">{error}</div>}

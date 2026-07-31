@@ -158,6 +158,37 @@
         });
       }
 
+      // Some categories price shapes in a per-grade sheet table that the
+      // operator's list never contained — White Fancy sells Round, but Round
+      // was never one of the entries anyone could add or remove. Those shapes
+      // must survive: the browse screen treats this list as the gate, so a
+      // sheet-only shape absent from it would quietly stop being sellable.
+      // Folding them back in keeps deletion working for everything the
+      // operator actually manages, without withdrawing priced stock.
+      function keepSheetShapes(key, ids) {
+        if (!Array.isArray(ids) || !ids.length) return;
+        if (!Array.isArray(SHAPES_BY_CATEGORY[key])) return;
+        var blocked = DEPRECATED_SHAPES[key] || [];
+        ids.forEach(function (sid) {
+          if (!sid || blocked.indexOf(sid) !== -1) return;
+          if (SHAPES_BY_CATEGORY[key].indexOf(sid) === -1) SHAPES_BY_CATEGORY[key].push(sid);
+        });
+      }
+      function shapesOfTable(table) {
+        var out = [];
+        if (!table) return out;
+        Object.keys(table).forEach(function (g) {
+          (table[g] || []).forEach(function (s) { if (out.indexOf(s) === -1) out.push(s); });
+        });
+        return out;
+      }
+      keepSheetShapes('whitefancy', shapesOfTable(window.WHITEFANCY_SHAPES_BY_GRADE));
+      keepSheetShapes('polki', shapesOfTable(window.POLKI_SHAPES_BY_GRADE));
+      keepSheetShapes('labgrown', []
+        .concat(window.LABGROWN_SHAPES || [])
+        .concat(window.LABCORUNDUM_SHAPES || [])
+        .concat(window.LABCREATED_SHAPES || []));
+
       if (cat && Array.isArray(cat.categories) && cat.categories.length) {
         var mapped = cat.categories.map(toClientCategory);
         Array.prototype.splice.apply(CATEGORIES, [0, CATEGORIES.length].concat(mapped));

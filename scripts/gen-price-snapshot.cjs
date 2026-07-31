@@ -110,14 +110,39 @@ function alpSku(cid, sh, sz) {
   return call('alpSheetSku', cid, sh, sz);
 }
 
+// Sub-levels (screen-browse.jsx): a grade may have sub-grades (White CZ Elements
+// → Thin/Normal/H/HEA) that price by the COMBINED id (elements-thin); a colour
+// may have sub-shades (CZ Aqua → #37/#38/#39) which are cosmetic and price the
+// SAME as the base colour. So we expand grades for pricing, keep colours at base.
+const COLOUR_BY_GRADE = {
+  opaque: win.OPAQUE_COLORS_BY_GRADE, pearls: win.PEARL_COLORS_BY_GRADE, corundum: win.CORUNDUM_COLORS_BY_GRADE,
+  labgrown: win.LABGROWN_COLORS_BY_GRADE, cz: win.CZ_COLORS_BY_GRADE, rajkot: win.RAJKOT_COLORS_BY_GRADE,
+};
+function effGrades(cat) {
+  const out = [];
+  for (const g of GRADES[cat] || []) {
+    // Spread the base grade so basePrice/mult carry to the sub-grade; override id/name.
+    if (g.subGrades && g.subGrades.length) for (const s of g.subGrades) out.push({ ...g, id: g.id + '-' + s.id, name: s.name, base: g.id, subGrades: undefined });
+    else out.push({ ...g, base: g.id });
+  }
+  return out.length ? out : [{ id: '', name: '', base: '' }];
+}
+// Base colours the shop shows for a category + base grade (no sub-shade expansion).
+function baseColours(cat, baseGradeId) {
+  const m = COLOUR_BY_GRADE[cat];
+  return (m && baseGradeId && m[baseGradeId]) ? m[baseGradeId] : (COLORS[cat] || []);
+}
+
 const snapshot = {};
 let rows = 0;
 for (const d of DESCS) {
-  const grades = d.scope === 'gc' || d.scope === 'g' ? (GRADES[d.cat] || [{ id: '' }]) : [{ id: '' }];
-  const colours = d.scope === 'gc' || d.scope === 'c' ? (COLORS[d.cat] || [{ id: '' }]) : [{ id: '' }];
+  const useGrade = d.scope === 'gc' || d.scope === 'g';
+  const useColour = d.scope === 'gc' || d.scope === 'c';
+  const grades = useGrade ? effGrades(d.cat) : [{ id: '', base: '' }];
   const shapes = SHAPES[d.cat] || [];
   const catOut = {};
   for (const gr of grades) {
+    const colours = useColour ? (baseColours(d.cat, gr.base).length ? baseColours(d.cat, gr.base) : [{ id: '' }]) : [{ id: '' }];
     for (const co of colours) {
       for (const sh of shapes) {
         const sizes = d.sizesOf(gr.id, co.id, sh) || [];
@@ -125,7 +150,7 @@ for (const d of DESCS) {
         for (const size of sizes) {
           const sku = d.skuOf(gr.id, co.id, sh, size);
           if (!sku || typeof sku.price !== 'number' || !(sku.price > 0)) continue;
-          const key = [d.scope === 'gc' || d.scope === 'g' ? gr.id || '' : '', d.scope === 'gc' || d.scope === 'c' ? co.id || '' : '', String(sh).toLowerCase(), normSize(size)].join('|');
+          const key = [useGrade ? gr.id || '' : '', useColour ? co.id || '' : '', String(sh).toLowerCase(), normSize(size)].join('|');
           catOut[key] = { rate: sku.price, pcs: Number(sku.pcsPerPacket) > 0 ? Number(sku.pcsPerPacket) : 0, size: String(size) };
           rows++;
         }
@@ -313,21 +338,22 @@ if (typeof win.msRate === 'function' && typeof win.msSizes === 'function' && typ
   console.log(`Lab Grown: ${n} rows (created ₹/ct, corundum + beryl ₹/pc).`);
 }
 
-// Polki · White & Moissanite series — design-based (not size-based). Each series
-// (B/C/X/Z/PCJ/GJ) is a set of named designs with their own ₹/pc + pcs/packet.
-// Mapped series → shape, design → size so it fits the editor. (Kundan Foil uses
-// the standard polkiSku sheet, mirrored via DESCS.)
+// Polki · White & Moissanite series — design-based. Each series (B/C/X/Z/PCJ/GJ)
+// is a SUB-GRADE (white-b, samosa-gj) whose designs each have their own ₹/pc +
+// pcs. Keyed by the effective sub-grade, shape 'uneven', design name as size.
+// (Regular + Kundan Foil are standard polkiSku sheets, mirrored via DESCS.)
 {
   const SETS = { white: win.POLKI_SERIES_DESIGNS, samosa: win.POLKI_SAMOSA_DESIGNS };
   const out = snapshot.polki || {};
   let n = 0;
-  for (const gradeId of Object.keys(SETS)) {
-    const set = SETS[gradeId];
+  for (const baseId of Object.keys(SETS)) {
+    const set = SETS[baseId];
     if (!set) continue;
     for (const series of Object.keys(set)) {
+      const effGrade = baseId + '-' + String(series).toLowerCase();
       for (const d of set[series] || []) {
         if (d.price == null || !(d.price > 0)) continue;
-        out[[gradeId, 'default', String(series).toLowerCase(), normSize(d.name)].join('|')] = {
+        out[[effGrade, 'default', 'uneven', normSize(d.name)].join('|')] = {
           rate: d.price,
           pcs: Number(d.pcsPerPacket) > 0 ? Number(d.pcsPerPacket) : 0,
           size: d.name,
@@ -370,7 +396,7 @@ if (typeof win.opaqueNatSizes === 'function' && typeof win.opaqueNatRate === 'fu
 // numbers are identical. Restricted to categories that use the standard size
 // pad with no special pricing mode — carat-lot (opaque), string/lot (pearls),
 // design series (polki) and the grid-less Bracelet are left alone on purpose.
-const BASE_OK = new Set(['corundum', 'cz', 'whitecz', 'clover', 'beads', 'rajkot', 'pearls']);
+const BASE_OK = new Set(['corundum', 'cz', 'whitecz', 'clover', 'beads', 'rajkot', 'pearls', 'polki']);
 {
   const CATS = win.CATEGORIES || [];
   const CBG = {
@@ -386,13 +412,14 @@ const BASE_OK = new Set(['corundum', 'cz', 'whitecz', 'clover', 'beads', 'rajkot
     const cat = c.id;
     if (!BASE_OK.has(cat)) continue;
     const unit = win.catUnit ? win.catUnit(cat) : 'pc';
-    const cbg = CBG[cat];
-    for (const g of GRADES[cat] || []) {
-      const colours = cbg && cbg[g.id] ? cbg[g.id] : COLORS[cat] || [];
+    for (const g of effGrades(cat)) {
+      const colours = baseColours(cat, g.base);
       for (const col of colours) {
-        // Skip any colour that already has a real sheet for this grade.
-        const rows = snapshot[cat] || {};
-        if (Object.keys(rows).some((k) => { const [kg, kc] = k.split('|'); return kg === g.id && kc === col.id; })) continue;
+        // Skip a colour already served by a REAL row for this (effective) grade —
+        // including a colour-agnostic sheet (kc==='') so a base row never shadows
+        // a real one (e.g. White CZ elements-thin is priced colour-agnostically).
+        const rowsCat = snapshot[cat] || {};
+        if (Object.keys(rowsCat).some((k) => { const [kg, kc] = k.split('|'); return (kg === g.id || kg === '') && (kc === col.id || kc === '') && !rowsCat[k].base; })) continue;
         const shapes = col.shapes && col.shapes.length ? col.shapes : SHAPES[cat] || [];
         for (const sh of shapes) {
           const product = win.makeBrowseProduct(cat, g, col, sh);
@@ -437,25 +464,24 @@ if ((GRADES.bracelet || []).length) {
 // *_COLORS_BY_GRADE map where one exists, else COLORS_BY_CATEGORY[cat].
 {
   const CATS = win.CATEGORIES || [];
-  const CBG = {
-    opaque: win.OPAQUE_COLORS_BY_GRADE,
-    pearls: win.PEARL_COLORS_BY_GRADE,
-    corundum: win.CORUNDUM_COLORS_BY_GRADE,
-    labgrown: win.LABGROWN_COLORS_BY_GRADE,
-    cz: win.CZ_COLORS_BY_GRADE,
-    rajkot: win.RAJKOT_COLORS_BY_GRADE,
-  };
-  const slim = (list) => (list || []).map((x) => ({ id: x.id, name: x.name, hex: x.hex || '#CCCCCC' }));
+  // A colour keeps its sub-shades (cosmetic variants) for the flow; a grade keeps
+  // its sub-grades (which change price). coloursByGrade is keyed by the BASE grade
+  // id — the shop resolves colours by the base grade, then the sub-grade is chosen.
+  const slimColour = (x) => ({
+    id: x.id, name: x.name, hex: x.hex || '#CCCCCC',
+    subShades: x.subShades && x.subShades.length ? x.subShades.map((s) => ({ id: s.id, name: s.name, hex: s.hex || x.hex || '#CCCCCC' })) : undefined,
+  });
   const catalog = {};
   for (const c of CATS) {
     const cat = c.id;
-    const grades = (GRADES[cat] || []).map((g) => ({ id: g.id, name: g.name }));
-    const perGrade = CBG[cat];
+    const grades = (GRADES[cat] || []).map((g) => ({
+      id: g.id, name: g.name,
+      subGrades: g.subGrades && g.subGrades.length ? g.subGrades.map((s) => ({ id: s.id, name: s.name })) : undefined,
+    }));
     const coloursByGrade = {};
-    const source = grades.length ? grades : [{ id: '', name: '' }];
+    const source = (GRADES[cat] || []).length ? GRADES[cat] : [{ id: '' }];
     for (const g of source) {
-      const list = perGrade && perGrade[g.id] ? perGrade[g.id] : COLORS[cat] || [{ id: 'white', name: 'White', hex: '#F2EFE8' }];
-      coloursByGrade[g.id] = slim(list);
+      coloursByGrade[g.id] = baseColours(cat, g.id).map(slimColour);
     }
     catalog[cat] = { name: c.name, grades, coloursByGrade };
   }

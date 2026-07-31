@@ -763,11 +763,10 @@ function PolkiSeriesPad({ product, grade, color, category, seriesKey, designs,
   const dim = (d) => (d.dims || [d.w, d.h]).map((n) => n.toFixed(2)).join(' × ') + ' mm';
   const soldOutMap = (window.loadSoldOut ? window.loadSoldOut() : {});
   const dSoldOut = (d) => !!soldOutMap[window.soldOutKey(category.id, grade.id, color.id, 'uneven', d.id)];
-  // Admin > Pricing edits per design. The catalog grade is the base ('white'),
-  // the series is the shape, and the design name is the size — matching the
-  // mirror. grade.id carries the series suffix here, so strip it for the key.
-  const baseGrade = String(grade.id).replace(/-(b|c|x|z|pcj|gj)$/, '');
-  const dPrice = (d) => { const o = window.priceOverride ? window.priceOverride(category.id, baseGrade, color.id, seriesKey, d.name) : null; return o != null ? o : d['price']; };
+  // Admin > Pricing edits per design. grade.id is the effective sub-grade here
+  // (e.g. 'white-b'), which is exactly how the mirror keys it; shape is 'uneven',
+  // the design name is the size.
+  const dPrice = (d) => { const o = window.priceOverride ? window.priceOverride(category.id, grade.id, color.id, 'uneven', d.name) : null; return o != null ? o : d['price']; };
   const dPcs = (d) => { const o = window.pcsOverride ? window.pcsOverride(category.id, d.name) : null; return o != null ? o : d['pcsPerPacket']; };
   const lines = designs.filter((d) => (qtyBySize[d.id] || 0) > 0 && !dSoldOut(d));
   const totalPackets = lines.reduce((s, d) => s + (qtyBySize[d.id] || 0), 0);

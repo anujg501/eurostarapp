@@ -17,7 +17,7 @@ import {
 // shows come from the shop's real published prices (adminApi.priceSnapshot),
 // falling back to the /admin/pricing matrix estimate where a sheet has no entry.
 
-type Step = 'cats' | 'grades' | 'colours' | 'editor';
+type Step = 'cats' | 'grades' | 'subgrades' | 'colours' | 'editor';
 const ALL = '__all__';
 
 // Categories sold as one flat price per packet/set (not ₹ per piece × pcs).
@@ -213,10 +213,11 @@ function exportColourCsv(
 // `__catalog__` (see scripts/gen-price-snapshot.cjs). The Admin flow is driven
 // from this so it matches the storefront exactly, not the drifted backend
 // catalog: e.g. Corundum → EXCEL AAA / DECCAN AA, each with its own colours.
+interface SubItem { id: string; name: string; hex?: string }
 interface CatalogEntry {
   name: string;
-  grades: { id: string; name: string }[];
-  coloursByGrade: Record<string, { id: string; name: string; hex: string }[]>;
+  grades: { id: string; name: string; subGrades?: SubItem[] }[];
+  coloursByGrade: Record<string, { id: string; name: string; hex: string; subShades?: SubItem[] }[]>;
 }
 type CatalogStruct = Record<string, CatalogEntry>;
 
@@ -233,7 +234,12 @@ export function Pricing() {
 
   const [step, setStep] = useState<Step>('cats');
   const [catKey, setCatKey] = useState('');
-  const [gradeId, setGradeId] = useState('');
+  // A grade may have sub-grades that change price (White CZ Elements → Thin/…).
+  // baseGradeId picks the colour list; the effective grade used for pricing is
+  // baseGradeId + '-' + subGradeId when a sub-grade is chosen.
+  const [baseGradeId, setBaseGradeId] = useState('');
+  const [subGradeId, setSubGradeId] = useState('');
+  const gradeId = subGradeId ? `${baseGradeId}-${subGradeId}` : baseGradeId;
   const [colourId, setColourId] = useState<string>(ALL);
 
   useEffect(() => {
@@ -269,13 +275,19 @@ export function Pricing() {
   const backendGrades = grades[catKey] ?? [];
   // Grades come from the shop structure; merge any extra display fields (tier,
   // origin, base price) from the backend grade of the same id when present.
-  const catGrades: Grade[] = (catEntry?.grades ?? backendGrades).map((g) => ({
+  const catGrades = (catEntry?.grades ?? backendGrades).map((g) => ({
     ...backendGrades.find((b) => b.id === g.id),
     ...g,
-  })) as Grade[];
-  const multiGrade = catGrades.length > 1;
+  })) as (Grade & { subGrades?: SubItem[] })[];
+  // Sub-graded categories always write grade-scoped keys.
+  const multiGrade = catGrades.length > 1 || catGrades.some((g) => (g.subGrades?.length ?? 0) > 0);
   const allCatColours = colours[catKey] ?? [];
-  const grade = catGrades.find((g) => g.id === gradeId);
+  const baseGrade = catGrades.find((g) => g.id === baseGradeId);
+  const subGrade = baseGrade?.subGrades?.find((s) => s.id === subGradeId);
+  // The effective grade used for the editor's title + pricing (base + sub-grade).
+  const grade = baseGrade
+    ? ({ ...baseGrade, id: gradeId, name: subGrade ? `${baseGrade.name} · ${subGrade.name}` : baseGrade.name } as Grade)
+    : undefined;
 
   // A grade only sells some of the category's colours (e.g. corundum EXCEL AAA
   // sells Ruby 5, not Ruby 2). The backend colour list isn't grade-filtered, so
@@ -304,18 +316,28 @@ export function Pricing() {
   // Colours for the chosen grade come straight from the shop structure (which
   // includes base-priced colours like Blue 34 / White); fall back to the
   // mirror-derived list, then the raw backend list.
-  const catColours: Colour[] = (catEntry?.coloursByGrade?.[gradeId] as Colour[] | undefined) ?? catColoursFor(gradeId);
+  // Colours are keyed by the BASE grade id (the shop resolves colours by base
+  // grade, then the sub-grade is chosen). Falls back to the mirror-derived list.
+  const catColours: Colour[] = (catEntry?.coloursByGrade?.[baseGradeId] as Colour[] | undefined) ?? catColoursFor(gradeId);
+
+  // Enter a base grade: go to the sub-grade step if it has sub-grades, else colours.
+  const enterGrade = (g: { id: string; subGrades?: SubItem[] }) => {
+    setBaseGradeId(g.id);
+    setSubGradeId('');
+    setColourId(ALL);
+    setStep(g.subGrades?.length ? 'subgrades' : 'colours');
+  };
 
   const openCategory = (c: Category) => {
     setCatKey(c.key);
     setColourId(ALL);
+    setSubGradeId('');
     const g = catalog[c.key]?.grades ?? (grades[c.key] ?? []);
     if (g.length > 1) {
-      setGradeId('');
+      setBaseGradeId('');
       setStep('grades');
-    } else {
-      setGradeId(g[0]?.id ?? '');
-      setStep('colours');
+    } else if (g[0]) {
+      enterGrade(g[0]);
     }
   };
 
@@ -389,13 +411,35 @@ export function Pricing() {
               <button
                 key={g.id}
                 className="pr-grade-card"
-                onClick={() => { setGradeId(g.id); setColourId(ALL); setStep('colours'); }}
+                onClick={() => enterGrade(g)}
               >
                 {g.tier && <span className="pr-badge">{g.tier.toUpperCase()}</span>}
                 {g.origin && <span className="pr-pill">{g.origin}</span>}
                 <div className="pr-grade-name">{g.name}</div>
                 {g.desc && <div className="pr-grade-desc">{g.desc}</div>}
+                {g.subGrades?.length ? <div className="pr-grade-desc">{g.subGrades.length} types</div> : null}
                 {g.basePrice ? <div className="pr-grade-from">from ₹{g.basePrice}/{g.unit || cat.unit}</div> : null}
+                <span className="pr-cat-go">{g.subGrades?.length ? 'Choose type ›' : 'Select ›'}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      {step === 'subgrades' && cat && baseGrade && (
+        <>
+          <button className="ad-btn ad-btn-ghost ad-btn-sm" onClick={() => setStep(multiGrade ? 'grades' : 'cats')}>
+            ← {multiGrade ? `${cat.name} grades` : 'Categories'}
+          </button>
+          <h3 className="pr-h3">{cat.name} · {baseGrade.name} — choose a type</h3>
+          <div className="pr-grid">
+            {baseGrade.subGrades?.map((sg) => (
+              <button
+                key={sg.id}
+                className="pr-grade-card"
+                onClick={() => { setSubGradeId(sg.id); setColourId(ALL); setStep('colours'); }}
+              >
+                <div className="pr-grade-name">{sg.name}</div>
                 <span className="pr-cat-go">Select ›</span>
               </button>
             ))}
@@ -405,8 +449,8 @@ export function Pricing() {
 
       {step === 'colours' && cat && (
         <>
-          <button className="ad-btn ad-btn-ghost ad-btn-sm" onClick={() => setStep(multiGrade ? 'grades' : 'cats')}>
-            ← {multiGrade ? `${cat.name} grades` : 'Categories'}
+          <button className="ad-btn ad-btn-ghost ad-btn-sm" onClick={() => setStep(subGrade ? 'subgrades' : multiGrade ? 'grades' : 'cats')}>
+            ← {subGrade ? `${baseGrade?.name} types` : multiGrade ? `${cat.name} grades` : 'Categories'}
           </button>
           <h3 className="pr-h3">
             {cat.name}{grade ? ` · ${grade.name}` : ''} — choose a colour

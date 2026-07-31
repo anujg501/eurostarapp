@@ -1104,7 +1104,11 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   const ctLotMode = category.id === 'opaque' && grade && grade.id !== 'opal';
   const OP_LOT_CT = 100,OP_RATE_CT = product.price,OP_PRICE = OP_LOT_CT * OP_RATE_CT;
   // Per-size ₹/ct from an uploaded natural-opaque sheet, falling back to the flat rate.
-  const opRowRate = (size) => (window.opaqueNatRate && color ? window.opaqueNatRate(grade.id, color.id, shape, size) : null) || OP_RATE_CT;
+  const opRowRate = (size) => {
+    // Admin > Pricing edit (₹ per carat) wins over the natural-opaque sheet.
+    if (window.priceOverride) { const o = window.priceOverride(category.id, grade && grade.id, color && color.id, shape, size); if (o != null) return o; }
+    return (window.opaqueNatRate && color ? window.opaqueNatRate(grade.id, color.id, shape, size) : null) || OP_RATE_CT;
+  };
   const ourosaMode = category.id === 'ourosa';
   // Sizes actually uploaded for this category + shape win over the built-in
   // charts: a bulk-uploaded category has no chart entry, which is why every

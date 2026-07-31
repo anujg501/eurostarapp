@@ -32,10 +32,14 @@ const FLAT_SET_SUFFIX: Record<string, string> = { navratna: '/set', bracelet: '/
 const CARAT_STRIP = new Set(['moissanite', 'labgrown', 'beads', 'multisapphire']);
 
 // The "Rate ₹" unit for a category (and grade, where it varies by grade).
+// Opaque is split by grade: Natural-look is carat-lot priced, Opal is packet.
+const opaqueCarat = (catKey: string, gradeId: string) => catKey === 'opaque' && gradeId !== 'opal';
+
 function rateUnitLabel(catKey: string, gradeId: string, unit?: string): string {
   if (FLAT_SET_LABEL[catKey]) return FLAT_SET_LABEL[catKey];
   if (catKey === 'multisapphire') return gradeId === 'aaa' ? '₹ per carat' : '₹ per strip';
   if (catKey === 'labgrown') return gradeId === 'created' ? '₹ per carat' : '₹ per piece';
+  if (catKey === 'opaque') return opaqueCarat(catKey, gradeId) ? '₹ per carat (100 ct lot)' : '₹ per piece · packet sold';
   return unit === 'ct' ? '₹ per carat' : unit === 'pkt' ? '₹ per piece · packet sold' : `₹ per ${unit}`;
 }
 // Short suffix for the CSV "Rate ₹" header.
@@ -43,6 +47,7 @@ function rateCsvSuffix(catKey: string, gradeId: string, unit?: string): string {
   if (FLAT_SET_SUFFIX[catKey]) return FLAT_SET_SUFFIX[catKey];
   if (catKey === 'multisapphire') return gradeId === 'aaa' ? '/ct' : '/strip';
   if (catKey === 'labgrown') return gradeId === 'created' ? '/ct' : '/pc';
+  if (catKey === 'opaque') return opaqueCarat(catKey, gradeId) ? '/ct' : '/pc';
   return unit === 'ct' ? '/ct' : '/pc';
 }
 
@@ -136,7 +141,7 @@ function exportColourCsv(
   ovr: CategoryPricingOverride
 ): void {
   const unit = cat.unit || 'pc';
-  const packet = !FLAT_SET_LABEL[cat.key] && !CARAT_STRIP.has(cat.key) && unit === 'pkt';
+  const packet = !FLAT_SET_LABEL[cat.key] && !CARAT_STRIP.has(cat.key) && !opaqueCarat(cat.key, gradeId) && unit === 'pkt';
   const cid = colourId === ALL ? '' : colourId;
 
   // Every (shape, size) the snapshot has for this grade/colour scope.
@@ -545,7 +550,7 @@ function PriceEditor({
   // Flat-set (Navratna) and carat/strip categories price by the whole set / by
   // the carat or strip — none of them has an editable pieces-per-packet column.
   const flatSet = !!FLAT_SET_LABEL[cat.key];
-  const noPacket = flatSet || CARAT_STRIP.has(cat.key);
+  const noPacket = flatSet || CARAT_STRIP.has(cat.key) || opaqueCarat(cat.key, gradeId);
   // Whether the category is packet-sold — decides the Pcs column. Driven by the
   // unit/matrix only: the snapshot carries pcsPerPacket 1 for per-piece sheets
   // (e.g. Corundum), which must NOT turn on a packet column.

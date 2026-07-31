@@ -313,6 +313,29 @@ if (typeof win.msRate === 'function' && typeof win.msSizes === 'function' && typ
   console.log(`Lab Grown: ${n} rows (created ₹/ct, corundum + beryl ₹/pc).`);
 }
 
+// Opaque · Natural-look — per grade+colour ₹/carat sheet (opaqueNatRate), sold
+// as a 100 ct lot. Separate from the Opal sheet (opaqueSku, already mirrored).
+if (typeof win.opaqueNatSizes === 'function' && typeof win.opaqueNatRate === 'function') {
+  const CBG = win.OPAQUE_COLORS_BY_GRADE || {};
+  const out = snapshot.opaque || {};
+  let n = 0;
+  for (const g of GRADES.opaque || []) {
+    for (const co of CBG[g.id] || COLORS.opaque || []) {
+      const shapes = co.shapes && co.shapes.length ? co.shapes : SHAPES.opaque || [];
+      for (const sh of shapes) {
+        for (const size of win.opaqueNatSizes(g.id, co.id, sh) || []) {
+          const rate = win.opaqueNatRate(g.id, co.id, sh, size);
+          if (rate == null || !(rate > 0)) continue;
+          out[[g.id, co.id, String(sh).toLowerCase(), normSize(size)].join('|')] = { rate, pcs: 0, size };
+          n++;
+        }
+      }
+    }
+  }
+  if (n) snapshot.opaque = out;
+  console.log(`Opaque natural (₹/ct): ${n} rows.`);
+}
+
 // ---- Base-priced colours ---------------------------------------------------
 // Some colours a grade sells have no dedicated sheet (e.g. Corundum EXCEL AAA ·
 // Blue 34, all Beads). The shop prices those off grade.basePrice × colour.mult

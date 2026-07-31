@@ -298,6 +298,7 @@ export interface SnapshotRow {
   rate: number;
   pcs: number;
   size: string;
+  base?: boolean; // true = grade base-rate × size (no dedicated price sheet)
 }
 export type PriceSnapshot = Record<string, Record<string, SnapshotRow>>;
 

@@ -692,12 +692,15 @@ function PriceEditor({
               const r = resolve(size, auto);
               const pcsVal = ovr.pcs?.[snapNorm(size)] ?? autoPcs;
               const pcsCustom = ovr.pcs?.[snapNorm(size)] != null;
+              const snapRow = snapFor(size);
               const note =
                 r.source === 'own'
                   ? colSpecific ? `custom for ${colourName}` : 'custom · overrides auto'
                   : r.source === 'inherit'
                     ? 'from All-colours rate'
-                    : snapFor(size) ? 'live Sales App price' : 'auto from base × size multiplier';
+                    : snapRow?.base
+                      ? 'base rate (no sheet yet)'
+                      : snapRow ? 'live Sales App price' : 'auto from base × size multiplier';
               return (
                 <tr key={size}>
                   <td>{size}{added && <span className="pr-added"> · added</span>}</td>

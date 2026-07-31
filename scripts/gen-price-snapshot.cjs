@@ -313,6 +313,55 @@ if (typeof win.msRate === 'function' && typeof win.msSizes === 'function' && typ
   console.log(`Lab Grown: ${n} rows (created ₹/ct, corundum + beryl ₹/pc).`);
 }
 
+// ---- Base-priced colours ---------------------------------------------------
+// Some colours a grade sells have no dedicated sheet (e.g. Corundum EXCEL AAA ·
+// Blue 34, all Beads). The shop prices those off grade.basePrice × colour.mult
+// × size via unitRate(). We reproduce that with the shop's OWN helpers so the
+// numbers are identical. Restricted to categories that use the standard size
+// pad with no special pricing mode — carat-lot (opaque), string/lot (pearls),
+// design series (polki) and the grid-less Bracelet are left alone on purpose.
+const BASE_OK = new Set(['corundum', 'cz', 'whitecz', 'clover', 'beads']);
+{
+  const CATS = win.CATEGORIES || [];
+  const CBG = {
+    corundum: win.CORUNDUM_COLORS_BY_GRADE,
+    cz: win.CZ_COLORS_BY_GRADE,
+  };
+  const SIZES_CAT = win.SIZES_BY_CATEGORY || {};
+  const FULL = win.FULL_SIZES || {};
+  let n = 0;
+  for (const c of CATS) {
+    const cat = c.id;
+    if (!BASE_OK.has(cat)) continue;
+    const unit = win.catUnit ? win.catUnit(cat) : 'pc';
+    const cbg = CBG[cat];
+    for (const g of GRADES[cat] || []) {
+      const colours = cbg && cbg[g.id] ? cbg[g.id] : COLORS[cat] || [];
+      for (const col of colours) {
+        // Skip any colour that already has a real sheet for this grade.
+        const rows = snapshot[cat] || {};
+        if (Object.keys(rows).some((k) => { const [kg, kc] = k.split('|'); return kg === g.id && kc === col.id; })) continue;
+        const shapes = col.shapes && col.shapes.length ? col.shapes : SHAPES[cat] || [];
+        for (const sh of shapes) {
+          const product = win.makeBrowseProduct(cat, g, col, sh);
+          let sizes = SIZES_CAT[cat] && SIZES_CAT[cat].length ? SIZES_CAT[cat] : FULL[sh] || ['4.00 mm'];
+          if (col.sizeMax) sizes = sizes.filter((s) => (parseFloat(s) || 0) <= col.sizeMax + 0.001);
+          if (col.sizeMin) sizes = sizes.filter((s) => /x/i.test(s) || (parseFloat(s) || 0) >= col.sizeMin - 0.001);
+          for (const size of sizes) {
+            const key = [g.id, col.id, String(sh).toLowerCase(), normSize(size)].join('|');
+            if (rows[key]) continue;
+            const rate = unit === 'ct' ? win.sizePerCtPrice(product, size) : unit === 'strip' ? product.price : win.sizeUnitPrice(product, size);
+            if (rate == null || !(rate > 0)) continue;
+            (snapshot[cat] = snapshot[cat] || {})[key] = { rate, pcs: unit === 'pkt' ? win.packetPcs(cat, size) : 0, size, base: true };
+            n++;
+          }
+        }
+      }
+    }
+  }
+  console.log(`Base-priced rows: ${n}`);
+}
+
 // ---- Navigation structure -------------------------------------------------
 // Publish the shop's EXACT Category → Grade → Colour flow so the Admin Pricing
 // screen matches the storefront (grade bifurcation, per-grade colours), instead

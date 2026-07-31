@@ -212,9 +212,17 @@ function LMS() {
   const notify = (icon, who, text) => setNotifs(n => [{ id: 'N' + Date.now(), icon, who, text, time: now(), read: false }, ...n]);
   // Push an alert the CANDIDATE will see (their app's bell), keyed by candId in a
   // shared store — read-merge-write so parallel actions don't clobber the list.
-  const notifyCandidate = (candId, icon, text) => {
+  // `extra` may carry { link, linkLabel } so an alert the candidate must act on
+  // (a screening invite) arrives with the join button attached, rather than
+  // telling them to go and find it somewhere else.
+  const notifyCandidate = (candId, icon, text, extra) => {
     if (!candId) return Promise.resolve();
     const entry = { id: 'CN' + Date.now() + Math.random().toString(36).slice(2, 6), icon, text, time: now() };
+    if (extra && extra.link) {
+      entry.link = extra.link;
+      entry.linkLabel = extra.linkLabel || 'Join interview';
+      if (extra.linkExpiresAt) entry.linkExpiresAt = extra.linkExpiresAt;
+    }
     return lmsApi('GET', '/admin/lms/notifs').then((res) => {
       const m = (res.ok && res.data && typeof res.data === 'object') ? { ...res.data } : {};
       m[candId] = [entry, ...(m[candId] || [])].slice(0, 30);
@@ -272,8 +280,21 @@ function LMS() {
       if (!c) return Promise.resolve(false);
       if (c.stage === 'applied') update(id, { stage: 'screening' });
       logAudit('Scheduled screening — ' + date + ' ' + slot, c.name);
-      notifyCandidate(c.candId, '📅', 'Your screening is scheduled for ' + date + (slot ? ' at ' + slot : '') + '. Check your status screen for the join link.');
       const trimmed = (link || '').trim();
+      // The alert carries the full booking — date, time and the join link
+      // itself — so the candidate can act on it straight from notifications.
+      // "2026-06-22" reads as a database value; the candidate should see a date.
+      let when = date;
+      try {
+        const d = new Date(date + 'T00:00:00');
+        if (!isNaN(d)) when = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+      } catch (e) { /* keep the raw string */ }
+      const detail = 'Your screening interview is scheduled for ' + when + (slot ? ' at ' + slot : '') + '.'
+        + (trimmed ? ' Tap below to join at that time.' : ' The join link will follow shortly.');
+      // The join button dies once the booked slot has passed — an expired link
+      // that still looks live sends candidates into an empty meeting room.
+      notifyCandidate(c.candId, '📅', detail,
+        trimmed ? { link: trimmed, linkLabel: 'Join interview', linkExpiresAt: window.lmsSlotEnd(date, slot) } : undefined);
       if (!trimmed || !c.candId) return Promise.resolve(true);
       // Same shared key-value store the candidate app's own status screen reads
       // (GET /admin/lms/meeting-links, keyed by candId) — read-merge-write so a

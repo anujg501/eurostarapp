@@ -199,7 +199,7 @@ candidatesRouter.post(
       // otherwise surface as an unhandled 500.
       if (err) {
         const msg = (err as { code?: string }).code === 'LIMIT_FILE_SIZE'
-          ? 'That file is larger than 5MB'
+          ? `That file is larger than ${Math.round(MAX_DOC_BYTES / (1024 * 1024))}MB`
           : 'Could not read the uploaded file';
         return fail(res, 400, msg);
       }
@@ -209,20 +209,38 @@ candidatesRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const file = (req as unknown as { file?: Express.Multer.File }).file;
     if (!file) return fail(res, 400, 'No file was uploaded');
-    if (!ALLOWED_DOC_MIME.includes(file.mimetype)) {
-      return fail(res, 400, 'Upload a PDF or Word document');
+
+    // Phones routinely report a CV as "application/octet-stream" (or send no
+    // type at all) depending on which app the file came from, so the extension
+    // is the dependable signal. Judging on the reported type alone bounced
+    // genuine PDFs, and the applicant had no way to tell why.
+    const EXT_MIME: Record<string, string> = {
+      '.pdf': 'application/pdf',
+      '.doc': 'application/msword',
+      '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    };
+    // The mobile uploader streams from a cache copy, so the multipart filename
+    // can be a temp name — it sends the real one as a `filename` field. Use
+    // that for both the extension check and the stored name.
+    const sentName = typeof (req.body as { filename?: unknown } | undefined)?.filename === 'string'
+      ? ((req.body as { filename: string }).filename)
+      : '';
+    const ext = path.extname(sentName || file.originalname || '').toLowerCase();
+    const mime = ALLOWED_DOC_MIME.includes(file.mimetype) ? file.mimetype : EXT_MIME[ext];
+    if (!mime) {
+      return fail(res, 400, 'Upload a PDF or Word document (.pdf, .doc, .docx)');
     }
 
     const existing = await ownCandidate(req.user!.sub);
     if (!existing) return fail(res, 404, 'No application found for this account');
 
-    const { key, bytes } = await putPrivateFile(file.buffer, file.mimetype, 'resumes');
+    const { key, bytes } = await putPrivateFile(file.buffer, mime, 'resumes');
 
     let blob: Record<string, unknown> = {};
     if (existing.data) { try { blob = JSON.parse(existing.data); } catch { blob = {}; } }
     blob.resumeKey = key;
-    blob.resumeName = file.originalname?.slice(0, 120) || 'resume';
-    blob.resumeMime = file.mimetype;
+    blob.resumeName = (sentName || file.originalname || 'resume').slice(0, 120);
+    blob.resumeMime = mime;
     blob.resumeSize = bytes;
     blob.resumeAt = new Date().toISOString();
 
@@ -476,7 +494,7 @@ modulesRouter.post(
         const msg = e.code === 'LIMIT_FILE_SIZE'
           ? `That video is larger than ${Math.round(MAX_VIDEO_BYTES / (1024 * 1024))}MB`
           : e.message === 'UNSUPPORTED_TYPE'
-            ? 'Upload an MP4, WebM or MOV video'
+            ? 'Upload a video (MP4, WebM, MOV) or audio file (MP3, M4A, WAV, AAC)'
             : 'Could not read the uploaded video';
         return fail(res, 400, msg);
       }
@@ -528,8 +546,15 @@ mediaRouter.get(
       return fail(res, 404, 'Video not found');
     }
 
+    // The player picks its decoder off this header, so an audio lesson served as
+    // video/mp4 simply refuses to play. Map every format we accept on upload.
     const ext = path.extname(full).toLowerCase();
-    const type = ext === '.webm' ? 'video/webm' : ext === '.mov' ? 'video/quicktime' : 'video/mp4';
+    const TYPE_BY_EXT: Record<string, string> = {
+      '.webm': 'video/webm', '.mov': 'video/quicktime', '.m4v': 'video/x-m4v', '.mp4': 'video/mp4',
+      '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.aac': 'audio/aac',
+      '.wav': 'audio/wav', '.ogg': 'audio/ogg', '.weba': 'audio/webm',
+    };
+    const type = TYPE_BY_EXT[ext] ?? 'video/mp4';
     res.setHeader('Content-Type', type);
     res.setHeader('Accept-Ranges', 'bytes');
 

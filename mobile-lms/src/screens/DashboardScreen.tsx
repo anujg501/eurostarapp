@@ -68,7 +68,7 @@ export default function DashboardScreen({ navigation, onSignOut }: any) {
         </View>
       </SafeAreaView>
 
-      <ScrollView contentContainerStyle={styles.pad}>
+      <ScrollView contentContainerStyle={styles.pad} showsVerticalScrollIndicator={false}>
         <View style={[styles.banner, { backgroundColor: banner.bg, borderColor: banner.border }]}>
           <Text style={[styles.bannerTxt, { color: banner.ink }]}>{banner.text}</Text>
         </View>

@@ -373,6 +373,31 @@ function modApi(path, opts) {
     .catch(() => ({ ok: false, status: 0, data: null }));
 }
 
+// Mirrors ALLOWED_VIDEO_MIME in src/services/storage.ts. Checked client-side so
+// an unsupported file (a phone screen-recording .avi, a downloaded .mkv) is
+// rejected the instant it's picked — not after a round trip to the server,
+// which used to leave a garbage videoUrl saved from whatever was left in the
+// link box (e.g. someone typing "MP4" into it, thinking it set the format).
+// Video AND audio: a recorded briefing the rep listens to on the road is
+// training material too, so the office can upload either.
+const VIDEO_EXT_OK = /\.(mp4|webm|mov|m4v|mp3|m4a|aac|wav|ogg|weba)$/i;
+const VIDEO_MIME_OK = {
+  'video/mp4': 1, 'video/webm': 1, 'video/quicktime': 1, 'video/x-m4v': 1,
+  'audio/mpeg': 1, 'audio/mp3': 1, 'audio/mp4': 1, 'audio/x-m4a': 1,
+  'audio/aac': 1, 'audio/wav': 1, 'audio/x-wav': 1, 'audio/ogg': 1, 'audio/webm': 1,
+};
+function isSupportedVideoFile(file) {
+  return !!(VIDEO_MIME_OK[file.type] || VIDEO_EXT_OK.test(file.name));
+}
+/** True when the picked file is an audio lesson rather than a video. */
+function isAudioFile(file) {
+  return /^audio\//i.test(file.type || '') || /\.(mp3|m4a|aac|wav|ogg|weba)$/i.test(file.name || '');
+}
+// Mirrors MAX_VIDEO_BYTES in src/services/storage.ts. Checked before the
+// upload starts — otherwise an oversized file uploads for however long it
+// takes to fail, only to be rejected by the server at the very end.
+const MAX_VIDEO_MB = 2048;
+
 function LmsTraining() {
   const [mods, setMods] = aUseState(null); // null = still loading
   const [loadErr, setLoadErr] = aUseState('');
@@ -385,6 +410,7 @@ function LmsTraining() {
   const [vFile, setVFile] = aUseState(null);   // the picked/dropped video file
   const [upPct, setUpPct] = aUseState(-1);     // -1 = not uploading
   const [dragOver, setDragOver] = aUseState(false);
+  const [showLink, setShowLink] = aUseState(false); // link-paste is the rare path — collapsed by default
   const [nText, setNText] = aUseState('');
   const videoFileRef = React.useRef(null);
   const [busy, setBusy] = aUseState(false);
@@ -404,6 +430,9 @@ function LmsTraining() {
     setVTitle((m && m.summary) || ''); setVDur((m && m.videoDuration) || ''); setVUrl((m && m.videoUrl) || '');
     setVMod(modId || (mods && mods[0] && mods[0].id) || ''); setComposeErr('');
     setVFile(null); setUpPct(-1); setDragOver(false);
+    // Only surface the link box up front if this module already has one (an
+    // existing linked video, not a file) — otherwise keep it tucked away.
+    setShowLink(!!(m && m.videoUrl));
     setCompose({ kind: 'video', modId });
   };
   const openNotes = (modId) => {
@@ -446,9 +475,16 @@ function LmsTraining() {
     const modId = compose.modId || vMod;
     const mod = mods.find(m => m.id === modId);
     if (!mod) return;
-    // Either a file or a title is enough — the upload names the video from the
-    // filename when no title was typed.
-    if (!title && !vFile) { setComposeErr('Add a video title, or pick a file.'); return; }
+    // A video needs actual content: an uploaded file or a link to one. Saving a
+    // bare title used to "succeed" and leave a video row reading "no URL set
+    // yet" — the office thought the video was added, while candidates got an
+    // entry with nothing behind it. Require the file/link, not just a name.
+    if (!vFile && !vUrl.trim()) {
+      setComposeErr(title
+        ? 'Pick a video file (or paste a link) — a title on its own does not add a video.'
+        : 'Pick a video file, or paste a link to one.');
+      return;
+    }
     setBusy(true); setComposeErr('');
 
     // Save the text fields first, then upload the file (if any) — that way the
@@ -561,9 +597,23 @@ function LmsTraining() {
           <input
             ref={videoFileRef}
             type="file"
-            accept="video/mp4,video/webm,video/quicktime,video/x-m4v,.mp4,.webm,.mov,.m4v"
+            accept="video/mp4,video/webm,video/quicktime,video/x-m4v,audio/*,.mp4,.webm,.mov,.m4v,.mp3,.m4a,.aac,.wav,.ogg"
             style={{ display: 'none' }}
-            onChange={e => { const f = e.target.files && e.target.files[0]; if (f) { setVFile(f); setComposeErr(''); } e.target.value = ''; }}
+            onChange={e => {
+              const f = e.target.files && e.target.files[0];
+              e.target.value = '';
+              if (!f) return;
+              if (!isSupportedVideoFile(f)) {
+                setComposeErr(`"${f.name}" isn't a supported file — pick a video (MP4, WebM, MOV) or audio (MP3, M4A, WAV, AAC).`);
+                return;
+              }
+              if (f.size > MAX_VIDEO_MB * 1024 * 1024) {
+                setComposeErr(`"${f.name}" is ${(f.size / (1024 * 1024 * 1024)).toFixed(2)}GB — the limit is ${(MAX_VIDEO_MB / 1024).toFixed(0)}GB. Compress it or trim it down first.`);
+                return;
+              }
+              // A file replaces a link, not adds to it — one video, one source.
+              setVFile(f); setVUrl(''); setComposeErr('');
+            }}
           />
           <div
             onClick={() => !busy && videoFileRef.current && videoFileRef.current.click()}
@@ -584,8 +634,20 @@ function LmsTraining() {
                   if (it.kind === 'file') { const got = it.getAsFile(); if (got) { f = got; break; } }
                 }
               }
-              if (f) { setVFile(f); setComposeErr(''); }
-              else { setComposeErr("Couldn't read a video file from that drop. If you dragged it from a browser tab (WhatsApp Web, Gmail, etc.), save it to your computer first, then drag it from File Explorer/Finder — or click here to browse."); }
+              if (!f) {
+                setComposeErr("Couldn't read a video file from that drop. If you dragged it from a browser tab (WhatsApp Web, Gmail, etc.), save it to your computer first, then drag it from File Explorer/Finder — or click here to browse.");
+                return;
+              }
+              if (!isSupportedVideoFile(f)) {
+                setComposeErr(`"${f.name}" isn't a supported file — pick a video (MP4, WebM, MOV) or audio (MP3, M4A, WAV, AAC).`);
+                return;
+              }
+              if (f.size > MAX_VIDEO_MB * 1024 * 1024) {
+                setComposeErr(`"${f.name}" is ${(f.size / (1024 * 1024 * 1024)).toFixed(2)}GB — the limit is ${(MAX_VIDEO_MB / 1024).toFixed(0)}GB. Compress it or trim it down first.`);
+                return;
+              }
+              // A file replaces a link, not adds to it — one video, one source.
+              setVFile(f); setVUrl(''); setComposeErr('');
             }}
             style={{
               marginTop: 10, padding: '18px 14px', borderRadius: 'var(--r-md)', textAlign: 'center',
@@ -595,13 +657,13 @@ function LmsTraining() {
           >
             {vFile ? (
               <>
-                <div style={{ fontWeight: 700 }}>🎬 {vFile.name}</div>
+                <div style={{ fontWeight: 700 }}>{isAudioFile(vFile) ? '🎧' : '🎬'} {vFile.name}</div>
                 <div className="lms-muted" style={{ fontSize: 12, marginTop: 4 }}>{(vFile.size / (1024 * 1024)).toFixed(1)} MB · click to choose a different file</div>
               </>
             ) : (
               <>
-                <div style={{ fontWeight: 600 }}>⬆ Drag &amp; drop a video file here, or click to browse</div>
-                <div className="lms-muted" style={{ fontSize: 12, marginTop: 4 }}>MP4 · WebM · MOV — up to 500MB</div>
+                <div style={{ fontWeight: 600 }}>⬆ Drag &amp; drop a video or audio file here, or click to browse</div>
+                <div className="lms-muted" style={{ fontSize: 12, marginTop: 4 }}>MP4 · WebM · MOV · MP3 · M4A · WAV — up to 2GB</div>
               </>
             )}
           </div>
@@ -614,12 +676,25 @@ function LmsTraining() {
             </div>
           )}
 
-          <div className="lms-muted" style={{ fontSize: 12, margin: '12px 0 6px' }}>…or paste a link instead, if the video is already hosted somewhere:</div>
-          <input style={fieldStyle} placeholder="Video URL — YouTube (unlisted), Vimeo, or a direct link" value={vUrl} onChange={e => setVUrl(e.target.value)} />
+          {/* The rare path (video already hosted online) is tucked behind a
+              toggle so the default screen is just "drop a file" — one clear
+              action, not two fields to puzzle over. */}
+          {vFile ? null : showLink ? (
+            <>
+              <div className="lms-muted" style={{ fontSize: 12, margin: '12px 0 6px' }}>Link to the video (already hosted online — YouTube, Vimeo, or a direct link):</div>
+              <input style={fieldStyle} placeholder="https://…" value={vUrl}
+                onChange={e => setVUrl(e.target.value)} />
+            </>
+          ) : (
+            <button type="button" className="lms-btn lms-btn-ghost lms-btn-sm" style={{ marginTop: 10 }}
+              onClick={() => setShowLink(true)}>
+              Video already online somewhere? Paste a link instead
+            </button>
+          )}
 
           {composeErr && <div style={{ marginTop: 10, color: '#9A3B3B', fontSize: 13 }}>{composeErr}</div>}
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button className="lms-btn lms-btn-pri lms-btn-sm" onClick={saveVideo} disabled={busy || (!vTitle.trim() && !vFile)} style={busy || (!vTitle.trim() && !vFile) ? { opacity: .5 } : {}}>{busy ? (upPct >= 0 ? 'Uploading…' : 'Saving…') : 'Save video'}</button>
+            <button className="lms-btn lms-btn-pri lms-btn-sm" onClick={saveVideo} disabled={busy || (!vFile && !vUrl.trim())} style={busy || (!vFile && !vUrl.trim()) ? { opacity: .5 } : {}}>{busy ? (upPct >= 0 ? 'Uploading…' : 'Saving…') : 'Save video'}</button>
             <button className="lms-btn lms-btn-ghost lms-btn-sm" onClick={cancel} disabled={busy} style={busy ? { opacity: .5 } : {}}>Cancel</button>
           </div>
         </div>

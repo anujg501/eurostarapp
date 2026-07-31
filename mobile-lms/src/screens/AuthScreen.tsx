@@ -139,7 +139,12 @@ export default function AuthScreen({ onSignedIn }: { onSignedIn: () => void }) {
   return (
     <SafeAreaView style={styles.wrap} edges={['top', 'bottom']}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={styles.pad} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          contentContainerStyle={styles.pad}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={false}
+        >
           <View style={styles.logoWrap}>
             <Image source={LOGO} style={styles.logo} resizeMode="contain" />
           </View>

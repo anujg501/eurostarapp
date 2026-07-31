@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Linking } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
-import { api } from '../api';
+import { api, resolveMediaUrl } from '../api';
 import { theme } from '../theme';
 import { useCandidate } from '../state';
 import MiraFab from '../components/MiraFab';
@@ -135,18 +135,31 @@ export default function TrainingScreen({ navigation }: any) {
         </View>
       </SafeAreaView>
 
-      <ScrollView contentContainerStyle={styles.pad}>
-        <View style={styles.confid}>
-          <Text style={{ fontSize: 16 }}>⚠️</Text>
-          <Text style={styles.confidTxt}>
-            <Text style={{ fontWeight: '700' }}>Confidential training material.</Text> Do not record,
-            screenshot, download or share these videos or any company data with anyone outside Eurostar.
-            Violation will lead to <Text style={{ fontWeight: '700' }}>termination and legal action</Text>.
-          </Text>
-        </View>
-
-        {mods.map((m) => (
-          <View key={m.id} style={{ marginBottom: 18 }}>
+      {/* A FlatList, not a ScrollView: every module carries a video row plus up
+          to nine note bullets, so rendering all eighteen at once mounted several
+          hundred views and made the whole screen stutter as you dragged. This
+          keeps only what is near the viewport alive. */}
+      <FlatList
+        data={mods}
+        keyExtractor={(m) => m.id}
+        contentContainerStyle={styles.pad}
+        showsVerticalScrollIndicator={false}
+        removeClippedSubviews
+        initialNumToRender={4}
+        maxToRenderPerBatch={4}
+        windowSize={7}
+        ListHeaderComponent={
+          <View style={styles.confid}>
+            <Text style={{ fontSize: 16 }}>⚠️</Text>
+            <Text style={styles.confidTxt}>
+              <Text style={{ fontWeight: '700' }}>Confidential training material.</Text> Do not record,
+              screenshot, download or share these videos or any company data with anyone outside Eurostar.
+              Violation will lead to <Text style={{ fontWeight: '700' }}>termination and legal action</Text>.
+            </Text>
+          </View>
+        }
+        renderItem={({ item: m }) => (
+          <View style={{ marginBottom: 18 }}>
             <View style={styles.modHead}>
               <View style={styles.tag}><Text style={styles.tagTxt}>{m.code}</Text></View>
               <Text style={styles.modTitle}>{m.title}</Text>
@@ -157,8 +170,8 @@ export default function TrainingScreen({ navigation }: any) {
               return (
                 <View key={v.id} style={styles.vid}>
                   <TouchableOpacity
-                    style={[styles.play, done && styles.playDone]}
-                    onPress={() => v.url && Linking.openURL(v.url)}
+                    style={[styles.play, done && styles.playDone, !v.url && styles.playEmpty]}
+                    onPress={() => v.url && navigation.navigate('VideoPlayer', { url: resolveMediaUrl(v.url), title: v.title, videoId: v.id })}
                     disabled={!v.url}
                   >
                     <Feather name="play" size={18} color="#fff" />
@@ -166,7 +179,11 @@ export default function TrainingScreen({ navigation }: any) {
 
                   <View style={{ flex: 1 }}>
                     <Text style={styles.vidTitle}>{v.title}</Text>
-                    <Text style={styles.vidMeta}>{v.dur ? `${v.dur} · Mandatory` : 'Mandatory'}</Text>
+                    {/* Say plainly when the office has not attached the file yet,
+                        rather than showing a dead play button with no explanation. */}
+                    <Text style={styles.vidMeta}>
+                      {v.dur ? `${v.dur} · Mandatory` : 'Mandatory'}{!v.url ? ' · not uploaded yet' : ''}
+                    </Text>
                   </View>
 
                   {done ? (
@@ -192,22 +209,25 @@ export default function TrainingScreen({ navigation }: any) {
               </View>
             )}
           </View>
-        ))}
-
-        <View style={styles.bar}>
-          <View style={[styles.barFill, { width: `${allVids.length ? (watchedCount / allVids.length) * 100 : 0}%` }]} />
-        </View>
-
-        {allDone ? (
-          <TouchableOpacity style={styles.cta} onPress={() => navigation.goBack()}>
-            <Text style={styles.ctaTxt}>✓ Training complete — back to dashboard</Text>
-          </TouchableOpacity>
-        ) : (
-          <Text style={styles.hint}>
-            Watch all videos to complete training. The test unlocks separately when the office opens it.
-          </Text>
         )}
-      </ScrollView>
+        ListFooterComponent={
+          <>
+            <View style={styles.bar}>
+              <View style={[styles.barFill, { width: `${allVids.length ? (watchedCount / allVids.length) * 100 : 0}%` }]} />
+            </View>
+
+            {allDone ? (
+              <TouchableOpacity style={styles.cta} onPress={() => navigation.goBack()}>
+                <Text style={styles.ctaTxt}>✓ Training complete — back to dashboard</Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={styles.hint}>
+                Watch all videos to complete training. The test unlocks separately when the office opens it.
+              </Text>
+            )}
+          </>
+        }
+      />
 
       <MiraFab who={cand.name || undefined} />
     </View>
@@ -252,6 +272,7 @@ const styles = StyleSheet.create({
   },
   play: { width: 44, height: 44, borderRadius: 22, backgroundColor: theme.green, alignItems: 'center', justifyContent: 'center' },
   playDone: { backgroundColor: '#9A6B12' },
+  playEmpty: { backgroundColor: '#C9C6BD' }, // no file attached yet — matches the web candidate screen
   vidTitle: { fontSize: 14, fontWeight: '600', color: theme.ink },
   vidMeta: { fontSize: 12, color: theme.meta, marginTop: 2 },
   watchedPill: { backgroundColor: theme.greenSoft, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },

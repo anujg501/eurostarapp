@@ -83,7 +83,24 @@ kv(
   adminRouter,
   '/lms/notifs',
   KEYS.lmsCandNotifs,
-  z.record(z.array(z.object({ id: z.string(), icon: z.string().optional(), text: z.string(), time: z.string().optional() }))),
+  // `link` carries a join URL (e.g. the screening meeting) so the candidate can
+  // act on the alert where they read it, instead of being told to go hunting for
+  // it on another screen.
+  z.record(
+    z.array(
+      z.object({
+        id: z.string(),
+        icon: z.string().optional(),
+        text: z.string(),
+        time: z.string().optional(),
+        link: z.string().optional(),
+        linkLabel: z.string().optional(),
+        // ISO timestamp after which the link is dead (a screening slot that has
+        // already passed) — the candidate app greys the button out from then on.
+        linkExpiresAt: z.string().optional(),
+      })
+    )
+  ),
   {}
 );
 

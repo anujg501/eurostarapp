@@ -15,6 +15,7 @@ import TrainingScreen from './src/screens/TrainingScreen';
 import TestScreen from './src/screens/TestScreen';
 import ResultScreen from './src/screens/ResultScreen';
 import NotificationsScreen from './src/screens/NotificationsScreen';
+import VideoPlayerScreen from './src/screens/VideoPlayerScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -125,6 +126,8 @@ export default function App() {
             <Stack.Screen name="Test" component={TestScreen} options={{ headerShown: false }} />
             <Stack.Screen name="Result" component={ResultScreen} options={{ title: 'Result' }} />
             <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ headerShown: false }} />
+            {/* Full-screen player, black app bar of its own — no light header. */}
+            <Stack.Screen name="VideoPlayer" component={VideoPlayerScreen} options={{ headerShown: false }} />
           </Stack.Navigator>
         </NavigationContainer>
       </CandidateProvider>

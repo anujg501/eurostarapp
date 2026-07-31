@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather } from '@expo/vector-icons';
@@ -7,7 +7,17 @@ import { api } from '../api';
 import { theme } from '../theme';
 import { useCandidate } from '../state';
 
-type Notif = { id: string; icon?: string; text: string; time?: string };
+type Notif = {
+  id: string; icon?: string; text: string; time?: string;
+  link?: string; linkLabel?: string; linkExpiresAt?: string;
+};
+
+/** A join link is dead once its slot has passed — no expiry means it never dies. */
+function isExpired(n: Notif) {
+  if (!n.linkExpiresAt) return false;
+  const t = Date.parse(n.linkExpiresAt);
+  return !isNaN(t) && Date.now() > t;
+}
 
 export default function NotificationsScreen({ navigation }: any) {
   const { cand } = useCandidate();
@@ -44,7 +54,7 @@ export default function NotificationsScreen({ navigation }: any) {
         </View>
       </SafeAreaView>
 
-      <ScrollView contentContainerStyle={styles.pad}>
+      <ScrollView contentContainerStyle={styles.pad} showsVerticalScrollIndicator={false}>
         {items === null ? (
           <ActivityIndicator color={theme.purple} style={{ marginTop: 30 }} />
         ) : items.length === 0 ? (
@@ -59,6 +69,21 @@ export default function NotificationsScreen({ navigation }: any) {
               <Text style={styles.icon}>{n.icon || '🔔'}</Text>
               <View style={{ flex: 1 }}>
                 <Text style={styles.text}>{n.text}</Text>
+                {/* A screening invite carries its meeting link, so the interview
+                    can be joined straight from the alert. */}
+                {!!n.link && (
+                  isExpired(n) ? (
+                    <View style={[styles.joinBtn, styles.joinBtnDead]}>
+                      <Feather name="slash" size={13} color={theme.meta} />
+                      <Text style={[styles.joinTxt, { color: theme.meta }]}>Interview time has passed</Text>
+                    </View>
+                  ) : (
+                    <TouchableOpacity style={styles.joinBtn} onPress={() => Linking.openURL(n.link!).catch(() => {})}>
+                      <Feather name="video" size={13} color="#fff" />
+                      <Text style={styles.joinTxt}>{n.linkLabel || 'Join interview'}</Text>
+                    </TouchableOpacity>
+                  )
+                )}
                 {!!n.time && <Text style={styles.time}>{n.time}</Text>}
               </View>
             </View>
@@ -80,6 +105,12 @@ const styles = StyleSheet.create({
   icon: { fontSize: 18 },
   text: { fontSize: 13.5, color: theme.ink2, lineHeight: 19 },
   time: { fontSize: 11, color: theme.meta, marginTop: 3 },
+  joinBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
+    backgroundColor: theme.purple, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7, marginTop: 8,
+  },
+  joinTxt: { color: '#fff', fontSize: 12.5, fontWeight: '700' },
+  joinBtnDead: { backgroundColor: '#ECEAE3' },
   empty: { alignItems: 'center', paddingTop: 70, paddingHorizontal: 30 },
   emptyTitle: { fontSize: 17, fontWeight: '700', color: theme.ink, marginTop: 12 },
   emptyTxt: { fontSize: 13.5, color: theme.meta, textAlign: 'center', marginTop: 8, lineHeight: 20 },

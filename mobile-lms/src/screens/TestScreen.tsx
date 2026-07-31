@@ -128,7 +128,7 @@ export default function TestScreen({ navigation }: any) {
     return (
       <View style={{ flex: 1, backgroundColor: theme.surface }}>
         <Appbar onBack={() => navigation.goBack()} />
-        <ScrollView contentContainerStyle={styles.gatePad}>
+        <ScrollView contentContainerStyle={styles.gatePad} showsVerticalScrollIndicator={false}>
           <Text style={{ fontSize: 40, textAlign: 'center', marginTop: 8 }}>⚠️</Text>
           <Text style={styles.gateTitle}>One attempt — finish in one sitting</Text>
           <View style={styles.gateList}>
@@ -179,7 +179,10 @@ export default function TestScreen({ navigation }: any) {
           </View>
         }
       />
-      <ScrollView contentContainerStyle={{ padding: 18 }}>
+      <ScrollView
+        contentContainerStyle={{ padding: 18, paddingBottom: 48 }}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.progress}>
           <View style={[styles.progressFill, { width: `${((i + 1) / qs.length) * 100}%` }]} />
         </View>
@@ -237,7 +240,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 30 },
   centerTxt: { fontSize: 14, color: theme.meta, textAlign: 'center', lineHeight: 21 },
 
-  gatePad: { padding: 22 },
+  gatePad: { padding: 22, paddingBottom: 48 },
   gateTitle: { fontSize: 19, fontWeight: '800', color: theme.ink, textAlign: 'center', marginTop: 8 },
   gateList: { marginTop: 16, gap: 10 },
   gateLi: { fontSize: 13.5, color: theme.ink2, lineHeight: 20 },

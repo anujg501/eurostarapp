@@ -81,6 +81,9 @@ export default function MiraFab({ who }: { who?: string }) {
               style={{ flex: 1 }}
               contentContainerStyle={styles.msgs}
               onContentSizeChange={() => list.current?.scrollToEnd({ animated: true })}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              showsVerticalScrollIndicator={false}
             >
               {msgs.map((m, i) => (
                 <View key={i} style={[styles.bubble, m.role === 'user' ? styles.mine : styles.theirs]}>

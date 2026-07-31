@@ -277,7 +277,24 @@ function CandNotifications({ candId, go }) {
             : items.map(n => (
               <div key={n.id} style={{ display: 'flex', gap: 12, padding: '14px 0', borderBottom: '1px solid var(--lms-divider)' }}>
                 <span style={{ fontSize: 18 }}>{n.icon || '🔔'}</span>
-                <div style={{ flex: 1 }}><div style={{ fontSize: 13.5, color: 'var(--lms-ink-2)', lineHeight: '19px' }}>{n.text}</div>{n.time && <div style={{ fontSize: 11, color: 'var(--lms-meta)', marginTop: 3 }}>{n.time}</div>}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13.5, color: 'var(--lms-ink-2)', lineHeight: '19px' }}>{n.text}</div>
+                  {/* A screening invite carries its join link, so the candidate
+                      can open the meeting straight from the alert. */}
+                  {n.link && (
+                    // Dead once the booked slot has passed — an expired link that
+                    // still looks live just sends people to an empty room.
+                    (n.linkExpiresAt && !isNaN(Date.parse(n.linkExpiresAt)) && Date.now() > Date.parse(n.linkExpiresAt))
+                      ? <span style={{ display: 'inline-block', marginTop: 8, background: '#ECEAE3', color: 'var(--lms-meta)', fontSize: 12.5, fontWeight: 700, padding: '7px 14px', borderRadius: 8 }}>
+                          Interview time has passed
+                        </span>
+                      : <a href={n.link} target="_blank" rel="noopener noreferrer"
+                           style={{ display: 'inline-block', marginTop: 8, background: 'var(--lms-purple)', color: '#fff', textDecoration: 'none', fontSize: 12.5, fontWeight: 700, padding: '7px 14px', borderRadius: 8 }}>
+                          {n.linkLabel || 'Join interview'} →
+                        </a>
+                  )}
+                  {n.time && <div style={{ fontSize: 11, color: 'var(--lms-meta)', marginTop: 3 }}>{n.time}</div>}
+                </div>
               </div>
             ))}
       </div>
@@ -380,7 +397,7 @@ function CandApply({ go, cand, onSaved }) {
     const f = e.target.files && e.target.files[0];
     e.target.value = '';
     if (!f) return;
-    if (f.size > 5 * 1024 * 1024) { setErr('That file is larger than 5MB.'); return; }
+    if (f.size > 100 * 1024 * 1024) { setErr('That file is larger than 100MB.'); return; }
     setFile(f); setResumeName(f.name); setErr('');
   };
 
@@ -433,7 +450,7 @@ function CandApply({ go, cand, onSaved }) {
         <div onClick={() => fileRef.current && fileRef.current.click()} style={{ cursor: 'pointer', border: '1.5px dashed var(--lms-purple)', background: 'var(--lms-purple-soft)', borderRadius: 14, padding: '26px 14px', textAlign: 'center', color: 'var(--lms-purple-ink)' }}>
           <div style={{ fontSize: 24 }}><CandIcon name="doc" /></div>
           <div style={{ fontWeight: 600, marginTop: 6 }}>{resumeName || 'Click to upload or drag & drop'}</div>
-          <div style={{ fontSize: 12, color: 'var(--lms-meta)' }}>{resumeName ? 'Tap to replace' : 'PDF or Word · Max 5MB'}</div>
+          <div style={{ fontSize: 12, color: 'var(--lms-meta)' }}>{resumeName ? 'Tap to replace' : 'PDF or Word · Max 100MB'}</div>
         </div>
         <input ref={fileRef} type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style={{ display: 'none' }} onChange={pickFile} />
         <div className="cand-label">How did you know about this *</div>

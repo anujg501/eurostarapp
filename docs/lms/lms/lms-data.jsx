@@ -43,6 +43,9 @@ const LMS_PASS_PCT = 70;      // test pass mark
 const LMS_WINDOW_DAYS = 10;   // training stays unlocked for 10 days, then re-lock
 const LMS_TRAIN_DAYS = 7;     // prospect should finish training within 7 days
 const LMS_TEST_DAYS = 2;      // once test is unlocked, must be taken within 2 days
+// How long a booked screening slot stays joinable, from its start time. The
+// Screening page books 15–20 minute slots, so the join link dies with the slot.
+const LMS_SLOT_MINUTES = 20;
 const LMS_STATE_CODE = { Maharashtra:'MH', Kerala:'KL', Karnataka:'KA', Jharkhand:'JH', Gujarat:'GJ', 'Tamil Nadu':'TN', Telangana:'TG', Rajasthan:'RJ', Delhi:'DL', 'West Bengal':'WB', 'Uttar Pradesh':'UP', 'Madhya Pradesh':'MP' };
 
 function lmsDaysBetween(a, b) { return Math.floor((b - a) / 86400000); }
@@ -607,7 +610,33 @@ const LMS_AUDIT = [
   { id: 'A3', actor: 'Admin (Office)', action: 'Granted re-test', target: 'Test 1', time: '04 Jun · 05:30 PM' },
 ];
 
+/**
+ * When a booked screening slot stops being joinable, as an ISO timestamp.
+ *
+ * `date` is "YYYY-MM-DD" and `slot` is a label from LMS_SLOTS ("10:00 AM",
+ * "2:30 PM"). Returns '' if either is missing or unparseable, which callers
+ * treat as "never expires" rather than "already expired" — a link that dies
+ * because of a formatting quirk would be worse than one that lingers.
+ */
+function lmsSlotEnd(date, slot, graceMin) {
+  if (!date || !slot) return '';
+  const m = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(String(slot).trim());
+  if (!m) return '';
+  let h = parseInt(m[1], 10);
+  const min = parseInt(m[2], 10);
+  const pm = /pm/i.test(m[3]);
+  if (h === 12) h = 0;            // 12:xx AM is 00:xx; 12:xx PM is 12:xx
+  if (pm) h += 12;
+  const d = new Date(date + 'T00:00:00');
+  if (isNaN(d)) return '';
+  d.setHours(h, min, 0, 0);
+  // The slot is bookable for its length, so the link stays live that long.
+  d.setMinutes(d.getMinutes() + (graceMin == null ? LMS_SLOT_MINUTES : graceMin));
+  return d.toISOString();
+}
+
 Object.assign(window, {
+  lmsSlotEnd, LMS_SLOT_MINUTES,
   LMS_STAGES, LMS_SOURCES, LMS_CANDIDATES, LMS_MODULES, LMS_MODULE_NOTES, LMS_NOTES_I18N, LMS_LANGS, lmsNotesFor, lmsVideoSrc, lmsLangLabel, LMS_COMPENSATION, lmsBuildCommissionNotes, lmsINR, LMS_QUESTIONS,
   LMS_SLOTS, LMS_SLOTS_BOOKED, LMS_JOURNEY, LMS_STATES, LMS_EXP,
   LMS_TODAY, LMS_PASS_PCT, LMS_WINDOW_DAYS, LMS_TRAIN_DAYS, LMS_TEST_DAYS, LMS_STATE_CODE,

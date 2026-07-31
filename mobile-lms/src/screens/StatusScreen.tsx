@@ -96,7 +96,7 @@ export default function StatusScreen({ navigation }: any) {
         </View>
       </SafeAreaView>
 
-      <ScrollView contentContainerStyle={styles.pad}>
+      <ScrollView contentContainerStyle={styles.pad} showsVerticalScrollIndicator={false}>
         <Text style={styles.sub}>Track where you are in the Eurostar hiring journey.</Text>
 
         {loading && !record ? (

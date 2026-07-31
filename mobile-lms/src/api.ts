@@ -1,6 +1,7 @@
 // API client for the Eurostar back room (LMS candidate app).
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
+import * as FileSystem from 'expo-file-system';
 
 const CONFIGURED: string =
   (Constants.expoConfig?.extra as any)?.apiBaseUrl || 'https://eurostar-api.onrender.com';
@@ -135,6 +136,16 @@ export type TestPaper = {
 };
 export type TestResult = { score: number; correct: number; total: number; passPct: number; passed: boolean };
 
+// Training videos the office uploaded (not linked externally) come back as a
+// server-relative path like "/media/training-video/xxx.mp4" — the web candidate
+// screen prefixes these with the API origin before use, but the mobile Training
+// screen was passing the bare path straight to Linking.openURL(), which needs a
+// full URI and silently does nothing for a relative one. That's why an uploaded
+// video never opened for a candidate on the app, only on the web.
+export function resolveMediaUrl(url: string): string {
+  return /^https?:\/\//i.test(url) ? url : BASE_URL + url;
+}
+
 export const api = {
   baseUrl: BASE_URL,
 
@@ -188,20 +199,37 @@ export const api = {
   apply: (body: { city: string; state: string; exp: string; source: string }) =>
     request<Candidate>('/candidates/me/apply', { method: 'POST', body: JSON.stringify(body) }),
 
-  // Attach a CV. Sent as multipart — the content-type header is deliberately
-  // left off so the runtime sets it with the multipart boundary.
-  uploadResume: (file: { uri: string; name: string; mimeType: string }) => {
-    const form = new FormData();
-    form.append('file', {
-      uri: file.uri,
-      name: file.name,
-      type: file.mimeType,
-    } as unknown as Blob);
-    return request<Candidate>('/candidates/me/resume', {
-      method: 'POST',
-      body: form,
-      headers: { 'content-type': undefined as unknown as string },
+  // Attach a CV.
+  //
+  // Uploaded with expo-file-system rather than fetch + FormData: React Native's
+  // FormData takes a {uri,name,type} stand-in for the file, and on Android it
+  // frequently posts the multipart body with the file part empty — the server
+  // then answers "No file was uploaded" even though the picker worked. The
+  // native uploader streams the file off disk itself, so the part is always
+  // populated (and a 100MB CV never has to sit in JS memory).
+  uploadResume: async (file: { uri: string; name: string; mimeType: string }): Promise<Candidate> => {
+    const token = await loadToken();
+    const res = await FileSystem.uploadAsync(BASE_URL + '/candidates/me/resume', file.uri, {
+      httpMethod: 'POST',
+      uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+      fieldName: 'file',
+      mimeType: file.mimeType,
+      // Without this the part is named from the temp cache file, losing the
+      // real filename (and its extension, which the server validates on).
+      parameters: { filename: file.name },
+      headers: {
+        accept: 'application/json',
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+      },
     });
+
+    let data: any = null;
+    try { data = res.body ? JSON.parse(res.body) : null; } catch { data = res.body; }
+    if (res.status < 200 || res.status >= 300) {
+      const message = (data && data.error) || `Upload failed (${res.status})`;
+      throw Object.assign(new Error(message), { status: res.status });
+    }
+    return data as Candidate;
   },
 
   // Training modules the candidate must watch before the test.

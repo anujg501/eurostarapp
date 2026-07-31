@@ -32,7 +32,8 @@ export default function ApplyScreen({ navigation }: any) {
   const [resume, setResume] = useState<{ name: string; size?: number } | null>(null);
   const [uploading, setUploading] = useState(false);
 
-  const MAX_BYTES = 5 * 1024 * 1024;
+  const MAX_MB = 100; // mirrors MAX_DOC_BYTES in src/services/storage.ts
+  const MAX_BYTES = MAX_MB * 1024 * 1024;
   const DOC_TYPES = [
     'application/pdf',
     'application/msword',
@@ -42,16 +43,30 @@ export default function ApplyScreen({ navigation }: any) {
   async function pickResume() {
     if (uploading) return;
     try {
-      const res = await DocumentPicker.getDocumentAsync({ type: DOC_TYPES, copyToCacheDirectory: true });
+      // Deliberately '*/*': filtering the picker by MIME hides real CVs on many
+      // Android file providers (Downloads/Drive report generic types), leaving
+      // the applicant staring at a picker with nothing selectable. Pick freely,
+      // then validate by extension below.
+      const res = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
       if (res.canceled) return;
       const f = res.assets?.[0];
       if (!f) return;
 
       // Checked here as well as on the server: a clear message beats a rejected
       // upload after the whole file has gone over the wire.
-      if (f.size && f.size > MAX_BYTES) { Alert.alert('That file is larger than 5MB'); return; }
-      const mime = f.mimeType || 'application/pdf';
-      if (!DOC_TYPES.includes(mime)) { Alert.alert('Upload a PDF or Word document'); return; }
+      if (f.size && f.size > MAX_BYTES) { Alert.alert(`That file is larger than ${MAX_MB}MB`); return; }
+
+      // The extension is the reliable signal. Android hands back
+      // "application/octet-stream" (or nothing) for a perfectly good PDF, and
+      // trusting that alone rejected valid CVs before they were ever sent.
+      const ext = (f.name.split('.').pop() || '').toLowerCase();
+      const EXT_MIME: Record<string, string> = {
+        pdf: 'application/pdf',
+        doc: 'application/msword',
+        docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      };
+      const mime = DOC_TYPES.includes(f.mimeType || '') ? (f.mimeType as string) : EXT_MIME[ext];
+      if (!mime) { Alert.alert('Upload a PDF or Word document', 'Pick a .pdf, .doc or .docx file.'); return; }
 
       setUploading(true);
       const saved = await api.uploadResume({ uri: f.uri, name: f.name, mimeType: mime });
@@ -128,7 +143,14 @@ export default function ApplyScreen({ navigation }: any) {
       </SafeAreaView>
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={styles.pad} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          contentContainerStyle={styles.pad}
+          keyboardShouldPersistTaps="handled"
+          // Swiping the list away is the natural way to get rid of the keyboard
+          // on a long form; without this it stays up and hides half the fields.
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={false}
+        >
           <View style={{ alignItems: 'center', marginBottom: 18 }}>
             <Text style={styles.title}>Apply — Field Sales Representative</Text>
             <Text style={styles.subtitle}>Eurostar Gemstones · Pan-India Openings</Text>
@@ -219,7 +241,7 @@ export default function ApplyScreen({ navigation }: any) {
               <>
                 <Feather name="file-text" size={24} color={theme.purple} />
                 <Text style={styles.uploadTxt}>Click to upload or drag &amp; drop</Text>
-                <Text style={styles.uploadHint}>PDF or Word · Max 5MB</Text>
+                <Text style={styles.uploadHint}>PDF or Word · Max {MAX_MB}MB</Text>
               </>
             )}
           </TouchableOpacity>
@@ -275,7 +297,7 @@ function Select({
                 <Text style={styles.close}>×</Text>
               </TouchableOpacity>
             </View>
-            <ScrollView>
+            <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
               {options.map((o) => (
                 <TouchableOpacity
                   key={o}

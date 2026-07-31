@@ -102,7 +102,7 @@ const DOC_EXT_BY_MIME: Record<string, string> = {
 };
 
 export const ALLOWED_DOC_MIME = Object.keys(DOC_EXT_BY_MIME);
-export const MAX_DOC_BYTES = 5 * 1024 * 1024; // the form promises "Max 5MB"
+export const MAX_DOC_BYTES = 100 * 1024 * 1024; // the form promises "Max 100MB"
 
 // Where private files live when object storage is not configured (local dev).
 // Deliberately outside docs/, which is served statically — a CV must never be
@@ -139,8 +139,8 @@ export async function putPrivateFile(
   return { key: `local:${safeFolder}/${name}`, bytes: buffer.length };
 }
 
-// --- Training videos --------------------------------------------------------
-// Videos are far too big to hold in memory like an image or a CV, so these are
+// --- Training media (video + audio) -----------------------------------------
+// These are far too big to hold in memory like an image or a CV, so they are
 // streamed to disk by multer and moved into place here, never buffered.
 
 const VIDEO_EXT_BY_MIME: Record<string, string> = {
@@ -150,8 +150,25 @@ const VIDEO_EXT_BY_MIME: Record<string, string> = {
   'video/x-m4v': '.m4v',
 };
 
-export const ALLOWED_VIDEO_MIME = Object.keys(VIDEO_EXT_BY_MIME);
-export const MAX_VIDEO_BYTES = 500 * 1024 * 1024; // 500MB
+// Audio lessons (a recorded briefing, a pitch to listen to on the road) are
+// training material just as much as video, and the office should be able to
+// upload them the same way.
+const AUDIO_EXT_BY_MIME: Record<string, string> = {
+  'audio/mpeg': '.mp3',
+  'audio/mp3': '.mp3',
+  'audio/mp4': '.m4a',
+  'audio/x-m4a': '.m4a',
+  'audio/aac': '.aac',
+  'audio/wav': '.wav',
+  'audio/x-wav': '.wav',
+  'audio/ogg': '.ogg',
+  'audio/webm': '.weba',
+};
+
+const MEDIA_EXT_BY_MIME: Record<string, string> = { ...VIDEO_EXT_BY_MIME, ...AUDIO_EXT_BY_MIME };
+
+export const ALLOWED_VIDEO_MIME = Object.keys(MEDIA_EXT_BY_MIME);
+export const MAX_VIDEO_BYTES = 2 * 1024 * 1024 * 1024; // 2GB — a real training video can run long
 
 // Videos live under var/ alongside the other uploads — outside docs/, which is
 // served statically, so nothing here is reachable by guessing a path.
@@ -163,7 +180,7 @@ export function videoUploadDir(): string {
 }
 
 export function videoExtFor(mime: string): string {
-  return VIDEO_EXT_BY_MIME[mime] ?? '.mp4';
+  return MEDIA_EXT_BY_MIME[mime] ?? '.mp4';
 }
 
 /**

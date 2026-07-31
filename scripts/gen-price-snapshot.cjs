@@ -133,15 +133,33 @@ function baseColours(cat, baseGradeId) {
   return (m && baseGradeId && m[baseGradeId]) ? m[baseGradeId] : (COLORS[cat] || []);
 }
 
+// Several categories decide their shapes per GRADE, not per category: White
+// Fancy sells Round in Au Desus, Polki's shapes differ by series, and so on.
+// Mirroring only SHAPES_BY_CATEGORY left those grade-only shapes out of the
+// snapshot entirely — the shop priced and sold them, while the Pricing editor
+// could not see them to edit. Resolve shapes the same way the browse screen
+// does, falling back to the category list when a grade has no table.
+const SHAPES_BY_GRADE = {
+  whitefancy: win.WHITEFANCY_SHAPES_BY_GRADE,
+  polki: win.POLKI_SHAPES_BY_GRADE,
+  pearls: win.PEARL_SHAPES_BY_GRADE,
+  navratna: win.NAVRATNA_SHAPES_BY_GRADE,
+};
+function shapesFor(cat, gradeId) {
+  const perGrade = SHAPES_BY_GRADE[cat];
+  const list = perGrade && gradeId ? perGrade[gradeId] : null;
+  return Array.isArray(list) && list.length ? list : (SHAPES[cat] || []);
+}
+
 const snapshot = {};
 let rows = 0;
 for (const d of DESCS) {
   const useGrade = d.scope === 'gc' || d.scope === 'g';
   const useColour = d.scope === 'gc' || d.scope === 'c';
   const grades = useGrade ? effGrades(d.cat) : [{ id: '', base: '' }];
-  const shapes = SHAPES[d.cat] || [];
   const catOut = {};
   for (const gr of grades) {
+    const shapes = shapesFor(d.cat, gr.id || gr.base);
     const colours = useColour ? (baseColours(d.cat, gr.base).length ? baseColours(d.cat, gr.base) : [{ id: '' }]) : [{ id: '' }];
     for (const co of colours) {
       for (const sh of shapes) {

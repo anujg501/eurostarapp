@@ -1381,10 +1381,25 @@ function LmsReports({ cands }) {
   const passed = tested.filter(c => c.score >= window.LMS_PASS_PCT).length;
   const passRate = tested.length ? Math.round((passed / tested.length) * 100) : 0;
   const avgScore = tested.length ? Math.round(tested.reduce((s, c) => s + c.score, 0) / tested.length) : 0;
-  // source ROI
-  const bySrc = {}; C.forEach(c => { const k = c.source; bySrc[k] = bySrc[k] || { n: 0, hired: 0 }; bySrc[k].n++; if (eff(c) === 'hired') bySrc[k].hired++; });
-  // funnel
-  const stages = ['registered', 'applied', 'screening', 'training', 'recommended', 'hired'];
+  // Source ROI. Grouped on a normalised key: the same source arrives spelled
+  // differently depending on where it was entered ("Google" from the office
+  // form, "google" from the mobile app), and keying on the raw string listed
+  // each spelling as its own channel — the report showed Google and LinkedIn
+  // twice, splitting one channel's hires across two rows. The first spelling
+  // seen supplies the label so it still reads the way the office wrote it.
+  const srcKey = (s) => String(s == null ? '' : s).trim().toLowerCase();
+  const bySrc = {};
+  C.forEach(c => {
+    const k = srcKey(c.source);
+    if (!k) return; // no source recorded — don't invent an "undefined" channel
+    if (!bySrc[k]) bySrc[k] = { n: 0, hired: 0, label: String(c.source).trim() };
+    bySrc[k].n++;
+    if (eff(c) === 'hired') bySrc[k].hired++;
+  });
+  // Funnel. Every stage lmsEffectiveStage can return, so the rows add up to the
+  // application count: 'testing' was missing, and a candidate who had sat the
+  // test appeared in the total while showing in no row at all.
+  const stages = ['registered', 'applied', 'screening', 'training', 'testing', 'recommended', 'hired'];
   const stageCount = {}; window.LMS_STAGES.forEach(s => stageCount[s.id] = 0);
   C.forEach(c => { const s = eff(c); stageCount[s] = (stageCount[s] || 0) + 1; });
   // Real time-to-hire: average days from application to the passing test (falls
@@ -1434,12 +1449,19 @@ function LmsReports({ cands }) {
           <strong style={{ fontFamily: 'var(--font-serif)', fontWeight: 500, fontSize: 16, display: 'block', marginBottom: 14 }}>Source performance (hired / applied)</strong>
           <div className="lms-bars">
             {Object.entries(bySrc).map(([k, v]) => (
-              <div key={k} className="lms-bar-row"><span>{(window.LMS_SOURCES.find(s => s.id === k) || {}).label || k}</span><div className="lms-bar-track"><div className="lms-bar-fill" style={{ width: `${(v.hired / v.n) * 100}%`, background: '#15803D' }} /></div><span style={{ textAlign: 'right', fontWeight: 600 }}>{v.hired}/{v.n}</span></div>
+              <div key={k} className="lms-bar-row"><span>{(window.LMS_SOURCES.find(s => String(s.id).toLowerCase() === k) || {}).label || v.label}</span><div className="lms-bar-track"><div className="lms-bar-fill" style={{ width: `${(v.hired / v.n) * 100}%`, background: '#15803D' }} /></div><span style={{ textAlign: 'right', fontWeight: 600 }}>{v.hired}/{v.n}</span></div>
             ))}
           </div>
         </div>
       </div>
-      <div className="lms-muted" style={{ fontSize: 12.5, marginTop: 14 }}>Time-to-hire (avg): <b>{avgHireDays != null ? '~' + avgHireDays + ' day' + (avgHireDays === 1 ? '' : 's') : '—'}</b> from application to hire · {rejected} rejected.</div>
+      <div className="lms-muted" style={{ fontSize: 12.5, marginTop: 14 }}>
+        {avgHireDays != null
+          ? <>Time-to-hire (avg): <b>{'~' + avgHireDays + ' day' + (avgHireDays === 1 ? '' : 's')}</b> from application to hire · {rejected} rejected.</>
+          // A bare dash left the office guessing whether the figure was broken.
+          // It is withheld only when no hire has both an application date and a
+          // later pass date to measure between.
+          : <>Time-to-hire (avg): <b>not available yet</b> — no hire has both an application date and a later test pass to measure from · {rejected} rejected.</>}
+      </div>
     </div>
   );
 }

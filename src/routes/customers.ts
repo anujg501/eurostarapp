@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db';
 import { asyncHandler, ok, failValidation } from '../util/http';
-import { AuthedRequest, authenticate, requireStaff, requireInternal, optionalAuth } from '../auth/middleware';
+import { AuthedRequest, authenticate, requireStaff, requireInternal, requireRole, optionalAuth } from '../auth/middleware';
 import { nextCustomerCode } from '../services/ids';
 
 export const customersRouter = Router();
@@ -312,5 +312,50 @@ customersRouter.get(
       terms: c.terms,
       rep: c.rep?.repId ?? null,
     });
+  })
+);
+
+// DELETE /customers/:id — remove a customer outright (office/admin only).
+//
+// The CRM could previously only *suspend* a login, so a shop keyed in by
+// mistake, or a row created while testing, stayed on the customer master for
+// good. Everything that hangs off the customer goes with it — carts, orders,
+// receipts, enquiries — because the foreign keys allow no other order, and a
+// half-deleted customer is worse than none. The phone number is also the shop's
+// login, so that User goes too; leaving it behind would keep the number
+// occupied and stop the same shop ever signing up again.
+//
+// Irreversible, hence office/admin only and never exposed to reps.
+customersRouter.delete(
+  '/:id',
+  authenticate,
+  requireRole('office', 'admin'),
+  asyncHandler(async (req, res) => {
+    const c = await prisma.customer.findFirst({
+      where: { OR: [{ id: req.params.id }, { code: req.params.id }] },
+    });
+    if (!c) return res.status(404).json({ error: 'Customer not found' });
+
+    const removed = await prisma.$transaction(async (tx) => {
+      const payments = await tx.payment.deleteMany({ where: { customerId: c.id } });
+      // Lines cascade off their order/cart; count them before they go.
+      const orders = await tx.order.findMany({ where: { customerId: c.id }, select: { id: true } });
+      const orderLines = orders.length
+        ? await tx.orderLine.count({ where: { orderId: { in: orders.map((o) => o.id) } } })
+        : 0;
+      // A payment may point at one of these orders without naming the customer.
+      if (orders.length) await tx.payment.deleteMany({ where: { orderId: { in: orders.map((o) => o.id) } } });
+      const orderCount = (await tx.order.deleteMany({ where: { customerId: c.id } })).count;
+      const carts = (await tx.cart.deleteMany({ where: { customerId: c.id } })).count;
+      const rfqs = (await tx.rfq.deleteMany({ where: { customerId: c.id } })).count;
+      await tx.customer.delete({ where: { id: c.id } });
+      let logins = 0;
+      if (c.phone) {
+        logins = (await tx.user.deleteMany({ where: { role: 'customer', phone: c.phone } })).count;
+      }
+      return { payments: payments.count, orders: orderCount, orderLines, carts, rfqs, logins };
+    });
+
+    return ok(res, { deleted: { customer: c.code, ...removed } });
   })
 );

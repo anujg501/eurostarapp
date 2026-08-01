@@ -257,11 +257,123 @@ function AdminCustomers({ st }) {
             <td><select className="disc-input" style={{ width: 92, textAlign: 'left' }} value={c.terms} onChange={(e) => setTerms(c.id, e.target.value)}>
               <option value="cash">Cash</option><option value="15">15 days</option><option value="30">30 days</option><option value="45">45 days</option><option value="60">60 days</option></select></td>
             <td>{c.active ? <Pill s="active" label="Active" /> : <Pill s="abandoned" label="Suspended" />}</td>
-            <td style={{ textAlign: 'right' }}>{c.active ?
+            <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{c.active ?
                     <button className="cbtn cbtn-ghost cbtn-sm" onClick={() => toggleSuspend(c.id)}>Suspend</button> :
-                    <button className="cbtn cbtn-primary cbtn-sm" onClick={() => toggleSuspend(c.id)}>Reactivate</button>}</td></tr>);
+                    <button className="cbtn cbtn-primary cbtn-sm" onClick={() => toggleSuspend(c.id)}>Reactivate</button>}
+              {' '}
+              <button className="cbtn cbtn-ghost cbtn-sm" style={{ color: 'var(--ruby)' }} title="Delete this customer for good"
+                onClick={() => {
+                  if (!confirm('Delete ' + c.name + ' (' + c.id + ')?\n\nThis also removes their carts, orders, receipts, enquiries and login. It cannot be undone.')) return;
+                  st.deleteCustomer(c.id).catch((ex) => alert(ex.message || 'Could not delete the customer.'));
+                }}>Delete</button></td></tr>);
             })}</tbody>
         </table>
+      </div>
+      <TestDataCleanup />
+    </div>);
+
+}
+
+// "Clear test data" — the handover tool. A demo database fills up with trial
+// customers, practice orders and receipts nobody wants the client to inherit,
+// and there was no way to remove any of it: the console could only suspend a
+// login. This shows the real row counts from the database, deletes only the
+// groups that are ticked, and refuses to do anything until DELETE is typed —
+// none of it can be undone.
+function TestDataCleanup() {
+  const GROUPS = [
+  { id: 'customers', label: 'Customers', note: 'takes their carts, orders, receipts, enquiries and logins with them' },
+  { id: 'orders', label: 'Orders', note: 'and their order lines' },
+  { id: 'payments', label: 'Payments / receipts', note: '' },
+  { id: 'carts', label: 'Carts', note: 'saved and abandoned' },
+  { id: 'rfqs', label: 'RFQ enquiries', note: '' },
+  { id: 'visits', label: 'Visits & attendance', note: 'check-ins, attendance, field visits' },
+  { id: 'leads', label: 'Leads', note: '' }];
+
+  const [counts, setCounts] = useState(null);
+  const [open, setOpen] = useState(false);
+  const [picked, setPicked] = useState({});
+  const [word, setWord] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  const call = (method, path, body) => {
+    const API = window.EUROSTAR_API || location.origin;
+    let tok = '';
+    try { tok = localStorage.getItem('eurostar-admin-token') || ''; } catch (e) {}
+    const opts = { method, headers: { 'content-type': 'application/json', authorization: 'Bearer ' + tok } };
+    if (body !== undefined) opts.body = JSON.stringify(body);
+    return fetch(API + path, opts).then((r) => r.json().then((d) => ({ ok: r.ok, data: d })));
+  };
+
+  React.useEffect(() => {
+    if (!open || counts) return;
+    call('GET', '/admin/cleanup/counts').
+    then((res) => { if (res.ok) setCounts(res.data); else setErr(res.data && res.data.error || 'Could not read the row counts.'); }).
+    catch(() => setErr('Could not reach the server.'));
+  }, [open]);
+
+  const chosen = GROUPS.filter((g) => picked[g.id]).map((g) => g.id);
+  const rows = (id) => counts ? counts[id] : null;
+  const armed = chosen.length > 0 && word === 'DELETE' && !busy;
+
+  const purge = () => {
+    setBusy(true);
+    setErr('');
+    call('POST', '/admin/cleanup/purge', { scopes: chosen, confirm: word }).
+    then((res) => {
+      if (!res.ok) throw new Error(res.data && res.data.error || 'Nothing was deleted.');
+      const d = res.data.deleted || {};
+      const lines = Object.keys(d).filter((k) => d[k]).map((k) => d[k] + ' ' + k).join(', ');
+      alert('Deleted: ' + (lines || 'nothing — those tables were already empty') + '.');
+      location.reload();
+    }).
+    catch((ex) => { setErr(ex.message || 'Nothing was deleted.'); setBusy(false); });
+  };
+
+  if (!open) {
+    return (
+      <div style={{ marginTop: 26, textAlign: 'right' }}>
+        <button className="cbtn cbtn-ghost cbtn-sm" style={{ color: 'var(--ruby)' }} onClick={() => setOpen(true)}>
+          Clear test data…
+        </button>
+      </div>);
+
+  }
+
+  return (
+    <div className="crm-card" style={{ marginTop: 26, borderColor: '#E6B8BE', background: 'var(--ruby-soft)' }}>
+      <div style={{ padding: '16px 18px' }}>
+        <div style={{ fontWeight: 700, color: 'var(--ruby)', fontSize: 14 }}>Clear test data</div>
+        <div className="crm-muted" style={{ fontSize: 12.5, marginTop: 4, lineHeight: 1.5 }}>
+          Deletes the ticked records from the database for good. There is no undo and no backup taken here —
+          if any of this is real trade history, close this box and suspend the login instead.
+        </div>
+
+        {err && <div style={{ color: 'var(--ruby)', fontSize: 12.5, fontWeight: 600, marginTop: 10 }}>{err}</div>}
+
+        <div style={{ marginTop: 12, display: 'grid', gap: 8 }}>
+          {GROUPS.map((g) =>
+          <label key={g.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 9, fontSize: 13, cursor: 'pointer' }}>
+              <input type="checkbox" checked={!!picked[g.id]} style={{ marginTop: 3 }}
+              onChange={(e) => setPicked((p) => ({ ...p, [g.id]: e.target.checked }))} />
+              <span>
+                <strong>{g.label}</strong>
+                <span className="crm-muted"> — {rows(g.id) === null || rows(g.id) === undefined ? 'counting…' : rows(g.id) + ' row' + (rows(g.id) === 1 ? '' : 's')}</span>
+                {g.note ? <div className="crm-muted" style={{ fontSize: 11.5 }}>{g.note}</div> : null}
+              </span>
+            </label>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 14, flexWrap: 'wrap' }}>
+          <span className="crm-muted" style={{ fontSize: 12.5 }}>Type <strong>DELETE</strong> to confirm</span>
+          <input className="disc-input" style={{ width: 120, textAlign: 'left' }} value={word} onChange={(e) => setWord(e.target.value)} placeholder="DELETE" />
+          <button className="cbtn cbtn-sm" disabled={!armed} style={{ background: armed ? 'var(--ruby)' : 'var(--surface-2)', color: armed ? '#fff' : 'var(--fg-muted)', border: 'none' }} onClick={purge}>
+            {busy ? 'Deleting…' : 'Delete permanently'}
+          </button>
+          <button className="cbtn cbtn-ghost cbtn-sm" onClick={() => { setOpen(false); setPicked({}); setWord(''); setErr(''); }}>Cancel</button>
+        </div>
       </div>
     </div>);
 
@@ -3154,6 +3266,18 @@ function CRM() {
       const row = mapCustomer(res.data);
       setCustomers((cs) => [row, ...cs.filter((x) => x.id !== row.id)]);
       if (rep && !res.data.deduped) setNewAdds((m) => ({ ...m, [rep]: (m[rep] || 0) + 1 }));
+      return res.data;
+    }),
+    // Remove a customer for good. The console could only ever *suspend* a
+    // login, so a shop typed in by mistake — or a row created while testing —
+    // stayed on the master forever. The server takes their carts, orders,
+    // receipts, enquiries and login with them; there is no undo, so the button
+    // asks first.
+    deleteCustomer: (id) =>
+    crmApiJson('DELETE', '/customers/' + encodeURIComponent(id)).
+    then((res) => {
+      if (!res.ok) throw new Error((res.data && res.data.error) || 'Could not delete the customer.');
+      setCustomers((cs) => cs.filter((c) => c.id !== id));
       return res.data;
     }),
     // Add a rep = create a login account (so they can actually sign in and get

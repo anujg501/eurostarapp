@@ -23,6 +23,7 @@ import { leadsRouter } from './routes/leads';
 import { announcementsRouter } from './routes/announcements';
 import { candidatesRouter, mediaRouter, modulesRouter, questionsRouter } from './routes/candidates';
 import { adminRouter } from './routes/admin';
+import { cleanupRouter } from './routes/cleanup';
 import { usersRouter } from './routes/users';
 import { liftBuiltinCatalogOverlays } from './services/catalogOverlays';
 
@@ -86,6 +87,8 @@ const adminUiDir = path.join(process.cwd(), 'docs', 'admin-react');
 app.get(['/admin', '/admin/'], (_req, res) => res.sendFile(path.join(adminUiDir, 'index.html')));
 app.use('/admin/assets', express.static(path.join(adminUiDir, 'assets')));
 
+// Mounted before /admin so its paths are not swallowed by the admin router.
+app.use('/admin/cleanup', cleanupRouter);
 app.use('/admin', adminRouter);
 app.use('/users', usersRouter);
 

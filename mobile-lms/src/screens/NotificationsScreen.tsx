@@ -97,12 +97,12 @@ export default function NotificationsScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   appbarWrap: { backgroundColor: theme.surface },
   appbar: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: theme.divider },
-  back: { width: 38, height: 38, borderRadius: 10, borderWidth: 1, borderColor: theme.border, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.surface },
+  back: { width: 38, height: 38, borderRadius: 10, borderWidth: 1, borderColor: theme.border, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.surface, flexShrink: 0 },
   title: { fontSize: 17, fontWeight: '700', color: theme.ink },
   sub: { fontSize: 12, color: theme.meta, marginTop: 1 },
-  pad: { paddingBottom: 40 },
+  pad: { paddingBottom: 40, width: '100%', maxWidth: 620, alignSelf: 'center' },
   row: { flexDirection: 'row', gap: 12, paddingHorizontal: 18, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: theme.divider },
-  icon: { fontSize: 18 },
+  icon: { fontSize: 18, flexShrink: 0 },
   text: { fontSize: 13.5, color: theme.ink2, lineHeight: 19 },
   time: { fontSize: 11, color: theme.meta, marginTop: 3 },
   joinBtn: {

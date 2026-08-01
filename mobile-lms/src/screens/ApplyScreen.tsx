@@ -327,10 +327,14 @@ const styles = StyleSheet.create({
   back: {
     width: 38, height: 38, borderRadius: 10, borderWidth: 1, borderColor: theme.border,
     alignItems: 'center', justifyContent: 'center', backgroundColor: theme.surface,
+    flexShrink: 0,
   },
   appbarTitle: { fontSize: 17, fontWeight: '700', color: theme.ink },
 
-  pad: { paddingHorizontal: 20, paddingTop: 22, paddingBottom: 96, backgroundColor: theme.surface },
+  pad: {
+    paddingHorizontal: 20, paddingTop: 22, paddingBottom: 96, backgroundColor: theme.surface,
+    width: '100%', maxWidth: 620, alignSelf: 'center',
+  },
 
   title: { fontSize: 18, fontWeight: '700', color: theme.ink, textAlign: 'center' },
   subtitle: { fontSize: 14, color: theme.meta, marginTop: 3, textAlign: 'center' },

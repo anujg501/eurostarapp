@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Text, TextInput } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -18,6 +18,22 @@ import NotificationsScreen from './src/screens/NotificationsScreen';
 import VideoPlayerScreen from './src/screens/VideoPlayerScreen';
 
 const Stack = createNativeStackNavigator();
+
+// Phones ship with a "Font size" / "Display size" slider, and a candidate who
+// has turned it up was getting a squeezed app: every label grew, fixed-height
+// rows and buttons stayed put, and titles collapsed into one word per line.
+// Text still scales with the phone setting — just not past a point where the
+// screen stops being readable. Set once, for every Text/TextInput in the app.
+const MAX_FONT_SCALE = 1.25;
+type Defaultable = { defaultProps?: Record<string, unknown> };
+(Text as unknown as Defaultable).defaultProps = {
+  ...(Text as unknown as Defaultable).defaultProps,
+  maxFontSizeMultiplier: MAX_FONT_SCALE,
+};
+(TextInput as unknown as Defaultable).defaultProps = {
+  ...(TextInput as unknown as Defaultable).defaultProps,
+  maxFontSizeMultiplier: MAX_FONT_SCALE,
+};
 
 type Profile = {
   name?: string;

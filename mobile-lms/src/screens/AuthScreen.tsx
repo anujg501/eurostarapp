@@ -273,7 +273,10 @@ const styles = StyleSheet.create({
   wrap: { flex: 1, backgroundColor: theme.surface },
   // .cand-pad { padding: 22px 20px 30px } + the mobile rule's 96px Mira clearance.
   // Top-aligned like the web card — centering would push the footer link off-screen.
-  pad: { paddingHorizontal: 20, paddingTop: 22, paddingBottom: 96 },
+  pad: {
+    paddingHorizontal: 20, paddingTop: 22, paddingBottom: 96,
+    width: '100%', maxWidth: 520, alignSelf: 'center',
+  },
 
   logoWrap: { alignItems: 'center', marginBottom: 6 },
   logo: { height: 34, width: 132 },

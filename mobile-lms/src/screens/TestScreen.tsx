@@ -179,10 +179,7 @@ export default function TestScreen({ navigation }: any) {
           </View>
         }
       />
-      <ScrollView
-        contentContainerStyle={{ padding: 18, paddingBottom: 48 }}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView contentContainerStyle={styles.qPad} showsVerticalScrollIndicator={false}>
         <View style={styles.progress}>
           <View style={[styles.progressFill, { width: `${((i + 1) / qs.length) * 100}%` }]} />
         </View>
@@ -231,16 +228,17 @@ export default function TestScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   appbarWrap: { backgroundColor: theme.surface },
   appbar: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: theme.divider },
-  back: { width: 38, height: 38, borderRadius: 10, borderWidth: 1, borderColor: theme.border, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.surface },
+  back: { width: 38, height: 38, borderRadius: 10, borderWidth: 1, borderColor: theme.border, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.surface, flexShrink: 0 },
   title: { fontSize: 17, fontWeight: '700', color: theme.ink },
   sub: { fontSize: 12, color: theme.meta, marginTop: 1 },
-  timer: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
+  timer: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, flexShrink: 0 },
   timerTxt: { fontFamily: 'monospace', fontWeight: '700', fontSize: 14 },
 
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 30 },
   centerTxt: { fontSize: 14, color: theme.meta, textAlign: 'center', lineHeight: 21 },
 
-  gatePad: { padding: 22, paddingBottom: 48 },
+  gatePad: { padding: 22, paddingBottom: 48, width: '100%', maxWidth: 620, alignSelf: 'center' },
+  qPad: { padding: 18, paddingBottom: 48, width: '100%', maxWidth: 620, alignSelf: 'center' },
   gateTitle: { fontSize: 19, fontWeight: '800', color: theme.ink, textAlign: 'center', marginTop: 8 },
   gateList: { marginTop: 16, gap: 10 },
   gateLi: { fontSize: 13.5, color: theme.ink2, lineHeight: 20 },

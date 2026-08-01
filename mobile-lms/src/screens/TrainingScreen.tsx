@@ -247,11 +247,15 @@ const styles = StyleSheet.create({
   back: {
     width: 38, height: 38, borderRadius: 10, borderWidth: 1, borderColor: theme.border,
     alignItems: 'center', justifyContent: 'center', backgroundColor: theme.surface,
+    flexShrink: 0,
   },
   appbarTitle: { fontSize: 17, fontWeight: '700', color: theme.ink },
   appbarSub: { fontSize: 12, color: theme.meta, marginTop: 1 },
 
-  pad: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 96, backgroundColor: theme.surface },
+  pad: {
+    paddingHorizontal: 20, paddingTop: 18, paddingBottom: 96, backgroundColor: theme.surface,
+    width: '100%', maxWidth: 620, alignSelf: 'center',
+  },
 
   confid: {
     flexDirection: 'row', gap: 10, alignItems: 'flex-start', marginBottom: 16,
@@ -261,7 +265,7 @@ const styles = StyleSheet.create({
   confidTxt: { flex: 1, fontSize: 12, color: '#9A3B3B', lineHeight: 18 },
 
   modHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  tag: { backgroundColor: '#EDEAE2', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 3 },
+  tag: { backgroundColor: '#EDEAE2', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 3, flexShrink: 0 },
   tagTxt: { fontSize: 11.5, fontWeight: '600', color: theme.ink2 },
   modTitle: { flex: 1, fontSize: 15, fontWeight: '700', color: theme.ink },
 
@@ -270,7 +274,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14,
     borderBottomWidth: 1, borderBottomColor: theme.divider,
   },
-  play: { width: 44, height: 44, borderRadius: 22, backgroundColor: theme.green, alignItems: 'center', justifyContent: 'center' },
+  play: { width: 44, height: 44, borderRadius: 22, backgroundColor: theme.green, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   playDone: { backgroundColor: '#9A6B12' },
   playEmpty: { backgroundColor: '#C9C6BD' }, // no file attached yet — matches the web candidate screen
   vidTitle: { fontSize: 14, fontWeight: '600', color: theme.ink },

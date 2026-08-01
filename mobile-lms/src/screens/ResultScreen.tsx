@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { theme } from '../theme';
 import { useCandidate, LMS_PASS_PCT } from '../state';
 
@@ -11,8 +11,12 @@ export default function ResultScreen({ navigation }: any) {
   const passPct = cand.passPct ?? LMS_PASS_PCT;
   const passed = score >= passPct;
 
+  // Scrollable, not a fixed centred column: the trophy, the score, the verdict
+  // and two buttons do not fit a short screen (or a phone with big system text),
+  // and the old layout simply pushed the buttons off the bottom with no way to
+  // reach them. It still centres when there is room to spare.
   return (
-    <View style={styles.wrap}>
+    <ScrollView contentContainerStyle={styles.wrap} showsVerticalScrollIndicator={false}>
       <View style={[styles.badge, { backgroundColor: passed ? theme.greenSoft : '#FCEBC8' }]}>
         <Text style={styles.badgeIcon}>{passed ? '🏆' : '📚'}</Text>
       </View>
@@ -42,12 +46,15 @@ export default function ResultScreen({ navigation }: any) {
       <TouchableOpacity onPress={() => navigation.navigate('Dashboard')}>
         <Text style={styles.home}>← Back to home</Text>
       </TouchableOpacity>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28 },
+  wrap: {
+    flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 28,
+    width: '100%', maxWidth: 620, alignSelf: 'center',
+  },
   badge: { width: 110, height: 110, borderRadius: 55, alignItems: 'center', justifyContent: 'center' },
   badgeIcon: { fontSize: 54 },
   score: { fontSize: 52, fontWeight: '900', color: theme.ink, marginTop: 18 },

@@ -135,6 +135,15 @@ function ChangePassword({
             </TouchableOpacity>
           </View>
 
+          {/* Scrollable body. Android shrinks the window when the keyboard comes
+              up, and three password fields plus the button do not fit what is
+              left — the sheet used to squash and hide the Save button with no
+              way to reach it. */}
+          <ScrollView
+            contentContainerStyle={styles.sheetBody}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
           {/* Only asked for when there is one to prove — a candidate who has
               never set a password should not see a field they must leave blank. */}
           {hasPassword && (
@@ -187,6 +196,7 @@ function ChangePassword({
           <TouchableOpacity style={[styles.btn, busy && { opacity: 0.5 }]} onPress={save} disabled={busy}>
             {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnTxt}>Save password</Text>}
           </TouchableOpacity>
+          </ScrollView>
         </KeyboardAvoidingView>
       </View>
     </Modal>
@@ -216,9 +226,10 @@ const styles = StyleSheet.create({
   sheetWrap: { flex: 1, backgroundColor: 'rgba(21,19,15,0.4)', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: theme.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20,
-    paddingHorizontal: 20, paddingBottom: 28, paddingTop: 6,
+    paddingTop: 6, maxHeight: '92%',
   },
-  sheetHead: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14 },
+  sheetBody: { paddingHorizontal: 20, paddingBottom: 28 },
+  sheetHead: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 20 },
   sheetTitle: { flex: 1, fontSize: 17, fontWeight: '700', color: theme.ink },
   close: { fontSize: 26, lineHeight: 28, color: theme.meta, paddingHorizontal: 4 },
 

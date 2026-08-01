@@ -162,11 +162,15 @@ const styles = StyleSheet.create({
   back: {
     width: 38, height: 38, borderRadius: 10, borderWidth: 1, borderColor: theme.border,
     alignItems: 'center', justifyContent: 'center', backgroundColor: theme.surface,
+    flexShrink: 0,
   },
   appbarTitle: { fontSize: 17, fontWeight: '700', color: theme.ink },
   candId: { fontSize: 12, color: theme.meta, marginTop: 1 },
 
-  pad: { paddingHorizontal: 20, paddingTop: 22, paddingBottom: 96, backgroundColor: theme.surface },
+  pad: {
+    paddingHorizontal: 20, paddingTop: 22, paddingBottom: 96, backgroundColor: theme.surface,
+    width: '100%', maxWidth: 620, alignSelf: 'center',
+  },
   sub: { fontSize: 14, color: theme.meta, marginBottom: 14 },
 
   // .cand-step
@@ -174,11 +178,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row', gap: 14, paddingVertical: 14,
     borderBottomWidth: 1, borderBottomColor: theme.divider,
   },
-  num: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  num: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   numTxt: { fontSize: 13, fontWeight: '700', color: '#fff' },
-  stepHead: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
-  stepLabel: { fontSize: 15, fontWeight: '500', color: theme.ink },
-  stepNote: { fontSize: 12, color: theme.meta },
+  // The note ("Screening scheduled 22 Jun, 10:00") shares this row with the
+  // step label. Text does not shrink by default in React Native, so a long note
+  // used to run past the right edge and get clipped instead of wrapping —
+  // letting both sides give way keeps the whole line on screen.
+  stepHead: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' },
+  stepLabel: { fontSize: 15, fontWeight: '500', color: theme.ink, flexShrink: 1 },
+  stepNote: { fontSize: 12, color: theme.meta, flexShrink: 1, textAlign: 'right' },
   stepState: { fontSize: 12.5, color: theme.meta, marginTop: 1 },
 
   next: {

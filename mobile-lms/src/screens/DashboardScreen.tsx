@@ -126,13 +126,19 @@ const styles = StyleSheet.create({
   menu: {
     width: 38, height: 38, borderRadius: 10, borderWidth: 1, borderColor: theme.border,
     alignItems: 'center', justifyContent: 'center', backgroundColor: theme.surface,
+    flexShrink: 0,
   },
   title: { fontSize: 17, fontWeight: '700', color: theme.ink },
   sub: { fontSize: 12, color: theme.meta, marginTop: 1 },
   candId: { fontFamily: 'monospace', color: theme.purpleInk, fontWeight: '700' },
 
   // .cand-pad, plus the mobile rule's clearance for the Mira pill
-  pad: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 96, backgroundColor: theme.paper, flexGrow: 1 },
+  // The width cap keeps the two-column tile grid readable on a tablet or in
+  // landscape, where full-bleed cards stretched into wide, empty slabs.
+  pad: {
+    paddingHorizontal: 20, paddingTop: 18, paddingBottom: 96, backgroundColor: theme.paper, flexGrow: 1,
+    width: '100%', maxWidth: 620, alignSelf: 'center',
+  },
 
   banner: { borderRadius: 14, borderWidth: 1, paddingHorizontal: 15, paddingVertical: 13, marginBottom: 16 },
   bannerTxt: { fontSize: 13, lineHeight: 19 },
@@ -147,7 +153,7 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 1,
   },
   tileLocked: { opacity: 0.62 },
-  tic: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
+  tic: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   tname: { fontSize: 15, fontWeight: '600', color: theme.ink },
   tdesc: { fontSize: 12, color: theme.meta, lineHeight: 17 },
   lock: {

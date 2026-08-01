@@ -46,6 +46,19 @@ assistantRouter.get(
     }
     if (!dataUrl) return fail(res, 404, 'No image for that key');
 
+    // Photos are stored two ways and both have to work here. A box with object
+    // storage configured keeps them as links to the media host, which is what
+    // production does; without it they are inlined as base64 data URLs, which
+    // is what a local database has. Serving only the second returned 415 on the
+    // live site and the customer got a broken picture in the chat.
+    if (/^https?:\/\//i.test(dataUrl) || dataUrl.startsWith('//') || dataUrl.startsWith('/')) {
+      const target = dataUrl.startsWith('//') ? `https:${dataUrl}` : dataUrl;
+      // Send them to the file itself rather than proxying it — the media host
+      // is already public and better at serving images than this process is.
+      res.setHeader('Cache-Control', 'public, max-age=60, must-revalidate');
+      return res.redirect(302, target);
+    }
+
     const m = /^data:([^;,]+);base64,(.+)$/i.exec(dataUrl);
     if (!m) return fail(res, 415, 'That image is not stored in a form we can serve');
     const buf = Buffer.from(m[2], 'base64');

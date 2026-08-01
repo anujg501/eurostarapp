@@ -149,9 +149,30 @@ async function build(): Promise<Built> {
   const store = rules as { defaultPayment?: string; languages?: string[] };
 
   // Every image the office has uploaded, from every screen that uploads one.
+  //
+  // Listed compactly: the live site has ~900 product photos, and one key per
+  // line would crowd out everything else in the prompt. Product photos are
+  // "category|colour|shape", so they collapse to one line per colour with the
+  // shapes beside it, which is both shorter and easier to read from.
   const { entries } = await imageIndex();
   const bySource: Record<string, string[]> = {};
-  entries.forEach((e) => { (bySource[e.source] = bySource[e.source] ?? []).push(e.label); });
+  const shapesByPair: Record<string, string[]> = {};
+  entries.forEach((e) => {
+    const parts = e.key.split('|');
+    if (e.source === 'product photo' && parts.length === 3) {
+      const pair = `${parts[0]}|${parts[1]}`;
+      (shapesByPair[pair] = shapesByPair[pair] ?? []).push(parts[2]);
+      return;
+    }
+    (bySource[e.source] = bySource[e.source] ?? []).push(e.label);
+  });
+  const productLines = Object.entries(shapesByPair).map(([pair, shapes]) => `${pair}|{${shapes.join(', ')}}`);
+  if (productLines.length) {
+    bySource['product photo'] = [
+      ...productLines.map((l) => l),
+      ...(bySource['product photo'] ?? []),
+    ];
+  }
   const imageNote = entries.length
     ? [
         '',
@@ -168,7 +189,9 @@ async function build(): Promise<Built> {
         '2. If there is no exact match, offer the closest thing that IS on the list and say what it shows (the colour photo, or the category photo).',
         '3. Only say a photo is not on file when nothing in this list fits. Never tell a customer the office has not uploaded something that appears below, and never invent a key that is not here.',
         '',
-        ...Object.entries(bySource).map(([source, labels]) => `${source} (${labels.length}): ${labels.join(', ')}`),
+        'Product photos are written below as category|colour|{shape, shape, …} — expand one shape to make the key, e.g. laser|white|{round, oval} means the keys laser|white|round and laser|white|oval.',
+        '',
+        ...Object.entries(bySource).map(([source, labels]) => `${source} (${labels.length}): ${labels.join(' · ')}`),
       ].join('\n')
     : '';
 

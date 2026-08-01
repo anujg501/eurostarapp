@@ -466,7 +466,11 @@ function LmsTraining() {
 
   // Upload a video file to a module. XMLHttpRequest rather than fetch because
   // it reports upload progress — a 300MB file with no progress bar looks frozen.
-  const uploadVideo = (modId, file) => new Promise((resolve) => {
+  // `retry` guards a single renew-and-resend. modApi/qApi already replay a 401
+  // through eurostarRefreshAccess, but this upload is raw XHR and sat outside
+  // that path: a lapsed token threw away the whole file and reported only "the
+  // video upload failed", after the bytes had already gone over the wire.
+  const uploadVideo = (modId, file, retry) => new Promise((resolve) => {
     let token = ''; try { token = localStorage.getItem('eurostar-admin-token') || ''; } catch (e) {}
     const form = new FormData();
     form.append('file', file);
@@ -476,6 +480,19 @@ function LmsTraining() {
     xhr.upload.onprogress = (e) => { if (e.lengthComputable) setUpPct(Math.round((e.loaded / e.total) * 100)); };
     xhr.onload = () => {
       let d = null; try { d = JSON.parse(xhr.responseText); } catch (e) {}
+      if (xhr.status === 401 && retry !== false && window.eurostarRefreshAccess) {
+        setUpPct(0);
+        window.eurostarRefreshAccess().then((ok) => (ok
+          ? uploadVideo(modId, file, false).then(resolve)
+          : resolve({ ok: false, data: d })));
+        return;
+      }
+      // 413 is the reverse proxy, not the app: the file never reached it. Name
+      // the real cause instead of blaming the upload.
+      if (xhr.status === 413) {
+        resolve({ ok: false, data: { error: 'The server refused this file as too large. Ask IT to raise the upload limit (nginx client_max_body_size).' } });
+        return;
+      }
       resolve({ ok: xhr.status >= 200 && xhr.status < 300, data: d });
     };
     xhr.onerror = () => resolve({ ok: false, data: null });

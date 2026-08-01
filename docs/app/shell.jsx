@@ -71,7 +71,7 @@ function UniversalSearch({ setRoute }) {
 }
 
 function LangSwitcher() {
-  const LANGS = [
+  const ALL_LANGS = [
     { id:'en', native:'English',  en:'English',  ab:'EN' },
     { id:'hi', native:'हिन्दी',     en:'Hindi',    ab:'हि' },
     { id:'mr', native:'मराठी',     en:'Marathi',  ab:'म' },
@@ -80,6 +80,21 @@ function LangSwitcher() {
     { id:'te', native:'తెలుగు',    en:'Telugu',   ab:'తె' },
     { id:'kn', native:'ಕನ್ನಡ',     en:'Kannada',  ab:'ಕ' },
   ];
+  // Only the languages Admin > Settings has switched on. That screen saved the
+  // choice all along, but this list was fixed at all seven, so turning one off
+  // changed nothing a customer could see. Admin stores the native label, which
+  // is what these entries are matched on.
+  const LANGS = (() => {
+    let allowed = window.EUROSTAR_LANGS;
+    if (!Array.isArray(allowed)) {
+      try { allowed = JSON.parse(localStorage.getItem('eurostar-store-langs-v1') || 'null'); } catch (e) { allowed = null; }
+    }
+    if (!Array.isArray(allowed) || !allowed.length) return ALL_LANGS;
+    const on = ALL_LANGS.filter((l) => allowed.indexOf(l.native) !== -1 || allowed.indexOf(l.en) !== -1);
+    // Never leave the switcher empty — a mis-set list would otherwise strand
+    // the shop with no language at all.
+    return on.length ? on : ALL_LANGS;
+  })();
   const FONT = { en:'var(--font-sans)', hi:"'Noto Sans Devanagari',sans-serif", mr:"'Noto Sans Devanagari',sans-serif",
     gu:"'Noto Sans Gujarati',sans-serif", ta:"'Noto Sans Tamil',sans-serif", te:"'Noto Sans Telugu',sans-serif", kn:"'Noto Sans Kannada',sans-serif" };
   const [lang, setLang] = React.useState(() => { try { return localStorage.getItem('eurostar-lang') || 'en'; } catch (e) { return 'en'; } });
@@ -91,6 +106,16 @@ function LangSwitcher() {
     return () => document.removeEventListener('click', onDoc);
   }, []);
   const cur = LANGS.find((l) => l.id === lang) || LANGS[0];
+  // A customer already reading in a language the office has since switched off
+  // would otherwise keep seeing it — the switcher would show the fallback while
+  // every screen stayed translated. Move them onto an allowed language for real.
+  React.useEffect(() => {
+    if (lang !== cur.id) {
+      setLang(cur.id);
+      try { localStorage.setItem('eurostar-lang', cur.id); } catch (e) {}
+      window.dispatchEvent(new Event('eurostar-lang'));
+    }
+  }, [lang, cur.id]);
   const pick = (id) => { setLang(id); setOpen(false); try { localStorage.setItem('eurostar-lang', id); } catch (e) {} window.dispatchEvent(new Event('eurostar-lang')); };
   return (
     <div className="langsw" ref={ref}>

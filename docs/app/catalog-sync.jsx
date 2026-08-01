@@ -72,6 +72,7 @@
     getJson('/admin/catalog/shapes'),
     getJson('/admin/splash'),
     getJson('/admin/pricing-overrides'),
+    getJson('/admin/settings/rules'),
   ])
     .then(function (res) {
       var cat = res[0];
@@ -85,11 +86,22 @@
       var extraShapes = res[8];
       var splash = res[9];
       var pricingOvr = res[10];
+      var storeRules = res[11];
 
       // Prices, pieces-per-packet and add/remove-size edits made in
       // Admin > Pricing. Loaded before the pads render so a saved edit is live.
       if (pricingOvr && typeof pricingOvr === 'object' && window.setPricingOverrides) {
         window.setPricingOverrides(pricingOvr);
+      }
+
+      // Admin > Settings > Languages. The picker used to offer all seven
+      // regardless, so switching one off in Admin changed nothing a customer
+      // could see. Published here for the shell's language switcher to filter
+      // on; an absent or empty list keeps every language rather than leaving
+      // the shop with no way to read itself.
+      if (storeRules && typeof storeRules === 'object' && Array.isArray(storeRules.languages)) {
+        window.EUROSTAR_LANGS = storeRules.languages.slice();
+        mirrorToLocal('eurostar-store-langs-v1', storeRules.languages);
       }
 
       mirrorToLocal('eurostar-cat-thumbs-v1', catThumbs);

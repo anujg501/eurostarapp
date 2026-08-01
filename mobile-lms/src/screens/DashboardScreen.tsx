@@ -16,14 +16,21 @@ const JOURNEY: { id: string; label: string; icon: string; hue: number; desc: str
   { id: 'training', label: 'Training', icon: '📗', hue: 142, desc: 'Watch training videos', screen: 'Training' },
   { id: 'test', label: 'Take Test', icon: '📝', hue: 270, desc: 'Clear the assessment', screen: 'Test' },
   { id: 'result', label: 'My Result', icon: '📊', hue: 8, desc: 'See your score', screen: 'Result' },
+  // Only appears once the office has hired them — before that there is nothing
+  // to onboard into, and a locked tile would just be noise.
+  { id: 'onboarding', label: 'Onboarding', icon: '📋', hue: 190, desc: 'Activate your Sales App', screen: 'Onboarding' },
 ];
 
 export default function DashboardScreen({ navigation, onSignOut }: any) {
   const { cand } = useCandidate();
   const [menuOpen, setMenuOpen] = useState(false);
 
+  // Hired is the only thing that opens onboarding, and it is what the banner
+  // below announces too.
+  const hired = cand.stage === 'hired';
+
   const locked = (id: string) => {
-    if (id === 'apply' || id === 'status') return false;
+    if (id === 'apply' || id === 'status' || id === 'onboarding') return false;
     if (id === 'training' || id === 'test') return !cand.applied;
     if (id === 'result') return cand.score == null;
     return false;
@@ -75,7 +82,7 @@ export default function DashboardScreen({ navigation, onSignOut }: any) {
 
         {/* .cand-tiles — a two-column grid, not a list of rows */}
         <View style={styles.tiles}>
-          {JOURNEY.map((t) => {
+          {JOURNEY.filter((t) => t.id !== 'onboarding' || hired).map((t) => {
             const isLocked = locked(t.id);
             return (
               <TouchableOpacity

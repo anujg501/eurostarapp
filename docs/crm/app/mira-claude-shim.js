@@ -19,13 +19,25 @@
     window.__miraSession = 'mira-' + Math.random().toString(36).slice(2) + '-' + (window.performance ? Math.round(performance.now()) : 0);
   }
 
+  function authHeaders() {
+    var h = { 'content-type': 'application/json' };
+    try {
+      var t = localStorage.getItem('eurostar-admin-token');
+      if (t) h.authorization = 'Bearer ' + t;
+    } catch (e) {}
+    return h;
+  }
+
   window.claude = {
     complete: function (opts) {
       var messages = (opts && opts.messages) || [];
       var message = messages.map(function (m) { return m && m.content ? m.content : ''; }).join('\n\n').trim();
       return fetch(API + '/assistant/chat', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        // Signed in as staff, so say so. The back room decides what Mira may
+        // know from this token — a chat with no token is treated as a customer
+        // and never sees back-office figures.
+        headers: authHeaders(),
         body: JSON.stringify({ sessionId: window.__miraSession, message: message, app: app }),
       })
         .then(function (r) { return r.ok ? r.json() : null; })

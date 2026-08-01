@@ -272,6 +272,166 @@ export async function focusFor(message: string, limit = 60): Promise<string> {
 }
 
 /**
+ * The training material, for a candidate who is studying.
+ *
+ * Mira on the candidate's screen was answering as if she were talking to a
+ * wholesale buyer: she had the shop catalogue and none of the course, so
+ * "explain module 2" or "test me on grades" got nothing useful. This is the
+ * published training — titles, summaries, checklists — plus the shape of the
+ * assessment and where this candidate has got to.
+ *
+ * The question bank is deliberately absent. Handing a candidate the paper they
+ * are about to sit is not tutoring, and the answer key never leaves the server.
+ */
+export async function studyDigest(candidateUserId?: string): Promise<string> {
+  const [modules, cfg] = await Promise.all([
+    prisma.trainingModule.findMany({
+      where: { active: true },
+      orderBy: { sortOrder: 'asc' },
+      select: { id: true, title: true, summary: true, checklist: true, videoDuration: true, mandatory: true },
+    }),
+    getSetting<{ count: number; passPct: number; durationMin: number }>('eurostar-lms-test-config-v1', {
+      count: 15,
+      passPct: 70,
+      durationMin: 15,
+    }),
+  ]);
+
+  const lines = modules.map((m, i) => {
+    let list: string[] = [];
+    try { list = JSON.parse(m.checklist || '[]'); } catch { list = []; }
+    return [
+      `${i + 1}. ${m.title}${m.videoDuration ? ` (${m.videoDuration})` : ''}${m.mandatory ? '' : ' — optional'}`,
+      m.summary ? `   ${m.summary}` : '',
+      list.length ? `   Key points: ${list.join('; ')}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+  });
+
+  // Where this candidate actually is, so encouragement is not invented.
+  let mine = '';
+  if (candidateUserId) {
+    // A candidate is matched to their login by phone, the same way the rest of
+    // the candidate routes resolve ownership.
+    const user = await prisma.user.findUnique({ where: { id: candidateUserId }, select: { phone: true } }).catch(() => null);
+    const me = user?.phone
+      ? await prisma.candidate.findFirst({
+          where: { phone: user.phone },
+          select: { name: true, stage: true, score: true, data: true },
+        }).catch(() => null)
+      : null;
+    if (me) {
+      let blob: Record<string, any> = {};
+      try { blob = JSON.parse(me.data || '{}'); } catch { blob = {}; }
+      const watched = Array.isArray(blob.watched) ? blob.watched.length : 0;
+      mine = [
+        '',
+        `THIS CANDIDATE: ${me.name} · stage ${me.stage}${me.score != null ? ` · last score ${me.score}%` : ''}.`,
+        `Videos watched: ${watched} of ${modules.length}.`,
+        blob.testConsumed ? 'They have already used their one attempt at the assessment.' : 'They have not sat the assessment yet.',
+      ].join('\n');
+    }
+  }
+
+  return [
+    'TRAINING MATERIAL — the published course, read just now. You are this candidate\'s tutor: explain these modules, answer questions about the products and the job, and quiz them to check understanding.',
+    '',
+    modules.length ? lines.join('\n') : 'No training modules have been published yet.',
+    '',
+    `THE ASSESSMENT: ${cfg.count} questions, pass mark ${cfg.passPct}%, ${cfg.durationMin} minutes, ONE attempt, and it must be finished in a single sitting. The clock keeps running if they leave the app; it holds only while they are off the test screen.`,
+    'You do not have the question paper and must never guess at it or supply answers to it. If asked for the questions, say you cannot give those out, then offer to quiz them on the material instead — that is what actually prepares them.',
+    mine,
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+/**
+ * What the back office looks like right now — the CRM or the LMS.
+ *
+ * Mira on a staff screen was answering about the shop while the person in front
+ * of her was working a pipeline: how many orders are waiting, who has not paid,
+ * which candidates cleared the test. This reads that too, so she can answer
+ * from the same desk the operator is sitting at.
+ *
+ * Deliberately never mixed into the shop's own knowledge: it is customer names,
+ * phone numbers and hiring records, and a customer must never be answered from
+ * it. The caller decides the scope and the route checks the signed-in role
+ * before asking for either.
+ */
+export async function opsDigest(scope: 'crm' | 'lms'): Promise<string> {
+  if (scope === 'crm') {
+    const [customers, orders, payments, rfqs, reps, leads, carts] = await Promise.all([
+      prisma.customer.count(),
+      prisma.order.groupBy({ by: ['status'], _count: { _all: true }, _sum: { grand: true } }),
+      prisma.payment.groupBy({ by: ['status'], _count: { _all: true }, _sum: { amount: true } }),
+      prisma.rfq.groupBy({ by: ['status'], _count: { _all: true } }),
+      prisma.user.findMany({
+        where: { role: 'rep' },
+        select: { name: true, repId: true, region: true, commissionPct: true, monthlyTarget: true, active: true },
+      }),
+      // Leads track progress as a numbered stage, not a status string.
+      prisma.lead.groupBy({ by: ['stage'], _count: { _all: true } }).catch(() => []),
+      prisma.cart.count({ where: { status: 'active' } }),
+    ]);
+
+    const money = (n: number | null | undefined) => `₹${Math.round(n ?? 0).toLocaleString('en-IN')}`;
+    return [
+      'LIVE BACK-OFFICE DATA (CRM) — read just now. Staff only; never repeat customer names or numbers to anyone who is not staff.',
+      `Customers on the master: ${customers}. Open carts: ${carts}.`,
+      `Orders: ${orders.map((o) => `${o._count?._all ?? 0} ${o.status} (${money(o._sum?.grand)})`).join(', ') || 'none yet'}.`,
+      `Payments: ${payments.map((p) => `${p._count?._all ?? 0} ${p.status} (${money(p._sum?.amount)})`).join(', ') || 'none yet'}.`,
+      `RFQ enquiries: ${rfqs.map((r) => `${r._count?._all ?? 0} ${r.status}`).join(', ') || 'none open'}.`,
+      Array.isArray(leads) && leads.length
+        ? `Leads by pipeline stage: ${leads.map((l) => `stage ${l.stage}: ${l._count?._all ?? 0}`).join(', ')}.`
+        : '',
+      reps.length
+        ? `Sales reps (${reps.length}): ${reps
+            .map((r) => `${r.name}${r.repId ? ` [${r.repId}]` : ''}${r.region ? ` · ${r.region}` : ''} · ${r.commissionPct ?? 4}% · target ${r.monthlyTarget ?? 50}${r.active ? '' : ' · SUSPENDED'}`)
+            .join('; ')}.`
+        : 'No reps set up yet.',
+      '',
+      'WHAT THE CRM DOES, so you can guide staff: Customers (payment terms, suspend a login), Reps & commission, Relation-Pipeline, RFQ Enquiries (quote back), Franchise Requests, Reports, Attendance, Field Visits, Leads, Customer Database, Rep Broadcast, All carts, Payments (verify or reject a receipt). Credit terms and discounts are approved by the office only.',
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  const [cands, modules, questions] = await Promise.all([
+    prisma.candidate.findMany({ select: { stage: true, score: true, repId: true, data: true } }),
+    prisma.trainingModule.count(),
+    prisma.testQuestion.count({ where: { active: true } }),
+  ]);
+  const cfg = await getSetting<{ count: number; passPct: number; durationMin: number }>(
+    'eurostar-lms-test-config-v1',
+    { count: 15, passPct: 70, durationMin: 15 }
+  );
+
+  const byStage: Record<string, number> = {};
+  let awaiting = 0;
+  let hired = 0;
+  for (const c of cands) {
+    byStage[c.stage ?? 'registered'] = (byStage[c.stage ?? 'registered'] ?? 0) + 1;
+    if (c.repId) hired++;
+    let blob: Record<string, unknown> = {};
+    try { blob = JSON.parse(c.data || '{}'); } catch { blob = {}; }
+    const took = !!(blob.testConsumed || (Array.isArray(blob.attempts) && blob.attempts.length));
+    if (c.stage === 'recommended' && took && (c.score ?? 0) >= cfg.passPct) awaiting++;
+  }
+
+  return [
+    'LIVE RECRUITMENT DATA (LMS) — read just now. Staff only; candidate details never leave this screen.',
+    `Candidates: ${cands.length} — ${Object.entries(byStage).map(([s, n]) => `${n} ${s}`).join(', ')}.`,
+    `Awaiting approval (cleared the test and actually sat it): ${awaiting}. Hired with a Rep ID: ${hired}.`,
+    `Training modules published: ${modules}. Question bank: ${questions} active questions.`,
+    `Assessment: ${cfg.count} questions, pass mark ${cfg.passPct}%, ${cfg.durationMin} minutes, one attempt.`,
+    '',
+    'WHAT THE LMS DOES, so you can guide staff: Candidates (unlock training, unlock the test, grant a re-test), Screening (book an interview, record the outcome), Approval Queue (Approve & Hire issues a permanent Rep ID and a temporary Sales App password), Training Content, Question Bank, Reports, Notifications. A hired candidate then completes onboarding — confidentiality undertaking, photo, Aadhaar/PAN, bank details.',
+  ].join('\n');
+}
+
+/**
  * Every image the office has uploaded, wherever it was uploaded from.
  *
  * The photos live in five different settings maps plus Mira's own library,

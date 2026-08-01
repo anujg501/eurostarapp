@@ -36,16 +36,32 @@
   function getJson(path) { return fetch(API + path, { headers: { accept: 'application/json' } }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); }
   function set(key, val) { try { localStorage.setItem(key, typeof val === 'string' ? val : JSON.stringify(val)); } catch (e) {} }
 
+  // Has this browser ever held a value for that key? A key that is simply
+  // absent means "this device does not know", which is NOT the same as "the
+  // office deleted everything" — and the difference matters, because what gets
+  // pushed here overwrites the server.
+  function known(key) { try { return localStorage.getItem(key) !== null; } catch (e) { return false; } }
+
   function pushConfig() {
     var enabledObj = parse(K.enabled, null);
-    put('/assistant/config', {
-      instructions: localStorage.getItem(K.inst) || '',
-      rules: parse(K.rules, []),
-      knowledge: parse(K.know, []),
-      examples: parse(K.ex, []),
-      enabled: enabledObj ? enabledObj.salesApp !== false : undefined,
-    });
-    put('/admin/mira/images', parse(K.images, []));
+    var body = { enabled: enabledObj ? enabledObj.salesApp !== false : undefined };
+    if (known(K.inst)) body.instructions = localStorage.getItem(K.inst) || '';
+    if (known(K.rules)) body.rules = parse(K.rules, []);
+    if (known(K.know)) body.knowledge = parse(K.know, []);
+    if (known(K.ex)) body.examples = parse(K.ex, []);
+    put('/assistant/config', body);
+
+    // The image library is the one that hurt. This page used to send
+    // `parse(K.images, [])` unconditionally, so opening Mira Admin on a machine
+    // that had never stored it — a second computer, a cleared cache, a fresh
+    // profile — pushed an empty list and deleted every uploaded photo from the
+    // server. Mira then told customers the office had not provided a picture
+    // that the office had definitely provided.
+    //
+    // Only send this list when this browser actually has one. Emptying the
+    // library on purpose still works: deleting the last image writes an empty
+    // array to localStorage, so the key exists and the push goes through.
+    if (known(K.images)) put('/admin/mira/images', parse(K.images, []));
     if (enabledObj) put('/admin/mira/enabled', enabledObj);
   }
 
@@ -67,6 +83,8 @@
       }
       if (enabled && typeof enabled === 'object') set(K.enabled, enabled);
       if (Array.isArray(images)) set(K.images, images);
+      // Did we actually hear from the back room? Nothing at all means no.
+      return !!(cfg || enabled || images);
     });
   }
 
@@ -76,7 +94,13 @@
   }
 
   if (!sessionStorage.getItem('mira-hydrated')) {
-    hydrate().then(function () { sessionStorage.setItem('mira-hydrated', '1'); location.reload(); });
+    // Only mark the session hydrated once the server has actually answered. A
+    // failed pull used to count as "done", leaving the page with no local copy
+    // of the settings and free to push its emptiness back over them.
+    hydrate().then(function (ok) {
+      if (ok) sessionStorage.setItem('mira-hydrated', '1');
+      location.reload();
+    });
   } else {
     startPolling();
   }

@@ -364,13 +364,25 @@ function LmsApproval({ cands, actions }) {
 // Real backend client for the module editor. GET is public (candidates read
 // it too); /all and every write require a staff token.
 function modApi(path, opts) {
+  const run = (token) => {
+    const headers = { accept: 'application/json' };
+    if (token) headers.authorization = 'Bearer ' + token;
+    if (opts && opts.body) headers['content-type'] = 'application/json';
+    return fetch((window.EUROSTAR_API || location.origin) + '/modules' + path, { ...opts, headers })
+      .then(r => r.text().then(t => { let d = null; try { d = t ? JSON.parse(t) : null; } catch (e) {} return { ok: r.ok, status: r.status, data: d }; }))
+      .catch(() => ({ ok: false, status: 0, data: null }));
+  };
   let token = ''; try { token = localStorage.getItem('eurostar-admin-token') || ''; } catch (e) {}
-  const headers = { accept: 'application/json' };
-  if (token) headers.authorization = 'Bearer ' + token;
-  if (opts && opts.body) headers['content-type'] = 'application/json';
-  return fetch((window.EUROSTAR_API || location.origin) + '/modules' + path, { ...opts, headers })
-    .then(r => r.text().then(t => { let d = null; try { d = t ? JSON.parse(t) : null; } catch (e) {} return { ok: r.ok, status: r.status, data: d }; }))
-    .catch(() => ({ ok: false, status: 0, data: null }));
+  return run(token).then(res => {
+    // 401 → refresh the access token silently and replay once (keeps a video
+    // upload / notes edit alive across an idle gap).
+    if (res.status !== 401 || !window.eurostarRefreshAccess) return res;
+    return window.eurostarRefreshAccess().then(ok => {
+      if (!ok) return res;
+      let nt = ''; try { nt = localStorage.getItem('eurostar-admin-token') || ''; } catch (e) {}
+      return run(nt);
+    });
+  });
 }
 
 // Mirrors ALLOWED_VIDEO_MIME in src/services/storage.ts. Checked client-side so
@@ -769,13 +781,25 @@ function LmsTraining() {
 // Question-bank API client. Everything here is staff-only — the bank contains
 // the correct answers, so none of it is candidate-readable.
 function qApi(path, opts) {
+  const run = (token) => {
+    const headers = { accept: 'application/json' };
+    if (token) headers.authorization = 'Bearer ' + token;
+    if (opts && opts.body) headers['content-type'] = 'application/json';
+    return fetch((window.EUROSTAR_API || location.origin) + '/questions' + path, { ...opts, headers })
+      .then(r => r.text().then(t => { let d = null; try { d = t ? JSON.parse(t) : null; } catch (e) {} return { ok: r.ok, status: r.status, data: d }; }))
+      .catch(() => ({ ok: false, status: 0, data: null }));
+  };
   let token = ''; try { token = localStorage.getItem('eurostar-admin-token') || ''; } catch (e) {}
-  const headers = { accept: 'application/json' };
-  if (token) headers.authorization = 'Bearer ' + token;
-  if (opts && opts.body) headers['content-type'] = 'application/json';
-  return fetch((window.EUROSTAR_API || location.origin) + '/questions' + path, { ...opts, headers })
-    .then(r => r.text().then(t => { let d = null; try { d = t ? JSON.parse(t) : null; } catch (e) {} return { ok: r.ok, status: r.status, data: d }; }))
-    .catch(() => ({ ok: false, status: 0, data: null }));
+  return run(token).then(res => {
+    // 401 → the access token lapsed; refresh silently and replay once so a
+    // long-composed question is not lost to "Session expired".
+    if (res.status !== 401 || !window.eurostarRefreshAccess) return res;
+    return window.eurostarRefreshAccess().then(ok => {
+      if (!ok) return res;
+      let nt = ''; try { nt = localStorage.getItem('eurostar-admin-token') || ''; } catch (e) {}
+      return run(nt);
+    });
+  });
 }
 
 function LmsQuestionBank() {

@@ -153,8 +153,7 @@ function LMS() {
   // The LMS was entirely local state; now every candidate change is saved to
   // the database so the pipeline survives a reload and is shared across devices.
   const lmsApi = (method, path, body) => {
-    try {
-      const t = localStorage.getItem('eurostar-admin-token') || '';
+    const run = (t) => {
       const opts = { method, headers: { 'content-type': 'application/json', authorization: 'Bearer ' + t } };
       if (body != null) opts.body = JSON.stringify(body);
       // status is carried so callers can tell "the server said no" (401/403 —
@@ -162,7 +161,19 @@ function LMS() {
       return fetch((window.EUROSTAR_API || location.origin) + path, opts)
         .then(r => r.json().then(d => ({ ok: r.ok, status: r.status, data: d })).catch(() => ({ ok: r.ok, status: r.status, data: null })))
         .catch(() => ({ ok: false, status: 0, data: null }));
-    } catch (e) { return Promise.resolve({ ok: false, status: 0, data: null }); }
+    };
+    let t = ''; try { t = localStorage.getItem('eurostar-admin-token') || ''; } catch (e) {}
+    return run(t).then(res => {
+      // A 401 usually just means the short-lived access token lapsed. Renew it
+      // silently and replay once before surfacing it as a rejection — this is
+      // what keeps an idle admin signed in instead of losing an edit.
+      if (res.status !== 401 || !window.eurostarRefreshAccess) return res;
+      return window.eurostarRefreshAccess().then(ok => {
+        if (!ok) return res;
+        let nt = ''; try { nt = localStorage.getItem('eurostar-admin-token') || ''; } catch (e) {}
+        return run(nt);
+      });
+    });
   };
   // Returns the request promise so callers that need to know whether the save
   // actually reached the server (not just updated the screen) can wait on it.

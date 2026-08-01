@@ -114,6 +114,22 @@ export type Candidate = {
   stage: string; // applied | screening | training | test | recommended | hired | rejected
   score?: number | null;
   repId?: string | null;
+  // Journey state the server keeps for this candidate, whichever device they
+  // are on: videos ticked off, whether the one attempt has been used, and the
+  // sitting in progress.
+  watched?: string[];
+  testConsumed?: boolean;
+  testUnlockedOn?: string | null;
+  passPct?: number;
+  // Set on hire: the permanent Rep ID and the one-time Sales App password.
+  tempPassword?: string;
+  onboarding?: {
+    confidentiality?: boolean;
+    bank?: { holder: string; acc: string; bankName: string; ifsc: string };
+    photo?: { key: string; at: string };
+    aadhaarImg?: { key: string; at: string };
+    panImg?: { key: string; at: string };
+  };
 };
 
 export type TrainingModule = {
@@ -135,6 +151,23 @@ export type TestPaper = {
   questions: { id: string; type: string; prompt: string; options: string[] }[];
 };
 export type TestResult = { score: number; correct: number; total: number; passPct: number; passed: boolean };
+
+// One sitting of the assessment, held on the server so it survives a restart
+// and follows the candidate to whichever phone they sign in on. `secondsLeft`
+// is worked out by the server from when the sitting actually began — the clock
+// cannot be reset by opening the other device.
+export type TestRun = {
+  qIds: string[];
+  answers: Record<string, number>;
+  index: number;
+  startedAt: string;
+  durationMin: number;
+  submittedAt?: string;
+  endsAt: string;
+  secondsLeft: number;
+  expired: boolean;
+  running: boolean; // false while the candidate is away from the test screen
+};
 
 // Training videos the office uploaded (not linked externally) come back as a
 // server-relative path like "/media/training-video/xxx.mp4" — the web candidate
@@ -239,11 +272,67 @@ export const api = {
   // (count / pass mark / time limit all set by the office) and comes down
   // WITHOUT the answers — the server marks it. This replaces the old hard-coded
   // 5-question quiz that scored itself in the app.
-  testPaper: () => request<TestPaper>('/questions/paper'),
+  // Pass the ids of a sitting already in progress to get that exact paper back,
+  // in that exact order — otherwise a randomised bank would serve the other
+  // device a different set of questions.
+  testPaper: (qIds?: string[]) =>
+    request<TestPaper>('/questions/paper' + (qIds?.length ? `?ids=${encodeURIComponent(qIds.join(','))}` : '')),
 
   // Server-side marking: send { questionId: chosenOptionIndex }, get the score.
   scoreTest: (answers: Record<string, number>) =>
     request<TestResult>('/questions/score', { method: 'POST', body: JSON.stringify({ answers }) }),
+
+  // Tick a training video off on the server. Progress used to live in memory
+  // only, so it vanished on restart and never followed the candidate to a
+  // second phone — which the test gate read as "training unfinished".
+  markWatched: (videoId: string) =>
+    request<Candidate>('/candidates/me/watched', {
+      method: 'POST',
+      body: JSON.stringify({ videoId }),
+    }),
+
+  // The sitting in progress, if any — the same paper, answers and clock on
+  // every device the candidate signs in on.
+  testRun: () => request<{ run: TestRun | null }>('/candidates/me/test-run'),
+
+  // Begin the sitting, or join the one already open. The server decides: a
+  // second device never gets a fresh clock.
+  startTestRun: (qIds: string[], durationMin: number) =>
+    request<{ run: TestRun; resumed: boolean }>('/candidates/me/test-run', {
+      method: 'POST',
+      body: JSON.stringify({ qIds, durationMin }),
+    }),
+
+  // Save answers as they are chosen (fire-and-forget from the screen).
+  saveTestRun: (answers: Record<string, number>, index: number) =>
+    request<{ run: TestRun }>('/candidates/me/test-run', {
+      method: 'PATCH',
+      body: JSON.stringify({ answers, index }),
+    }),
+
+  // The countdown holds while the candidate is off the test screen. Both sides
+  // are recorded on the server, so the pause survives a restart and cannot be
+  // faked by the app.
+  pauseTestRun: () => request<{ run: TestRun }>('/candidates/me/test-run/pause', { method: 'POST' }),
+  resumeTestRun: () => request<{ run: TestRun }>('/candidates/me/test-run/resume', { method: 'POST' }),
+
+  // End the sitting and have the server mark it. Answers sent here only count
+  // while the clock is still running — once the deadline passes the server
+  // marks what was saved during the test, so backgrounding the app cannot buy
+  // extra time.
+  submitTestRun: (answers?: Record<string, number>) =>
+    request<{
+      score: number;
+      correct?: number;
+      total?: number;
+      passPct: number;
+      passed: boolean;
+      expired: boolean;
+      alreadySubmitted?: boolean;
+    }>('/candidates/me/test-run/submit', {
+      method: 'POST',
+      body: JSON.stringify({ answers: answers || {} }),
+    }),
 
   // Write the marked result onto the candidate's own pipeline row so the office
   // actually sees it (passing moves them into the approval queue).
@@ -252,6 +341,31 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ score, passed }),
     }),
+
+  // Onboarding, once hired: sign the confidentiality undertaking and file the
+  // bank details commission is paid into.
+  saveOnboarding: (patch: { confidentiality?: true; bank?: { holder: string; acc: string; bankName: string; ifsc: string } }) =>
+    request<Candidate>('/candidates/me/onboarding', { method: 'POST', body: JSON.stringify(patch) }),
+
+  // The KYC images. Uses the same upload path as the CV, because React Native's
+  // FormData posts an empty file part on Android.
+  uploadOnboardingDoc: async (kind: 'photo' | 'aadhaar' | 'pan', file: { uri: string; name: string; mimeType: string }) => {
+    const res = await FileSystem.uploadAsync(`${BASE_URL}/candidates/me/onboarding-doc?kind=${kind}`, file.uri, {
+      httpMethod: 'POST',
+      uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+      fieldName: 'file',
+      mimeType: file.mimeType,
+      parameters: { filename: file.name },
+      headers: { authorization: `Bearer ${await loadToken()}` },
+    });
+    let data: any = null;
+    try { data = JSON.parse(res.body); } catch {}
+    if (res.status < 200 || res.status >= 300) {
+      const message = (data && data.error) || `Upload failed (${res.status})`;
+      throw Object.assign(new Error(message), { status: res.status });
+    }
+    return data as Candidate;
+  },
 
   // Candidate-facing alerts the office pushed (screening scheduled, training/test
   // unlocked, hired…), keyed by candId. Public read; filter to your own candId.

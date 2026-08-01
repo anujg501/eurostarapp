@@ -1,8 +1,14 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { api } from './api';
 
-// The candidate's journey progress. Kept in-app for this v0.1 (the web candidate
-// flow is likewise driven by local/seed state — the candidate-write API is
-// staff-only). Swap to server persistence when a candidate-scoped API exists.
+// The candidate's journey progress.
+//
+// This used to live in memory only, which made progress a property of the
+// handset rather than of the candidate: the watched list came back empty after
+// every restart and on every other device they signed in on, and since the test
+// gate reads that list, the assessment could not be started there at all. It is
+// now seeded from the server and written back to it, so the same account shows
+// the same progress everywhere.
 export type Stage = 'new' | 'registered' | 'applied' | 'screening' | 'training' | 'testing' | 'recommended' | 'hired';
 
 export type CandidateState = {
@@ -13,6 +19,7 @@ export type CandidateState = {
   score: number | null;
   passPct: number; // the pass mark the office set (the server is the source of truth)
   stage: Stage;
+  testConsumed: boolean; // the one attempt has been used (server's answer, not this phone's)
 };
 
 type Ctx = {
@@ -36,7 +43,15 @@ export function CandidateProvider({
   children: React.ReactNode;
   // Who is signed in, from /auth/me. Without this the dashboard greeted a
   // registered candidate as "Hi 👋" with no name and no id.
-  profile?: { name?: string; candId?: string | null; stage?: string; score?: number | null; applied?: boolean };
+  profile?: {
+    name?: string;
+    candId?: string | null;
+    stage?: string;
+    score?: number | null;
+    applied?: boolean;
+    watched?: string[];
+    testConsumed?: boolean;
+  };
 }) {
   const [cand, setCand] = useState<CandidateState>({
     name: profile?.name ?? '',
@@ -46,6 +61,7 @@ export function CandidateProvider({
     score: null,
     passPct: PASS_PCT,
     stage: 'new',
+    testConsumed: false,
   });
 
   // The profile arrives after the first render (it is fetched), so fold it in
@@ -63,8 +79,13 @@ export function CandidateProvider({
       applied: c.applied || !!profile.applied,
       score: c.score ?? profile.score ?? null,
       stage: (profile.stage as Stage) ?? c.stage,
+      // The server's list is the real one — it holds what was watched on every
+      // device, not just this one. Anything ticked off here while the profile
+      // was in flight is folded in rather than dropped.
+      watched: [...new Set([...(profile.watched ?? []), ...c.watched])],
+      testConsumed: c.testConsumed || !!profile.testConsumed,
     }));
-  }, [profile?.name, profile?.candId, profile?.stage, profile?.score]);
+  }, [profile?.name, profile?.candId, profile?.stage, profile?.score, profile?.watched, profile?.testConsumed]);
 
   const setName = useCallback((name: string) => setCand((c) => ({ ...c, name })), []);
 
@@ -73,18 +94,25 @@ export function CandidateProvider({
     []
   );
 
-  const markWatched = useCallback(
-    (id: string) =>
-      setCand((c) => (c.watched.includes(id) ? c : { ...c, watched: [...c.watched, id] })),
-    []
-  );
+  // Shown at once, saved to the server behind it: a candidate should never wait
+  // on the network to see a video tick off. If the write fails the next profile
+  // load simply restores the server's list.
+  const markWatched = useCallback((id: string) => {
+    let isNew = false;
+    setCand((c) => {
+      if (c.watched.includes(id)) return c;
+      isNew = true;
+      return { ...c, watched: [...c.watched, id], stage: c.stage === 'applied' ? 'training' : c.stage };
+    });
+    if (isNew) api.markWatched(id).catch(() => {});
+  }, []);
 
   const setScore = useCallback(
     (score: number, passed?: boolean, passPct?: number) =>
       setCand((c) => {
         const pp = passPct ?? c.passPct;
         const ok = passed ?? score >= pp;
-        return { ...c, score, passPct: pp, stage: ok ? 'recommended' : 'testing' };
+        return { ...c, score, passPct: pp, stage: ok ? 'recommended' : 'testing', testConsumed: true };
       }),
     []
   );

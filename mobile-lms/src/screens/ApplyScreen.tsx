@@ -191,8 +191,11 @@ export default function ApplyScreen({ navigation }: any) {
                 onChangeText={setEmail}
                 placeholder="you@email.com"
                 placeholderTextColor={theme.meta}
-                keyboardType="email-address"
+                // Same reason as the login screen: the email keyboard mode
+                // suppresses the caret, so this field uses the plain keyboard.
                 autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="email"
               />
             </View>
           )}

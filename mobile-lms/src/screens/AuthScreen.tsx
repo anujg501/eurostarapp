@@ -231,7 +231,12 @@ export default function AuthScreen({ onSignedIn }: { onSignedIn: () => void }) {
           </>
           )}
 
-          <Field first={!reg} label="Email Address" icon="mail" value={email} onChangeText={setEmail} placeholder="you@email.com" keyboardType="email-address" autoCapitalize="none" />
+          {/* No keyboardType="email-address" here. On this keyboard that mode
+              suppresses the caret — every other field on the screen blinks, the
+              email one did not, and that prop was the only difference between
+              them. The plain keyboard has an @ key anyway; autoCorrect and
+              capitalisation are off so nothing mangles the address. */}
+          <Field first={!reg} label="Email Address" icon="mail" value={email} onChangeText={setEmail} placeholder="you@email.com" autoCapitalize="none" autoCorrect={false} autoComplete="email" />
           <Field label="Password" icon="lock" value={password} onChangeText={setPassword} placeholder={reg ? 'Create a password' : 'Your password'} secureTextEntry autoCapitalize="none" />
 
           {!reg && (

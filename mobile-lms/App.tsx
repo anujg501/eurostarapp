@@ -16,6 +16,7 @@ import TestScreen from './src/screens/TestScreen';
 import ResultScreen from './src/screens/ResultScreen';
 import NotificationsScreen from './src/screens/NotificationsScreen';
 import VideoPlayerScreen from './src/screens/VideoPlayerScreen';
+import OnboardingScreen from './src/screens/OnboardingScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -36,6 +37,8 @@ type Defaultable = { defaultProps?: Record<string, unknown> };
 };
 
 type Profile = {
+  watched?: string[];
+  testConsumed?: boolean;
   name?: string;
   candId?: string | null;
   stage?: string;
@@ -65,6 +68,11 @@ export default function App() {
         score: cand?.score ?? null,
         // The Apply form is what fills these in — registration does not.
         applied: !!(cand?.city && cand?.state && cand?.exp && cand?.source),
+        // Journey progress belongs to the candidate, not to this handset: the
+        // videos they have watched and whether the one attempt has been used
+        // come from the server, so a second device starts where they left off.
+        watched: Array.isArray(cand?.watched) ? cand!.watched : [],
+        testConsumed: !!cand?.testConsumed,
       });
       return 'ok' as const;
     } catch (e: any) {
@@ -142,6 +150,9 @@ export default function App() {
             <Stack.Screen name="Test" component={TestScreen} options={{ headerShown: false }} />
             <Stack.Screen name="Result" component={ResultScreen} options={{ title: 'Result' }} />
             <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ headerShown: false }} />
+            {/* What a hired candidate completes before their Sales App login
+                goes live — the phone app had no way to reach any of it. */}
+            <Stack.Screen name="Onboarding" component={OnboardingScreen} options={{ headerShown: false }} />
             {/* Full-screen player, black app bar of its own — no light header. */}
             <Stack.Screen name="VideoPlayer" component={VideoPlayerScreen} options={{ headerShown: false }} />
           </Stack.Navigator>

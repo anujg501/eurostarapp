@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../db';
 import { asyncHandler, ok, failValidation } from '../util/http';
 import { authenticate, requireRole } from '../auth/middleware';
+import { bumpSiteKnowledge } from '../services/siteKnowledge';
 
 export const inventoryRouter = Router();
 
@@ -39,6 +40,8 @@ inventoryRouter.put(
     } else {
       await prisma.soldOut.deleteMany({ where: { key } });
     }
+    // Mira must not offer something that has just gone out of stock.
+    bumpSiteKnowledge();
     return ok(res, { key, soldOut });
   })
 );

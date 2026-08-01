@@ -183,15 +183,33 @@ Keep replies short (2-5 sentences), friendly and practical. Never mention or exp
   const parseActions = (text) => {
     let clean = text, cartItems = null, go = null, reorder = null, escalate = null, images = [];
     const grab = (re) => { const m = clean.match(re); if (m) { clean = clean.replace(m[0], '').trim(); return m[1].trim(); } return null; };
-    // Images (may be several) — resolve names to stored data URLs.
+    // Images (may be several). A name from the office's media library resolves
+    // to the stored picture; anything else is treated as a catalogue key
+    // ("laser|white|round") and fetched from the back room, which serves every
+    // photo the office has uploaded from any screen.
+    const API = window.EUROSTAR_API || location.origin;
+    const mediaUrl = (key) => API + '/assistant/media?key=' + encodeURIComponent(key.trim());
     const lib = imageLib();
     let im;
     const imgRe = /<<IMG>>([\s\S]*?)<<END>>/;
     while ((im = clean.match(imgRe))) {
-      const nm = im[1].trim().toLowerCase();
+      const raw = im[1].trim();
+      const nm = raw.toLowerCase();
       const hit = lib.find(x => (x.name || '').trim().toLowerCase() === nm) || lib.find(x => (x.name || '').trim().toLowerCase().includes(nm) || nm.includes((x.name || '').trim().toLowerCase()));
       if (hit) images.push(hit);
+      else if (raw) images.push({ name: raw, desc: '', data: mediaUrl(raw) });
       clean = clean.replace(im[0], '').trim();
+    }
+    // A bare media link in the text is a picture the customer should SEE, not a
+    // URL to copy out. Turn it into the image itself and take it out of the
+    // sentence.
+    const linkRe = /(?:https?:\/\/[^\s)]+)?\/assistant\/media\?key=([^\s)]+)/i;
+    let lk;
+    while ((lk = clean.match(linkRe))) {
+      let key = lk[1];
+      try { key = decodeURIComponent(key); } catch (e) {}
+      images.push({ name: key, desc: '', data: mediaUrl(key) });
+      clean = clean.replace(lk[0], '').replace(/\s{2,}/g, ' ').trim();
     }
     const cm = clean.match(/<<CART>>([\s\S]*?)<<END>>/);
     if (cm) { try { cartItems = JSON.parse(cm[1].trim()); } catch (e) {} clean = clean.replace(cm[0], '').trim(); }
@@ -249,11 +267,36 @@ Keep replies short (2-5 sentences), friendly and practical. Never mention or exp
     setMsgs(next); setInput(''); const imgNote = pendingImg ? ' (The customer attached a PHOTO of a stone — ask 1-2 clarifying questions about size/colour/shape to identify the category, then help.)' : '';
     setPendingImg(null); setBusy(true);
     try {
-      if (!(window.claude && window.claude.complete)) throw new Error('offline');
       const history = next.slice(-12).map(m => (m.role === 'user' ? 'Customer' : m.role === 'assistant' ? 'Mira' : '') + (m.text ? ': ' + m.text : '')).filter(Boolean).join('\n');
-      const reply = await window.claude.complete({
-        messages: [{ role: 'user', content: systemPrompt() + '\n\nConversation so far:\n' + history + imgNote + '\n\nReply as Mira to the last customer message.' }]
+      // The back room answers, not the browser.
+      //
+      // This used to call window.claude.complete — an API that only exists
+      // inside the preview harness, so on the real site the shop's Mira threw
+      // "offline" on every message and the customer got the fallback line. It
+      // was also a second brain: the office's instructions, rules and knowledge
+      // live on the server, and this browser copy never saw them. One endpoint
+      // now serves the shop, the CRM, the LMS and the phone app, and it reads
+      // the live catalogue — prices, packing, photos — as it answers.
+      const API = window.EUROSTAR_API || location.origin;
+      const r = await fetch(API + '/assistant/chat', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          app: 'sales',
+          sessionId: sessionRef.current,
+          who: persona.company,
+          cust: (persona && persona.code) || '',
+          contact: (persona && persona.contact) || '',
+          // The shop-side facts the server cannot know: who is signed in, what
+          // they have been buying, and the conversation so far.
+          context: systemPrompt(),
+          message: 'Conversation so far:\n' + history + imgNote + '\n\nReply as Mira to the last customer message.',
+        }),
       });
+      if (!r.ok) throw new Error('assistant unavailable');
+      const data = await r.json();
+      const reply = (data && data.reply) || '';
+      if (!reply) throw new Error('empty reply');
       pushAssistantTurn(reply);
       try {
         const log = JSON.parse(localStorage.getItem('eurostar-mira-chatlog') || '[]');

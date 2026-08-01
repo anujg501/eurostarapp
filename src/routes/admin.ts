@@ -7,6 +7,7 @@ import { ALLOWED_IMAGE_MIME, putImage } from '../services/storage';
 import { asyncHandler, ok, fail, failValidation } from '../util/http';
 import { authenticate, requireRole } from '../auth/middleware';
 import { getSetting, setSetting, invalidateStoreRules, KEYS } from '../services/settings';
+import { bumpSiteKnowledge } from '../services/siteKnowledge';
 import { sizesFor, suggestedRate, chartPacketPcs, unitFor } from '../services/sizeCharts';
 
 // Admin (Sales App Admin) content endpoints. These are the producer side of the
@@ -32,6 +33,11 @@ function kv(router: Router, path: string, key: string, schema: z.ZodTypeAny, fal
       const parsed = schema.safeParse(req.body);
       if (!parsed.success) return failValidation(res, parsed.error);
       await setSetting(key, parsed.data);
+      // Mira answers from the live catalogue, so a save here has to reach her
+      // at once rather than when her cached picture happens to lapse. This
+      // covers every kv-backed screen: catalogue overlays, product and colour
+      // photos, pricing overrides, site content, trading rules.
+      bumpSiteKnowledge();
       // Trading rules are cached for pricing; drop the cache so a change in the
       // Settings screen applies to the very next order rather than up to 15s later.
       if (key === KEYS.storeRules) invalidateStoreRules();
@@ -133,12 +139,39 @@ adminRouter.put(
 );
 
 // Mira reference images + master enabled flags (managed from Mira Admin).
-kv(
-  adminRouter,
+//
+// Not the generic kv pair, because this one lost data: the Mira Admin page
+// pushes the whole library on any settings change, so a browser that had never
+// stored it sent an empty list and deleted every uploaded photo. The page no
+// longer does that, but the library is the office's own work and worth a guard
+// on this side too — clearing it now has to be deliberate.
+const miraImagesSchema = z.array(
+  z.object({ id: z.string(), name: z.string(), desc: z.string().optional(), data: z.string() })
+);
+adminRouter.get(
   '/mira/images',
-  KEYS.miraImages,
-  z.array(z.object({ id: z.string(), name: z.string(), desc: z.string().optional(), data: z.string() })),
-  []
+  asyncHandler(async (_req, res) => ok(res, await getSetting(KEYS.miraImages, [])))
+);
+adminRouter.put(
+  '/mira/images',
+  ...officeOnly,
+  asyncHandler(async (req, res) => {
+    const parsed = miraImagesSchema.safeParse(req.body);
+    if (!parsed.success) return failValidation(res, parsed.error);
+
+    const existing = await getSetting<unknown[]>(KEYS.miraImages, []);
+    if (parsed.data.length === 0 && existing.length > 0 && req.query.clear !== 'yes') {
+      return fail(
+        res,
+        409,
+        `That would delete all ${existing.length} images in Mira's library. Nothing was changed — repeat the request with ?clear=yes if you really mean to empty it.`
+      );
+    }
+
+    await setSetting(KEYS.miraImages, parsed.data);
+    bumpSiteKnowledge();
+    return ok(res, parsed.data);
+  })
 );
 kv(adminRouter, '/mira/enabled', KEYS.miraEnabled, z.record(z.boolean()), { salesApp: true });
 
@@ -214,6 +247,8 @@ adminRouter.post(
         hidden: d.hidden ?? false,
       },
     });
+    // A new category is part of the shop Mira describes.
+    bumpSiteKnowledge();
     return res.status(201).json(created);
   })
 );
@@ -244,6 +279,8 @@ adminRouter.put(
         ...(d.hidden !== undefined ? { hidden: d.hidden } : {}),
       },
     });
+    // Renaming, re-pricing or hiding a category changes what Mira should say.
+    bumpSiteKnowledge();
     return ok(res, updated);
   })
 );
@@ -484,6 +521,7 @@ adminRouter.post(
       return fail(res, 409, `SKU ${d.id} already exists`);
     }
     const created = await prisma.product.create({ data: { ...d, badge: d.badge ?? null, desc: d.desc ?? null } });
+    bumpSiteKnowledge();
     return res.status(201).json(created);
   })
 );

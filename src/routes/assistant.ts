@@ -2,10 +2,70 @@ import { Router, urlencoded } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db';
 import { config } from '../config';
-import { asyncHandler, ok, failValidation } from '../util/http';
+import { asyncHandler, ok, fail, failValidation } from '../util/http';
+import { getSetting, KEYS } from '../services/settings';
 import { AuthedRequest, authenticate, requireRole, requireInternal, optionalAuth } from '../auth/middleware';
+import { focusFor, imageIndex, siteDigest, siteKnowledgeStats } from '../services/siteKnowledge';
 
 export const assistantRouter = Router();
+
+// GET /assistant/media?key=laser|white|round — the product photo behind a
+// catalogue key, served as a real image.
+//
+// The office uploads these as data URLs in a settings row, which is fine for
+// the shop (it renders them inline) but useless to Mira: she can only hand a
+// customer a link. This turns the stored image into a URL that works in a chat
+// bubble, an email or WhatsApp. Public, like the shop's own product photos.
+assistantRouter.get(
+  '/media',
+  asyncHandler(async (req, res) => {
+    const key = typeof req.query.key === 'string' ? req.query.key.trim() : '';
+    if (!key) return fail(res, 400, 'Which image? Pass ?key=category|colour|shape');
+
+    // Resolved against every image the office has uploaded — product photos,
+    // colour photos and swatches, category and shape thumbnails, and Mira's own
+    // media library — not just the two maps this route started with.
+    const { byKey } = await imageIndex();
+    let dataUrl = byKey.get(key);
+
+    // Be forgiving about how the key arrives: case, spacing, and falling back
+    // from "category|colour|shape" to the colour, then the category. A customer
+    // asking for a shape we have no photo of should still see the colour.
+    if (!dataUrl) {
+      const lower = key.toLowerCase();
+      for (const [k, v] of byKey) {
+        if (k.toLowerCase() === lower) { dataUrl = v; break; }
+      }
+    }
+    if (!dataUrl && key.includes('|')) {
+      const parts = key.split('|');
+      while (parts.length > 1 && !dataUrl) {
+        parts.pop();
+        dataUrl = byKey.get(parts.join('|'));
+      }
+    }
+    if (!dataUrl) return fail(res, 404, 'No image for that key');
+
+    const m = /^data:([^;,]+);base64,(.+)$/i.exec(dataUrl);
+    if (!m) return fail(res, 415, 'That image is not stored in a form we can serve');
+    const buf = Buffer.from(m[2], 'base64');
+    res.setHeader('Content-Type', m[1]);
+    // Keyed by content the office replaces in place, so revalidate rather than
+    // letting a stale photo live in a customer's cache for a week.
+    res.setHeader('Cache-Control', 'public, max-age=60, must-revalidate');
+    return res.end(buf);
+  })
+);
+
+// GET /assistant/knowledge — what Mira currently knows about the shop, and when
+// she read it. Staff-only: it is a diagnostic for "why did she say that?", not
+// something to expose to customers.
+assistantRouter.get(
+  '/knowledge',
+  authenticate,
+  requireInternal,
+  asyncHandler(async (_req, res) => ok(res, { ...(await siteKnowledgeStats()), digest: await siteDigest() }))
+);
 
 async function getConfig() {
   return prisma.assistantConfig.upsert({
@@ -87,6 +147,10 @@ const chatSchema = z.object({
   who: z.string().optional(),
   contact: z.string().optional(),
   cust: z.string().optional(),
+  // Facts only the calling app knows — who is signed in, their order history,
+  // the sales framing for that surface. Capped: this is context, not a second
+  // set of instructions, and the office's own configuration still wins.
+  context: z.string().max(20000).optional(),
 });
 
 assistantRouter.post(
@@ -95,12 +159,12 @@ assistantRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = chatSchema.safeParse(req.body);
     if (!parsed.success) return failValidation(res, parsed.error);
-    const { sessionId, message, app = 'sales', who, contact, cust } = parsed.data;
+    const { sessionId, message, app = 'sales', who, contact, cust, context } = parsed.data;
 
     const cfg = await getConfig();
     await prisma.chatLog.create({ data: { sessionId, app, role: 'user', message, who, contact, cust } });
 
-    const reply = await generateReply(message, cfg);
+    const reply = await generateReply(message, cfg, context);
 
     await prisma.chatLog.create({ data: { sessionId, app, role: 'assistant', message: reply, who, contact, cust } });
     return ok(res, { reply });
@@ -224,7 +288,13 @@ const NOT_CONNECTED =
 const REPLY_ERROR = "I'm having trouble replying right now. Please try again in a moment.";
 const DEFAULT_SYSTEM = 'You are Mira, a helpful assistant for Eurostar gemstone wholesale customers.';
 
-function buildSystemPrompt(cfg: { instructions: string; rules: string; knowledge: string; examples: string }): string {
+// The office's own words come first — they are the policy. The live shop data
+// follows as fact, and the two are labelled so the model can tell an
+// instruction from a catalogue entry.
+function buildSystemPrompt(
+  cfg: { instructions: string; rules: string; knowledge: string; examples: string },
+  live?: string
+): string {
   const rules = parseList(cfg.rules) as string[];
   const knowledge = parseList(cfg.knowledge) as { title: string; text: string }[];
   const examples = parseList(cfg.examples) as { q: string; a: string }[];
@@ -234,13 +304,31 @@ function buildSystemPrompt(cfg: { instructions: string; rules: string; knowledge
     rules.length && `Rules:\n${rules.map((r) => `- ${r}`).join('\n')}`,
     knowledge.length && `Knowledge:\n${knowledge.map((k) => `${k.title}: ${k.text}`).join('\n')}`,
     examples.length && `Examples:\n${examples.map((e) => `Q: ${e.q}\nA: ${e.a}`).join('\n\n')}`,
+    live,
   ]
     .filter(Boolean)
     .join('\n\n');
 }
 
-async function generateReply(message: string, cfg: { instructions: string; rules: string; knowledge: string; examples: string }): Promise<string> {
-  const systemPrompt = buildSystemPrompt(cfg) || DEFAULT_SYSTEM;
+async function generateReply(
+  message: string,
+  cfg: { instructions: string; rules: string; knowledge: string; examples: string },
+  context?: string
+): Promise<string> {
+  // Read the shop as it stands right now — categories, colours, shapes, the
+  // published prices, what is sold out — plus the exact priced rows for
+  // whatever was just asked. Without this Mira only knew what somebody had
+  // typed into her Knowledge box, so every catalogue change had to be copied
+  // over by hand and she answered on stale facts in between.
+  let live = '';
+  try {
+    live = `${await siteDigest()}${await focusFor(message)}`;
+  } catch {
+    // A catalogue read failing must not take the assistant down with it; she
+    // falls back to the office's own knowledge.
+  }
+  const fromApp = context ? `Context from the app the customer is using:\n${context}` : '';
+  const systemPrompt = buildSystemPrompt(cfg, [fromApp, live].filter(Boolean).join('\n\n')) || DEFAULT_SYSTEM;
   return config.assistant.provider === 'gemini'
     ? replyWithGemini(message, systemPrompt)
     : replyWithAnthropic(message, systemPrompt);

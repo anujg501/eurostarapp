@@ -9,7 +9,6 @@ import { Content } from './screens/Content';
 import { Users } from './screens/Users';
 import { Marketing } from './screens/Marketing';
 import { AddCategory } from './screens/AddCategory';
-import { BulkUploadPage } from './screens/BulkUpload';
 import { Pricing } from './screens/Pricing';
 import { TweaksPanel } from './TweaksPanel';
 
@@ -18,7 +17,6 @@ type ScreenId =
   | 'catalog'
   | 'pricing'
   | 'newcat'
-  | 'bulk'
   | 'media'
   | 'colourimages'
   | 'homethumbs'
@@ -34,7 +32,6 @@ const NAV: { id: ScreenId; label: string }[] = [
   { id: 'catalog', label: 'Catalog & availability' },
   { id: 'pricing', label: 'Pricing' },
   { id: 'newcat', label: '＋ Add category' },
-  { id: 'bulk', label: 'Bulk upload' },
   { id: 'media', label: 'Product images' },
   { id: 'colourimages', label: 'Colour images' },
   { id: 'homethumbs', label: 'Home thumbnails' },
@@ -50,7 +47,6 @@ const TITLES: Record<ScreenId, string> = {
   catalog: 'Catalog & availability',
   pricing: 'Pricing',
   newcat: '＋ Add category',
-  bulk: 'Bulk upload',
   media: 'Product images',
   colourimages: 'Colour images',
   homethumbs: 'Home thumbnails',
@@ -205,7 +201,6 @@ export function App() {
             original panel. The Catalog's own "＋ Create new category" button
             still opens the client's dialog. */}
         {screen === 'newcat' && <AddCategory key="newcat" onDone={() => setScreen('catalog')} />}
-        {screen === 'bulk' && <BulkUploadPage />}
         {screen === 'media' && <Media key="products" initialTab="products" />}
         {screen === 'colourimages' && <Media key="colours" initialTab="colours" />}
         {screen === 'homethumbs' && <Media key="thumbs" initialTab="thumbs" />}

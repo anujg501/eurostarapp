@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   adminApi,
   type Category,
@@ -209,6 +209,142 @@ function exportColourCsv(
   void colourName;
 }
 
+// ---- Bulk upload: the ⬇ Excel file, edited and sent back --------------------
+// Round-trips the export above. An operator downloads a colour's price list,
+// edits the Rate / Pcs columns in Excel, and uploads it here; every changed cell
+// becomes the same override the size × price editor would have written, so both
+// routes end up in one place and "Save changes" publishes them together.
+
+// RFC4180-ish reader: quoted cells, embedded commas and newlines, CRLF, BOM.
+export function parseCsv(text: string): string[][] {
+  const src = text.replace(/^﻿/, '');
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = '';
+  let quoted = false;
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    if (quoted) {
+      if (ch !== '"') { cell += ch; continue; }
+      if (src[i + 1] === '"') { cell += '"'; i++; } else quoted = false;
+      continue;
+    }
+    if (ch === '"') { quoted = true; continue; }
+    if (ch === ',') { row.push(cell); cell = ''; continue; }
+    if (ch === '\r') continue;
+    if (ch === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; continue; }
+    cell += ch;
+  }
+  if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+  return rows.filter((r) => r.some((c) => c.trim() !== ''));
+}
+
+// "₹ 1,234.50" → 1234.5. Excel writes thousands separators and currency marks
+// back into the cell, so strip anything that isn't part of the number.
+function csvNum(raw: string): number | null {
+  const t = String(raw ?? '').replace(/[^0-9.-]/g, '');
+  if (!t || t === '-' || t === '.') return null;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
+}
+
+interface ImportReport {
+  rows: number;
+  priced: number;
+  pcs: number;
+  cleared: number;
+  added: number;
+  skipped: number;
+  unknownShapes: string[];
+}
+
+export function importColourCsv(
+  text: string,
+  multiGrade: boolean,
+  gradeId: string,
+  colourId: string,
+  catSnap: Record<string, SnapshotRow> | undefined,
+  ovr: CategoryPricingOverride
+): { next: CategoryPricingOverride; report: ImportReport } | { error: string } {
+  const table = parseCsv(text);
+  if (table.length < 2) return { error: 'That file has no price rows in it.' };
+
+  const head = table[0].map((h) => h.trim().toLowerCase());
+  const iShape = head.findIndex((h) => h.includes('shape'));
+  const iSize = head.findIndex((h) => h.includes('size'));
+  const iRate = head.findIndex((h) => h.startsWith('rate'));
+  const iPcs = head.findIndex((h) => h.includes('pcs'));
+  if (iShape < 0 || iSize < 0 || iRate < 0)
+    return { error: 'Needs the Shape, Size and Rate ₹ columns. Download ⬇ Excel first and upload that same file back.' };
+
+  // Shapes the published price list knows about — anything else is reported so a
+  // typo in the Shape column doesn't quietly land nowhere.
+  const known = new Set<string>();
+  Object.keys(catSnap ?? {}).forEach((k) => known.add(k.split('|')[2]));
+
+  const price = { ...(ovr.price ?? {}) };
+  const pcs = { ...(ovr.pcs ?? {}) };
+  const addSizes: Record<string, string[]> = {};
+  Object.entries(ovr.addSizes ?? {}).forEach(([k, v]) => { addSizes[k] = [...(v ?? [])]; });
+  const delSizes: Record<string, string[]> = {};
+  Object.entries(ovr.delSizes ?? {}).forEach(([k, v]) => { delSizes[k] = [...(v ?? [])]; });
+
+  const rep: ImportReport = { rows: 0, priced: 0, pcs: 0, cleared: 0, added: 0, skipped: 0, unknownShapes: [] };
+  const unknown = new Set<string>();
+
+  for (let i = 1; i < table.length; i++) {
+    const r = table[i];
+    const shape = (r[iShape] ?? '').trim().toLowerCase();
+    const sizeLabel = (r[iSize] ?? '').trim();
+    const rate = csvNum(r[iRate] ?? '');
+    if (!shape || !sizeLabel || rate == null) { rep.skipped++; continue; }
+    rep.rows++;
+    if (!known.has(shape)) unknown.add(shape);
+
+    const sizeNorm = snapNorm(sizeLabel);
+    const snapRow = snapLook(catSnap, gradeId, colourId, shape, sizeNorm);
+    const key = priceKeys(multiGrade, gradeId, colourId, shape, sizeNorm)[0];
+
+    // Back at the sheet price = no override, exactly as typing the auto value
+    // into the editor does. Keeps the saved overrides to real differences.
+    if (snapRow && rate === snapRow.rate) {
+      if (price[key] != null) { delete price[key]; rep.cleared++; }
+    } else if (price[key] !== rate) {
+      price[key] = rate;
+      rep.priced++;
+    }
+
+    if (iPcs >= 0) {
+      const p = csvNum(r[iPcs] ?? '');
+      if (p != null && p > 0) {
+        if (snapRow && p === snapRow.pcs) {
+          if (pcs[sizeNorm] != null) { delete pcs[sizeNorm]; rep.cleared++; }
+        } else if (pcs[sizeNorm] !== p) {
+          pcs[sizeNorm] = p;
+          rep.pcs++;
+        }
+      }
+    }
+
+    // A size the sheet never had — carry it as an added size so it shows in the
+    // editor and reaches the Sales App, same as "＋ Add size" does.
+    if (!snapRow) {
+      const list = addSizes[shape] ?? [];
+      if (!list.some((s) => snapNorm(s) === sizeNorm)) {
+        list.push(sizeLabel);
+        addSizes[shape] = list;
+        rep.added++;
+      }
+    }
+    // Listing a row un-deletes it; the export never contains removed sizes, so
+    // one being here means the operator typed it back in on purpose.
+    if (delSizes[shape]) delSizes[shape] = delSizes[shape].filter((s) => snapNorm(s) !== sizeNorm);
+  }
+
+  rep.unknownShapes = [...unknown];
+  return { next: { ...ovr, price, pcs, addSizes, delSizes }, report: rep };
+}
+
 // The shop's own Category → Grade → Colour flow, published in the snapshot as
 // `__catalog__` (see scripts/gen-price-snapshot.cjs). The Admin flow is driven
 // from this so it matches the storefront exactly, not the drifted backend
@@ -387,6 +523,62 @@ export function Pricing() {
       ovr[cat.key] ?? {}
     );
 
+  // ⬆ Upload — one hidden input reused by every card; importFor remembers which
+  // colour's list the chosen file belongs to.
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const [importFor, setImportFor] = useState<string>(ALL);
+  const [importMsg, setImportMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const pickCsv = (colId: string) => {
+    setImportFor(colId);
+    setImportMsg(null);
+    if (fileRef.current) {
+      fileRef.current.value = ''; // so re-picking the same file still fires
+      fileRef.current.click();
+    }
+  };
+
+  const onCsvChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !cat) return;
+    if (/\.xlsx?$/i.test(file.name)) {
+      setImportMsg({
+        ok: false,
+        text: `“${file.name}” is an Excel workbook. Open it in Excel, choose File → Save As → CSV UTF-8, then upload that file.`,
+      });
+      return;
+    }
+    let text = '';
+    try {
+      text = await file.text();
+    } catch {
+      setImportMsg({ ok: false, text: 'Could not read that file.' });
+      return;
+    }
+    const res = importColourCsv(text, multiGrade, gradeId, importFor, snap[cat.key], ovr[cat.key] ?? {});
+    if ('error' in res) {
+      setImportMsg({ ok: false, text: res.error });
+      return;
+    }
+    persist({ ...ovr, [cat.key]: res.next });
+    const r = res.report;
+    const who = importFor === ALL ? 'All colours' : catColours.find((c) => c.id === importFor)?.name || importFor;
+    const bits: string[] = [];
+    if (r.priced) bits.push(`${r.priced} price${r.priced === 1 ? '' : 's'} changed`);
+    if (r.pcs) bits.push(`${r.pcs} pcs-per-packet changed`);
+    if (r.added) bits.push(`${r.added} new size${r.added === 1 ? '' : 's'}`);
+    if (r.cleared) bits.push(`${r.cleared} back to the sheet price`);
+    if (r.skipped) bits.push(`${r.skipped} row${r.skipped === 1 ? '' : 's'} skipped (no shape, size or rate)`);
+    const summary = bits.length ? bits.join(' · ') : 'nothing differed from what is already set';
+    const warn = r.unknownShapes.length
+      ? ` Shapes not in this price list: ${r.unknownShapes.join(', ')} — check the spelling if those rows were meant to change something.`
+      : '';
+    setImportMsg({
+      ok: true,
+      text: `${who}: read ${r.rows} row${r.rows === 1 ? '' : 's'} — ${summary}. Nothing is live until you click Save changes.${warn}`,
+    });
+  };
+
   if (loading)
     return (
       <div className="ad-body">
@@ -420,6 +612,21 @@ export function Pricing() {
         <p className="ad-muted">Edit rates, pieces-per-packet and sizes, then click <b>Save changes</b> to publish them to the Sales App.</p>
       </div>
       {error && <div className="ad-error">{error}</div>}
+
+      {/* One input for every ⬆ Upload button on the page. */}
+      <input
+        ref={fileRef}
+        type="file"
+        accept=".csv,text/csv,application/vnd.ms-excel"
+        style={{ display: 'none' }}
+        onChange={(e) => void onCsvChosen(e)}
+      />
+      {importMsg && (
+        <div className={importMsg.ok ? 'pr-import' : 'ad-error'}>
+          <span>{importMsg.text}</span>
+          <button className="ad-btn ad-btn-ghost ad-btn-sm" onClick={() => setImportMsg(null)}>Dismiss</button>
+        </div>
+      )}
 
       {step === 'cats' && (
         <div className="pr-grid">
@@ -495,7 +702,11 @@ export function Pricing() {
           <h3 className="pr-h3">
             {cat.name}{grade ? ` · ${grade.name}` : ''} — choose a colour
           </h3>
-          <p className="ad-muted" style={{ marginTop: -6 }}>Edit one colour's pricing, or the base rates every colour inherits. Use ⬇ Excel to download a colour's whole price list.</p>
+          <p className="ad-muted" style={{ marginTop: -6 }}>
+            Edit one colour's pricing, or the base rates every colour inherits. Use ⬇ Excel to download a colour's whole
+            price list — change the Rate ₹ (and Pcs) column in Excel, save it as CSV, then ⬆ Upload to bring every edit
+            back in one go.
+          </p>
           <div className="pr-grid">
             <div className="pr-colour-card">
               <div className="pr-swatch pr-swatch-all" />
@@ -504,6 +715,7 @@ export function Pricing() {
               <div className="pr-card-actions">
                 <button className="ad-btn ad-btn-pri ad-btn-sm" onClick={() => { setColourId(ALL); setStep('editor'); }}>Edit pricing</button>
                 <button className="ad-btn ad-btn-ghost ad-btn-sm" onClick={() => exportCsv(ALL)}>⬇ Excel</button>
+                <button className="ad-btn ad-btn-ghost ad-btn-sm" onClick={() => pickCsv(ALL)} title="Upload an edited price list">⬆ Upload</button>
               </div>
             </div>
             {catColours.map((col) => {
@@ -519,6 +731,7 @@ export function Pricing() {
                   <div className="pr-card-actions">
                     <button className="ad-btn ad-btn-pri ad-btn-sm" onClick={() => { setColourId(col.id); setStep('editor'); }}>Edit pricing</button>
                     <button className="ad-btn ad-btn-ghost ad-btn-sm" onClick={() => exportCsv(col.id)}>⬇ Excel</button>
+                    <button className="ad-btn ad-btn-ghost ad-btn-sm" onClick={() => pickCsv(col.id)} title="Upload an edited price list">⬆ Upload</button>
                   </div>
                 </div>
               );
@@ -540,6 +753,7 @@ export function Pricing() {
           onBack={() => setStep('colours')}
           onChange={(next) => persist({ ...ovr, [cat.key]: next })}
           onExport={() => exportCsv(colourId)}
+          onImport={() => pickCsv(colourId)}
         />
       )}
     </div>
@@ -559,6 +773,7 @@ function PriceEditor({
   onBack,
   onChange,
   onExport,
+  onImport,
 }: {
   cat: Category;
   multiGrade: boolean;
@@ -571,6 +786,7 @@ function PriceEditor({
   onBack: () => void;
   onChange: (next: CategoryPricingOverride) => void;
   onExport: () => void;
+  onImport: () => void;
 }) {
   const [matrix, setMatrix] = useState<PricingMatrix | null>(null);
   const [shape, setShape] = useState('');
@@ -749,6 +965,7 @@ function PriceEditor({
         <span className="pr-editor-spacer" />
         {flash && <span className="pr-flash">● Change staged — click Save changes</span>}
         <button className="ad-btn ad-btn-ghost ad-btn-sm" onClick={onExport}>⬇ Excel — {colourName}</button>
+        <button className="ad-btn ad-btn-ghost ad-btn-sm" onClick={onImport} title="Upload an edited price list">⬆ Upload</button>
       </div>
 
       <div className="pr-chips">

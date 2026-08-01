@@ -6,7 +6,7 @@ type Rfq = { id: string; status?: string };
 // The old dashboard's numbers were computed from the static data file, so they
 // never moved. These are counted from the database. Anything we cannot count
 // honestly is left out rather than invented.
-export function Dashboard({ onGo }: { onGo: (s: 'catalog' | 'bulk' | 'media' | 'settings') => void }) {
+export function Dashboard({ onGo }: { onGo: (s: 'catalog' | 'media' | 'settings') => void }) {
   const [cats, setCats] = useState<Category[] | null>(null);
   const [products, setProducts] = useState<Product[] | null>(null);
   const [grades, setGrades] = useState<GradesByCat>({});
@@ -63,9 +63,6 @@ export function Dashboard({ onGo }: { onGo: (s: 'catalog' | 'bulk' | 'media' | '
         <div className="ad-row" style={{ marginTop: 10 }}>
           <button className="ad-btn ad-btn-pri" onClick={() => onGo('catalog')}>
             Manage catalog
-          </button>
-          <button className="ad-btn ad-btn-ghost" onClick={() => onGo('bulk')}>
-            Bulk upload products
           </button>
           <button className="ad-btn ad-btn-ghost" onClick={() => onGo('media')}>
             Upload product images

@@ -88,6 +88,24 @@ function lmsHasProgressed(c) {
   return c.score != null || (c.attempts || []).length > 0 || (c.watched || []).length > 0;
 }
 
+// Did this candidate actually sit the assessment? A stage of "recommended" is
+// not proof on its own — an office edit, or a score left on the row by anything
+// other than a real sitting, would put someone in the Approval Queue who has
+// never answered a question. A finished attempt is the evidence: the one shot
+// used up, an attempt on file, or a submitted test run.
+function lmsTookTest(c) {
+  if (!c) return false;
+  if (c.testConsumed) return true;
+  if (Array.isArray(c.attempts) && c.attempts.length > 0) return true;
+  return !!(c.testRun && c.testRun.submittedAt);
+}
+
+// Who genuinely belongs in the Approval Queue: cleared the pass mark, in a real
+// sitting, and not already decided on.
+function lmsAwaitingApproval(c) {
+  return !!c && c.stage === 'recommended' && lmsTookTest(c) && c.score != null && c.score >= LMS_PASS_PCT;
+}
+
 // Training access window status for a candidate.
 function lmsWindow(c) {
   if (c.stage === 'hired') return { state: 'hired', daysLeft: 0 };
@@ -642,4 +660,5 @@ Object.assign(window, {
   LMS_TODAY, LMS_PASS_PCT, LMS_WINDOW_DAYS, LMS_TRAIN_DAYS, LMS_TEST_DAYS, LMS_STATE_CODE,
   LMS_TEST_CONFIG, LMS_ONBOARD_DOCS, LMS_SETTINGS, LMS_NOTIFICATIONS, LMS_AUDIT,
   lmsWindow, lmsTestWindow, lmsNextRepId, lmsGenPassword, lmsDaysBetween, lmsBaseStage, lmsEffectiveStage, lmsHasProgressed,
+  lmsTookTest, lmsAwaitingApproval,
 });

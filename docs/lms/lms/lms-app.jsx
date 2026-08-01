@@ -34,7 +34,9 @@ function AdminRoot({ cands, actions, questions, testCfg, settings, notifs, audit
   const [page, setPage] = sUseState('dashboard');
   const [drawer, setDrawer] = sUseState(null); // candidate id
   const go = (p) => setPage(p);
-  const pending = cands.filter(c => c.stage === 'recommended').length;
+  // Same rule as the queue itself, so the sidebar badge cannot promise a
+  // decision that is not there to make.
+  const pending = cands.filter(window.lmsAwaitingApproval).length;
   const unread = (notifs || []).filter(n => !n.read).length;
   const openCand = (id) => setDrawer(id);
   const logout = () => {

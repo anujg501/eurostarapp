@@ -300,7 +300,11 @@ function LmsScreening({ cands, actions, settings }) {
 // ---------- Approval Queue ----------
 function LmsApproval({ cands, actions }) {
   const all = cands || window.LMS_CANDIDATES;
-  const C = all.filter(c => c.stage === 'recommended');
+  // Only people who actually sat the test and cleared it. Filtering on the
+  // stage alone put candidates here who had never answered a question — a score
+  // on the row from anything but a real sitting was enough to queue them for
+  // hiring, with no city, no experience and no attempt on file.
+  const C = all.filter(window.lmsAwaitingApproval);
   const justHired = all.filter(c => c.stage === 'hired' && c.repId).slice(-4);
   const [rejecting, setRejecting] = aUseState(null);
   const [reason, setReason] = aUseState('');

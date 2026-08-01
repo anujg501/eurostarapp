@@ -6,15 +6,23 @@
     "orientation": "default",
     "userInterfaceStyle": "light",
     "scheme": "eurostarlms",
+    "icon": "./assets/icon.png",
     "splash": {
-      "backgroundColor": "#201731"
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFFFFF"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "in.eurostar.lms"
+      "bundleIdentifier": "in.eurostar.lms",
+      "icon": "./assets/icon.png"
     },
     "android": {
-      "package": "in.eurostar.lms"
+      "package": "in.eurostar.lms",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
+      }
     },
     "extra": {
       "apiBaseUrl": "https://eurostargems.com"

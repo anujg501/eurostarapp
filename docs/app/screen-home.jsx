@@ -10,6 +10,13 @@ const DARK_THUMB_CATS = { whitefancy: true };
 function loadThumbStore(key) {
   try { return JSON.parse(localStorage.getItem(key) || '{}') || {}; } catch (e) { return {}; }
 }
+// Admin > Content — hero copy and testimonials the office edits. Read from the
+// live sync when it has landed, from the mirrored copy on a cold start, and
+// falling back to the wording baked in below when neither has anything to say.
+function siteContent() {
+  if (window.EUROSTAR_CONTENT) return window.EUROSTAR_CONTENT;
+  try { return JSON.parse(localStorage.getItem('eurostar-site-content-v1') || '{}') || {}; } catch (e) { return {}; }
+}
 function loadCatOrder() {
   try { const v = JSON.parse(localStorage.getItem(CAT_ORDER_KEY)); return Array.isArray(v) ? v : null; }
   catch (e) { return null; }
@@ -47,6 +54,15 @@ function HomeScreen({ persona, setRoute }) {
       .catch(function () { setMyOrderCount(0); });
   }, []);
 
+  // Hero copy and testimonials from Admin > Content. The catalogue sync fires
+  // an event when it lands, so a first paint from cache still updates itself.
+  const [content, setContent] = React.useState(siteContent);
+  React.useEffect(() => {
+    const onReady = () => setContent(siteContent());
+    window.addEventListener('eurostar-content-ready', onReady);
+    return () => window.removeEventListener('eurostar-content-ready', onReady);
+  }, []);
+
   const [order, setOrder] = React.useState(() => reconcileCatOrder(loadCatOrder()));
   const [arrange, setArrange] = React.useState(false);
   const [dragId, setDragId] = React.useState(null);
@@ -75,11 +91,15 @@ function HomeScreen({ persona, setRoute }) {
 
   return (
     <div className="page">
-      {/* Hero */}
+      {/* Hero — the headline and sub-text come from Admin > Content when the
+          office has set them; otherwise the built-in wording stands. */}
       <section className="hero">
         <div className="hero-eyebrow">WHOLESALE PORTAL · MUMBAI & JAIPUR</div>
-        <h1>Makes <em>true</em> beauty,<br />by the lot.</h1>
-        <p>40 years sourcing moissanite, lab-grown gems, Color Cubic Zirconia, mother of pearl and pearls — calibrated, certified, delivered. Order from our trade catalog.
+        {content.heroTitle
+          ? <h1>{content.heroTitle}</h1>
+          : <h1>Makes <em>true</em> beauty,<br />by the lot.</h1>}
+        <p>{content.heroSub
+          || '40 years sourcing moissanite, lab-grown gems, Color Cubic Zirconia, mother of pearl and pearls — calibrated, certified, delivered. Order from our trade catalog.'}
         </p>
         <div className="hero-cta-row">
           <button className="btn btn-accent btn-lg" onClick={() => setRoute({ name: 'orders' })}>
@@ -181,7 +201,19 @@ function HomeScreen({ persona, setRoute }) {
         <span className="meta">Manufacturers &amp; ateliers across India</span>
       </div>
       <div className="testi-grid">
-        {[
+        {(Array.isArray(content.testimonials) && content.testimonials.length
+          ? content.testimonials
+              .filter((t) => (t.text || '').trim())
+              .map((t) => ({
+                quote: t.text,
+                name: t.name || '',
+                org: t.city || '',
+                // Initials from the name, the same shape the built-in cards use.
+                initials: (t.name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join(''),
+                tag: 'Trade buyer',
+                big: false,
+              }))
+          : [
           { quote: 'We\u2019ve moved our entire melee moissanite line to Eurostar. The calibration is dead-on \u2014 our casting reject rate dropped noticeably and matched pairs actually match.',
             name: 'Procurement Head', org: 'Tanvi Gold Cast', initials: 'TG', tag: 'Bulk · Moissanite & CZ', big: true },
           { quote: 'Consistency at volume is what matters to us. Lot after lot, the colour grades hold. Their GRA-marked stones clear our QC without back-and-forth.',
@@ -194,7 +226,7 @@ function HomeScreen({ persona, setRoute }) {
             name: 'Farida K.', org: 'Crescent Ornaments, Hyderabad', initials: 'FK', tag: 'Independent buyer' },
           { quote: 'Started with one tray of Color CZ, now I order across six categories. The strips and pearl strings are a real time-saver for my karigars.',
             name: 'Anil M.', org: 'Mehta Jewel Works, Surat', initials: 'AM', tag: 'Independent buyer' },
-        ].map((t, i) => (
+        ]).map((t, i) => (
           <figure key={i} className={`testi-card ${t.big ? 'big' : ''}`}>
             <div className="testi-quote-mark">&ldquo;</div>
             <blockquote>{t.quote}</blockquote>

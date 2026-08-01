@@ -73,6 +73,7 @@
     getJson('/admin/splash'),
     getJson('/admin/pricing-overrides'),
     getJson('/admin/settings/rules'),
+    getJson('/admin/content'),
   ])
     .then(function (res) {
       var cat = res[0];
@@ -87,6 +88,19 @@
       var splash = res[9];
       var pricingOvr = res[10];
       var storeRules = res[11];
+      var siteContent = res[12];
+
+      // Admin > Content: hero copy, testimonials, footer line and business
+      // hours. The panel has always saved these, but no screen ever read them
+      // back — the shop kept showing the copy baked into the page, so editing
+      // them changed nothing a customer could see. Published for the home and
+      // footer to use; anything the operator leaves blank keeps the built-in
+      // wording rather than emptying the page.
+      if (siteContent && typeof siteContent === 'object') {
+        window.EUROSTAR_CONTENT = siteContent;
+        mirrorToLocal('eurostar-site-content-v1', siteContent);
+        try { window.dispatchEvent(new CustomEvent('eurostar-content-ready')); } catch (e) {}
+      }
 
       // Prices, pieces-per-packet and add/remove-size edits made in
       // Admin > Pricing. Loaded before the pads render so a saved edit is live.

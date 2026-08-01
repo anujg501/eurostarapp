@@ -640,6 +640,20 @@ function Toast({ toast, onDismiss, onView }) {
 }
 
 function Footer() {
+  // The footer line and business hours are editable in Admin > Content. They
+  // were saved there but never read here, so the shop kept showing the wording
+  // baked into this file no matter what the office typed. Blank keeps the
+  // built-in text rather than leaving an empty footer.
+  const [content, setContent] = React.useState(() => {
+    if (window.EUROSTAR_CONTENT) return window.EUROSTAR_CONTENT;
+    try { return JSON.parse(localStorage.getItem('eurostar-site-content-v1') || '{}') || {}; } catch (e) { return {}; }
+  });
+  React.useEffect(() => {
+    const onReady = () => setContent(window.EUROSTAR_CONTENT || {});
+    window.addEventListener('eurostar-content-ready', onReady);
+    return () => window.removeEventListener('eurostar-content-ready', onReady);
+  }, []);
+
   return (
     <footer style={{
       borderTop: '1px solid var(--border)',
@@ -655,16 +669,22 @@ function Footer() {
         <div>
           <EurostarLogo size={18} />
           <div style={{ fontSize: 12, color: 'var(--fg-meta)', marginTop: 10, maxWidth: 42 + 'ch', lineHeight: 1.6 }}>
-            <strong style={{ color: 'var(--fg-muted)', fontWeight: 600 }}>Eurostar Technologies Inc.</strong> · Estd 1980<br/>
-            <span style={{ display: 'inline-block', marginTop: 6 }}>
-              Authorised Distributor for Asia-Pacific Region:<br/>
-              Ganesh Jewellery I Pvt Ltd · Mumbai, Jaipur
-            </span>
+            {content.footerNote
+              ? <strong style={{ color: 'var(--fg-muted)', fontWeight: 600 }}>{content.footerNote}</strong>
+              : (
+                <>
+                  <strong style={{ color: 'var(--fg-muted)', fontWeight: 600 }}>Eurostar Technologies Inc.</strong> · Estd 1980<br/>
+                  <span style={{ display: 'inline-block', marginTop: 6 }}>
+                    Authorised Distributor for Asia-Pacific Region:<br/>
+                    Ganesh Jewellery I Pvt Ltd · Mumbai, Jaipur
+                  </span>
+                </>
+              )}
           </div>
         </div>
         <div style={{ fontSize: 12, color: 'var(--fg-meta)', textAlign: 'right' }}>
           Trade desk · +91 98765 43210 · info@eurostar.com<br/>
-          Mon–Sat 10:00–20:00 IST
+          {content.businessHours || 'Mon–Sat 10:00–20:00 IST'}
         </div>
       </div>
       <ViewModeToggle />

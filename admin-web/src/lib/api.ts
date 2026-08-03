@@ -392,6 +392,27 @@ export const GRADE_SCOPED_GRADES: Record<string, { id: string; name: string }[]>
 // the lifted colours (e.g. Lab Grown Beryl uses the base labgrown colours).
 export const GRADE_SCOPED_COLOURS: Record<string, Record<string, Colour[]>> = {
   labgrown: {
+    // Lab Grown Beryl's own 16 colours — listed explicitly so the admin never
+    // falls back to the flat category overlay (which the server lifts as the
+    // union of all three grades, i.e. all 35 colours clubbed together).
+    labgrown: [
+      { id: 'pigeon', name: 'Pigeon Blood', hex: '#8B1E2E' },
+      { id: 'fairypink', name: 'Fairy Pink', hex: '#E6A4B4' },
+      { id: 'zambia', name: 'Zambia Emerald', hex: '#0E5C4A' },
+      { id: 'royalblue', name: 'Royal Blue', hex: '#1E3A8A' },
+      { id: 'sakura', name: 'Sakura Pink', hex: '#F0B9C8' },
+      { id: 'padparadscha', name: 'Padparadscha', hex: '#E8895B' },
+      { id: 'hotpink', name: 'Hot Pink', hex: '#D6336C' },
+      { id: 'royalred', name: 'Royal Red', hex: '#A01828' },
+      { id: 'lavender', name: 'Lavender', hex: '#9C7DC2' },
+      { id: 'alexander', name: 'Alexander', hex: '#6E7BB8' },
+      { id: 'bluedemon', name: 'Blue Demon', hex: '#2342A8' },
+      { id: 'cornflower', name: 'Cornflower', hex: '#5B7BC4' },
+      { id: 'pariba', name: 'Pariba', hex: '#1FA9A0' },
+      { id: 'columbia', name: 'Columbia', hex: '#1E7A52' },
+      { id: 'sunny', name: 'Sunny Orange', hex: '#E8842E' },
+      { id: 'canary', name: 'Canary Yellow', hex: '#E2C233' },
+    ],
     created: [
       { id: 'z8483', name: 'Z-8483 Pink Tourmaline', hex: '#E0567E' },
       { id: 'z22', name: 'Z-22 Zambia Emerald', hex: '#0E5C4A' },

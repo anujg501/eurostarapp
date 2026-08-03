@@ -1268,6 +1268,28 @@ const CZ_COLORS_BY_GRADE = {
 // Lab Grown: the certified "Lab Grown Gemstones" grade carries the full colour
 // range; "Created Coloured Gemstones" has its own four coded stones.
 const LABGROWN_COLORS_BY_GRADE = {
+  // Lab Grown Beryl carries its own 16-colour range. This is listed explicitly
+  // (rather than falling back to COLORS_BY_CATEGORY.labgrown) so the admin's
+  // add-colour overlay — which the server lifts as the UNION of all three
+  // grades' colours — can never leak Created/Corundum colours onto Beryl.
+  labgrown: [
+    { id: 'pigeon',      name: 'Pigeon Blood',   hex: '#8B1E2E' },
+    { id: 'fairypink',   name: 'Fairy Pink',     hex: '#E6A4B4' },
+    { id: 'zambia',      name: 'Zambia Emerald', hex: '#0E5C4A' },
+    { id: 'royalblue',   name: 'Royal Blue',     hex: '#1E3A8A' },
+    { id: 'sakura',      name: 'Sakura Pink',    hex: '#F0B9C8', sizeMin: 6.00 },
+    { id: 'padparadscha',name: 'Padparadscha',   hex: '#E8895B', sizeMin: 6.00 },
+    { id: 'hotpink',     name: 'Hot Pink',       hex: '#D6336C', sizeMin: 6.00 },
+    { id: 'royalred',    name: 'Royal Red',      hex: '#A01828', sizeMin: 6.00 },
+    { id: 'lavender',    name: 'Lavender',       hex: '#9C7DC2', sizeMin: 6.00 },
+    { id: 'alexander',   name: 'Alexander',      hex: '#6E7BB8', sizeMin: 6.00 },
+    { id: 'bluedemon',   name: 'Blue Demon',     hex: '#2342A8', sizeMin: 6.00 },
+    { id: 'cornflower',  name: 'Cornflower',     hex: '#5B7BC4', sizeMin: 6.00 },
+    { id: 'pariba',      name: 'Pariba',         hex: '#1FA9A0', sizeMin: 6.00 },
+    { id: 'columbia',    name: 'Columbia',       hex: '#1E7A52', sizeMin: 6.00 },
+    { id: 'sunny',       name: 'Sunny Orange',   hex: '#E8842E', sizeMin: 6.00 },
+    { id: 'canary',      name: 'Canary Yellow',  hex: '#E2C233', sizeMin: 6.00 },
+  ],
   created: [
     { id: 'z8483', name: 'Z-8483 Pink Tourmaline', hex: '#E0567E', sizeMin: 4.00 },
     { id: 'z22',   name: 'Z-22 Zambia Emerald',    hex: '#0E5C4A', sizeMin: 4.00 },

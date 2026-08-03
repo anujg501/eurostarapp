@@ -1,5 +1,14 @@
 import { useEffect, useState } from 'react';
-import { adminApi, type Category, type Colour, type Grade, type Product } from '../lib/api';
+import {
+  adminApi,
+  GRADE_SCOPED,
+  GRADE_SCOPED_GRADES,
+  GRADE_SCOPED_COLOURS,
+  type Category,
+  type Colour,
+  type Grade,
+  type Product,
+} from '../lib/api';
 
 // Grades, colours and shapes for one category. In the prototype "＋ Add grade",
 // "Remove" and "Save grades" had no onClick at all, and the colour/shape chips
@@ -97,6 +106,15 @@ export function CategoryDetail({ cat, onBack, onDeleted }: { cat: Category; onBa
     ['availability', 'Availability'],
   ];
 
+  // Grade-scoped categories (Lab Grown, etc.) have their grades and a DIFFERENT
+  // colour set per grade defined in the shop code — not the flat overlay. Show
+  // those so the colours are separated by sub-category instead of clubbed.
+  const scoped = !!GRADE_SCOPED[cat.key];
+  const scopedGrades = GRADE_SCOPED_GRADES[cat.key] ?? [];
+  const coloursForGrade = (gid: string): Colour[] => GRADE_SCOPED_COLOURS[cat.key]?.[gid] ?? colours;
+  const gradeCount = scoped ? scopedGrades.length : grades?.length ?? 0;
+  const colourCount = scoped ? scopedGrades.reduce((n, g) => n + coloursForGrade(g.id).length, 0) : colours.length;
+
   return (
     <div className="ad-body">
       <button className="ad-btn ad-btn-ghost ad-btn-sm" onClick={onBack} style={{ marginBottom: 12 }}>
@@ -107,8 +125,8 @@ export function CategoryDetail({ cat, onBack, onDeleted }: { cat: Category; onBa
         <div>
           <h2>{cat.name}</h2>
           <p className="ad-muted">
-            Unit of sale: {cat.unit.toUpperCase()} ({UNIT_LONG[cat.unit] ?? cat.unit}) · {grades?.length ?? 0} grades ·{' '}
-            {colours.length} colours · {shapes.length} shapes
+            Unit of sale: {cat.unit.toUpperCase()} ({UNIT_LONG[cat.unit] ?? cat.unit}) · {gradeCount} grades ·{' '}
+            {colourCount} colours · {shapes.length} shapes
           </p>
         </div>
         <div className="ad-row">
@@ -131,7 +149,7 @@ export function CategoryDetail({ cat, onBack, onDeleted }: { cat: Category; onBa
           >
             Delete category
           </button>
-          {!cat.skipGrade && (
+          {!cat.skipGrade && !scoped && (
             <button
               className="ad-btn ad-btn-acc"
               onClick={() => {
@@ -158,10 +176,17 @@ export function CategoryDetail({ cat, onBack, onDeleted }: { cat: Category; onBa
       {tab === 'grades' &&
         (cat.skipGrade ? (
           <div className="ad-card ad-card-pad ad-muted">This category is marked “no grades”, so grades are not used here.</div>
+        ) : scoped ? (
+          <GradesReadOnly grades={scopedGrades} coloursForGrade={coloursForGrade} />
         ) : (
           <Grades grades={grades} defaultUnit={cat.unit} busy={busy} saved={saved === 'grades'} onSave={saveGrades} addSignal={addSignal} />
         ))}
-      {tab === 'colours' && <Colours colours={colours} busy={busy} saved={saved === 'colours'} onSave={saveColours} />}
+      {tab === 'colours' &&
+        (scoped ? (
+          <ColoursByGrade grades={scopedGrades} coloursForGrade={coloursForGrade} />
+        ) : (
+          <Colours colours={colours} busy={busy} saved={saved === 'colours'} onSave={saveColours} />
+        ))}
       {tab === 'shapes' && <Shapes shapes={shapes} busy={busy} saved={saved === 'shapes'} onSave={saveShapes} />}
       {tab === 'availability' && <ProductEditor cat={cat} mode="availability" />}
     </div>
@@ -321,6 +346,73 @@ function Colours({
         </button>
         {saved && <span className="ad-ok">Saved ✓</span>}
       </div>
+    </section>
+  );
+}
+
+// Grade-scoped categories: the sub-categories (grades) come from the shop, not
+// the editable overlay, so show them read-only with each one's colour count.
+function GradesReadOnly({
+  grades,
+  coloursForGrade,
+}: {
+  grades: { id: string; name: string }[];
+  coloursForGrade: (gid: string) => Colour[];
+}) {
+  return (
+    <section className="ad-card ad-card-pad">
+      <h3 className="ad-sechead-h">Sub-categories (grades)</h3>
+      <p className="ad-muted">
+        This category has {grades.length} sub-categories, each with its own colours & pricing. These come from the
+        shop and are managed in code — edit prices under Pricing.
+      </p>
+      <div className="ad-chips" style={{ marginTop: 12 }}>
+        {grades.map((g) => (
+          <span className="ad-chip cd-chip" key={g.id}>
+            {g.name}
+            <span className="ad-tag" style={{ marginLeft: 8 }}>{coloursForGrade(g.id).length} colours</span>
+          </span>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// Colours shown separated under each grade (sub-category), so Lab Grown's
+// Beryl / Created / Corundum colours are never clubbed into one flat list.
+function ColoursByGrade({
+  grades,
+  coloursForGrade,
+}: {
+  grades: { id: string; name: string }[];
+  coloursForGrade: (gid: string) => Colour[];
+}) {
+  return (
+    <section className="ad-card ad-card-pad">
+      <h3 className="ad-sechead-h">Colours by sub-category</h3>
+      <p className="ad-muted">
+        Each sub-category (grade) offers its own colours — shown separately below, exactly as on the shop.
+      </p>
+      {grades.map((g) => {
+        const cols = coloursForGrade(g.id);
+        return (
+          <div key={g.id} style={{ marginTop: 18 }}>
+            <div className="th-head">
+              <h4 className="ad-sechead-h" style={{ fontSize: 15 }}>{g.name}</h4>
+              <span className="th-count">{cols.length} colours</span>
+            </div>
+            <div className="ad-chips" style={{ marginTop: 8 }}>
+              {cols.length === 0 && <span className="ad-hint">No colours listed.</span>}
+              {cols.map((c) => (
+                <span className="ad-chip cd-chip" key={c.id}>
+                  <i className="ad-sw" style={{ background: c.hex || '#ccc' }} />
+                  {c.name}
+                </span>
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </section>
   );
 }

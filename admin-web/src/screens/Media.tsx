@@ -513,6 +513,7 @@ function ProductPhotos({ standalone = false }: { standalone?: boolean } = {}) {
 function ColourImages() {
   const [cats, setCats] = useState<Category[]>([]);
   const [cat, setCat] = useState('');
+  const [grade, setGrade] = useState('');
   const [colours, setColours] = useState<Colour[]>([]);
   const [map, setMap] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
@@ -537,6 +538,12 @@ function ColourImages() {
   }, []);
 
   useEffect(() => {
+    // Grade-scoped categories (Lab Grown, etc.) offer a different colour set per
+    // sub-category — default to the first so the list isn't all colours clubbed.
+    setGrade(GRADE_SCOPED[cat] ? (GRADE_SCOPED_GRADES[cat]?.[0]?.id ?? '') : '');
+  }, [cat]);
+
+  useEffect(() => {
     if (!cat) return;
     (async () => {
       try {
@@ -547,6 +554,12 @@ function ColourImages() {
       }
     })();
   }, [cat]);
+
+  const scoped = !!GRADE_SCOPED[cat];
+  const gradeChoices = GRADE_SCOPED_GRADES[cat] ?? [];
+  // Show only the colours the selected grade offers (its own set, or the
+  // category's base colours when that grade shares them).
+  const effColours = (scoped && GRADE_SCOPED_COLOURS[cat]?.[grade]) || colours;
 
   // Stage only — nothing reaches the website until Save changes (commitSave).
   const stage = (key: string, dataUrl: string | null) => {
@@ -594,16 +607,35 @@ function ColourImages() {
     <section className="ad-card ad-card-pad">
       {cropNode}
       <SaveBar dirty={dirty} saveState={saveState} onSave={() => void commitSave()} />
-      <div className="ad-field-v" style={{ marginBottom: 0, maxWidth: 280 }}>
-        <span className="ad-label">Category</span>
-        <select className="ad-input" style={{ width: '100%' }} value={cat} onChange={(e) => setCat(e.target.value)}>
-          {cats.map((c) => (
-            <option key={c.key} value={c.key}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <div className="ad-field-v" style={{ marginBottom: 0, flex: '1 1 240px', maxWidth: 280 }}>
+          <span className="ad-label">Category</span>
+          <select className="ad-input" style={{ width: '100%' }} value={cat} onChange={(e) => setCat(e.target.value)}>
+            {cats.map((c) => (
+              <option key={c.key} value={c.key}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        {scoped && (
+          <div className="ad-field-v" style={{ marginBottom: 0, flex: '1 1 240px', maxWidth: 280 }}>
+            <span className="ad-label">Sub-category (grade)</span>
+            <select className="ad-input" style={{ width: '100%' }} value={grade} onChange={(e) => setGrade(e.target.value)}>
+              {gradeChoices.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
+      {scoped && (
+        <p className="ad-muted" style={{ marginTop: 10, marginBottom: 0, fontSize: 12.5 }}>
+          Lab Grown has separate colours per sub-category — switch the grade above to upload each set’s colours.
+        </p>
+      )}
 
       {error && (
         <div className="ad-error" style={{ marginTop: 12 }}>
@@ -611,13 +643,13 @@ function ColourImages() {
         </div>
       )}
 
-      {colours.length === 0 ? (
+      {effColours.length === 0 ? (
         <p className="ad-hint" style={{ marginTop: 14 }}>
           This category has no colours yet — add them under Catalog → {cats.find((c) => c.key === cat)?.name} first.
         </p>
       ) : (
         <div className="ad-thumb-grid" style={{ marginTop: 16 }}>
-          {colours.map((col) => {
+          {effColours.map((col) => {
             const key = `${cat}|${col.id}`;
             return (
               <ThumbCell

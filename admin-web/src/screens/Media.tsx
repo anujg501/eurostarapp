@@ -378,6 +378,32 @@ function ProductPhotos({ standalone = false }: { standalone?: boolean } = {}) {
     }
   };
 
+  // Every stored photo belonging to the selected category — matched by the
+  // "cat|…" key prefix, so it also catches OLD/orphaned keys (e.g. a previous
+  // key format) that never line up with a grid cell and so have no ✕ button.
+  const catName = cats.find((c) => c.key === cat)?.name ?? cat;
+  const catImageKeys = Object.keys(images).filter((k) => k === cat || k.startsWith(cat + '|'));
+
+  // Wipe them all for this category only. Staged like any other edit — nothing
+  // is removed on the website until the operator clicks Save changes.
+  const clearCategory = () => {
+    if (!catImageKeys.length) return;
+    if (
+      !confirm(
+        `Remove ALL ${catImageKeys.length} product photo(s) for “${catName}”, including any old stuck ones? ` +
+          `Only this category is affected. Nothing is deleted on the website until you click Save changes.`,
+      )
+    )
+      return;
+    setImages((imgs) => {
+      const next: ProductImages = {};
+      for (const [k, v] of Object.entries(imgs)) if (!(k === cat || k.startsWith(cat + '|'))) next[k] = v;
+      return next;
+    });
+    setDirty(true);
+    setSaveState('idle');
+  };
+
   const pick = async (key: string, file: File | undefined) => {
     if (!file) return;
     const cropped = await requestCrop(file);
@@ -429,6 +455,16 @@ function ProductPhotos({ standalone = false }: { standalone?: boolean } = {}) {
             </select>
           </div>
         )}
+        <div style={{ marginLeft: 'auto' }}>
+          <button
+            className="ad-btn ad-btn-ghost ad-danger"
+            disabled={catImageKeys.length === 0}
+            title="Removes every photo for this category, including old stuck ones. Only this category."
+            onClick={clearCategory}
+          >
+            🗑 Clear all photos in this category{catImageKeys.length ? ` (${catImageKeys.length})` : ''}
+          </button>
+        </div>
       </div>
       {scoped && (
         <p className="ad-muted" style={{ marginTop: 10, marginBottom: 0, fontSize: 12.5 }}>

@@ -22,6 +22,7 @@ function CropModal({
   const [zoom, setZoom] = useState(1);
   const [off, setOff] = useState({ x: 0, y: 0 });
   const [saving, setSaving] = useState(false);
+  const [failed, setFailed] = useState(false);
   const imgRef = useRef<HTMLImageElement | null>(null);
   const drag = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
 
@@ -153,6 +154,12 @@ function CropModal({
               alt=""
               draggable={false}
               onLoad={(e) => setNat({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
+              // A file the browser cannot decode — a HEIC straight off an
+              // iPhone, a RAW, a .jpg that is really something else — used to
+              // leave this dialog with an empty stage and a permanently greyed
+              // button, which reads as "upload is broken". Say what happened
+              // and offer to send the file as it is.
+              onError={() => setFailed(true)}
               style={{
                 position: 'absolute',
                 width: dispW,
@@ -189,7 +196,22 @@ function CropModal({
           />
         </div>
 
+        {failed && (
+          <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 8, background: '#FBF1F1', border: '1px solid #E6C9C9', color: '#9A3B3B', fontSize: 13, lineHeight: 1.5 }}>
+            This browser can’t open “{file.name}” to crop it — phone photos saved as HEIC do this. You can still upload
+            it as it is, or cancel and pick a JPG or PNG.
+          </div>
+        )}
+
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16, borderTop: '1px solid #eee6d6', paddingTop: 14 }}>
+          {failed && (
+            <button
+              onClick={() => onDone(file)}
+              style={{ height: 38, padding: '0 16px', borderRadius: 8, border: '1px solid #d8cfb8', background: '#fff', color: '#3a352b', cursor: 'pointer', fontSize: 14, marginRight: 'auto' }}
+            >
+              Upload without cropping
+            </button>
+          )}
           <button
             onClick={onCancel}
             style={{ height: 38, padding: '0 16px', borderRadius: 8, border: '1px solid #d8cfb8', background: '#fff', color: '#3a352b', cursor: 'pointer', fontSize: 14 }}

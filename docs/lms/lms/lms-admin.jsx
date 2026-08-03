@@ -468,6 +468,51 @@ function LmsTraining() {
     });
   };
 
+  // One-click: create any of the 18 standard modules that are missing, from the
+  // built-in course definition (window.LMS_MODULES / LMS_MODULE_NOTES) — title,
+  // duration, mandatory flag, sort order and the written key-points. Idempotent:
+  // a module whose title already exists is skipped, so existing modules and the
+  // videos already uploaded to them are never touched. The owner adds each video
+  // afterwards via "+ Add / replace video".
+  const seedStandardModules = () => {
+    if (busy || mods === null) return;
+    const std = window.LMS_MODULES || [];
+    const notes = window.LMS_MODULE_NOTES || {};
+    if (!std.length) { alert('The standard course list did not load — reload the page and try again.'); return; }
+    const have = (mods || []).map(m => (m.title || '').trim().toLowerCase());
+    const missing = std.filter(sm => have.indexOf((sm.title || '').trim().toLowerCase()) < 0);
+    if (!missing.length) { alert('All ' + std.length + ' standard modules already exist — nothing to create.'); return; }
+    if (!confirm('Create ' + missing.length + ' missing module(s) out of ' + std.length + '?\n\nModules you already have (and any videos on them) are left untouched. You can add each video afterwards.')) return;
+    setBusy(true); setComposeErr('');
+    let created = 0;
+    // Sequential so sortOrder / M-number order is preserved and we do not hammer
+    // the API. Walk the full canonical list; skip the ones that already exist.
+    const run = (i) => {
+      if (i >= std.length) {
+        setBusy(false);
+        load();
+        alert('Done — created ' + created + ' module(s). Now add each video with "+ Add / replace video".');
+        return;
+      }
+      const sm = std[i];
+      if (have.indexOf((sm.title || '').trim().toLowerCase()) >= 0) { run(i + 1); return; }
+      const vid = (sm.videos && sm.videos[0]) || {};
+      modApi('/', { method: 'PUT', body: JSON.stringify({
+        title: sm.title,
+        summary: vid.title || undefined,
+        videoDuration: vid.dur || undefined,
+        checklist: notes[sm.code] || [],
+        mandatory: sm.mandatory !== false,
+        sortOrder: i + 1,
+        active: true,
+      }) }).then(res => {
+        if (res.ok && res.data) created++;
+        run(i + 1);
+      });
+    };
+    run(0);
+  };
+
   // Upload a video file to a module. XMLHttpRequest rather than fetch because
   // it reports upload progress — a 300MB file with no progress bar looks frozen.
   // `retry` guards a single renew-and-resend. modApi/qApi already replay a 401
@@ -749,8 +794,16 @@ function LmsTraining() {
         </div>
       );})()}
 
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
+        <button className="lms-btn lms-btn-ghost lms-btn-sm" disabled={busy || mods === null} onClick={seedStandardModules}>
+          {busy ? 'Working…' : '↻ Create the 18 standard modules'}
+        </button>
+        <span className="lms-muted" style={{ fontSize: 12 }}>
+          Adds any of the 18 standard modules that are missing (titles, durations & notes). Skips ones you already have — then add each video below.
+        </span>
+      </div>
       <div className="lms-muted" style={{ fontSize: 13, marginBottom: 18 }}>{mods.length} module{mods.length === 1 ? '' : 's'} · MP4 upload or link · English notes</div>
-      {mods.length === 0 && <div className="lms-card lms-card-pad lms-muted" style={{ textAlign: 'center', padding: '30px 0' }}>No training modules yet — add one to get started.</div>}
+      {mods.length === 0 && <div className="lms-card lms-card-pad lms-muted" style={{ textAlign: 'center', padding: '30px 0' }}>No training modules yet — click “Create the 18 standard modules” above, then add a video to each.</div>}
       {mods.map((m, i) => {
         const notes = m.checklist || [];
         const hasVideo = !!(m.summary || m.videoUrl);

@@ -596,18 +596,33 @@ async function sendTest(mode){
     // Customer preview may send images (so image training can be tested); other
     // modes stay marker-free.
     const markerNote = mode==='cust'
-      ? '\n\nReply as Mira to the last message. You MAY send an image with <<IMG>>exact name<<END>>; do NOT output any other markers.'
+      ? '\n\nReply as Mira to the last message. You MAY send an image with <<IMG>>KEY<<END>>, where KEY is a catalogue key from the live image list (e.g. laser|white|round) or the exact name of one of the office’s library images; do NOT output any other markers.'
       : '\n\nReply as Mira to the last message. Do NOT output any <<ACTION>> markers in this chat.';
     const reply = await window.claude.complete({ messages:[{role:'user', content: miraTestPrompt(mode) + '\n\nConversation so far:\n' + history + markerNote}] });
     let cleanReply = reply || '';
     const imgsToSend = [];
     if (mode==='cust'){
+      // A name from the office's library resolves to the stored picture;
+      // anything else is a catalogue key ("laser|white|round") and comes from
+      // the back room, which serves every photo uploaded from any screen.
+      // Matching only the library meant this preview silently dropped the image
+      // and showed "here is a picture" with nothing under it.
+      const apiBase = window.EUROSTAR_API || location.origin;
+      const mediaUrl = (key) => apiBase + '/assistant/media?key=' + encodeURIComponent(String(key).trim());
       const lib = getJSON(LS.img); let m; const re = /<<IMG>>([\s\S]*?)<<END>>/;
       while ((m = cleanReply.match(re))){
-        const nm = m[1].trim().toLowerCase();
+        const raw = m[1].trim(); const nm = raw.toLowerCase();
         const hit = lib.find(x=>(x.name||'').trim().toLowerCase()===nm) || lib.find(x=>(x.name||'').trim().toLowerCase().includes(nm) || nm.includes((x.name||'').trim().toLowerCase()));
         if (hit) imgsToSend.push(hit);
+        else if (raw) imgsToSend.push({ name: raw, desc: '', data: mediaUrl(raw) });
         cleanReply = cleanReply.replace(m[0],'').trim();
+      }
+      // A pasted media link is a picture to show, not an address to read out.
+      const linkRe = /(?:https?:\/\/[^\s)]+)?\/assistant\/media\?key=([^\s)]+)/i; let lk;
+      while ((lk = cleanReply.match(linkRe))){
+        let key = lk[1]; try { key = decodeURIComponent(key); } catch(e){}
+        imgsToSend.push({ name: key, desc: '', data: mediaUrl(key) });
+        cleanReply = cleanReply.replace(lk[0],'').replace(/\s{2,}/g,' ').trim();
       }
     }
     cleanReply = cleanReply.replace(/<<[\s\S]*?<<END>>/g,'').trim() || (imgsToSend.length ? '' : '(no reply)');

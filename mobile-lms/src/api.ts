@@ -53,7 +53,7 @@ export async function setToken(token: string | null): Promise<void> {
   else await AsyncStorage.removeItem('eurostar_lms_token');
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+async function request<T>(path: string, options: RequestInit & { timeoutMs?: number } = {}): Promise<T> {
   const headers: Record<string, string> = {
     'content-type': 'application/json',
     accept: 'application/json',
@@ -68,7 +68,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (token) headers.authorization = `Bearer ${token}`;
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  // Most calls are a database read and should give up quickly. Asking Mira is
+  // not: she is a language model composing an answer, which takes seconds even
+  // when everything is healthy, and 20 was close enough to the real time that a
+  // slow mobile connection tipped it over into "the back room did not respond".
+  const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? TIMEOUT_MS);
   let resp: Response;
   try {
     resp = await fetch(BASE_URL + path, { ...options, headers, signal: controller.signal });
@@ -376,5 +380,6 @@ export const api = {
     request<{ reply: string }>('/assistant/chat', {
       method: 'POST',
       body: JSON.stringify({ sessionId, message, app: 'lms', who }),
+      timeoutMs: 60000,
     }),
 };

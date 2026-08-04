@@ -357,7 +357,13 @@ async function generateReply(
   // over by hand and she answered on stale facts in between.
   let live = '';
   try {
-    live = `${await siteDigest()}${await focusFor(message)}`;
+    // Only a customer can be sent a photo, and only a customer needs the exact
+    // priced rows quoted back. Carrying either into a candidate's tutoring
+    // session or a staff screen just makes the answer slower to arrive.
+    const forCustomer = audience === 'customer';
+    live = forCustomer
+      ? `${await siteDigest()}${await focusFor(message)}`
+      : await siteDigest({ images: false });
   } catch {
     // A catalogue read failing must not take the assistant down with it; she
     // falls back to the office's own knowledge.
@@ -377,6 +383,7 @@ async function generateReply(
       'WHO YOU ARE TALKING TO: a candidate training for a Eurostar sales job, on the Academy app.',
       'You are their tutor. Teach the training material below: explain a module in plain language, answer product questions, give worked examples a jeweller would recognise, and quiz them when they ask to be tested. Be encouraging and specific — they are learning this to do the job, not to pass a quiz.',
       'You may also help with the process itself: how training unlocks, how the assessment works, what happens after being hired.',
+      'Keep it short — a few sentences or a brief list, then offer to go deeper. They are reading this on a phone, and a long answer takes noticeably longer to arrive.',
       'You must not: hand over the assessment questions or their answers, discuss other candidates, or share anything about customers, orders, revenue or the back office. If asked for the test paper, decline and offer to quiz them on the material instead.',
     ].join('\n'),
     staff:

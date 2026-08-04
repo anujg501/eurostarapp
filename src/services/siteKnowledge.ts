@@ -221,9 +221,19 @@ async function current(): Promise<Built> {
   return cache;
 }
 
-/** The map of the shop, for the system prompt. */
-export async function siteDigest(): Promise<string> {
-  return (await current()).digest;
+/**
+ * The map of the shop, for the system prompt.
+ *
+ * `images` drops the photo list, which is the bulk of it — the live site has
+ * ~900 keys. Only a customer can be sent a picture, so a candidate studying for
+ * their exam was carrying that whole list for nothing, and paying for it in the
+ * seconds they waited for an answer.
+ */
+export async function siteDigest(opts: { images?: boolean } = {}): Promise<string> {
+  const full = (await current()).digest;
+  if (opts.images !== false) return full;
+  const cut = full.indexOf('\nIMAGES ON FILE (');
+  return cut === -1 ? full : full.slice(0, cut).trimEnd();
 }
 
 /**

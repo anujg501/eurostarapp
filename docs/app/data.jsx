@@ -765,16 +765,15 @@ const PEARL_COLORS_BY_GRADE = {
   ],
 };
 
-// Corundum: EXCEL AAA carries Blue 34 + White in addition to the rubies;
+// Corundum: EXCEL AAA carries Blue 34 in addition to the rubies;
 // DECCAN AA is rubies only.
 const CORUNDUM_COLORS_BY_GRADE = {
   aaa: [
-    // EXCEL AAA carries only Ruby 5, Blue 34 and White.
+    // EXCEL AAA carries only Ruby 5 and Blue 34.
     // Ruby 5 (VGI) prices loaded from a sheet — restrict to the shapes it prices.
     { id: 'ruby5',  name: 'Ruby 5',  hex: '#8B1E2E',
       shapes: ['round','oval','pear','marquise','princess','octagon-princess','heart'] },
     { id: 'blue34', name: 'Blue 34', hex: '#1E3A8A' },
-    { id: 'white',  name: 'White',   hex: '#F2EFE8' },
   ],
   aa: [
     // Deccan Ruby 2 / Ruby 3 (same price) loaded from RIVEN sheet (per piece).

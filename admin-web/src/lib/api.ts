@@ -494,7 +494,6 @@ export const GRADE_SCOPED_COLOURS: Record<string, Record<string, Colour[]>> = {
     aaa: [
       { id: 'ruby5', name: 'Ruby 5', hex: '#8B1E2E' },
       { id: 'blue34', name: 'Blue 34', hex: '#1E3A8A' },
-      { id: 'white', name: 'White', hex: '#F2EFE8' },
     ],
     aa: [
       { id: 'ruby2', name: 'Ruby 2', hex: '#B23A4A' },

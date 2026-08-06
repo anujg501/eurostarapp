@@ -45,6 +45,22 @@ function AdminRoot({ cands, actions, questions, testCfg, settings, notifs, audit
     location.reload();
   };
   const drawerCand = drawer ? cands.find(c => c.id === drawer) : null;
+
+  // Tell Mira which screen this is and whose record is open, so "why can't I
+  // hire him?" answers about that candidate rather than asking which one. The
+  // shim picks this up; it describes only what is already on screen.
+  React.useEffect(() => {
+    const label = (NAV[role] || []).find(n => n.id === page);
+    const parts = ['Eurostar LMS admin — ' + ((label && label.label) || page) + ' screen'];
+    if (drawerCand) {
+      parts.push(`candidate open: ${drawerCand.name} (${drawerCand.candId}) · stage ${drawerCand.stage}` +
+        (drawerCand.score != null ? ` · score ${drawerCand.score}%` : '') +
+        (drawerCand.repId ? ` · Rep ID ${drawerCand.repId}` : ''));
+    }
+    if (page === 'approval') parts.push(`${pending} candidate(s) awaiting a decision`);
+    window.__miraPage = parts.join(' · ');
+  }, [page, drawerCand, pending, role]);
+
   let screen;
   if (page === 'dashboard') screen = <LmsDashboard go={go} cands={cands} actions={actions} openCand={openCand} />;
   else if (page === 'candidates') screen = <LmsCandidates cands={cands} actions={actions} openCand={openCand} />;

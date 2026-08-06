@@ -116,7 +116,7 @@ export default function DashboardScreen({ navigation, onSignOut }: any) {
         </View>
       </ScrollView>
 
-      <MiraFab who={cand.name || undefined} />
+      <MiraFab who={cand.name || undefined} page="Eurostar Academy app — the Dashboard, showing their journey tiles (Apply, My Status, Training, Take Test, My Result)" />
       <MenuDrawer visible={menuOpen} onClose={() => setMenuOpen(false)} onSignOut={onSignOut} />
     </View>
   );

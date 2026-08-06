@@ -408,7 +408,10 @@ function App() {
       <TopBar route={route} setRoute={navigate} persona={persona} cartCount={cart.length} />
       <OfflineBar isOnline={isOnline} queued={queued} onSync={syncQueue} />
       {screen}
-      <ChatAssistant persona={persona} cart={cart} addToCart={addToCart} navigate={navigate} isOnline={isOnline} />
+      {/* `route` so Mira knows which screen the customer is on — "what is the
+          3 mm rate?" on a colour page should answer that colour, not ask which
+          of twenty-nine categories was meant. */}
+      <ChatAssistant persona={persona} cart={cart} addToCart={addToCart} navigate={navigate} isOnline={isOnline} route={route} />
 
       <Footer />
 

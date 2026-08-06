@@ -3680,6 +3680,18 @@ function CRM() {
   const curNav = NAV[role].find((n) => n.id === page) || {};
   const curLabel = curNav.k ? CT(curNav.k, curNav.label) : curNav.label;
 
+  // Tell Mira which screen this is, so a question about "this order" or "this
+  // customer" is answered rather than queried back. The shim reads it. Only
+  // what the operator already has in front of them.
+  React.useEffect(() => {
+    const counts = [];
+    if (page === 'orders' || page === 'carts') counts.push(`${(orders || []).length} orders, ${(carts || []).length} carts`);
+    if (page === 'customers' || page === 'master') counts.push(`${(customers || []).length} customers`);
+    if (page === 'rfq' || page === 'queries') counts.push(`${(queries || []).length} enquiries`);
+    window.__miraPage = `Eurostar CRM — ${curLabel || page} screen, signed in as ${ROLE_CHIP[role] || role}` +
+      (counts.length ? ` · ${counts.join(' · ')}` : '');
+  }, [page, curLabel, role, orders, carts, customers, queries]);
+
   return (
     <div className="crm-shell">
       {role === 'rep' && <RepBroadcastPopup />}

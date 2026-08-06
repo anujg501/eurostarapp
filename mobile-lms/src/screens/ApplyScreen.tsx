@@ -260,7 +260,7 @@ export default function ApplyScreen({ navigation }: any) {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      <MiraFab who={cand.name || undefined} />
+      <MiraFab who={cand.name || undefined} page="Eurostar Academy app — the Apply Now form (city, state, experience, how they heard of us, CV upload)" />
     </View>
   );
 }

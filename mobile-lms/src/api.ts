@@ -376,10 +376,10 @@ export const api = {
   candNotifs: () => request<Record<string, { id: string; icon?: string; text: string; time?: string }[]>>('/admin/lms/notifs'),
 
   // Mira — the in-app assistant. Same brain as the web chat bubble.
-  chat: (sessionId: string, message: string, who?: string) =>
+  chat: (sessionId: string, message: string, who?: string, page?: string) =>
     request<{ reply: string }>('/assistant/chat', {
       method: 'POST',
-      body: JSON.stringify({ sessionId, message, app: 'lms', who }),
+      body: JSON.stringify({ sessionId, message, app: 'lms', who, page }),
       timeoutMs: 60000,
     }),
 };

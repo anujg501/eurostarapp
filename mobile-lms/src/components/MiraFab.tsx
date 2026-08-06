@@ -15,7 +15,10 @@ const GREETING: Msg = {
 
 // The floating "Ask Mira" pill from the web candidate UI (mira-staff.js), plus
 // the chat sheet it opens. Talks to POST /assistant/chat with app: 'lms'.
-export default function MiraFab({ who }: { who?: string }) {
+// `page` says which screen the candidate is on and what is open there, so
+// "explain this one" resolves to the module in front of them instead of coming
+// back as "which module?".
+export default function MiraFab({ who, page }: { who?: string; page?: string }) {
   const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState<Msg[]>([GREETING]);
   const [draft, setDraft] = useState('');
@@ -41,7 +44,7 @@ export default function MiraFab({ who }: { who?: string }) {
     setMsgs((m) => [...m, { role: 'user', text }]);
     setBusy(true);
     try {
-      const r = await api.chat(session.current, text, who);
+      const r = await api.chat(session.current, text, who, page);
       setMsgs((m) => [...m, { role: 'assistant', text: r.reply }]);
     } catch (e: any) {
       setMsgs((m) => [...m, { role: 'assistant', text: e.message || 'Mira is unavailable right now. Please try again.' }]);

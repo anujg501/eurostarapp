@@ -3,7 +3,7 @@
 // proforma, dues & order status, payment help, escalate to rep, RFQ, complaints,
 // multilingual, voice input, photo input. Calls the built-in AI via window.claude.complete.
 
-function ChatAssistant({ persona, cart, addToCart, navigate, isOnline }) {
+function ChatAssistant({ persona, cart, addToCart, navigate, isOnline, route }) {
   const [open, setOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [input, setInput] = React.useState('');
@@ -259,6 +259,42 @@ Keep replies short (2-5 sentences), friendly and practical. Never mention or exp
     if (go && ['orders', 'rfq', 'franchise', 'home'].includes(go)) setTimeout(() => navigate({ name: go, tab: go === 'orders' ? 'cart' : undefined }), 600);
   };
 
+  // Where the customer is standing, in words. Sent with every message so
+  // "what's the 3 mm rate?" on a colour page answers that colour rather than
+  // asking which of the twenty-nine categories was meant.
+  const pageNote = () => {
+    try {
+      const r = route || {};
+      const catName = (id) => {
+        const c = (window.CATEGORIES || []).find((x) => x.id === id);
+        return c ? `${c.name} (${id})` : id;
+      };
+      const bits = [];
+      switch (r.name) {
+        case 'home': bits.push('the shop home page, browsing categories'); break;
+        case 'catalog': bits.push(`the ${catName(r.cat)} catalogue page`); break;
+        case 'browse':
+          bits.push(`the ordering flow for ${catName(r.cat)}`);
+          if (r.grade) bits.push(`grade "${r.grade}"`);
+          if (r.color) bits.push(`colour "${r.color}"`);
+          if (r.shape) bits.push(`shape "${r.shape}"`);
+          bits.push('choosing sizes and quantities');
+          break;
+        case 'product': bits.push(`a product page${r.pid ? ` for ${r.pid}` : ''}${r.cat ? ` in ${catName(r.cat)}` : ''}`); break;
+        case 'orders': bits.push('their orders and cart'); break;
+        case 'checkout': bits.push('the checkout page'); break;
+        case 'payment': bits.push(`the payment page${r.order && r.order.id ? ` for order ${r.order.id}` : ''}`); break;
+        case 'confirmation': bits.push('the order confirmation page'); break;
+        case 'orderDetail': bits.push(`the detail page for order ${(r.order && r.order.id) || r.id || ''}`.trim()); break;
+        case 'rfq': bits.push('the RFQ enquiry form'); break;
+        case 'franchise': bits.push('the franchise enquiry page'); break;
+        default: if (r.name) bits.push(`the ${r.name} page`);
+      }
+      if (cart && cart.length) bits.push(`${cart.length} line${cart.length > 1 ? 's' : ''} already in their cart`);
+      return bits.length ? 'Sales App — ' + bits.join(' · ') : '';
+    } catch (e) { return ''; }
+  };
+
   const send = async (textOverride) => {
     const q = (textOverride != null ? textOverride : input).trim();
     if ((!q && !pendingImg) || busy) return;
@@ -290,6 +326,7 @@ Keep replies short (2-5 sentences), friendly and practical. Never mention or exp
           // The shop-side facts the server cannot know: who is signed in, what
           // they have been buying, and the conversation so far.
           context: systemPrompt(),
+          page: pageNote(),
           message: 'Conversation so far:\n' + history + imgNote + '\n\nReply as Mira to the last customer message.',
         }),
       });

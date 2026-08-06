@@ -229,7 +229,15 @@ export default function TrainingScreen({ navigation }: any) {
         }
       />
 
-      <MiraFab who={cand.name || undefined} />
+      {/* Naming the modules on screen is what lets "explain this one" or
+          "test me on this" resolve without asking which module. */}
+      <MiraFab
+        who={cand.name || undefined}
+        page={
+          `Eurostar Academy app — the Training screen, ${watchedCount} of ${allVids.length} videos watched. ` +
+          `Modules listed: ${mods.map((m) => `${m.code} ${m.title}`).slice(0, 20).join('; ')}`
+        }
+      />
     </View>
   );
 }

@@ -146,7 +146,7 @@ export default function StatusScreen({ navigation }: any) {
         </Text>
       </ScrollView>
 
-      <MiraFab who={cand.name || undefined} />
+      <MiraFab who={cand.name || undefined} page="Eurostar Academy app — My Status, the hiring-journey tracker showing which stage they have reached" />
     </View>
   );
 }

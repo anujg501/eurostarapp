@@ -353,6 +353,19 @@ function ProductPhotos({ standalone = false }: { standalone?: boolean } = {}) {
   const effColours = (scoped && GRADE_SCOPED_COLOURS[cat]?.[grade]) || colours;
   const effShapes = (scoped && GRADE_SCOPED_SHAPES[cat]?.[grade]) || shapes;
 
+  // Colours with a family of shades (Aqua CZ #37/#38/#39, TCF Mint/Green/
+  // Arctic/Red) become one row per shade — keyed "<colour>-<shade>", the same
+  // id the storefront resolves — plus a shared "all shades" parent row. A shade
+  // left blank falls back to that parent photo on the storefront.
+  const rowColours: (Colour & { shade?: boolean })[] = effColours.flatMap((c) =>
+    c.subShades && c.subShades.length
+      ? [
+          { id: c.id, name: `${c.name} · all shades`, hex: c.hex },
+          ...c.subShades.map((s) => ({ id: `${c.id}-${s.id}`, name: `${c.name} · ${s.name}`, hex: s.hex, shade: true })),
+        ]
+      : [c],
+  );
+
   // Stage only — nothing reaches the website until Save changes (commitSave).
   const stage = (key: string, dataUrl: string | null) => {
     setImages((imgs) => {
@@ -475,9 +488,9 @@ function ProductPhotos({ standalone = false }: { standalone?: boolean } = {}) {
 
       {error && <div className="ad-error" style={{ marginTop: 12 }}>{error}</div>}
 
-      {effColours.length === 0 || effShapes.length === 0 ? (
+      {rowColours.length === 0 || effShapes.length === 0 ? (
         <p className="ad-hint" style={{ marginTop: 14 }}>
-          This category has no {effColours.length === 0 ? 'colours' : 'shapes'} yet — add them under Catalog → {cats.find((c) => c.key === cat)?.name} first,
+          This category has no {rowColours.length === 0 ? 'colours' : 'shapes'} yet — add them under Catalog → {cats.find((c) => c.key === cat)?.name} first,
           then each colour × shape gets a photo slot here.
         </p>
       ) : (
@@ -495,10 +508,11 @@ function ProductPhotos({ standalone = false }: { standalone?: boolean } = {}) {
                 </tr>
               </thead>
               <tbody>
-                {effColours.map((col) => (
+                {rowColours.map((col) => (
                   <tr key={col.id}>
-                    <td className="pi-colour">
+                    <td className="pi-colour" style={col.shade ? { paddingLeft: 26 } : undefined}>
                       <i className="ad-sw" style={{ background: col.hex || '#ccc' }} />
+                      {col.shade ? <span style={{ color: 'var(--muted, #8a8a82)', marginRight: 4 }}>↳</span> : null}
                       {col.name}
                     </td>
                     {effShapes.map((sh) => {

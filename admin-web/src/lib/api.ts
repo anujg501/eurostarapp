@@ -275,6 +275,10 @@ export interface Colour {
   id: string;
   name: string;
   hex?: string;
+  // Some colours are a family of shades (Aqua CZ #37/#38/#39, TCF Mint/Green/
+  // Arctic/Red). When present, the Product-images grid shows one upload row per
+  // shade (keyed "<colour>-<shade>") plus the shared parent row.
+  subShades?: { id: string; name: string; hex?: string }[];
 }
 export type ColoursByCat = Record<string, Colour[]>;
 export type ShapesByCat = Record<string, string[]>;
@@ -505,7 +509,11 @@ export const GRADE_SCOPED_COLOURS: Record<string, Record<string, Colour[]>> = {
   cz: {
     excele: [
       { id: 'green', name: 'Green CZ', hex: '#3E8E4F' },
-      { id: 'aqua', name: 'Aqua CZ', hex: '#5B7BC4' },
+      { id: 'aqua', name: 'Aqua CZ', hex: '#5B7BC4', subShades: [
+        { id: 'aqua37', name: '#37', hex: '#6FA8C9' },
+        { id: 'aqua38', name: '#38', hex: '#4F86B8' },
+        { id: 'aqua39', name: '#39', hex: '#356FA6' },
+      ] },
       { id: 'purple', name: 'Amethyst', hex: '#9C7DC2' },
       { id: 'inkblue', name: 'Ink Blue', hex: '#1E2A6A' },
       { id: 'pink', name: 'Pink', hex: '#E6A4B4' },
@@ -514,7 +522,12 @@ export const GRADE_SCOPED_COLOURS: Record<string, Record<string, Colour[]>> = {
       { id: 'garnet', name: 'Garnet', hex: '#8B1E2E' },
       { id: 'olive', name: 'Olive', hex: '#6B7A3A' },
       { id: 'tanzanite', name: 'Tanzanite', hex: '#5B5BC4' },
-      { id: 'tcf', name: 'TCF Colours', hex: '#2E9C8E' },
+      { id: 'tcf', name: 'TCF Colours', hex: '#2E9C8E', subShades: [
+        { id: 'tcfmint', name: 'Mint Green TCF', hex: '#7EC8A8' },
+        { id: 'tcfgreen', name: 'Green TCF', hex: '#2E8C5C' },
+        { id: 'tcfarctic', name: 'Arctic Blue TCF', hex: '#6FB8D6' },
+        { id: 'tcfred', name: 'Red TCF', hex: '#C0392B' },
+      ] },
       { id: 'black', name: 'Black CZ', hex: '#2A2A28' },
       { id: 'champagne', name: 'Champagne CZ', hex: '#D8C9A8' },
       { id: 'rhodolite', name: 'Rhodolite', hex: '#9C3A66' },

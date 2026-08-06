@@ -51,12 +51,22 @@ function firstProductImageForCat(catId) {
 
 function getStoredProductImage(catId, colorId, shape, gradeId) {
   const all = pimgLoadAll();
-  // A grade-specific photo wins; otherwise fall back to the legacy shared
-  // colour+shape photo, so images uploaded before per-grade support keep
-  // showing on every grade until a grade-specific one replaces them.
-  return all[pimgKey(catId, colorId, shape, gradeId)]
-      || (gradeId && PIMG_GRADE_SCOPED[catId] ? all[pimgKey(catId, colorId, shape)] : null)
-      || null;
+  // Try the exact colour first, then — for a sub-shade — the parent colour.
+  // A sub-shade selection resolves as "<base>-<shade>" (e.g. Aqua CZ #37 =
+  // "aqua-aqua37", Red TCF = "tcf-tcfred"). The admin only uploads against the
+  // parent colour (aqua / tcf), so without this a shade would never find its
+  // shape photo. Sub-shades are the same product in a slightly different tint,
+  // so one upload per colour + shape is meant to cover every shade — a shade
+  // only needs its own photo if the operator uploads one specifically for it.
+  const ids = [colorId];
+  const dash = colorId.lastIndexOf('-');
+  if (dash > 0) ids.push(colorId.slice(0, dash)); // parent colour fallback
+  for (const cid of ids) {
+    const hit = all[pimgKey(catId, cid, shape, gradeId)]
+      || (gradeId && PIMG_GRADE_SCOPED[catId] ? all[pimgKey(catId, cid, shape)] : null);
+    if (hit) return hit;
+  }
+  return null;
 }
 function setStoredProductImage(catId, colorId, shape, dataUrl, gradeId) {
   const all = pimgLoadAll();

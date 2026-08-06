@@ -164,6 +164,12 @@ const chatSchema = z.object({
   // the sales framing for that surface. Capped: this is context, not a second
   // set of instructions, and the office's own configuration still wins.
   context: z.string().max(20000).optional(),
+  // Where the person is standing when they ask — the screen, and the thing open
+  // on it. Without this "what is the 3 mm rate?" on a colour page had to be
+  // answered with "which category?", because twenty-nine of them have a 3 mm
+  // round. It describes only what the asker can already see; it grants nothing,
+  // and the signed-in token still decides what knowledge is attached.
+  page: z.string().max(600).optional(),
 });
 
 assistantRouter.post(
@@ -172,7 +178,7 @@ assistantRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = chatSchema.safeParse(req.body);
     if (!parsed.success) return failValidation(res, parsed.error);
-    const { sessionId, message, app = 'sales', who, contact, cust, context } = parsed.data;
+    const { sessionId, message, app = 'sales', who, contact, cust, context, page } = parsed.data;
 
     const cfg = await getConfig();
     await prisma.chatLog.create({ data: { sessionId, app, role: 'user', message, who, contact, cust } });
@@ -187,7 +193,25 @@ assistantRouter.post(
     const role = req.user?.role;
     const isOffice = role === 'office' || role === 'admin';
     const onStaffScreen = app === 'crm' || app === 'lms';
-    const isCandidate = role === 'candidate';
+
+    // Being a candidate is about having an application, not about the role
+    // string. Somebody who already had a shop account keeps role 'customer'
+    // when they apply, so checking the role sent them the wholesale assistant
+    // and general exam advice instead of their own course. Every other
+    // candidate route resolves this by phone; so does this one now.
+    let isCandidate = role === 'candidate';
+    if (!isCandidate && !isOffice && req.user?.sub) {
+      const me = await prisma.user
+        .findUnique({ where: { id: req.user.sub }, select: { phone: true } })
+        .catch(() => null);
+      if (me?.phone) {
+        const application = await prisma.candidate
+          .findFirst({ where: { phone: me.phone }, select: { id: true } })
+          .catch(() => null);
+        // On the Academy app they are studying; in the shop they are shopping.
+        isCandidate = !!application && app === 'lms';
+      }
+    }
 
     // Three audiences, three bodies of knowledge, decided here and nowhere else.
     let scoped = '';
@@ -195,7 +219,7 @@ assistantRouter.post(
     else if (isCandidate) scoped = await studyDigest(req.user?.sub).catch(() => '');
 
     const audience: Audience = isOffice && onStaffScreen ? 'staff' : isCandidate ? 'candidate' : 'customer';
-    const reply = await generateReply(message, cfg, context, scoped, audience);
+    const reply = await generateReply(message, cfg, context, scoped, audience, page);
 
     await prisma.chatLog.create({ data: { sessionId, app, role: 'assistant', message: reply, who, contact, cust } });
     return ok(res, { reply });
@@ -348,7 +372,8 @@ async function generateReply(
   cfg: { instructions: string; rules: string; knowledge: string; examples: string },
   context?: string,
   scoped?: string,
-  audience: Audience = 'customer'
+  audience: Audience = 'customer',
+  page?: string
 ): Promise<string> {
   // Read the shop as it stands right now — categories, colours, shapes, the
   // published prices, what is sold out — plus the exact priced rows for
@@ -361,8 +386,12 @@ async function generateReply(
     // priced rows quoted back. Carrying either into a candidate's tutoring
     // session or a staff screen just makes the answer slower to arrive.
     const forCustomer = audience === 'customer';
+    // The page note is part of the question. Someone on the Alpanite Green
+    // page asking "what is the 3 mm rate?" never types the category, so
+    // searching the message alone found no prices and Mira fell back to
+    // "it is listed beside the size" — with the number sitting right there.
     live = forCustomer
-      ? `${await siteDigest()}${await focusFor(message)}`
+      ? `${await siteDigest()}${await focusFor([message, page].filter(Boolean).join('\n'))}`
       : await siteDigest({ images: false });
   } catch {
     // A catalogue read failing must not take the assistant down with it; she
@@ -383,6 +412,8 @@ async function generateReply(
       'WHO YOU ARE TALKING TO: a candidate training for a Eurostar sales job, on the Academy app.',
       'You are their tutor. Teach the training material below: explain a module in plain language, answer product questions, give worked examples a jeweller would recognise, and quiz them when they ask to be tested. Be encouraging and specific — they are learning this to do the job, not to pass a quiz.',
       'You may also help with the process itself: how training unlocks, how the assessment works, what happens after being hired.',
+      'General questions are welcome too — how to revise, how to remember a grade table, nerves before the test — but answer them as their tutor and tie the advice back to the modules below, naming the ones they should go over. Generic exam advice that could have come from anywhere is not what they came here for.',
+      'You are the Academy tutor in this conversation. Do not sign off as the gemstone sales assistant or redirect them to place an order.',
       'Keep it short — a few sentences or a brief list, then offer to go deeper. They are reading this on a phone, and a long answer takes noticeably longer to arrive.',
       'You must not: hand over the assessment questions or their answers, discuss other candidates, or share anything about customers, orders, revenue or the back office. If asked for the test paper, decline and offer to quiz them on the material instead.',
     ].join('\n'),
@@ -390,8 +421,18 @@ async function generateReply(
       'WHO YOU ARE TALKING TO: Eurostar staff, signed in on an internal screen. The back-office figures below are for them. Never repeat them into a customer conversation.',
   };
 
+  // What they are looking at while they type. "This", "here" and "it" should
+  // resolve to the screen in front of them rather than being asked back.
+  const where = page
+    ? [
+        `WHERE THEY ARE RIGHT NOW: ${page}`,
+        'Answer about this unless they clearly mean something else. If they say "this", "here", "it" or give a size with no category, they mean what is on this screen — do not ask them which one. If the screen names a category, colour or shape, quote that one.',
+      ].join('\n')
+    : '';
+
   const systemPrompt =
-    buildSystemPrompt(cfg, [BOUNDARY[audience], fromApp, live, scoped].filter(Boolean).join('\n\n')) || DEFAULT_SYSTEM;
+    buildSystemPrompt(cfg, [BOUNDARY[audience], where, fromApp, live, scoped].filter(Boolean).join('\n\n')) ||
+    DEFAULT_SYSTEM;
   return config.assistant.provider === 'gemini'
     ? replyWithGemini(message, systemPrompt)
     : replyWithAnthropic(message, systemPrompt);

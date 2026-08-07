@@ -4,6 +4,7 @@ import { Login } from './screens/Login';
 import { Dashboard } from './screens/Dashboard';
 import { Catalog } from './screens/Catalog';
 import { Media } from './screens/Media';
+import { PolkiPhotos } from './screens/PolkiPhotos';
 import { Settings } from './screens/Settings';
 import { Content } from './screens/Content';
 import { Users } from './screens/Users';
@@ -18,6 +19,7 @@ type ScreenId =
   | 'pricing'
   | 'newcat'
   | 'media'
+  | 'polkiphotos'
   | 'colourimages'
   | 'homethumbs'
   | 'splash'
@@ -33,6 +35,7 @@ const NAV: { id: ScreenId; label: string }[] = [
   { id: 'pricing', label: 'Pricing' },
   { id: 'newcat', label: '＋ Add category' },
   { id: 'media', label: 'Product images' },
+  { id: 'polkiphotos', label: 'Polki design photos' },
   { id: 'colourimages', label: 'Colour images' },
   { id: 'homethumbs', label: 'Home thumbnails' },
   { id: 'splash', label: 'Pop-up window' },
@@ -48,6 +51,7 @@ const TITLES: Record<ScreenId, string> = {
   pricing: 'Pricing',
   newcat: '＋ Add category',
   media: 'Product images',
+  polkiphotos: 'Polki design photos',
   colourimages: 'Colour images',
   homethumbs: 'Home thumbnails',
   splash: 'Pop-up window',
@@ -202,6 +206,7 @@ export function App() {
             still opens the client's dialog. */}
         {screen === 'newcat' && <AddCategory key="newcat" onDone={() => setScreen('catalog')} />}
         {screen === 'media' && <Media key="products" initialTab="products" />}
+        {screen === 'polkiphotos' && <PolkiPhotos />}
         {screen === 'colourimages' && <Media key="colours" initialTab="colours" />}
         {screen === 'homethumbs' && <Media key="thumbs" initialTab="thumbs" />}
         {screen === 'splash' && <Marketing only="splash" />}

@@ -1230,7 +1230,7 @@ const CZ_COLORS_BY_GRADE = {
     { id: 'tanzanite', name: 'Tanzanite',  hex: '#5B5BC4',
       shapes: ['round','oval','pear','marquise','princess','cushion','heart','trillion','triangle','octagon-step','octagon-princess','oblong-cushion','baguette'] },
     { id: 'tcf',       name: 'TCF Colours', hex: '#2E9C8E',
-      shapes: ['round','oval','pear','marquise','baguette','octagon-step','princess','heart','triangle','trillion','star'],
+      shapes: ['round','oval','pear','marquise','baguette','octagon-step','princess','heart','triangle','trillion'],
       subShades: [
       { id: 'tcfmint',  name: 'Mint Green TCF',  hex: '#7EC8A8' },
       { id: 'tcfgreen', name: 'Green TCF',       hex: '#2E8C5C' },
@@ -3222,7 +3222,6 @@ const CZ_SHEETS = {
     'heart': [['1.5 mm',200,5.2],['1.75 mm',200,6.4],['2 mm',200,8.6],['2.25 mm',200,9],['2.5 mm',200,9.8],['2.75 mm',100,11.6],['3 mm',100,11.6],['3.25 mm',100,15],['3.5 mm',100,18.2],['3.75 mm',100,19.4],['4 mm',100,20.8],['4.5 mm',50,28.6],['5 mm',50,31.2],['6 mm',50,46.8],['7 mm',25,72.8],['8 mm',25,83.2]],
     'triangle': [['1.5 mm',200,5.2],['1.75 mm',200,6.4],['2 mm',200,8.6],['2.25 mm',200,9],['2.5 mm',200,9.8],['2.75 mm',100,11.6],['3 mm',100,11.6],['3.25 mm',100,15],['3.5 mm',100,18.2],['3.75 mm',100,19.4],['4 mm',100,20.8],['4.5 mm',50,28.6],['5 mm',50,31.2],['6 mm',50,46.8],['7 mm',25,72.8],['8 mm',25,83.2]],
     'trillion': [['1.5 mm',200,5.2],['1.75 mm',200,6.4],['2 mm',200,8.6],['2.25 mm',200,9],['2.5 mm',200,9.8],['2.75 mm',100,11.6],['3 mm',100,11.6],['3.25 mm',100,15],['3.5 mm',100,18.2],['3.75 mm',100,19.4],['4 mm',100,20.8],['4.5 mm',50,28.6],['5 mm',50,31.2],['6 mm',50,46.8],['7 mm',25,72.8],['8 mm',25,83.2]],
-    'star': [['1.5 mm',200,5.2],['1.75 mm',200,6.4],['2 mm',200,8.6],['2.25 mm',200,9],['2.5 mm',200,9.8],['2.75 mm',100,11.6],['3 mm',100,11.6],['3.25 mm',100,15],['3.5 mm',100,18.2],['3.75 mm',100,19.4],['4 mm',100,20.8],['4.5 mm',50,28.6],['5 mm',50,31.2],['6 mm',50,46.8],['7 mm',25,72.8],['8 mm',25,83.2]],
   },
   'excele|purple': {
     'round': [['0.80 mm',1000,0.88],['0.90 mm',1000,0.78],['1.00 mm',1000,0.65],['1.10 mm',1000,0.65],['1.15 mm',1000,0.7],['1.20 mm',1000,0.7],['1.25 mm',1000,0.7],['1.30 mm',1000,0.7],['1.40 mm',1000,0.78],['1.50 mm',1000,0.78],['1.60 mm',1000,0.9],['1.70 mm',1000,1.03],['1.75 mm',1000,1.07],['1.80 mm',1000,1.07],['1.90 mm',1000,1.27],['2.00 mm',1000,1.27],['2.10 mm',500,1.43],['2.20 mm',500,1.43],['2.30 mm',500,1.55],['2.40 mm',500,1.55],['2.50 mm',500,1.55],['2.60 mm',500,1.88],['2.70 mm',500,1.88],['2.80 mm',500,2],['2.90 mm',500,2],['3.00 mm',500,2],['3.20 mm',200,3.12],['3.25 mm',200,2.3],['3.50 mm',200,3.12],['3.75 mm',200,4],['4.00 mm',200,4],['4.25 mm',100,5.75],['4.50 mm',100,6.25],['4.75 mm',100,8.25],['5.00 mm',100,8.25],['5.25 mm',50,9.25],['5.50 mm',50,9.25],['5.75 mm',50,12.25],['6.00 mm',50,12.25],['6.25 mm',50,14.25],['6.50 mm',50,15],['6.75 mm',50,15],['7.00 mm',50,15],['7.25 mm',50,31.25],['7.50 mm',50,19.75],['8.00 mm',50,21.25],['9.00 mm',50,40],['10.00 mm',50,48.25],['11.00 mm',50,57.5],['12.00 mm',50,71.25]],
@@ -3432,7 +3431,7 @@ const CZ_SHAPES_BY_KEY = {
   'excele|aqua': ['round','pear','oval','octagon-step','octagon-princess','marquise','cushion','princess','baguette','heart','triangle','trillion','asscher','hexagon','star','oblong-cushion'],
   'excele|green': ['pear','oval','round','marquise','princess','octagon-princess','baguette','heart','triangle','cushion','asscher','hexagon'],
   'excele|tanzanite': ['pear','oval','round','marquise','princess','octagon-princess','baguette','heart','triangle','cushion','oblong-cushion','octagon-step','trillion'],
-  'excele|tcf': ['round','oval','pear','marquise','baguette','octagon-step','princess','heart','triangle','trillion','star'],
+  'excele|tcf': ['round','oval','pear','marquise','baguette','octagon-step','princess','heart','triangle','trillion'],
   'excele|purple': ['round','oval','pear','marquise','princess','cushion','heart','triangle','oblong-cushion','octagon-step','octagon-princess'],
   'excele|inkblue': ['round','oval','pear','marquise','princess','cushion','heart','triangle','oblong-cushion','octagon-step','octagon-princess'],
   'excele|pink': ['round','oval','pear','marquise','princess','cushion','heart','triangle','oblong-cushion','octagon-step','octagon-princess'],

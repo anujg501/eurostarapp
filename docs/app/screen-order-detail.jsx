@@ -45,6 +45,165 @@ function OrderDetailScreen({ route, setRoute, persona, addToCart }) {
   const shipping = order.ship.includes('DHL') ? 8500 : 1200;
   const grand = total + tax + shipping;
 
+  // Invoice PDF.
+  //
+  // This button had no click handler at all — it looked like a feature and did
+  // nothing. Built the same way the cart's proforma is: lay the invoice out as
+  // a print stylesheet and hand it to the browser's own PDF writer, which every
+  // phone and desktop already has. No library, no server round trip, and the
+  // customer gets a real file they can forward to their accountant.
+  const invoiceHTML = () => {
+    const rows = order.lines.map((l) => {
+      const p = findProduct(l.pid) || {};
+      const shape = (findShape(p.shape) || {}).name || p.shape || '';
+      // Some orders store the money on the order and leave the line at zero.
+      // Printing "₹0" next to 2,000 pieces states a price that is not true, so
+      // those cells show a dash and the totals below carry the real figures.
+      const rate = l.unitPrice || p.price || 0;
+      const amount = l.lineTotal || (rate ? rate * (l.qty || 0) : 0);
+      return `<tr>
+        <td>${(p.name || l.pid || '')}${p.tone ? ' · ' + ((findTone(p.tone) || {}).name || p.tone) : ''}</td>
+        <td>${shape}</td>
+        <td>${p.size || ''}</td>
+        <td style="text-align:right">${(l.qty || 0).toLocaleString('en-IN')}</td>
+        <td style="text-align:right">${rate ? formatINR(rate) : '—'}</td>
+        <td style="text-align:right">${amount ? formatINR(amount) : '—'}</td></tr>`;
+    }).join('');
+
+    const shipTo = [
+      persona.company || '',
+      persona.contact ? 'c/o ' + persona.contact : '',
+      persona.location || '',
+      persona.phone || '',
+    ].filter(Boolean).join('<br>');
+
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Invoice ${order.id}</title>
+      <style>
+        @page { margin: 18mm; }
+        body { font-family: Georgia, 'Times New Roman', serif; color: #15130f; font-size: 13px; }
+        .head { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #0E5C4A; padding-bottom:14px; }
+        .brand { font-size:26px; font-weight:700; color:#0E5C4A; letter-spacing:-0.01em; }
+        .brand small { display:block; font-size:11px; color:#6a6253; font-weight:400; letter-spacing:0.04em; }
+        h1 { font-size:20px; margin:0; }
+        .meta { font-size:12px; color:#555; }
+        .bill { margin:16px 0; font-size:12px; line-height:1.6; }
+        table { width:100%; border-collapse:collapse; margin-top:10px; }
+        th { text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:0.06em; color:#6a6253; border-bottom:1px solid #c9c0ad; padding:8px 6px; }
+        td { padding:9px 6px; border-bottom:1px solid #ece6d8; font-size:12.5px; }
+        .totals { margin-top:14px; margin-left:auto; width:280px; font-size:13px; }
+        .totals div { display:flex; justify-content:space-between; padding:4px 0; }
+        .totals .grand { border-top:2px solid #0E5C4A; margin-top:6px; padding-top:8px; font-size:16px; font-weight:700; color:#0E5C4A; }
+        .terms { margin-top:24px; font-size:11px; color:#6a6253; border-top:1px solid #ece6d8; padding-top:12px; line-height:1.6; }
+      </style></head><body>
+      <div class="head">
+        <div><div class="brand">eurostar<small>GEMSTONES · Estd 1980</small></div></div>
+        <div style="text-align:right"><h1>INVOICE</h1>
+          <div class="meta">${order.id}<br>${formatDate(order.date)}</div></div>
+      </div>
+      <div class="bill"><strong>Bill to</strong><br>${shipTo}${persona.gst ? '<br>GSTIN ' + persona.gst : ''}</div>
+      <table><thead><tr><th>Product</th><th>Shape</th><th>Size</th><th style="text-align:right">Qty</th><th style="text-align:right">Rate</th><th style="text-align:right">Amount</th></tr></thead>
+        <tbody>${rows}</tbody></table>
+      <div class="totals">
+        <div><span>Subtotal · ${itemCount.toLocaleString('en-IN')} pcs</span><span>${formatINR(total)}</span></div>
+        <div><span>GST 3%</span><span>${formatINR(tax)}</span></div>
+        <div><span>Shipping &amp; insurance</span><span>${formatINR(shipping)}</span></div>
+        <div class="grand"><span>Total payable</span><span>${formatINR(grand)}</span></div>
+      </div>
+      <div class="terms">Status: ${status.label}${order.ship ? ' · ' + order.ship : ''}.<br>
+        Eurostar Technologies Inc. · Authorised Distributor for Asia-Pacific: Ganesh Jewellery I Pvt Ltd · Mumbai, Jaipur</div>
+      </body></html>`;
+  };
+
+  // Packing list — what is in the box, for the warehouse and for the customer
+  // checking a delivery in. Deliberately carries no prices: it travels with the
+  // goods, and a courier or a shop assistant has no business reading the rates.
+  const packingHTML = () => {
+    const rows = order.lines.map((l, i) => {
+      const p = findProduct(l.pid) || {};
+      const shape = (findShape(p.shape) || {}).name || p.shape || l.shape || '';
+      return `<tr>
+        <td style="text-align:right">${i + 1}</td>
+        <td>${(p.name || l.name || l.pid || '')}${p.tone ? ' · ' + ((findTone(p.tone) || {}).name || p.tone) : ''}</td>
+        <td>${shape}</td>
+        <td>${p.size || l.size || ''}</td>
+        <td style="text-align:right">${(l.qty || 0).toLocaleString('en-IN')}</td>
+        <td style="width:70px"></td></tr>`;
+    }).join('');
+
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Packing list ${order.id}</title>
+      <style>
+        @page { margin: 18mm; }
+        body { font-family: Georgia, 'Times New Roman', serif; color: #15130f; font-size: 13px; }
+        .head { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #0E5C4A; padding-bottom:14px; }
+        .brand { font-size:26px; font-weight:700; color:#0E5C4A; }
+        .brand small { display:block; font-size:11px; color:#6a6253; font-weight:400; letter-spacing:0.04em; }
+        h1 { font-size:20px; margin:0; }
+        .meta { font-size:12px; color:#555; }
+        .bill { margin:16px 0; font-size:12px; line-height:1.6; }
+        table { width:100%; border-collapse:collapse; margin-top:10px; }
+        th { text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:0.06em; color:#6a6253; border-bottom:1px solid #c9c0ad; padding:8px 6px; }
+        td { padding:10px 6px; border-bottom:1px solid #ece6d8; font-size:12.5px; }
+        .sign { margin-top:34px; display:flex; justify-content:space-between; font-size:11px; color:#6a6253; }
+        .sign div { border-top:1px solid #c9c0ad; padding-top:6px; width:200px; }
+        .terms { margin-top:20px; font-size:11px; color:#6a6253; border-top:1px solid #ece6d8; padding-top:12px; line-height:1.6; }
+      </style></head><body>
+      <div class="head">
+        <div><div class="brand">eurostar<small>GEMSTONES · Estd 1980</small></div></div>
+        <div style="text-align:right"><h1>PACKING LIST</h1>
+          <div class="meta">${order.id}<br>${formatDate(order.date)}</div></div>
+      </div>
+      <div class="bill"><strong>Ship to</strong><br>${persona.company || ''}${persona.contact ? '<br>c/o ' + persona.contact : ''}${persona.location ? '<br>' + persona.location : ''}${persona.phone ? '<br>' + persona.phone : ''}</div>
+      <table><thead><tr><th style="text-align:right">#</th><th>Product</th><th>Shape</th><th>Size</th><th style="text-align:right">Qty (pcs)</th><th>Checked</th></tr></thead>
+        <tbody>${rows}</tbody></table>
+      <div class="bill" style="margin-top:14px"><strong>Total pieces: ${itemCount.toLocaleString('en-IN')}</strong> across ${order.lines.length} SKU${order.lines.length > 1 ? 's' : ''}</div>
+      <div class="sign"><div>Packed by</div><div>Received by</div></div>
+      <div class="terms">No prices are shown on a packing list. Check the goods against this list on delivery and report any shortfall within 48 hours.<br>
+        Eurostar Technologies Inc. · Mumbai, Jaipur</div>
+      </body></html>`;
+  };
+
+  const printDoc = (html, what) => {
+    const w = window.open('', '_blank');
+    if (!w) { alert(`Please allow pop-ups for this site to download the ${what}.`); return; }
+    w.document.write(html);
+    w.document.close();
+    setTimeout(() => { w.focus(); w.print(); }, 350);
+  };
+
+  // Request cancellation. There is no self-service cancel API — an order that
+  // is already packed or shipped cannot simply vanish — so this raises it with
+  // the trade desk on WhatsApp, which is how the rest of the app escalates.
+  const requestCancellation = () => {
+    if (['shipped', 'delivered'].includes(order.status)) {
+      alert(
+        `This order is already ${order.status}, so it cannot be cancelled here. ` +
+        'Message the trade desk and they will advise on a return.'
+      );
+      return;
+    }
+    if (!window.confirm(`Request cancellation of ${order.id}?\n\nThe trade desk will confirm before anything is cancelled.`)) return;
+    const text =
+      `Cancellation request — ${order.id}\n` +
+      `${persona.company || ''}${persona.account ? ' · ' + persona.account : ''}\n` +
+      `Placed ${formatDate(order.date)} · ${itemCount.toLocaleString('en-IN')} pcs · ${formatINR(grand)}\n\n` +
+      'Please confirm whether this order can still be cancelled.';
+    window.open('https://wa.me/919876543210?text=' + encodeURIComponent(text), '_blank');
+  };
+
+  // A blocked pop-up is the usual reason nothing happens, and printDoc says so
+  // rather than leaving the customer tapping a button that appears dead.
+  const downloadInvoice = () => printDoc(invoiceHTML(), 'invoice');
+
+  // Opens WhatsApp with the order already quoted, so the customer does not have
+  // to type out which order they are calling about.
+  const messageTradeDesk = () => {
+    const text =
+      `Hello Eurostar — about order ${order.id}\n` +
+      `${persona.company || ''}${persona.account ? ' · ' + persona.account : ''}\n` +
+      `Placed ${formatDate(order.date)} · ${itemCount.toLocaleString('en-IN')} pcs · ${formatINR(grand)}\n\n`;
+    window.open('https://wa.me/919876543210?text=' + encodeURIComponent(text), '_blank');
+  };
+
   return (
     <div className="page">
       <button className="btn btn-ghost btn-sm" onClick={() => setRoute({ name: 'orders' })}
@@ -60,12 +219,13 @@ function OrderDetailScreen({ route, setRoute, persona, addToCart }) {
           <h1>Order on {formatDate(order.date)}</h1>
           <p>
             <span className={`chip chip-${status.tone} chip-dot`}>{status.label}</span>
-            {' '}· Expected by {formatDate(order.expected)} · {order.ship}
+            {formatDate(order.expected) ? ` · Expected by ${formatDate(order.expected)}` : ''}
+            {order.ship ? ` · ${order.ship}` : ''}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn btn-secondary"><IconDownload size={16} /> Invoice PDF</button>
-          <button className="btn btn-secondary"><IconWhats size={16} /> Message trade desk</button>
+          <button className="btn btn-secondary" onClick={downloadInvoice}><IconDownload size={16} /> Invoice PDF</button>
+          <button className="btn btn-secondary" onClick={messageTradeDesk}><IconWhats size={16} /> Message trade desk</button>
         </div>
       </div>
 
@@ -178,7 +338,8 @@ function OrderDetailScreen({ route, setRoute, persona, addToCart }) {
               background: 'var(--paper-2)', borderRadius: 'var(--r-md)',
               fontSize: 12, color: 'var(--fg-muted)',
             }}>
-              <strong style={{ color: 'var(--fg)' }}>{order.paymentTerm}</strong> · invoice due {formatDate(order.expected)}
+              <strong style={{ color: 'var(--fg)' }}>{order.paymentTerm}</strong>
+              {formatDate(order.expected) ? ` · invoice due ${formatDate(order.expected)}` : ''}
             </div>
           </div>
 
@@ -212,26 +373,53 @@ function OrderDetailScreen({ route, setRoute, persona, addToCart }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <button className="btn btn-secondary btn-block" style={{ justifyContent: 'flex-start' }} onClick={() => {
                 let n = 0;
+                let skipped = 0;
                 order.lines.forEach((l) => {
                   const p = findProduct(l.pid);
-                  if (!p) return;
-                  const tone = findTone(p.tone);
+                  // A line whose SKU is no longer in the catalogue used to be
+                  // skipped in silence, so on an order placed against retired
+                  // SKUs the button appeared to do nothing at all. Reorder what
+                  // the line itself recorded instead, and count what could not
+                  // be priced so the customer is told.
+                  if (p) {
+                    const tone = findTone(p.tone);
+                    addToCart && addToCart({
+                      pid: p.id, name: p.name, shape: p.shape, size: p.size,
+                      quality: p.clarity || p.quality || '', color: tone ? tone.name : '', toneHex: tone ? tone.color : '',
+                      unitMode: 'pc', ct: l.qty, qty: l.qty, perCtPrice: p.price, unitPrice: p.price,
+                      lineTotal: p.price * l.qty,
+                    });
+                    n++;
+                    return;
+                  }
+                  const rate = l.unitPrice || 0;
+                  if (!l.name && !rate) { skipped++; return; }
                   addToCart && addToCart({
-                    pid: p.id, name: p.name, shape: p.shape, size: p.size,
-                    quality: p.clarity || p.quality || '', color: tone ? tone.name : '', toneHex: tone ? tone.color : '',
-                    unitMode: 'pc', ct: l.qty, qty: l.qty, perCtPrice: p.price, unitPrice: p.price,
-                    lineTotal: p.price * l.qty,
+                    pid: l.pid || l.skuId || ('OLD-' + (l.name || 'item')),
+                    name: l.name || 'Previously ordered item',
+                    shape: l.shape || '', size: l.size || '',
+                    quality: l.quality || '', color: l.colour || l.color || '', toneHex: '#9a8',
+                    unitMode: 'pc', ct: l.qty, qty: l.qty,
+                    perCtPrice: rate, unitPrice: rate,
+                    lineTotal: l.lineTotal || rate * (l.qty || 0),
                   });
                   n++;
                 });
                 if (n) setRoute({ name: 'orders', tab: 'cart' });
+                else alert(
+                  skipped
+                    ? 'These items are no longer in the catalogue, so they cannot be reordered automatically. Message the trade desk and they will sort it out.'
+                    : 'Nothing on this order could be added to the cart.'
+                );
               }}>
                 <IconRefresh size={16} /> Reorder same items
               </button>
-              <button className="btn btn-secondary btn-block" style={{ justifyContent: 'flex-start' }}>
+              <button className="btn btn-secondary btn-block" style={{ justifyContent: 'flex-start' }}
+                      onClick={() => printDoc(packingHTML(), 'packing list')}>
                 <IconDoc size={16} /> Download packing list
               </button>
-              <button className="btn btn-ghost btn-block" style={{ justifyContent: 'flex-start', color: 'var(--ruby)' }}>
+              <button className="btn btn-ghost btn-block" style={{ justifyContent: 'flex-start', color: 'var(--ruby)' }}
+                      onClick={requestCancellation}>
                 <IconX size={16} /> Request cancellation
               </button>
             </div>
@@ -248,7 +436,10 @@ function OrderTimeline({ order }) {
     { id: 'confirmed', label: 'Confirmed by Eurostar',  meta: 'Within 24h' },
     { id: 'packed',    label: 'Packed & sealed', meta: 'Mumbai warehouse' },
     { id: 'shipped',   label: 'In transit',     meta: order.ship },
-    { id: 'delivered', label: 'Delivered',      meta: order.status === 'delivered' ? formatDate(order.expected) : `Expected ${formatDate(order.expected)}` },
+    { id: 'delivered', label: 'Delivered',
+      meta: formatDate(order.expected)
+        ? (order.status === 'delivered' ? formatDate(order.expected) : `Expected ${formatDate(order.expected)}`)
+        : '' },
   ];
   const order_idx = ['pending', 'confirmed', 'packed', 'shipped', 'delivered'];
   const currentIdx = order_idx.indexOf(order.status);

@@ -844,7 +844,13 @@ function SummaryMini({ label, value }) {
 }
 
 function formatDate(iso) {
+  // A missing or unparseable date used to render the words "Invalid Date" at
+  // the customer — "Expected by Invalid Date", "invoice due Invalid Date".
+  // Server orders carry no expected-delivery date at all, so say nothing rather
+  // than something broken.
+  if (!iso) return '';
   const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
   return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 

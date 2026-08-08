@@ -1,0 +1,21 @@
+// Sales App tokens — the storefront palette: cream paper, deep emerald hero.
+export const theme = {
+  paper: '#F5F1E8',
+  surface: '#FFFDF8',
+  card: '#FBF8F1',
+  ink: '#15130F',
+  ink2: '#3A342A',
+  meta: '#7A6F5C',
+  border: '#E6E2D8',
+  divider: '#EEEBE3',
+  emerald: '#0E5C4A',
+  emeraldDeep: '#0A4438',
+  emeraldInk: '#0B4638',
+  emeraldSoft: '#E7F0EC',
+  gold: '#C9A227',
+  ruby: '#8B1E2E',
+  rubySoft: '#F6E7E7',
+  onDark: '#EFE9DC',
+  onDarkMeta: '#B9C9C1',
+  radius: { sm: 8, md: 12, lg: 18, xl: 26 },
+};

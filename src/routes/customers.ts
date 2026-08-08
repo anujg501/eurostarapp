@@ -47,6 +47,8 @@ customersRouter.get(
         id: c.id,
         code: c.code,
         name: c.name,
+        contact: c.contact,
+        notes: c.notes,
         phone: c.phone,
         city: c.city,
         pincode: c.pincode,
@@ -66,7 +68,9 @@ customersRouter.get(
 // POST /customers — quick-create (name + phone). Rep/office only.
 // A rep-created customer is automatically mapped to that rep.
 const createSchema = z.object({
-  name: z.string().min(1),
+  name: z.string().min(1), // company / firm name
+  contact: z.string().optional(), // contact person ("Customer name")
+  notes: z.string().optional(), // free-text special notes
   phone: z.string().min(6),
   city: z.string().optional(),
   pincode: z.string().optional(),
@@ -137,6 +141,8 @@ customersRouter.post(
       data: {
         code,
         name: d.name,
+        contact: d.contact || null,
+        notes: d.notes || null,
         phone: d.phone,
         city: d.city,
         pincode: d.pincode,
@@ -156,6 +162,8 @@ customersRouter.post(
       id: customer.id,
       code: customer.code,
       name: customer.name,
+      contact: customer.contact,
+      notes: customer.notes,
       phone: customer.phone,
       city: customer.city,
       pincode: customer.pincode,
@@ -198,7 +206,7 @@ customersRouter.get(
     if (!(await actorMayTouch(req.user!, c.phone))) return res.status(403).json({ error: 'Not your account' });
 
     return ok(res, {
-      id: c.id, code: c.code, name: c.name, contact: c.contact, email: c.email,
+      id: c.id, code: c.code, name: c.name, contact: c.contact, notes: c.notes, email: c.email,
       phone: c.phone, city: c.city, gstin: c.gstin, terms: c.terms,
       shipAddress: c.shipAddress, billAddress: c.billAddress,
     });
@@ -209,6 +217,7 @@ customersRouter.get(
 const updateSchema = z.object({
   name: z.string().min(1).optional(),
   contact: z.string().optional(),
+  notes: z.string().optional(),
   email: z.string().email().or(z.literal('')).optional(),
   phone: z.string().min(6).optional(),
   city: z.string().optional(),
@@ -274,6 +283,7 @@ customersRouter.put(
       data: {
         ...(d.name !== undefined ? { name: d.name } : {}),
         ...(d.contact !== undefined ? { contact: d.contact } : {}),
+        ...(d.notes !== undefined ? { notes: d.notes || null } : {}),
         ...(d.email !== undefined ? { email: d.email || null } : {}),
         ...(d.phone !== undefined ? { phone: d.phone } : {}),
         ...(d.city !== undefined ? { city: d.city } : {}),
@@ -287,7 +297,7 @@ customersRouter.put(
     });
 
     return ok(res, {
-      id: updated.id, code: updated.code, name: updated.name, contact: updated.contact,
+      id: updated.id, code: updated.code, name: updated.name, contact: updated.contact, notes: updated.notes,
       email: updated.email, phone: updated.phone, city: updated.city, pincode: updated.pincode,
       gstin: updated.gstin, terms: updated.terms, shipAddress: updated.shipAddress,
       billAddress: updated.billAddress, rep: updated.rep?.repId ?? null,
@@ -312,6 +322,8 @@ customersRouter.get(
       id: c.id,
       code: c.code,
       name: c.name,
+      contact: c.contact,
+      notes: c.notes,
       phone: c.phone,
       city: c.city,
       gstin: c.gstin,

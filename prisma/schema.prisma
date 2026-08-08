@@ -82,8 +82,9 @@ model OtpCode {
 model Customer {
   id        String   @id @default(cuid())
   code      String   @unique // human-friendly code, e.g. "CUST-1042"
-  name      String // company or contact name
-  contact     String? // contact person, e.g. "Kiran Mehta"
+  name      String // company / firm name (CRM "Company name")
+  contact     String? // contact person / "Customer name", e.g. "Kiran Mehta"
+  notes       String? // CRM free-text "special notes"
   email       String?
   phone       String?
   city        String?
@@ -530,7 +531,8 @@ model Announcement {
 // is an upsert.
 model Lead {
   id        String   @id
-  name      String
+  name      String // company / firm name (bulk-upload "Company name")
+  contact   String   @default("") // contact person / "Customer name"
   city      String   @default("")
   mobile    String   @default("")
   gst       String   @default("")

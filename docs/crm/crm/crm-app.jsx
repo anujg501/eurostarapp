@@ -60,7 +60,7 @@ function Pill({ s, label }) {
 }
 // The columns a lead upload file uses, in order. Same for the CSV parser and
 // the downloadable template, so what a user downloads is exactly what parses.
-const LEAD_COLUMNS = ['Name', 'City', 'Mobile', 'GST (optional)', 'Rep ID (optional)', 'Note (optional)'];
+const LEAD_COLUMNS = ['Company Name', 'Customer Name', 'City', 'Mobile', 'GST (optional)', 'Rep ID (optional)', 'Special Notes (optional)'];
 
 // A proper CSV parser — handles quoted fields with commas/newlines and escaped
 // quotes (""). The old code just split on commas, so "Shop, Ltd" broke the row.
@@ -89,8 +89,8 @@ function downloadLeadTemplate() {
   const esc = (v) => (/[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v));
   const rows = [
     LEAD_COLUMNS,
-    ['Tanvi Gold Casting', 'Rajkot', '9876543210', '24ABCTC1234F1Z5', '', 'Interested in melee'],
-    ['Deepak Jewels', 'Ahmedabad', '9824030003', '', 'REP-204', 'Referred by existing customer'],
+    ['Tanvi Gold Casting', 'Tanvi Shah', 'Rajkot', '9876543210', '24ABCTC1234F1Z5', '', 'Interested in melee'],
+    ['Deepak Jewels', 'Deepak Patel', 'Ahmedabad', '9824030003', '', 'REP-204', 'Referred by existing customer'],
   ];
   const csv = rows.map((r) => r.map(esc).join(',')).join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });
@@ -188,13 +188,16 @@ function AdminCustomers({ st }) {
   const { customers, setTerms, toggleSuspend } = st;
   const [cityF, setCityF] = useState('');
   const [adding, setAdding] = useState(false);
-  const [nf, setNf] = useState({ name: '', city: '', mobile: '', gst: '', rep: '' });
+  const [nf, setNf] = useState({ company: '', contact: '', city: '', mobile: '', gst: '', notes: '', rep: '' });
   const setv = (k, v) => setNf((p) => ({ ...p, [k]: v }));
   const ninp = { padding: '9px 11px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', fontSize: 13, fontFamily: 'inherit', color: 'var(--fg)' };
-  const saveCust = () => {if (!nf.name || !nf.mobile) {alert('Name and mobile are required.');return;}
-    st.addCustomer(nf.rep, { name: nf.name, city: nf.city, mobile: nf.mobile, gst: nf.gst || '—' }).
+  const saveCust = () => {
+    if (!nf.company.trim() || !nf.contact.trim() || !nf.mobile.trim() || !nf.city.trim()) {
+      alert('Company name, Customer name, Mobile and City are required.');return;
+    }
+    st.addCustomer(nf.rep, { name: nf.company.trim(), contact: nf.contact.trim(), city: nf.city.trim(), mobile: nf.mobile.trim(), gst: nf.gst.trim() || '—', notes: nf.notes.trim() }).
     then((saved) => {if (saved && saved.deduped) alert(`That GST number already belongs to ${saved.name} (${saved.code}).`);
-      setNf({ name: '', city: '', mobile: '', gst: '', rep: '' });setAdding(false);}).
+      setNf({ company: '', contact: '', city: '', mobile: '', gst: '', notes: '', rep: '' });setAdding(false);}).
     catch((ex) => alert(ex.message || 'Could not save the customer.'));};
   const cities = [...new Set(customers.map((c) => c.city))].sort();
   const list = cityF ? customers.filter((c) => c.city === cityF) : customers;
@@ -212,10 +215,12 @@ function AdminCustomers({ st }) {
       <div className="crm-card" style={{ padding: 18 }}>
         <div style={{ fontWeight: 600, marginBottom: 12 }}>New customer</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12 }}>
-          <input style={ninp} placeholder="Customer name *" value={nf.name} onChange={(e) => setv('name', e.target.value)} />
-          <input style={ninp} placeholder="City" value={nf.city} onChange={(e) => setv('city', e.target.value)} />
+          <input style={ninp} placeholder="Company name *" value={nf.company} onChange={(e) => setv('company', e.target.value)} />
+          <input style={ninp} placeholder="Customer name *" value={nf.contact} onChange={(e) => setv('contact', e.target.value)} />
           <input style={ninp} placeholder="Mobile *" value={nf.mobile} onChange={(e) => setv('mobile', e.target.value)} />
-          <input style={ninp} placeholder="GST / PAN" value={nf.gst} onChange={(e) => setv('gst', e.target.value)} />
+          <input style={ninp} placeholder="City *" value={nf.city} onChange={(e) => setv('city', e.target.value)} />
+          <input style={ninp} placeholder="GST / PAN (optional)" value={nf.gst} onChange={(e) => setv('gst', e.target.value)} />
+          <input style={ninp} placeholder="Special notes (optional)" value={nf.notes} onChange={(e) => setv('notes', e.target.value)} />
           <select style={ninp} value={nf.rep} onChange={(e) => setv('rep', e.target.value)}>
             <option value="">Assign rep (optional)</option>
             {CRM_REPS.map((r) => <option key={r.id} value={r.id}>{r.name} · {r.region}</option>)}
@@ -249,13 +254,14 @@ function AdminCustomers({ st }) {
       </div>
       <div className="crm-card">
         <table className="crm-table">
-          <thead><tr><th>{TH("Code")}</th><th>{TH("Customer")}</th><th>{TH("City")}</th><th>{TH("GST")}</th><th>{TH("Mobile")}</th><th>{TH("Rep")}</th><th style={{ textAlign: 'center' }}>{TH("Cart views")}<br />{TH("(no order)")}</th><th>{TH("Payment terms")}</th><th>{TH("Login")}</th><th></th></tr></thead>
+          <thead><tr><th>{TH("Code")}</th><th>{TH("Company")}</th><th>{TH("Customer")}</th><th>{TH("City")}</th><th>{TH("GST")}</th><th>{TH("Mobile")}</th><th>{TH("Rep")}</th><th style={{ textAlign: 'center' }}>{TH("Cart views")}<br />{TH("(no order)")}</th><th>{TH("Payment terms")}</th><th>{TH("Notes")}</th><th>{TH("Login")}</th><th></th></tr></thead>
           <tbody>{list.map((c) => {const flag = (c.cartViewsNoOrder || 0) >= MISUSE;return (
-                <tr key={c.id} style={{ opacity: c.active ? 1 : 0.6 }}><td className="crm-id">{c.id}</td><td>{c.name}</td><td className="crm-muted">{c.city}</td>
+                <tr key={c.id} style={{ opacity: c.active ? 1 : 0.6 }}><td className="crm-id">{c.id}</td><td>{c.name}</td><td className="crm-muted">{c.contact || '—'}</td><td className="crm-muted">{c.city}</td>
             <td className="crm-id crm-muted">{c.gst}</td><td className="crm-muted" style={{ fontSize: 12 }}>{c.mobile}</td><td className="crm-muted">{H.rep(c.rep).name}</td>
             <td style={{ textAlign: 'center' }}><span style={{ fontWeight: 700, color: flag ? 'var(--ruby)' : 'var(--fg-muted)' }}>{c.cartViewsNoOrder || 0}</span>{flag && <div style={{ fontSize: 10, color: 'var(--ruby)', fontWeight: 700 }}>⚠ flag</div>}</td>
             <td><select className="disc-input" style={{ width: 92, textAlign: 'left' }} value={c.terms} onChange={(e) => setTerms(c.id, e.target.value)}>
               <option value="cash">Cash</option><option value="15">15 days</option><option value="30">30 days</option><option value="45">45 days</option><option value="60">60 days</option></select></td>
+            <td className="crm-muted" style={{ fontSize: 12, maxWidth: 180, whiteSpace: 'normal' }} title={c.notes || ''}>{c.notes || ''}</td>
             <td>{c.active ? <Pill s="active" label="Active" /> : <Pill s="abandoned" label="Suspended" />}</td>
             <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{c.active ?
                     <button className="cbtn cbtn-ghost cbtn-sm" onClick={() => toggleSuspend(c.id)}>Suspend</button> :
@@ -2001,13 +2007,13 @@ function AdminPayments({ st }) {
 }
 
 function AddLeadForm({ st, onDone, noAssign }) {
-  const [f, setF] = useState({ name: '', city: '', mobile: '', gst: '', rep: '', note: '' });
+  const [f, setF] = useState({ name: '', contact: '', city: '', mobile: '', gst: '', rep: '', note: '' });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
   const repName = (id) => { const r = CRM_REPS.find((x) => x.id === id); return r ? r.name : id; };
   const submit = () => {
-    if (!f.name.trim() || !f.city.trim() || !f.mobile.trim()) { setErr('Name, city and mobile are required.'); return; }
+    if (!f.name.trim() || !f.contact.trim() || !f.city.trim() || !f.mobile.trim()) { setErr('Company name, customer name, city and mobile are required.'); return; }
     if (f.mobile.replace(/\D+/g, '').length < 7) { setErr('That mobile number looks too short.'); return; }
     setErr('');setSaving(true);
     Promise.resolve(st.addLead(noAssign ? { ...f, rep: '' } : f)).
@@ -2029,7 +2035,8 @@ function AddLeadForm({ st, onDone, noAssign }) {
     <div className="crm-card" style={{ padding: 18, marginBottom: 16 }}>
       <div style={{ fontWeight: 600, marginBottom: 12 }}>Add a single lead{noAssign && <span className="crm-muted" style={{ fontWeight: 400, fontSize: 12 }}> · admin will assign to a rep</span>}</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 12 }}>
-        <input style={inp} placeholder="Lead name *" value={f.name} onChange={(e) => set('name', e.target.value)} />
+        <input style={inp} placeholder="Company name *" value={f.name} onChange={(e) => set('name', e.target.value)} />
+        <input style={inp} placeholder="Customer name *" value={f.contact} onChange={(e) => set('contact', e.target.value)} />
         <input style={inp} placeholder="City *" value={f.city} onChange={(e) => set('city', e.target.value)} />
         <input style={inp} placeholder="Mobile *" value={f.mobile} onChange={(e) => set('mobile', e.target.value)} />
         <input style={inp} placeholder="GST / PAN (optional)" value={f.gst} onChange={(e) => set('gst', e.target.value)} />
@@ -2772,6 +2779,8 @@ function mapCustomer(c) {
   return {
     id: c.code || c.id,
     name: c.name,
+    contact: c.contact || '',
+    notes: c.notes || '',
     city: c.city || '',
     pincode: c.pincode || '',
     gst: c.gstin || '',
@@ -3253,6 +3262,8 @@ function CRM() {
     addCustomer: (rep, c) =>
     crmApiJson('POST', '/customers', {
       name: c.name,
+      contact: c.contact || undefined,
+      notes: c.notes || undefined,
       phone: c.mobile,
       city: c.city || undefined,
       pincode: c.pincode || undefined,
@@ -3438,7 +3449,7 @@ function CRM() {
       // Flagged queue for review and never auto-assigned to a rep.
       const rep = flagMatch ? '' : (f.rep || (window.CRM_CITY_REP || {})[f.city] || '');
       const lead = {
-        id: newId, name: f.name.trim(), city: f.city.trim(), mobile: f.mobile.trim(),
+        id: newId, name: f.name.trim(), contact: (f.contact || '').trim(), city: f.city.trim(), mobile: f.mobile.trim(),
         gst: (f.gst || '').trim(), rep, stage: 1, followUp,
         assigned: !flagMatch && !!f.rep, note: (f.note || '').trim(),
         flagged: !!flagMatch, flagName: flagMatch ? flagMatch.name : '', flagBy: flagMatch ? flagMatch._by : '',
@@ -3455,10 +3466,11 @@ function CRM() {
       }).
       catch((ex) => { setLeads((ls) => ls.filter((l) => l.id !== newId)); throw ex; }); // roll back the optimistic row
     },
-    // Bulk lead upload (CSV or Excel). Columns: Name, City, Mobile, GST, Rep,
-    // Note (see LEAD_COLUMNS / the downloadable template). Rows matching an
-    // existing customer are flagged for review; the rest are created and, unless
-    // noAssign (Back Office holds them for the admin), routed to their city rep.
+    // Bulk lead upload (CSV or Excel). Columns: Company Name, Customer Name,
+    // City, Mobile, GST, Rep, Special Notes (see LEAD_COLUMNS / the downloadable
+    // template). Rows matching an existing customer are flagged for review; the
+    // rest are created and, unless noAssign (Back Office holds them for the
+    // admin), routed to their city rep.
     bulkLeads: (file, noAssign) => {
       const ext = (file.name.split('.').pop() || '').toLowerCase();
       const followUp = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
@@ -3466,18 +3478,19 @@ function CRM() {
         const created = []; let flaggedN = 0; const base = Date.now();
         rows.forEach((r, i) => {
           if (i === 0) return; // header row
-          const name = String(r[0] || '').trim();
-          const city = String(r[1] || '').trim();
-          if (!name || !city) return; // Name + City are the minimum
-          const mobile = String(r[2] || '').trim();
-          const gst = String(r[3] || '').trim();
-          const note = String(r[5] || '').trim();
+          const name = String(r[0] || '').trim();    // Company Name
+          const contact = String(r[1] || '').trim(); // Customer Name (contact person)
+          const city = String(r[2] || '').trim();
+          if (!name || !city) return; // Company Name + City are the minimum
+          const mobile = String(r[3] || '').trim();
+          const gst = String(r[4] || '').trim();
+          const note = String(r[6] || '').trim();
           const id = 'LD-' + (base + i);
           const fm = masterMatch(gst, name, city, mobile);
-          if (fm) { flaggedN++; created.push({ id, name, city, mobile, gst, rep: '', stage: 1, followUp, assigned: false, note, flagged: true, flagName: fm.name, flagBy: fm._by }); return; }
-          const repId = noAssign ? '' : String(r[4] || '').trim();
+          if (fm) { flaggedN++; created.push({ id, name, contact, city, mobile, gst, rep: '', stage: 1, followUp, assigned: false, note, flagged: true, flagName: fm.name, flagBy: fm._by }); return; }
+          const repId = noAssign ? '' : String(r[5] || '').trim();
           const rep = repId || (noAssign ? '' : (window.CRM_CITY_REP || {})[city] || '');
-          created.push({ id, name, city, mobile, gst, rep, stage: 1, followUp, assigned: !!repId, note, flagged: false, flagName: '', flagBy: '' });
+          created.push({ id, name, contact, city, mobile, gst, rep, stage: 1, followUp, assigned: !!repId, note, flagged: false, flagName: '', flagBy: '' });
         });
         if (created.length === 0) { alert('No valid rows found. The file needs a header row, then Name + City (at least) in each row. Download the template for the exact format.'); return; }
         setLeads((ls) => [...created, ...ls]); // optimistic

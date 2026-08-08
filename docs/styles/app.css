@@ -2126,8 +2126,11 @@ img[src*="assets/products/"] {
   .tab-btn .count, .tab-btn span { font-size: 11px; }
   .tab-btn.active::after { left: 8px; right: 8px; }
 
-  /* Safety net: never allow the app to scroll sideways. */
-  .app-root, .page { overflow-x: hidden; }
+  /* Safety net: never allow the app to scroll sideways. `clip`, not `hidden`:
+     hidden makes .page a scroll container, which traps the sticky Add-to-cart
+     (.order-summary) bar so it falls below the fold on phones; clip blocks
+     sideways scroll the same way without capturing sticky descendants. */
+  .app-root, .page { overflow-x: clip; }
 }
 
 /* Desktop-mode escape hatch: only meaningful on narrow screens.

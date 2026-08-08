@@ -671,18 +671,26 @@ function Footer() {
       }}>
         <div>
           <EurostarLogo size={18} />
-          <div style={{ fontSize: 12, color: 'var(--fg-meta)', marginTop: 10, maxWidth: 42 + 'ch', lineHeight: 1.6 }}>
-            {content.footerNote
-              ? <strong style={{ color: 'var(--fg-muted)', fontWeight: 600 }}>{content.footerNote}</strong>
-              : (
-                <>
-                  <strong style={{ color: 'var(--fg-muted)', fontWeight: 600 }}>Eurostar Technologies Inc.</strong> · Estd 1980<br/>
-                  <span style={{ display: 'inline-block', marginTop: 6 }}>
-                    Authorised Distributor for Asia-Pacific Region:<br/>
-                    Ganesh Jewellery I Pvt Ltd · Mumbai, Jaipur
-                  </span>
-                </>
-              )}
+          <div style={{ fontSize: 12, color: 'var(--fg-meta)', marginTop: 10, maxWidth: 60 + 'ch', lineHeight: 1.6 }}>
+            <strong style={{ color: 'var(--fg-muted)', fontWeight: 700 }}>Eurostar Gem Technologies Inc.</strong> · Estd 1980
+            <div style={{ display: 'grid', gap: 7, marginTop: 8 }}>
+              <div>
+                <strong style={{ color: 'var(--fg-muted)', fontWeight: 600 }}>Corporate office:</strong><br/>
+                101/103 Krishna Bhavan, Dhanji Street, Mumbai
+              </div>
+              <div>
+                <strong style={{ color: 'var(--fg-muted)', fontWeight: 600 }}>Branch:</strong><br/>
+                65A Kachwala Building, Dhanji Street, Mumbai
+              </div>
+              <div>
+                <strong style={{ color: 'var(--fg-muted)', fontWeight: 600 }}>Jaipur Branch:</strong><br/>
+                4th Floor, Goswami Bhavan, Jaipur 302016
+              </div>
+              <div>
+                <strong style={{ color: 'var(--fg-muted)', fontWeight: 600 }}>Hong Kong office:</strong><br/>
+                Unit No. 901, Hing Wah Center, Tokwawan, Kowloon, Hong Kong
+              </div>
+            </div>
           </div>
         </div>
         <div style={{ fontSize: 12, color: 'var(--fg-meta)', textAlign: 'right' }}>

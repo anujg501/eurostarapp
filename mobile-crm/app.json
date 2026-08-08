@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "Eurostar CRM",
+    "slug": "eurostar-crm-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "eurostarcrm",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFFFFF"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "in.eurostar.crm"
+    },
+    "android": {
+      "package": "in.eurostar.crm",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
+      }
+    },
+    "extra": {
+      "apiBaseUrl": "http://localhost:4000"
+    }
+  }
+}

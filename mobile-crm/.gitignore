@@ -1,0 +1,12 @@
+node_modules/
+.expo/
+dist/
+npm-debug.*
+*.orig.*
+web-build/
+.DS_Store
+
+# Native projects are generated from app.json via `expo prebuild` — not committed.
+/android/
+/ios/
+.gradle/

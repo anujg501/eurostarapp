@@ -53,6 +53,7 @@ customersRouter.get(
         city: c.city,
         pincode: c.pincode,
         gstin: c.gstin,
+        shipAddress: c.shipAddress,
         terms: c.terms,
         geo: c.geo,
         // The shopfront photo is a data URL — too heavy to send for every row.
@@ -75,6 +76,7 @@ const createSchema = z.object({
   city: z.string().optional(),
   pincode: z.string().optional(),
   gstin: z.string().optional(),
+  shipAddress: z.string().optional(), // shop / delivery address
   terms: z.enum(['cash', '15', '30', '45', '60']).optional(),
   repId: z.string().optional(), // office may assign to a specific rep
   // Field capture from the rep's phone. The photo is a data URL; cap it so a
@@ -147,6 +149,7 @@ customersRouter.post(
         city: d.city,
         pincode: d.pincode,
         gstin: d.gstin,
+        shipAddress: d.shipAddress || null,
         gstinNorm,
         terms: d.terms ?? 'cash',
         shopPhoto: d.shopPhoto,
@@ -168,6 +171,7 @@ customersRouter.post(
       city: customer.city,
       pincode: customer.pincode,
       gstin: customer.gstin,
+      shipAddress: customer.shipAddress,
       terms: customer.terms,
       geo: customer.geo,
       hasPhoto: !!customer.shopPhoto,

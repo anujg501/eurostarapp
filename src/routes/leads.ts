@@ -25,7 +25,7 @@ function normGst(gstin?: string | null): string | null {
 // be created (e.g. the lead has no owning rep yet). Dedupes on GSTIN so a lead
 // that matches an existing customer links to it instead of making a twin.
 async function customerFromLead(lead: {
-  name: string; contact?: string; city: string; mobile: string; gst: string; rep: string; note?: string;
+  name: string; contact?: string; city: string; mobile: string; gst: string; rep: string; note?: string; address?: string;
 }): Promise<string> {
   const rep = lead.rep
     ? await prisma.user.findFirst({ where: { role: 'rep', repId: lead.rep }, select: { id: true } })
@@ -47,6 +47,7 @@ async function customerFromLead(lead: {
       phone: lead.mobile || null,
       city: lead.city || null,
       gstin: lead.gst || null,
+      shipAddress: lead.address || null,
       gstinNorm,
       terms: 'cash',
       repUserId: rep?.id ?? null,
@@ -67,6 +68,7 @@ const leadSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   contact: z.string().optional(),
+  address: z.string().optional(),
   city: z.string().optional(),
   mobile: z.string().optional(),
   gst: z.string().optional(),
@@ -84,6 +86,7 @@ function toData(d: z.infer<typeof leadSchema>) {
   return {
     name: d.name,
     contact: d.contact ?? '',
+    address: d.address ?? '',
     city: d.city ?? '',
     mobile: d.mobile ?? '',
     gst: d.gst ?? '',

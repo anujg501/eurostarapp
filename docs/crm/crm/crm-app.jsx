@@ -60,7 +60,7 @@ function Pill({ s, label }) {
 }
 // The columns a lead upload file uses, in order. Same for the CSV parser and
 // the downloadable template, so what a user downloads is exactly what parses.
-const LEAD_COLUMNS = ['Company Name', 'Customer Name', 'City', 'Mobile', 'GST (optional)', 'Rep ID (optional)', 'Special Notes (optional)'];
+const LEAD_COLUMNS = ['Company Name', 'Customer Name', 'City', 'Mobile', 'Address (optional)', 'GST (optional)', 'Rep ID (optional)', 'Special Notes (optional)'];
 
 // A proper CSV parser — handles quoted fields with commas/newlines and escaped
 // quotes (""). The old code just split on commas, so "Shop, Ltd" broke the row.
@@ -89,8 +89,8 @@ function downloadLeadTemplate() {
   const esc = (v) => (/[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v));
   const rows = [
     LEAD_COLUMNS,
-    ['Tanvi Gold Casting', 'Tanvi Shah', 'Rajkot', '9876543210', '24ABCTC1234F1Z5', '', 'Interested in melee'],
-    ['Deepak Jewels', 'Deepak Patel', 'Ahmedabad', '9824030003', '', 'REP-204', 'Referred by existing customer'],
+    ['Tanvi Gold Casting', 'Tanvi Shah', 'Rajkot', '9876543210', '12 Ratanpol, Rajkot', '24ABCTC1234F1Z5', '', 'Interested in melee'],
+    ['Deepak Jewels', 'Deepak Patel', 'Ahmedabad', '9824030003', '5 MG Road, Ahmedabad', '', 'REP-204', 'Referred by existing customer'],
   ];
   const csv = rows.map((r) => r.map(esc).join(',')).join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });
@@ -188,16 +188,16 @@ function AdminCustomers({ st }) {
   const { customers, setTerms, toggleSuspend } = st;
   const [cityF, setCityF] = useState('');
   const [adding, setAdding] = useState(false);
-  const [nf, setNf] = useState({ company: '', contact: '', city: '', mobile: '', gst: '', notes: '', rep: '' });
+  const [nf, setNf] = useState({ company: '', contact: '', city: '', mobile: '', address: '', gst: '', notes: '', rep: '' });
   const setv = (k, v) => setNf((p) => ({ ...p, [k]: v }));
   const ninp = { padding: '9px 11px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', fontSize: 13, fontFamily: 'inherit', color: 'var(--fg)' };
   const saveCust = () => {
     if (!nf.company.trim() || !nf.contact.trim() || !nf.mobile.trim() || !nf.city.trim()) {
       alert('Company name, Customer name, Mobile and City are required.');return;
     }
-    st.addCustomer(nf.rep, { name: nf.company.trim(), contact: nf.contact.trim(), city: nf.city.trim(), mobile: nf.mobile.trim(), gst: nf.gst.trim() || '—', notes: nf.notes.trim() }).
+    st.addCustomer(nf.rep, { name: nf.company.trim(), contact: nf.contact.trim(), city: nf.city.trim(), mobile: nf.mobile.trim(), address: nf.address.trim(), gst: nf.gst.trim() || '—', notes: nf.notes.trim() }).
     then((saved) => {if (saved && saved.deduped) alert(`That GST number already belongs to ${saved.name} (${saved.code}).`);
-      setNf({ company: '', contact: '', city: '', mobile: '', gst: '', notes: '', rep: '' });setAdding(false);}).
+      setNf({ company: '', contact: '', city: '', mobile: '', address: '', gst: '', notes: '', rep: '' });setAdding(false);}).
     catch((ex) => alert(ex.message || 'Could not save the customer.'));};
   const cities = [...new Set(customers.map((c) => c.city))].sort();
   const list = cityF ? customers.filter((c) => c.city === cityF) : customers;
@@ -219,6 +219,7 @@ function AdminCustomers({ st }) {
           <input style={ninp} placeholder="Customer name *" value={nf.contact} onChange={(e) => setv('contact', e.target.value)} />
           <input style={ninp} placeholder="Mobile *" value={nf.mobile} onChange={(e) => setv('mobile', e.target.value)} />
           <input style={ninp} placeholder="City *" value={nf.city} onChange={(e) => setv('city', e.target.value)} />
+          <input style={ninp} placeholder="Address (optional)" value={nf.address} onChange={(e) => setv('address', e.target.value)} />
           <input style={ninp} placeholder="GST / PAN (optional)" value={nf.gst} onChange={(e) => setv('gst', e.target.value)} />
           <input style={ninp} placeholder="Special notes (optional)" value={nf.notes} onChange={(e) => setv('notes', e.target.value)} />
           <select style={ninp} value={nf.rep} onChange={(e) => setv('rep', e.target.value)}>
@@ -254,9 +255,9 @@ function AdminCustomers({ st }) {
       </div>
       <div className="crm-card">
         <table className="crm-table">
-          <thead><tr><th>{TH("Code")}</th><th>{TH("Company")}</th><th>{TH("Customer")}</th><th>{TH("City")}</th><th>{TH("GST")}</th><th>{TH("Mobile")}</th><th>{TH("Rep")}</th><th style={{ textAlign: 'center' }}>{TH("Cart views")}<br />{TH("(no order)")}</th><th>{TH("Payment terms")}</th><th>{TH("Notes")}</th><th>{TH("Login")}</th><th></th></tr></thead>
+          <thead><tr><th>{TH("Code")}</th><th>{TH("Company")}</th><th>{TH("Customer")}</th><th>{TH("City")}</th><th>{TH("Address")}</th><th>{TH("GST")}</th><th>{TH("Mobile")}</th><th>{TH("Rep")}</th><th style={{ textAlign: 'center' }}>{TH("Cart views")}<br />{TH("(no order)")}</th><th>{TH("Payment terms")}</th><th>{TH("Notes")}</th><th>{TH("Login")}</th><th></th></tr></thead>
           <tbody>{list.map((c) => {const flag = (c.cartViewsNoOrder || 0) >= MISUSE;return (
-                <tr key={c.id} style={{ opacity: c.active ? 1 : 0.6 }}><td className="crm-id">{c.id}</td><td>{c.name}</td><td className="crm-muted">{c.contact || '—'}</td><td className="crm-muted">{c.city}</td>
+                <tr key={c.id} style={{ opacity: c.active ? 1 : 0.6 }}><td className="crm-id">{c.id}</td><td>{c.name}</td><td className="crm-muted">{c.contact || '—'}</td><td className="crm-muted">{c.city}</td><td className="crm-muted" style={{ fontSize: 12, maxWidth: 180, whiteSpace: 'normal' }} title={c.address || ''}>{c.address || '—'}</td>
             <td className="crm-id crm-muted">{c.gst}</td><td className="crm-muted" style={{ fontSize: 12 }}>{c.mobile}</td><td className="crm-muted">{H.rep(c.rep).name}</td>
             <td style={{ textAlign: 'center' }}><span style={{ fontWeight: 700, color: flag ? 'var(--ruby)' : 'var(--fg-muted)' }}>{c.cartViewsNoOrder || 0}</span>{flag && <div style={{ fontSize: 10, color: 'var(--ruby)', fontWeight: 700 }}>⚠ flag</div>}</td>
             <td><select className="disc-input" style={{ width: 92, textAlign: 'left' }} value={c.terms} onChange={(e) => setTerms(c.id, e.target.value)}>
@@ -2007,7 +2008,7 @@ function AdminPayments({ st }) {
 }
 
 function AddLeadForm({ st, onDone, noAssign }) {
-  const [f, setF] = useState({ name: '', contact: '', city: '', mobile: '', gst: '', rep: '', note: '' });
+  const [f, setF] = useState({ name: '', contact: '', city: '', mobile: '', address: '', gst: '', rep: '', note: '' });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
@@ -2039,6 +2040,7 @@ function AddLeadForm({ st, onDone, noAssign }) {
         <input style={inp} placeholder="Customer name *" value={f.contact} onChange={(e) => set('contact', e.target.value)} />
         <input style={inp} placeholder="City *" value={f.city} onChange={(e) => set('city', e.target.value)} />
         <input style={inp} placeholder="Mobile *" value={f.mobile} onChange={(e) => set('mobile', e.target.value)} />
+        <input style={inp} placeholder="Address (optional)" value={f.address} onChange={(e) => set('address', e.target.value)} />
         <input style={inp} placeholder="GST / PAN (optional)" value={f.gst} onChange={(e) => set('gst', e.target.value)} />
         {!noAssign &&
         <select style={inp} value={f.rep} onChange={(e) => set('rep', e.target.value)}>
@@ -2781,6 +2783,7 @@ function mapCustomer(c) {
     name: c.name,
     contact: c.contact || '',
     notes: c.notes || '',
+    address: c.shipAddress || '',
     city: c.city || '',
     pincode: c.pincode || '',
     gst: c.gstin || '',
@@ -3267,6 +3270,7 @@ function CRM() {
       phone: c.mobile,
       city: c.city || undefined,
       pincode: c.pincode || undefined,
+      shipAddress: c.address || undefined,
       gstin: c.gst && c.gst !== '—' ? c.gst : undefined,
       shopPhoto: c.photo || undefined,
       geo: c.geo || undefined,
@@ -3450,7 +3454,7 @@ function CRM() {
       const rep = flagMatch ? '' : (f.rep || (window.CRM_CITY_REP || {})[f.city] || '');
       const lead = {
         id: newId, name: f.name.trim(), contact: (f.contact || '').trim(), city: f.city.trim(), mobile: f.mobile.trim(),
-        gst: (f.gst || '').trim(), rep, stage: 1, followUp,
+        address: (f.address || '').trim(), gst: (f.gst || '').trim(), rep, stage: 1, followUp,
         assigned: !flagMatch && !!f.rep, note: (f.note || '').trim(),
         flagged: !!flagMatch, flagName: flagMatch ? flagMatch.name : '', flagBy: flagMatch ? flagMatch._by : '',
       };
@@ -3467,10 +3471,10 @@ function CRM() {
       catch((ex) => { setLeads((ls) => ls.filter((l) => l.id !== newId)); throw ex; }); // roll back the optimistic row
     },
     // Bulk lead upload (CSV or Excel). Columns: Company Name, Customer Name,
-    // City, Mobile, GST, Rep, Special Notes (see LEAD_COLUMNS / the downloadable
-    // template). Rows matching an existing customer are flagged for review; the
-    // rest are created and, unless noAssign (Back Office holds them for the
-    // admin), routed to their city rep.
+    // City, Mobile, Address, GST, Rep, Special Notes (see LEAD_COLUMNS / the
+    // downloadable template). Rows matching an existing customer are flagged for
+    // review; the rest are created and, unless noAssign (Back Office holds them
+    // for the admin), routed to their city rep.
     bulkLeads: (file, noAssign) => {
       const ext = (file.name.split('.').pop() || '').toLowerCase();
       const followUp = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
@@ -3483,14 +3487,15 @@ function CRM() {
           const city = String(r[2] || '').trim();
           if (!name || !city) return; // Company Name + City are the minimum
           const mobile = String(r[3] || '').trim();
-          const gst = String(r[4] || '').trim();
-          const note = String(r[6] || '').trim();
+          const address = String(r[4] || '').trim();
+          const gst = String(r[5] || '').trim();
+          const note = String(r[7] || '').trim();
           const id = 'LD-' + (base + i);
           const fm = masterMatch(gst, name, city, mobile);
-          if (fm) { flaggedN++; created.push({ id, name, contact, city, mobile, gst, rep: '', stage: 1, followUp, assigned: false, note, flagged: true, flagName: fm.name, flagBy: fm._by }); return; }
-          const repId = noAssign ? '' : String(r[5] || '').trim();
+          if (fm) { flaggedN++; created.push({ id, name, contact, city, mobile, address, gst, rep: '', stage: 1, followUp, assigned: false, note, flagged: true, flagName: fm.name, flagBy: fm._by }); return; }
+          const repId = noAssign ? '' : String(r[6] || '').trim();
           const rep = repId || (noAssign ? '' : (window.CRM_CITY_REP || {})[city] || '');
-          created.push({ id, name, contact, city, mobile, gst, rep, stage: 1, followUp, assigned: !!repId, note, flagged: false, flagName: '', flagBy: '' });
+          created.push({ id, name, contact, city, mobile, address, gst, rep, stage: 1, followUp, assigned: !!repId, note, flagged: false, flagName: '', flagBy: '' });
         });
         if (created.length === 0) { alert('No valid rows found. The file needs a header row, then Name + City (at least) in each row. Download the template for the exact format.'); return; }
         setLeads((ls) => [...created, ...ls]); // optimistic

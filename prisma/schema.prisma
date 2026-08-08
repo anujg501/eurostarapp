@@ -535,6 +535,7 @@ model Lead {
   contact   String   @default("") // contact person / "Customer name"
   city      String   @default("")
   mobile    String   @default("")
+  address   String   @default("") // shop address; → Customer.shipAddress on convert
   gst       String   @default("")
   rep       String   @default("") // assigned repId, or "" when unassigned
   stage     Int      @default(1)

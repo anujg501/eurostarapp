@@ -432,6 +432,16 @@ function ProductPhotos({ standalone = false }: { standalone?: boolean } = {}) {
     }
   };
 
+  // Rajkot Zirconia's White grade is chosen as two "packets" (AAA Silver / AA
+  // Shampoo) rather than a colour × shape, so the shop shows one packet photo per
+  // type — keyed rajkot|_packet|<sub>, the exact key the storefront reads
+  // (DocUploadCard in product-images.jsx). The normal colour × shape grid can't
+  // reach it, so give it its own upload slots here.
+  const RAJKOT_PACKETS = [
+    { id: 'aaa', name: 'AAA Silver Packet' },
+    { id: 'shampoo', name: 'AA Shampoo Packet' },
+  ];
+
   if (loading) return <section className="ad-card ad-card-pad ad-muted">Loading…</section>;
 
   return (
@@ -484,6 +494,44 @@ function ProductPhotos({ standalone = false }: { standalone?: boolean } = {}) {
           Each grade has its own photos — switch the grade above to give{' '}
           {gradeChoices.map((g) => g.name).join(' / ')} different images.
         </p>
+      )}
+
+      {cat === 'rajkot' && (
+        <div style={{ marginTop: 16, padding: 14, border: '1px solid var(--line, #e6e2d6)', borderRadius: 10 }}>
+          <h4 style={{ margin: '0 0 4px' }}>Packet photos — White grade</h4>
+          <p className="ad-muted" style={{ marginTop: 0, marginBottom: 12, fontSize: 12.5 }}>
+            The picture customers see on each White packet card in the shop (AAA Silver / AA Shampoo). Saved with the
+            same <strong>Save changes</strong> button above.
+          </p>
+          <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+            {RAJKOT_PACKETS.map((pk) => {
+              const key = `rajkot|_packet|${pk.id}`;
+              const img = images[key];
+              return (
+                <div key={pk.id} style={{ width: 170 }}>
+                  <div style={{ fontWeight: 600, marginBottom: 6, fontSize: 13 }}>{pk.name}</div>
+                  <div className="pi-cell">
+                    <label className="ad-btn ad-btn-ghost ad-btn-sm">
+                      {img && <img className="pi-thumb" src={img} alt={pk.name} />}
+                      {img ? 'Change' : '＋ Upload'}
+                      <input type="file" accept="image/*" hidden onChange={(e) => pick(key, e.target.files?.[0])} />
+                    </label>
+                    {img && (
+                      <button
+                        className="ad-btn ad-btn-ghost ad-btn-sm ad-danger"
+                        title="Remove"
+                        disabled={busyKey === key}
+                        onClick={() => stage(key, null)}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       {error && <div className="ad-error" style={{ marginTop: 12 }}>{error}</div>}

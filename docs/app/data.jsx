@@ -773,7 +773,8 @@ const CORUNDUM_COLORS_BY_GRADE = {
     // Ruby 5 (VGI) prices loaded from a sheet — restrict to the shapes it prices.
     { id: 'ruby5',  name: 'Ruby 5',  hex: '#8B1E2E',
       shapes: ['round','oval','pear','marquise','princess','octagon-princess','heart'] },
-    { id: 'blue34', name: 'Blue 34', hex: '#1E3A8A' },
+    { id: 'blue34', name: 'Blue 34', hex: '#1E3A8A',
+      shapes: ['round','oval','pear','marquise','princess','cushion','heart','baguette','octagon-princess'] },
   ],
   aa: [
     // Deccan Ruby 2 / Ruby 3 (same price) loaded from RIVEN sheet (per piece).

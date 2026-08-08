@@ -313,7 +313,7 @@ function ProductScreen({ route, setRoute, addToCart, wishlist, toggleWishlist })
             <MiniTrust icon={<IconTruck size={16} />} title="Insured shipping" desc="BlueDart / DTDC / DHL" />
             <MiniTrust icon={<IconShield size={16} />} title="GRA verified" desc="Per-stone certificate" />
             <MiniTrust icon={<IconRefresh size={16} />} title="7-day returns" desc="On calibration mismatch" />
-            <MiniTrust icon={<IconWhats size={16} />} title="Trade desk" desc="+91 98765 43210" />
+            <MiniTrust icon={<IconWhats size={16} />} title="Trade desk" desc="+91 77100 65480" />
           </div>
         </div>
       </div>

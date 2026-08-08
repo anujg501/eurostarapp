@@ -187,7 +187,7 @@ function OrderDetailScreen({ route, setRoute, persona, addToCart }) {
       `${persona.company || ''}${persona.account ? ' · ' + persona.account : ''}\n` +
       `Placed ${formatDate(order.date)} · ${itemCount.toLocaleString('en-IN')} pcs · ${formatINR(grand)}\n\n` +
       'Please confirm whether this order can still be cancelled.';
-    window.open('https://wa.me/919876543210?text=' + encodeURIComponent(text), '_blank');
+    window.open('https://wa.me/917710065480?text=' + encodeURIComponent(text), '_blank');
   };
 
   // A blocked pop-up is the usual reason nothing happens, and printDoc says so
@@ -201,7 +201,7 @@ function OrderDetailScreen({ route, setRoute, persona, addToCart }) {
       `Hello Eurostar — about order ${order.id}\n` +
       `${persona.company || ''}${persona.account ? ' · ' + persona.account : ''}\n` +
       `Placed ${formatDate(order.date)} · ${itemCount.toLocaleString('en-IN')} pcs · ${formatINR(grand)}\n\n`;
-    window.open('https://wa.me/919876543210?text=' + encodeURIComponent(text), '_blank');
+    window.open('https://wa.me/917710065480?text=' + encodeURIComponent(text), '_blank');
   };
 
   return (

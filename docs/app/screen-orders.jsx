@@ -818,7 +818,7 @@ function CartView({ cart, setCart, persona, setRoute, discount }) {
               <IconWhats size={14} /> WhatsApp trade desk
             </button>
             <button className="btn btn-secondary btn-sm" style={{ justifyContent: 'flex-start' }}>
-              <IconPhone size={14} /> +91 98765 43210
+              <IconPhone size={14} /> +91 77100 65480
             </button>
           </div>
         </div>

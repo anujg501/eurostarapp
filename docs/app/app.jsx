@@ -694,7 +694,7 @@ function Footer() {
           </div>
         </div>
         <div style={{ fontSize: 12, color: 'var(--fg-meta)', textAlign: 'right' }}>
-          Trade desk · +91 98765 43210 · info@eurostar.com<br/>
+          Trade desk · +91 77100 65480 · info@eurostar.com<br/>
           {content.businessHours || 'Mon–Sat 10:00–20:00 IST'}
         </div>
       </div>

@@ -328,6 +328,7 @@ export const GRADE_SCOPED: Record<string, boolean> = {
   cz: true,
   pearls: true,
   rajkot: true,
+  polki: true,
 };
 
 // The grade list to offer per grade-scoped category (id must match the
@@ -386,6 +387,17 @@ export const GRADE_SCOPED_GRADES: Record<string, { id: string; name: string }[]>
   rajkot: [
     { id: 'white', name: 'White' },
     { id: 'color', name: 'Colour' },
+  ],
+  // Polki shape-card photos are grade-specific: white plain, kundan-foiled and
+  // moissanite (double-foiled) versions of the same shape look different. Grade
+  // ids match the storefront (baseGrade '+' subGrade in data.jsx): White Polki →
+  // Regular = 'white-regular', Kundan Foil = 'kundan', Moissanite Polki → Regular
+  // = 'samosa-regular'. The uneven design series (B/C/X/Z/…) have their own
+  // bulk uploader (Polki design photos) and are not covered here.
+  polki: [
+    { id: 'white-regular', name: 'White Polki · Regular Shapes' },
+    { id: 'kundan', name: 'Kundan Foil' },
+    { id: 'samosa-regular', name: 'Moissanite Polki · Regular Shapes' },
   ],
 };
 
@@ -567,6 +579,14 @@ export const GRADE_SCOPED_COLOURS: Record<string, Record<string, Colour[]>> = {
       { id: 'ruby5aa', name: 'Ruby 5 AA', hex: '#C44A66' },
     ],
   },
+  // Polki offers a single "Polki" colour in every grade (storefront colour id
+  // 'default'); the visible variant is the grade, so the shape photo is keyed
+  // by grade + this one colour.
+  polki: {
+    'white-regular': [{ id: 'default', name: 'Polki', hex: '#EFE6CF' }],
+    kundan: [{ id: 'default', name: 'Polki', hex: '#EFE6CF' }],
+    'samosa-regular': [{ id: 'default', name: 'Polki', hex: '#EFE6CF' }],
+  },
 };
 
 // A few grade-scoped categories also vary their SHAPES per grade (Opaque:
@@ -607,6 +627,13 @@ export const GRADE_SCOPED_SHAPES: Record<string, Record<string, string[]>> = {
   rajkot: {
     white: ['round'],
     color: ['round'],
+  },
+  // Polki shapes per grade, mirroring the storefront's POLKI_SHAPES_BY_GRADE
+  // (white-regular, kundan) and the moissanite regular flow's shape grid.
+  polki: {
+    'white-regular': ['round', 'cushion', 'oval', 'pear', 'marquise'],
+    kundan: ['round', 'cushion', 'oval', 'pear', 'marquise', 'octagon-step'],
+    'samosa-regular': ['round', 'oval', 'pear', 'cushion', 'marquise', 'heart', 'octagon-step'],
   },
 };
 

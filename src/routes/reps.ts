@@ -425,7 +425,9 @@ repsRouter.get(
 repsRouter.get(
   '/:id/commission',
   authenticate,
-  requireStaff,
+  // Reps & commission is an Administration screen, and the console signs in as
+  // role 'admin' — which requireStaff (rep|office) excludes.
+  requireInternal,
   asyncHandler(async (req, res) => {
     const rep = await prisma.rep.findFirst({
       where: { OR: [{ id: req.params.id }, { repId: req.params.id }] },

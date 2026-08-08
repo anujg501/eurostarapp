@@ -82,7 +82,11 @@ const createSchema = z.object({
 customersRouter.post(
   '/',
   authenticate,
-  requireStaff,
+  // requireInternal, not requireStaff: the CRM's Administration console signs
+  // in as role 'admin', which requireStaff (rep|office) excludes — so adding a
+  // customer from the console answered "You do not have permission to do this".
+  // The scoping below already treats anything that is not a rep as office.
+  requireInternal,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = createSchema.safeParse(req.body);
     if (!parsed.success) return failValidation(res, parsed.error);
@@ -295,7 +299,9 @@ customersRouter.put(
 customersRouter.get(
   '/:id',
   authenticate,
-  requireStaff,
+  // Same reason: an admin reading a customer record is not a lesser right than
+  // office, and the console shows this screen.
+  requireInternal,
   asyncHandler(async (req, res) => {
     const c = await prisma.customer.findFirst({
       where: { OR: [{ id: req.params.id }, { code: req.params.id }] },

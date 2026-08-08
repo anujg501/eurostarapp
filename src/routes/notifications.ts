@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db';
 import { asyncHandler, ok, failValidation } from '../util/http';
-import { AuthedRequest, authenticate, requireStaff } from '../auth/middleware';
+import { AuthedRequest, authenticate, requireStaff, requireInternal } from '../auth/middleware';
 
 export const notificationsRouter = Router();
 
@@ -42,7 +42,9 @@ const createSchema = z
 notificationsRouter.post(
   '/',
   authenticate,
-  requireStaff,
+  // The Administration console signs in as role 'admin', which requireStaff
+  // (rep|office) excludes — sending a customer notification from there 403'd.
+  requireInternal,
   asyncHandler(async (req, res) => {
     const parsed = createSchema.safeParse(req.body);
     if (!parsed.success) return failValidation(res, parsed.error);

@@ -3,13 +3,12 @@ import { View, ActivityIndicator, StyleSheet, Text, TextInput } from 'react-nati
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { api, loadRole, loadToken, setRole, setToken, type StaffRole } from './src/api';
 import { theme } from './src/theme';
 import LoginScreen from './src/screens/LoginScreen';
-import DeskScreen from './src/screens/DeskScreen';
-import CustomersScreen from './src/screens/CustomersScreen';
-import OrdersScreen from './src/screens/OrdersScreen';
+import Shell from './src/screens/Shell';
+import AddCustomerScreen from './src/screens/AddCustomerScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -30,6 +29,9 @@ type Defaultable = { defaultProps?: Record<string, unknown> };
 export default function App() {
   const [ready, setReady] = useState(false);
   const [role, setRoleState] = useState<StaffRole | null>(null);
+  // The rep's public id (REP-204). Enquiries are routed on it, so the RFQ
+  // screen needs it to know which of them are on this rep's name.
+  const [repId, setRepId] = useState<string | undefined>();
 
   useEffect(() => {
     (async () => {
@@ -39,7 +41,8 @@ export default function App() {
         // it. A network hiccup must NOT sign a rep out mid-day, so only an
         // outright rejection clears the session.
         try {
-          await api.me();
+          const me = await api.me();
+          setRepId(me.repId);
           setRoleState((await loadRole()) || 'rep');
         } catch (e: any) {
           if (e?.status === 401 || e?.status === 403) {
@@ -57,7 +60,15 @@ export default function App() {
   const signOut = useCallback(async () => {
     await setToken(null);
     await setRole(null);
+    setRepId(undefined);
     setRoleState(null);
+  }, []);
+
+  const signedIn = useCallback(async (r: StaffRole) => {
+    setRoleState(r);
+    // Fetch the rep id straight after sign-in; without it the RFQ screen cannot
+    // tell "on my name" from everybody else's.
+    try { setRepId((await api.me()).repId); } catch { /* the desk still loads */ }
   }, []);
 
   if (!ready) {
@@ -70,23 +81,28 @@ export default function App() {
 
   if (!role) {
     return (
-      <SafeAreaProvider>
+      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         <StatusBar style="dark" />
-        <LoginScreen onSignedIn={(r) => setRoleState(r)} />
+        <LoginScreen onSignedIn={signedIn} />
       </SafeAreaProvider>
     );
   }
 
   return (
-    <SafeAreaProvider>
-      <StatusBar style="dark" />
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+      {/* The CRM chrome is dark, so the status bar icons must be light. */}
+      <StatusBar style="light" />
       <NavigationContainer>
+        {/* The five sections are NOT five stack screens — they all live inside
+            Shell, which keeps the chrome mounted and switches bodies with a
+            setState. Pushing them was what made every tab change flicker.
+            Add customer stays a real push: there a slide and a back button are
+            exactly what is wanted. */}
         <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.paper } }}>
-          <Stack.Screen name="Desk">
-            {(props) => <DeskScreen {...props} role={role} onSignOut={signOut} />}
+          <Stack.Screen name="Main">
+            {(props) => <Shell {...props} role={role} repId={repId} onSignOut={signOut} />}
           </Stack.Screen>
-          <Stack.Screen name="Customers" component={CustomersScreen} />
-          <Stack.Screen name="Orders" component={OrdersScreen} />
+          <Stack.Screen name="AddCustomer" component={AddCustomerScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>

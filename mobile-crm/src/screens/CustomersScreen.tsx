@@ -1,24 +1,28 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { api, type Customer } from '../api';
 import { theme } from '../theme';
+import { PageHead } from '../components/Chrome';
 
 const TERMS: Record<string, string> = { cash: 'Cash', '15': '15 days', '30': '30 days', '45': '45 days', '60': '60 days' };
 
 // The customer book. A rep sees their own customers and office/admin see the
 // whole master — that is the server's decision, made from the token, and this
 // screen simply shows what came back.
-export default function CustomersScreen({ navigation }: any) {
+export default function CustomersScreen({ navigation, role = 'rep', active = true }: any) {
   const [rows, setRows] = useState<Customer[] | null>(null);
   const [err, setErr] = useState('');
   const [q, setQ] = useState('');
 
+  // Reloads whenever this section comes to the front, so a customer added in
+  // between is here on the way back. The list already drawn stays on screen
+  // while that happens.
   useEffect(() => {
+    if (!active) return;
     api.customers()
       .then((r) => setRows(Array.isArray(r) ? r : []))
       .catch((e) => setErr(e?.message || 'Could not load customers.'));
-  }, []);
+  }, [active]);
 
   const list = useMemo(() => {
     const t = q.trim().toLowerCase();
@@ -30,17 +34,13 @@ export default function CustomersScreen({ navigation }: any) {
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.paper }}>
-      <SafeAreaView edges={['top']} style={styles.appbarWrap}>
-        <View style={styles.appbar}>
-          <TouchableOpacity style={styles.back} onPress={() => navigation.goBack()} accessibilityLabel="Back">
-            <Text style={styles.backTxt}>‹</Text>
-          </TouchableOpacity>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.title}>Customers</Text>
-            <Text style={styles.sub}>{rows ? `${rows.length} on the book` : 'loading…'}</Text>
-          </View>
-        </View>
-      </SafeAreaView>
+      <PageHead
+        title={role === 'rep' ? 'My customers' : 'Customers'}
+        sub={rows ? `${list.length} of ${rows.length} on the book` : 'loading…'}
+        action="+ Add"
+        onAction={() => navigation.navigate('AddCustomer')}
+        onBack={() => navigation.goBack()}
+      />
 
       <View style={styles.searchWrap}>
         <TextInput
@@ -86,20 +86,6 @@ export default function CustomersScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  appbarWrap: { backgroundColor: theme.surface },
-  appbar: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingHorizontal: 18, paddingVertical: 16,
-    borderBottomWidth: 1, borderBottomColor: theme.divider,
-  },
-  back: {
-    width: 36, height: 36, borderRadius: 10, borderWidth: 1, borderColor: theme.border,
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-  },
-  backTxt: { fontSize: 22, color: theme.ink, marginTop: -3 },
-  title: { fontSize: 18, fontWeight: '700', color: theme.ink },
-  sub: { fontSize: 12.5, color: theme.meta, marginTop: 2 },
-
   searchWrap: { paddingHorizontal: 18, paddingTop: 14, width: '100%', maxWidth: 620, alignSelf: 'center' },
   search: {
     backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border, borderRadius: 10,

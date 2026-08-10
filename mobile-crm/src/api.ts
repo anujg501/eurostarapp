@@ -118,7 +118,71 @@ export type Order = {
   date?: string;
 };
 
-export type Rfq = { id: string; status: string; value?: number; city?: string | null; createdAt?: string };
+// An enquiry off the storefront. The server hands back the customer it belongs
+// to already joined, plus whichever rep the office routed it to.
+export type Rfq = {
+  id: string;
+  status: string; // open | answered | quoted | closed
+  value?: number;
+  custCode?: string;
+  custName?: string;
+  city?: string | null;
+  assignedRep?: string;
+  items?: any;
+  detail?: Record<string, any>;
+  quoteAmount?: number | null;
+  quoteNote?: string;
+  createdAt?: string;
+};
+
+// A lead is one relationship being worked up the pipeline. Same six stages as
+// the web CRM's Relation-Pipeline board.
+export type Lead = {
+  id: string;
+  name: string;
+  contact?: string;
+  city?: string;
+  mobile?: string;
+  rep?: string;
+  stage: number;
+  followUp?: string;
+  note?: string;
+  createdAt?: string;
+};
+
+export type Payment = {
+  id: string;
+  orderId?: string | null;
+  customerId?: string | null;
+  amount?: number;
+  status: string;
+  method?: string | null;
+  loggedAt?: string;
+};
+
+export type Escalation = { id: string; name: string; role: 'asm' | 'head' | string; phone: string };
+
+// The six stages a relationship moves through, mirroring CRM_STAGES in the web
+// CRM so a rep reads the same words on both.
+export const STAGES: { id: number; label: string; short: string }[] = [
+  { id: 1, label: 'Call to fix meeting', short: 'Call' },
+  { id: 2, label: 'Met & added customer', short: 'Met' },
+  { id: 3, label: 'Sample order given', short: 'Sample' },
+  { id: 4, label: 'Feedback meeting', short: 'Feedback' },
+  { id: 5, label: 'Satisfied — will order', short: 'Will order' },
+  { id: 6, label: 'Active buyer', short: 'Active' },
+];
+
+export type NewCustomer = {
+  name: string;
+  contact?: string;
+  phone: string;
+  city?: string;
+  gstin?: string;
+  shipAddress?: string;
+  notes?: string;
+  terms?: 'cash' | '15' | '30' | '45' | '60';
+};
 
 export const api = {
   // Staff sign-in. The role picked on the login screen is sent with it, exactly
@@ -134,4 +198,19 @@ export const api = {
   customers: () => request<Customer[]>('/customers'),
   orders: () => request<Order[]>('/orders'),
   rfqs: () => request<Rfq[]>('/rfq'),
+
+  // The server scopes /leads to the caller's own repId, so a rep downloads
+  // their own book and nobody else's.
+  leads: () => request<Lead[]>('/leads'),
+  payments: () => request<Payment[]>('/payments'),
+  escalation: () => request<Escalation[]>('/reps/escalation'),
+
+  // Rep/office/admin may all add a customer; a rep's new account is mapped to
+  // them automatically by the server.
+  addCustomer: (c: NewCustomer) =>
+    request<Customer>('/customers', { method: 'POST', body: JSON.stringify(c) }),
+
+  // Move a lead along the pipeline / set the next follow-up date.
+  updateLead: (id: string, patch: Partial<Lead>) =>
+    request<Lead>(`/leads/${id}`, { method: 'PUT', body: JSON.stringify(patch) }),
 };

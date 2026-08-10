@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { api, type Order } from '../api';
 import { theme } from '../theme';
+import { PageHead } from '../components/Chrome';
 
 const money = (n?: number) => `₹${Math.round(n ?? 0).toLocaleString('en-IN')}`;
 
@@ -18,16 +18,20 @@ const TONE: Record<string, { bg: string; fg: string }> = {
 
 const FILTERS = ['all', 'pending', 'confirmed', 'shipped', 'delivered'] as const;
 
-export default function OrdersScreen({ navigation }: any) {
+export default function OrdersScreen({ navigation, role = 'rep', active = true, onCounts }: any) {
   const [rows, setRows] = useState<Order[] | null>(null);
   const [err, setErr] = useState('');
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>('all');
 
   useEffect(() => {
+    if (!active) return;
     api.orders()
       .then((r) => setRows(Array.isArray(r) ? r : []))
       .catch((e) => setErr(e?.message || 'Could not load orders.'));
-  }, []);
+  }, [active]);
+
+  const pending = (rows || []).filter((o) => o.status === 'pending').length;
+  useEffect(() => { if (rows) onCounts?.({ Orders: pending }); }, [onCounts, rows, pending]);
 
   const list = useMemo(
     () => (filter === 'all' ? rows || [] : (rows || []).filter((o) => o.status === filter)),
@@ -45,17 +49,11 @@ export default function OrdersScreen({ navigation }: any) {
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.paper }}>
-      <SafeAreaView edges={['top']} style={styles.appbarWrap}>
-        <View style={styles.appbar}>
-          <TouchableOpacity style={styles.back} onPress={() => navigation.goBack()} accessibilityLabel="Back">
-            <Text style={styles.backTxt}>‹</Text>
-          </TouchableOpacity>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.title}>Orders</Text>
-            <Text style={styles.sub}>{rows ? `${list.length} shown · ${money(value)}` : 'loading…'}</Text>
-          </View>
-        </View>
-      </SafeAreaView>
+      <PageHead
+        title={role === 'rep' ? 'Orders' : 'Order desk'}
+        sub={rows ? `${list.length} shown · ${money(value)}` : 'loading…'}
+        onBack={() => navigation.goBack()}
+      />
 
       <View style={styles.chips}>
         {FILTERS.map((f) => (
@@ -100,20 +98,6 @@ export default function OrdersScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  appbarWrap: { backgroundColor: theme.surface },
-  appbar: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingHorizontal: 18, paddingVertical: 16,
-    borderBottomWidth: 1, borderBottomColor: theme.divider,
-  },
-  back: {
-    width: 36, height: 36, borderRadius: 10, borderWidth: 1, borderColor: theme.border,
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-  },
-  backTxt: { fontSize: 22, color: theme.ink, marginTop: -3 },
-  title: { fontSize: 18, fontWeight: '700', color: theme.ink },
-  sub: { fontSize: 12.5, color: theme.meta, marginTop: 2 },
-
   chips: { flexDirection: 'row', gap: 8, paddingHorizontal: 18, paddingTop: 14, flexWrap: 'wrap', width: '100%', maxWidth: 620, alignSelf: 'center' },
   chip: { borderWidth: 1, borderColor: theme.border, borderRadius: 999, paddingHorizontal: 13, paddingVertical: 7, backgroundColor: theme.surface },
   chipOn: { backgroundColor: theme.emerald, borderColor: theme.emerald },

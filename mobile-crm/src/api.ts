@@ -7,7 +7,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 
-const CONFIGURED: string = (Constants.expoConfig?.extra as any)?.apiBaseUrl || 'https://eurostargems.com';
+const PRODUCTION = 'https://eurostargems.com';
+const CONFIGURED: string = (Constants.expoConfig?.extra as any)?.apiBaseUrl || PRODUCTION;
+
+const isLocal = (url: string) => /^(https?:\/\/)(localhost|127\.0\.0\.1)(:\d+)?/i.test(url);
 
 /**
  * On a real phone "localhost" is the phone itself, so a dev config pointing at
@@ -27,7 +30,16 @@ function resolveBaseUrl(url: string): string {
   return `${m[1]}${host}${m[3] ?? ''}${m[4] ?? ''}`;
 }
 
-export const BASE_URL: string = resolveBaseUrl(CONFIGURED);
+/**
+ * A release build has no Metro to borrow a host from, so a leftover
+ * `apiBaseUrl: http://localhost:4000` in app.json would ship an app pointing at
+ * the phone itself — dead on every device that is not cabled to a dev machine.
+ * Rather than edit app.json before each build and hope nobody forgets, a
+ * localhost config is simply ignored outside dev. app.json stays set up for
+ * development; production can only ever be the real thing.
+ */
+export const BASE_URL: string =
+  !__DEV__ && isLocal(CONFIGURED) ? PRODUCTION : resolveBaseUrl(CONFIGURED);
 // eslint-disable-next-line no-console
 if (__DEV__) console.log(`[crm] back room: ${BASE_URL} (configured: ${CONFIGURED})`);
 

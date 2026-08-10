@@ -3202,8 +3202,11 @@ function CRM() {
         })));
       });
       // Customers + carts, straight from the DB, so their counts/tables are live.
+      // Replace the built-in sample rows with whatever the server has — even an
+      // empty list — so leftover demo customers (which aren't in the DB and so
+      // can't be deleted) don't linger on screen once the real data has loaded.
       authedGet('/customers').then((rows) => {
-        if (!Array.isArray(rows) || !rows.length) return;
+        if (!Array.isArray(rows)) return; // only keep samples if the call itself failed
         setCustomers(rows.map(mapCustomer));
       });
       // The pipeline. This was the one screen still reading its rows from the
@@ -3295,7 +3298,11 @@ function CRM() {
     deleteCustomer: (id) =>
     crmApiJson('DELETE', '/customers/' + encodeURIComponent(id)).
     then((res) => {
-      if (!res.ok) throw new Error((res.data && res.data.error) || 'Could not delete the customer.');
+      // A row that isn't on the server (e.g. a leftover demo/sample customer that
+      // was never saved) has nothing to delete — just drop it from the screen
+      // instead of erroring with "Customer not found".
+      const notOnServer = !res.ok && res.data && /not found/i.test(res.data.error || '');
+      if (!res.ok && !notOnServer) throw new Error((res.data && res.data.error) || 'Could not delete the customer.');
       setCustomers((cs) => cs.filter((c) => c.id !== id));
       return res.data;
     }),

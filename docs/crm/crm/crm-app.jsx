@@ -763,6 +763,8 @@ function AdminReps({ st }) {
                     <button className="cbtn cbtn-primary cbtn-sm" onClick={() => st.restoreRep(r.id)}>Restore</button> :
                     <button className="cbtn cbtn-ghost cbtn-sm" onClick={() => st.offboardRep(r.id, r.name)}>Block &amp; de-link customers</button>}
               {' '}
+              <button className="cbtn cbtn-ghost cbtn-sm" title="Generate a new password for this rep" onClick={() => st.resetRepPassword(r.id, r.name)}>Reset password</button>
+              {' '}
               <button className="cbtn cbtn-ghost cbtn-sm" style={{ color: 'var(--ruby)' }} title="Delete this rep for good" onClick={() => st.deleteRep(r.id, r.name)}>Delete</button></td></tr>);})}</tbody>
           <tfoot><tr><td colSpan="9" style={{ padding: '12px 16px', fontWeight: 600 }}>Total payable</td>
             <td className="crm-amt" style={{ textAlign: 'right', padding: '12px 16px', color: 'var(--emerald-ink)', fontWeight: 700 }}>{H.inr(byRep.reduce((a, r) => a + r.comm, 0))}</td><td colSpan="2"></td></tr></tfoot>
@@ -3680,6 +3682,17 @@ function CRM() {
       const rep = (reps || []).find((r) => r.id === id);
       setRepBlocked((m) => ({ ...m, [id]: false }));
       if (rep && rep.userId) crmApi('PUT', '/users/' + rep.userId, { active: true });
+    },
+    // Reset a rep's password — generates a fresh one on the server and shows it
+    // once. Use when a rep lost the password from when they were created.
+    resetRepPassword: (id, name) => {
+      const rep = (reps || []).find((r) => r.id === id);
+      if (!rep || !rep.userId) { alert('This rep has no login to reset.'); return; }
+      if (!confirm('Reset the password for “' + name + '”?\n\nA new password is generated and their old one stops working immediately.')) return;
+      crmApiJson('POST', '/users/' + encodeURIComponent(rep.userId) + '/reset-password').
+      then((res) => { if (!res.ok) throw new Error((res.data && res.data.error) || 'Could not reset the password.');
+        alert('✓ New password for ' + name + '.\n\nLogin ID: ' + (res.data.username || rep.id) + '\nPassword: ' + res.data.password + '\n\nShare these with the rep — the password is shown only once.'); }).
+      catch((ex) => alert(ex.message || 'Could not reset the password.'));
     },
     // Delete a rep for good (admin only). Removes their login from the server;
     // any customers/orders they held are un-linked (become open for any rep).

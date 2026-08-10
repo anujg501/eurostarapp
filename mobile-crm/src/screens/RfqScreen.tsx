@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Linking } from 'react-native';
 import { api, type Rfq } from '../api';
 import { theme } from '../theme';
 import { PageHead } from '../components/Chrome';
@@ -104,6 +104,21 @@ export default function RfqScreen({ navigation, route, active = true, onCounts }
                 </Text>
                 {!!want && <Text style={styles.want} numberOfLines={2}>{want}</Text>}
                 {!!d.qty && <Text style={styles.meta}>Quantity requested: {d.qty}</Text>}
+                {/* The desktop lists the special note and who to ring — the two
+                    things a rep needs before picking up the phone. */}
+                {!!d.special && <Text style={styles.note} numberOfLines={2}>{d.special}</Text>}
+                {(d.contactName || d.contact) && (
+                  <View style={styles.contactRow}>
+                    <Text style={styles.meta} numberOfLines={1}>
+                      {[d.contactName, d.contact].filter(Boolean).join(' · ')}
+                    </Text>
+                    {!!d.contact && (
+                      <TouchableOpacity style={styles.call} onPress={() => Linking.openURL(`tel:${d.contact}`)}>
+                        <Text style={styles.callTxt}>📞 Call</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
 
                 <View style={styles.foot}>
                   <Text style={styles.metaSmall}>
@@ -147,7 +162,10 @@ const styles = StyleSheet.create({
   meta: { fontSize: 12.5, color: theme.meta, marginTop: 4 },
   metaSmall: { flex: 1, fontSize: 12, color: theme.meta },
   want: { fontSize: 13, color: theme.ink2, marginTop: 6, fontWeight: '600' },
-  note: { fontSize: 12.5, color: theme.meta, marginTop: 8, fontStyle: 'italic' },
+  note: { fontSize: 12.5, color: theme.meta, marginTop: 6, fontStyle: 'italic' },
+  contactRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 },
+  call: { backgroundColor: theme.emerald, borderRadius: 8, paddingHorizontal: 11, paddingVertical: 7, flexShrink: 0 },
+  callTxt: { color: '#fff', fontSize: 12, fontWeight: '700' },
   foot: { flexDirection: 'row', alignItems: 'baseline', gap: 10, marginTop: 10 },
   amount: { fontSize: 15, fontWeight: '800', color: theme.emeraldInk, flexShrink: 0 },
 

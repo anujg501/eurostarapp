@@ -1,19 +1,34 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, StyleSheet, BackHandler } from 'react-native';
 import { theme } from '../theme';
-import { CrmChrome, navFor } from '../components/Chrome';
+import { ChromeContext, CrmChrome, navFor, type Notice } from '../components/Chrome';
 import DeskScreen from './DeskScreen';
 import CustomersScreen from './CustomersScreen';
 import OrdersScreen from './OrdersScreen';
 import PipelineScreen from './PipelineScreen';
 import RfqScreen from './RfqScreen';
+import CommissionScreen from './CommissionScreen';
+import PaymentsScreen from './PaymentsScreen';
+import LeadsScreen from './LeadsScreen';
+import TeamScreen from './TeamScreen';
+import FieldVisitsScreen from './FieldVisitsScreen';
+import FranchiseScreen from './FranchiseScreen';
+import CartsScreen from './CartsScreen';
 
+// Every id in a role's rail must appear here, or its chip leads nowhere.
 const BODIES: Record<string, React.ComponentType<any>> = {
   Desk: DeskScreen,
   Customers: CustomersScreen,
   Orders: OrdersScreen,
   Pipeline: PipelineScreen,
   Rfq: RfqScreen,
+  Commission: CommissionScreen,
+  Payments: PaymentsScreen,
+  Leads: LeadsScreen,
+  Team: TeamScreen,
+  Visits: FieldVisitsScreen,
+  Franchise: FranchiseScreen,
+  Carts: CartsScreen,
 };
 
 /**
@@ -36,10 +51,17 @@ const BODIES: Record<string, React.ComponentType<any>> = {
  */
 export default function Shell({ navigation, role, repId, onSignOut }: any) {
   const sections = useMemo(() => navFor(role).map((n) => n.id), [role]);
-  const [section, setSection] = useState('Desk');
+  // Each role opens on its own first section — the back office has no dashboard
+  // at all, it lands on the order desk, which is what the web console does.
+  const home = sections[0];
+  const [section, setSection] = useState(home);
   // Only what has actually been opened is mounted; the rest costs nothing.
-  const [mounted, setMounted] = useState<string[]>(['Desk']);
+  const [mounted, setMounted] = useState<string[]>([home]);
   const [counts, setCounts] = useState<Record<string, number>>({});
+  // What the bell shows. The desk builds it from the records it already loaded,
+  // so the bell never runs a fetch of its own and never shows a count that is
+  // not backed by something real.
+  const [notices, setNotices] = useState<Notice[]>([]);
 
   // Sections report their own badge numbers as they load, so the rail shows
   // real counts without fetching a second time just for the badges — and the
@@ -62,19 +84,23 @@ export default function Shell({ navigation, role, repId, onSignOut }: any) {
     navigation.navigate(target, params);
   }, [navigation, sections]);
 
-  // Android's back button steps back to the desk rather than closing the app
-  // from a section — the chips replaced the back stack, so restore that much.
+  // Android's back button steps back to this role's home section rather than
+  // closing the app — the chips replaced the back stack, so restore that much.
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (section !== 'Desk') { setSection('Desk'); return true; }
+      if (section !== home) { setSection(home); return true; }
       return false;
     });
     return () => sub.remove();
-  }, [section]);
+  }, [section, home]);
 
   const nav = useMemo(() => sectionNavigation(go), [go]);
+  // Published so each screen's PageHead can draw the bell without every screen
+  // having to carry the notice list around.
+  const chrome = useMemo(() => ({ notices, navigate: go }), [notices, go]);
 
   return (
+    <ChromeContext.Provider value={chrome}>
     <View style={styles.wrap}>
       <CrmChrome role={role} current={section} navigation={nav} badges={counts} />
       {sections.map((id) => {
@@ -93,6 +119,7 @@ export default function Shell({ navigation, role, repId, onSignOut }: any) {
               active={active}
               onSignOut={onSignOut}
               onCounts={reportCounts}
+              onNotices={setNotices}
               navigation={nav}
               route={{ params: { role, repId } }}
             />
@@ -100,6 +127,7 @@ export default function Shell({ navigation, role, repId, onSignOut }: any) {
         );
       })}
     </View>
+    </ChromeContext.Provider>
   );
 }
 

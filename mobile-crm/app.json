@@ -21,8 +21,27 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
-      }
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
+      ]
     },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Eurostar CRM uses the camera for your morning attendance photo and to photograph a customer's shop."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Eurostar CRM records your location when you check in and out of a customer visit."
+        }
+      ]
+    ],
     "extra": {
       "apiBaseUrl": "http://localhost:4000"
     }

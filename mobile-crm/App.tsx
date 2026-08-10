@@ -6,6 +6,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { api, loadRole, loadToken, setRole, setToken, type StaffRole } from './src/api';
 import { theme } from './src/theme';
+import { LangContext, loadLang, saveLang, type Lang } from './src/i18n';
 import LoginScreen from './src/screens/LoginScreen';
 import Shell from './src/screens/Shell';
 import AddCustomerScreen from './src/screens/AddCustomerScreen';
@@ -32,9 +33,14 @@ export default function App() {
   // The rep's public id (REP-204). Enquiries are routed on it, so the RFQ
   // screen needs it to know which of them are on this rep's name.
   const [repId, setRepId] = useState<string | undefined>();
+  // Stored under the same key the web console uses, so a rep who picked a
+  // language there finds it already chosen here.
+  const [lang, setLangState] = useState<Lang>('en');
+  const setLang = useCallback((l: Lang) => { setLangState(l); saveLang(l).catch(() => {}); }, []);
 
   useEffect(() => {
     (async () => {
+      setLangState(await loadLang().catch(() => 'en' as Lang));
       const token = await loadToken();
       if (token) {
         // A stored token is only worth trusting if the back room still accepts
@@ -92,6 +98,7 @@ export default function App() {
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       {/* The CRM chrome is dark, so the status bar icons must be light. */}
       <StatusBar style="light" />
+      <LangContext.Provider value={{ lang, setLang }}>
       <NavigationContainer>
         {/* The five sections are NOT five stack screens — they all live inside
             Shell, which keeps the chrome mounted and switches bodies with a
@@ -105,6 +112,7 @@ export default function App() {
           <Stack.Screen name="AddCustomer" component={AddCustomerScreen} />
         </Stack.Navigator>
       </NavigationContainer>
+      </LangContext.Provider>
     </SafeAreaProvider>
   );
 }

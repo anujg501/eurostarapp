@@ -9,9 +9,16 @@ export const theme = {
   meta: '#7A6F5C',
   border: '#E6E2D8',
   divider: '#EEEBE3',
-  emerald: '#0E5C4A',
-  emeraldInk: '#0B4638',
-  emeraldSoft: '#E7F0EC',
+  // The CRM's accent is SAPPHIRE, not the storefront's emerald. CrmTweaks in
+  // crm-app.jsx ships `accent: 'sapphire'` and `skin: 'indigo'` as its defaults,
+  // and [data-accent="sapphire"] in crm.css redefines the emerald custom
+  // properties to these three values. The console is therefore blue everywhere
+  // the shop is green — active nav pill, Mira's card, primary buttons — so the
+  // app follows it. The names are kept because they are what crm.css calls
+  // them; only the values differ from the shop's.
+  emerald: '#1E3A8A',
+  emeraldInk: '#152C66',
+  emeraldSoft: '#DDE4F3',
   navy: '#1F3350',
   gold: '#C9A227',
   ruby: '#8B1E2E',

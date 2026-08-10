@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity,
+  View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity, Image,
   ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
 import { api, type NewCustomer } from '../api';
 import { theme } from '../theme';
 import { PageHead } from '../components/Chrome';
@@ -16,7 +18,31 @@ const TERMS: NewCustomer['terms'][] = ['cash', '15', '30', '45', '60'];
 export default function AddCustomerScreen({ navigation }: any) {
   const [f, setF] = useState<NewCustomer>({ name: '', contact: '', phone: '', city: '', gstin: '', shipAddress: '', notes: '', terms: 'cash' });
   const [busy, setBusy] = useState(false);
+  const [photo, setPhoto] = useState<string | null>(null);   // preview uri
+  const [photoData, setPhotoData] = useState<string | null>(null); // what we send
+  const [geo, setGeo] = useState('');
   const set = (k: keyof NewCustomer) => (v: string) => setF((s) => ({ ...s, [k]: v }));
+
+  // Field capture, as on the desktop: photograph the shop and tag where it is,
+  // so the office can see the account is a real place a rep stood in front of.
+  const shootShop = async () => {
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (!perm.granted) { Alert.alert('Camera needed', 'Allow the camera to photograph the shop.'); return; }
+    const res = await ImagePicker.launchCameraAsync({ quality: 0.5, base64: true });
+    if (res.canceled || !res.assets?.[0]?.base64) return;
+    setPhoto(res.assets[0].uri);
+    setPhotoData(`data:image/jpeg;base64,${res.assets[0].base64}`);
+  };
+
+  const tagGeo = async () => {
+    setGeo('Locating…');
+    const perm = await Location.requestForegroundPermissionsAsync();
+    if (!perm.granted) { setGeo(''); Alert.alert('Location needed', 'Allow location to tag the shop.'); return; }
+    try {
+      const p = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      setGeo(`${p.coords.latitude.toFixed(5)}, ${p.coords.longitude.toFixed(5)}`);
+    } catch { setGeo(''); Alert.alert('Could not get a location fix', 'Try again in the open.'); }
+  };
 
   const phoneOk = /^[6-9]\d{9}$/.test((f.phone || '').replace(/\D/g, ''));
   const canSave = f.name.trim().length > 1 && phoneOk;
@@ -37,6 +63,8 @@ export default function AddCustomerScreen({ navigation }: any) {
         gstin: f.gstin?.trim().toUpperCase() || undefined,
         shipAddress: f.shipAddress?.trim() || undefined,
         notes: f.notes?.trim() || undefined,
+        shopPhoto: photoData || undefined,
+        geo: geo && !geo.startsWith('Locating') ? geo : undefined,
       });
       Alert.alert('Customer added', `${c.name} is on your book as ${c.code}.`, [
         { text: 'Done', onPress: () => navigation.goBack() },
@@ -56,6 +84,26 @@ export default function AddCustomerScreen({ navigation }: any) {
       <PageHead title="Add customer" sub="New account on your book" onBack={() => navigation.goBack()} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.pad} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          {/* Field capture — the shop, and where it is. */}
+          <View style={styles.capture}>
+            <TouchableOpacity style={styles.photoBox} onPress={shootShop} activeOpacity={0.8}>
+              {photo ? (
+                <Image source={{ uri: photo }} style={styles.photo} />
+              ) : (
+                <Text style={styles.photoHint}>📷 Tap to photograph{'\n'}the customer's shop</Text>
+              )}
+            </TouchableOpacity>
+            <View style={{ flex: 1, gap: 8 }}>
+              <TouchableOpacity style={styles.geoBtn} onPress={tagGeo}>
+                <Text style={styles.geoTxt}>📍 Tag location</Text>
+              </TouchableOpacity>
+              {!!geo && <Text style={styles.geoVal}>{geo}</Text>}
+              <Text style={styles.captureNote}>
+                The photo and location travel with the account so the office can see it is a real shop.
+              </Text>
+            </View>
+          </View>
+
           <Field label="COMPANY / FIRM NAME" value={f.name} onChange={set('name')} placeholder="Shree Ganesh Jewellers" autoFocus />
           <Field label="CONTACT PERSON" value={f.contact || ''} onChange={set('contact')} placeholder="Who you deal with" />
 
@@ -75,6 +123,7 @@ export default function AddCustomerScreen({ navigation }: any) {
           {!!f.phone && !phoneOk && <Text style={styles.warn}>That is not a 10-digit Indian mobile number.</Text>}
 
           <Field label="CITY" value={f.city || ''} onChange={set('city')} placeholder="Mumbai" />
+          <Field label="PINCODE" value={f.pincode || ''} onChange={(v) => set('pincode')(v.replace(/\D/g, '').slice(0, 6))} placeholder="400001" />
           <Field label="GSTIN" value={f.gstin || ''} onChange={set('gstin')} placeholder="27AAAAA0000A1Z5" autoCapitalize="characters" />
           <Field label="SHOP / DELIVERY ADDRESS" value={f.shipAddress || ''} onChange={set('shipAddress')} placeholder="Street, area, landmark" multiline />
           <Field label="SPECIAL NOTES" value={f.notes || ''} onChange={set('notes')} placeholder="Anything the office should know" multiline />
@@ -127,6 +176,22 @@ function Field({ label, value, onChange, placeholder, multiline, autoCapitalize,
 
 const styles = StyleSheet.create({
   pad: { padding: 18, paddingBottom: 70, width: '100%', maxWidth: 620, alignSelf: 'center' },
+
+  capture: { flexDirection: 'row', gap: 14, alignItems: 'flex-start' },
+  photoBox: {
+    width: 130, height: 130, borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed',
+    borderColor: theme.border, backgroundColor: theme.card,
+    alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0,
+  },
+  photo: { width: '100%', height: '100%' },
+  photoHint: { fontSize: 12, color: theme.meta, textAlign: 'center', paddingHorizontal: 8, lineHeight: 17 },
+  geoBtn: {
+    borderWidth: 1, borderColor: theme.border, backgroundColor: theme.surface,
+    borderRadius: 9, paddingVertical: 10, alignItems: 'center',
+  },
+  geoTxt: { fontSize: 12.5, fontWeight: '700', color: theme.ink2 },
+  geoVal: { fontSize: 11.5, color: theme.meta, fontFamily: 'monospace', textAlign: 'center' },
+  captureNote: { fontSize: 11.5, color: theme.meta, lineHeight: 17 },
   label: { fontSize: 11, fontWeight: '700', color: theme.gold, letterSpacing: 0.8, marginTop: 18, marginBottom: 7 },
   ipt: {
     backgroundColor: theme.surface, borderRadius: 10, borderWidth: 1, borderColor: theme.border,

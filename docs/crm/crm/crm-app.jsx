@@ -761,7 +761,9 @@ function AdminReps({ st }) {
             <td>{isBlocked ? <Pill s="abandoned" label="Blocked" /> : <Pill s="active" label="Active" />}</td>
             <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{isBlocked ?
                     <button className="cbtn cbtn-primary cbtn-sm" onClick={() => st.restoreRep(r.id)}>Restore</button> :
-                    <button className="cbtn cbtn-ghost cbtn-sm" onClick={() => st.offboardRep(r.id, r.name)}>Block &amp; de-link customers</button>}</td></tr>);})}</tbody>
+                    <button className="cbtn cbtn-ghost cbtn-sm" onClick={() => st.offboardRep(r.id, r.name)}>Block &amp; de-link customers</button>}
+              {' '}
+              <button className="cbtn cbtn-ghost cbtn-sm" style={{ color: 'var(--ruby)' }} title="Delete this rep for good" onClick={() => st.deleteRep(r.id, r.name)}>Delete</button></td></tr>);})}</tbody>
           <tfoot><tr><td colSpan="9" style={{ padding: '12px 16px', fontWeight: 600 }}>Total payable</td>
             <td className="crm-amt" style={{ textAlign: 'right', padding: '12px 16px', color: 'var(--emerald-ink)', fontWeight: 700 }}>{H.inr(byRep.reduce((a, r) => a + r.comm, 0))}</td><td colSpan="2"></td></tr></tfoot>
         </table>
@@ -2268,6 +2270,8 @@ function Pipeline({ st, repId }) {
                     {l.stage === 6 && <Pill s="active" label="Active buyer" />}
                     <button className="cbtn cbtn-ghost cbtn-sm" style={{ marginLeft: 6, color: 'var(--ruby)' }} onClick={() => {if (confirm('Mark ' + l.name + ' as Not interested and close this lead?')) st.setStage(l.id, 0);}}>Not interested</button>
                   </React.Fragment>}
+                {crmAuthRole() === 'admin' &&
+                  <button className="cbtn cbtn-ghost cbtn-sm" style={{ marginLeft: 6, color: 'var(--ruby)' }} title="Delete this lead permanently" onClick={() => st.deleteLead(l.id, l.name)}>Delete</button>}
               </td>
             </tr>);})}
             {leads.length === 0 && <tr><td colSpan={repId ? 6 : 7} className="crm-muted" style={{ padding: '14px 16px' }}>No leads in the pipeline.</td></tr>}
@@ -3440,6 +3444,16 @@ function CRM() {
     },
     setStage: (id, stage) => st.patchLead(id, { stage }),
     setFollowUp: (id, followUp) => st.patchLead(id, { followUp }),
+    // Delete a lead outright (admin only in the UI). Removes it from the
+    // pipeline for good so it is never re-prospected. Waits for the server to
+    // confirm before dropping the row, so a failed delete leaves it in place.
+    deleteLead: (id, name) => {
+      if (!confirm('Delete lead “' + (name || id) + '” permanently? It is removed from the pipeline and cannot be undone.')) return;
+      crmApiJson('DELETE', '/leads/' + encodeURIComponent(id)).
+      then((res) => { if (!res.ok) throw new Error((res.data && res.data.error) || 'Could not delete the lead.');
+        setLeads((ls) => ls.filter((l) => l.id !== id)); }).
+      catch((ex) => alert(ex.message || 'Could not delete the lead.'));
+    },
     // Add one lead and persist it. Returns a promise resolving to
     // { lead, flagged } so the form can confirm success, name the rep it was
     // routed to, or warn on a duplicate — instead of firing blind and closing.
@@ -3643,6 +3657,22 @@ function CRM() {
       const rep = (reps || []).find((r) => r.id === id);
       setRepBlocked((m) => ({ ...m, [id]: false }));
       if (rep && rep.userId) crmApi('PUT', '/users/' + rep.userId, { active: true });
+    },
+    // Delete a rep for good (admin only). Removes their login from the server;
+    // any customers/orders they held are un-linked (become open for any rep).
+    // Unlike Block, this cannot be undone — so it asks first.
+    deleteRep: (id, name) => {
+      if (!confirm('Delete rep “' + name + '” permanently?\n\nThis removes their login for good and un-links their customers (which become open for any rep to solicit). It cannot be undone.')) return;
+      const rep = (reps || []).find((r) => r.id === id);
+      const dropLocal = () => {
+        setReps((rs) => rs.filter((r) => r.id !== id));
+        setCustomers((cs) => cs.map((c) => c.rep === id ? { ...c, rep: '' } : c));
+        try { if (Array.isArray(window.CRM_REPS)) { const i = window.CRM_REPS.findIndex((x) => x.id === id); if (i !== -1) window.CRM_REPS.splice(i, 1); } } catch (e) {}
+      };
+      if (!rep || !rep.userId) { dropLocal(); return; } // no login behind it — just drop the row
+      crmApiJson('DELETE', '/users/' + encodeURIComponent(rep.userId)).
+      then((res) => { if (!res.ok) throw new Error((res.data && res.data.error) || 'Could not delete the rep.'); dropLocal(); }).
+      catch((ex) => alert(ex.message || 'Could not delete the rep.'));
     },
     delinkCustomer: (id) => {
       crmApiJson('PUT', '/customers/' + id, { repId: '' }).

@@ -2173,6 +2173,7 @@ function OfficeLeads({ st }) {
 function Pipeline({ st, repId }) {
   const stages = window.CRM_STAGES || [];
   const [repFilter, setRepFilter] = useState('');
+  const [cityFilter, setCityFilter] = useState('');
   const [flash, setFlash] = useState('');
   // Move a lead's stage and, if that graduated it into a customer, say so.
   const moveStage = (id, stage) => Promise.resolve(st.setStage(id, stage)).then((saved) => {
@@ -2181,7 +2182,12 @@ function Pipeline({ st, repId }) {
       setTimeout(() => setFlash(''), 4500);
     }
   });
-  const leads = (st.leads || []).filter((l) => (!repId || l.rep === repId) && !l.flagged && (repId || !repFilter || l.rep === repFilter)).slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  // Scope first (by rep), then derive the city list from that scope so the city
+  // dropdown only ever offers cities that exist for the current view, then apply
+  // the chosen city. Works for both the admin (all reps) and a rep's own pipeline.
+  const scoped = (st.leads || []).filter((l) => (!repId || l.rep === repId) && !l.flagged && (repId || !repFilter || l.rep === repFilter));
+  const cities = [...new Set(scoped.map((l) => l.city).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const leads = scoped.filter((l) => !cityFilter || l.city === cityFilter).slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   const stageMeta = (id) => stages.find((s) => s.id === id) || { label: '?', short: '?' };
   // "Overdue" is measured against the actual date. This was pinned to
   // 2026-06-17, so every follow-up looked on time however long it sat.
@@ -2229,13 +2235,23 @@ function Pipeline({ st, repId }) {
           </div>);})}
       </div>
 
+      <div style={{ display: 'flex', gap: 10, marginBottom: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+        <span style={{ fontWeight: 700, fontSize: 13 }}>Filter by city</span>
+        <select className="disc-input" style={{ width: 180, textAlign: 'left' }} value={cityFilter} onChange={(e) => setCityFilter(e.target.value)}>
+          <option value="">All cities ({cities.length})</option>
+          {cities.map((c) => <option key={c} value={c}>{c} ({scoped.filter((l) => l.city === c).length})</option>)}
+        </select>
+        {cityFilter && <button className="cbtn cbtn-ghost cbtn-sm" onClick={() => setCityFilter('')}>Clear</button>}
+      </div>
+
       <div className="crm-card">
         <table className="crm-table" style={{ minWidth: 920 }}>
-          <thead><tr><th>{TH("Lead")}</th><th>{TH("City")}</th>{!repId && <th>{TH("Rep")}</th>}<th>{TH("Source")}</th><th style={{ minWidth: 230 }}>{TH("Stage")}</th><th>{TH("Next follow-up")}</th><th></th></tr></thead>
+          <thead><tr><th>{TH("Lead")}</th><th>{TH("Customer")}</th><th>{TH("City")}</th>{!repId && <th>{TH("Rep")}</th>}<th>{TH("Source")}</th><th style={{ minWidth: 230 }}>{TH("Stage")}</th><th>{TH("Next follow-up")}</th><th></th></tr></thead>
           <tbody>{leads.map((l) => {const overdue = l.stage < 6 && l.stage > 0 && l.followUp < today;const closed = l.stage === 0;return (
                 <tr key={l.id} style={{ opacity: closed ? 0.55 : 1 }}>
               <td>{l.name}<div className="crm-muted" style={{ fontSize: 11 }}>{l.mobile}</div>
                 {l.customerCode && <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--emerald-ink)', marginTop: 2 }}>✓ In customer book · {l.customerCode}</div>}</td>
+              <td className="crm-muted">{l.contact || '—'}</td>
               <td className="crm-muted">{l.city}</td>
               {!repId && <td>
                 <select className="disc-input" style={{ width: 118, textAlign: 'left' }} value={l.rep || ''} onChange={(e) => st.reassignLead(l.id, e.target.value)}>
@@ -2274,7 +2290,7 @@ function Pipeline({ st, repId }) {
                   <button className="cbtn cbtn-ghost cbtn-sm" style={{ marginLeft: 6, color: 'var(--ruby)' }} title="Delete this lead permanently" onClick={() => st.deleteLead(l.id, l.name)}>Delete</button>}
               </td>
             </tr>);})}
-            {leads.length === 0 && <tr><td colSpan={repId ? 6 : 7} className="crm-muted" style={{ padding: '14px 16px' }}>No leads in the pipeline.</td></tr>}
+            {leads.length === 0 && <tr><td colSpan={repId ? 7 : 8} className="crm-muted" style={{ padding: '14px 16px' }}>{cityFilter ? 'No leads in ' + cityFilter + '.' : 'No leads in the pipeline.'}</td></tr>}
           </tbody>
         </table>
       </div>
@@ -3215,8 +3231,8 @@ function CRM() {
       authedGet('/leads').then((rows) => {
         if (!Array.isArray(rows)) return;
         setLeads(rows.map((l) => ({
-          id: l.id, name: l.name, city: l.city || '', mobile: l.mobile || '', gst: l.gst || '',
-          rep: l.rep || '', stage: typeof l.stage === 'number' ? l.stage : 1, followUp: l.followUp || '',
+          id: l.id, name: l.name, contact: l.contact || '', city: l.city || '', mobile: l.mobile || '', gst: l.gst || '',
+          address: l.address || '', rep: l.rep || '', stage: typeof l.stage === 'number' ? l.stage : 1, followUp: l.followUp || '',
           assigned: !!l.assigned, note: l.note || '', flagged: !!l.flagged,
           flagName: l.flagName || '', flagBy: l.flagBy || '', customerCode: l.customerCode || '',
         })));

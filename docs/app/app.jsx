@@ -78,7 +78,12 @@ function App() {
           contact: (c && c.contact) || who.name || name,
           phone: (c && c.phone) || ph,
           email: (c && c.email) || '',
-          location: (c && c.city) || basePersona.location,
+          // No fallback to basePersona here: that is a demo account (Kiran
+          // Jewellers, "Surat, Gujarat"), and borrowing its city put another
+          // firm's location on a real customer's account page — which the
+          // business-details form then offered to save into their record.
+          // A customer with no city on file has no city; leave it blank.
+          location: (c && c.city) || '',
           gst: (c && c.gstin) || '',
           terms: (c && c.terms) || 'cash',
           tier: c && c.terms && c.terms !== 'cash' ? 'NET ' + c.terms + ' account' : 'Cash account',

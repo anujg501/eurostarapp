@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, Modal, FlatList } from 'react-native';
+import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, Modal, FlatList, Alert } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '../theme';
 import { LANGS, useLang, useT, type Lang } from '../i18n';
@@ -63,7 +64,11 @@ export type Notice = { icon: string; title: string; sub: string; go?: string };
  * list through five screens that do not care about it, the shell publishes it
  * here and PageHead reads it.
  */
-export const ChromeContext = React.createContext<{ notices: Notice[]; navigate: (t: string) => void }>({
+export const ChromeContext = React.createContext<{
+  notices: Notice[];
+  navigate: (t: string) => void;
+  onSignOut?: () => void;
+}>({
   notices: [],
   navigate: () => {},
 });
@@ -206,11 +211,22 @@ export function PageHead({
   onAction?: () => void;
   onBack?: () => void;
 }) {
-  const { notices, navigate } = React.useContext(ChromeContext);
+  const { notices, navigate, onSignOut } = React.useContext(ChromeContext);
   const { lang, setLang } = useLang();
   const [bellOpen, setBellOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
   const langName = LANGS.find((l) => l.id === lang)?.native ?? 'English';
+
+  // Signing out used to live at the foot of the desk — which the back office
+  // never sees, since it lands on the order desk. Putting it in the page head
+  // means every role can leave from wherever they happen to be.
+  const signOut = () => {
+    if (!onSignOut) return;
+    Alert.alert('Sign out?', 'You will need your username and password to get back in.', [
+      { text: 'Stay', style: 'cancel' },
+      { text: 'Sign out', style: 'destructive', onPress: onSignOut },
+    ]);
+  };
 
   return (
     <>
@@ -241,6 +257,15 @@ export function PageHead({
         <TouchableOpacity style={styles.headIcon} onPress={() => setLangOpen(true)} accessibilityLabel={`Language: ${langName}`}>
           <Text style={styles.headIconTxt}>🌐</Text>
         </TouchableOpacity>
+
+        {!!onSignOut && (
+          // A real vector glyph, not a character: ⏻ (U+23FB) is absent from the
+          // system font on this phone and rendered as an empty box. The icon
+          // font ships with the app, so it draws the same everywhere.
+          <TouchableOpacity style={styles.headIcon} onPress={signOut} accessibilityLabel="Sign out">
+            <MaterialIcons name="logout" size={17} color={theme.ink2} />
+          </TouchableOpacity>
+        )}
 
         {!!action && (
           <TouchableOpacity style={styles.headBtn} onPress={onAction} activeOpacity={0.85}>

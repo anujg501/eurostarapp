@@ -353,10 +353,6 @@ export default function DeskScreen({ navigation, role, onSignOut, active = true,
               </TouchableOpacity>
             ))}
             {!orders!.length && <Text style={styles.empty}>No orders yet.</Text>}
-
-            <TouchableOpacity style={styles.signOut} onPress={onSignOut} activeOpacity={0.8}>
-              <Text style={styles.signOutTxt}>↩ Sign out</Text>
-            </TouchableOpacity>
           </>
         ) : (
           <>
@@ -568,10 +564,6 @@ export default function DeskScreen({ navigation, role, onSignOut, active = true,
                   ))
               )}
             </View>
-
-            <TouchableOpacity style={styles.signOut} onPress={onSignOut} activeOpacity={0.8}>
-              <Text style={styles.signOutTxt}>↩ Sign out</Text>
-            </TouchableOpacity>
           </>
         )}
       </ScrollView>
@@ -744,10 +736,4 @@ const styles = StyleSheet.create({
   escNumTxt: { color: theme.emeraldInk, fontWeight: '800', fontSize: 14 },
   escRole: { fontSize: 10.5, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase', color: theme.meta },
   escName: { fontSize: 14.5, fontWeight: '600', color: theme.ink, marginTop: 1 },
-
-  signOut: {
-    marginTop: 26, borderWidth: 1, borderColor: theme.border, borderRadius: 10,
-    paddingVertical: 13, alignItems: 'center', backgroundColor: theme.surface,
-  },
-  signOutTxt: { fontSize: 13.5, fontWeight: '700', color: theme.ink2 },
 });

@@ -20,7 +20,8 @@ export default function AddCustomerScreen({ navigation }: any) {
   const [busy, setBusy] = useState(false);
   const [photo, setPhoto] = useState<string | null>(null);   // preview uri
   const [photoData, setPhotoData] = useState<string | null>(null); // what we send
-  const [geo, setGeo] = useState('');
+  const [geo, setGeo] = useState('');      // "lat, lng" — what gets stored
+  const [place, setPlace] = useState('');  // the readable address for the rep
   const set = (k: keyof NewCustomer) => (v: string) => setF((s) => ({ ...s, [k]: v }));
 
   // Field capture, as on the desktop: photograph the shop and tag where it is,
@@ -34,13 +35,45 @@ export default function AddCustomerScreen({ navigation }: any) {
     setPhotoData(`data:image/jpeg;base64,${res.assets[0].base64}`);
   };
 
+  /**
+   * Tag where the shop is.
+   *
+   * The coordinates are what the record needs, but "18.52040, 73.85670" tells a
+   * human nothing — so the fix is turned back into a street address and that is
+   * what the rep sees. City and pincode are filled in from it too, when they are
+   * still blank: the phone already knows them, and a rep standing in the shop
+   * should not be typing what the GPS just established. Anything already typed
+   * is left alone.
+   */
   const tagGeo = async () => {
     setGeo('Locating…');
+    setPlace('');
     const perm = await Location.requestForegroundPermissionsAsync();
     if (!perm.granted) { setGeo(''); Alert.alert('Location needed', 'Allow location to tag the shop.'); return; }
     try {
       const p = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-      setGeo(`${p.coords.latitude.toFixed(5)}, ${p.coords.longitude.toFixed(5)}`);
+      const lat = p.coords.latitude;
+      const lng = p.coords.longitude;
+      setGeo(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+
+      // Reverse geocoding is a separate call and can fail on its own (no
+      // network, no provider). The coordinates are already saved by then, so a
+      // failure here costs the label, not the tag.
+      try {
+        const [a] = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+        if (a) {
+          const line = [a.name, a.street, a.district, a.subregion || a.city, a.postalCode]
+            .filter(Boolean)
+            .filter((v, i, arr) => arr.indexOf(v) === i) // drop repeats, e.g. name === street
+            .join(', ');
+          setPlace(line);
+          setF((s) => ({
+            ...s,
+            city: s.city?.trim() ? s.city : (a.city || a.subregion || ''),
+            pincode: s.pincode?.trim() ? s.pincode : (a.postalCode || ''),
+          }));
+        }
+      } catch { /* keep the coordinates; just no readable line */ }
     } catch { setGeo(''); Alert.alert('Could not get a location fix', 'Try again in the open.'); }
   };
 
@@ -95,9 +128,15 @@ export default function AddCustomerScreen({ navigation }: any) {
             </TouchableOpacity>
             <View style={{ flex: 1, gap: 8 }}>
               <TouchableOpacity style={styles.geoBtn} onPress={tagGeo}>
-                <Text style={styles.geoTxt}>📍 Tag location</Text>
+                <Text style={styles.geoTxt}>{geo ? '📍 Re-tag location' : '📍 Tag location'}</Text>
               </TouchableOpacity>
-              {!!geo && <Text style={styles.geoVal}>{geo}</Text>}
+
+              {/* The address is what a person can check; the coordinates sit
+                  underneath it small, because that is what actually gets
+                  stored. */}
+              {!!place && <Text style={styles.placeVal}>{place}</Text>}
+              {!!geo && <Text style={styles.geoVal}>{geo === 'Locating…' ? geo : `📌 ${geo}`}</Text>}
+
               <Text style={styles.captureNote}>
                 The photo and location travel with the account so the office can see it is a real shop.
               </Text>
@@ -190,7 +229,8 @@ const styles = StyleSheet.create({
     borderRadius: 9, paddingVertical: 10, alignItems: 'center',
   },
   geoTxt: { fontSize: 12.5, fontWeight: '700', color: theme.ink2 },
-  geoVal: { fontSize: 11.5, color: theme.meta, fontFamily: 'monospace', textAlign: 'center' },
+  placeVal: { fontSize: 12.5, color: theme.ink, lineHeight: 18, fontWeight: '600' },
+  geoVal: { fontSize: 11, color: theme.meta, fontFamily: 'monospace' },
   captureNote: { fontSize: 11.5, color: theme.meta, lineHeight: 17 },
   label: { fontSize: 11, fontWeight: '700', color: theme.gold, letterSpacing: 0.8, marginTop: 18, marginBottom: 7 },
   ipt: {

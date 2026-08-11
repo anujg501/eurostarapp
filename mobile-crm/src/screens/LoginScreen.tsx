@@ -28,6 +28,26 @@ export default function LoginScreen({ onSignedIn }: { onSignedIn: (role: StaffRo
 
   const current = ROLES.find((r) => r.id === role)!;
 
+  /**
+   * The server matches the username exactly (findFirst on userId), so case
+   * decides whether sign-in works at all: rep ids are issued uppercase
+   * (REP-204) while office and admin are lowercase.
+   *
+   * So the field follows the role rather than one rule for everybody — CAPS for
+   * a rep, lowercase for office and admin. It is applied as you type, so what
+   * is on screen is exactly what gets sent; the field used to force CAPS for
+   * all three, which made "office" and "admin" impossible to type.
+   */
+  const forCase = (v: string, r: StaffRole = role) =>
+    r === 'rep' ? v.toUpperCase() : v.toLowerCase();
+
+  // Switching tab re-cases whatever is already typed, so the field can never
+  // sit in a case the newly chosen role would reject.
+  const pickRole = (r: StaffRole) => {
+    setRoleState(r);
+    setUsername((u) => forCase(u, r));
+  };
+
   async function submit() {
     if (!username.trim() || !password) {
       Alert.alert('Enter your username and password');
@@ -35,7 +55,7 @@ export default function LoginScreen({ onSignedIn }: { onSignedIn: (role: StaffRo
     }
     setBusy(true);
     try {
-      const r = await api.login(role, username.trim(), password, remember);
+      const r = await api.login(role, forCase(username.trim()), password, remember);
       await setToken(r.accessToken);
       await setRole(role);
       onSignedIn(role);
@@ -55,7 +75,7 @@ export default function LoginScreen({ onSignedIn }: { onSignedIn: (role: StaffRo
             {ROLES.map((r) => {
               const on = r.id === role;
               return (
-                <TouchableOpacity key={r.id} style={[styles.tab, on && styles.tabOn]} onPress={() => setRoleState(r.id)} activeOpacity={0.8}>
+                <TouchableOpacity key={r.id} style={[styles.tab, on && styles.tabOn]} onPress={() => pickRole(r.id)} activeOpacity={0.8}>
                   <Text style={styles.tabIcon}>{r.icon}</Text>
                   <Text style={[styles.tabTxt, on && styles.tabTxtOn]}>{r.label}</Text>
                 </TouchableOpacity>
@@ -72,13 +92,26 @@ export default function LoginScreen({ onSignedIn }: { onSignedIn: (role: StaffRo
 
           <Text style={styles.label}>USERNAME</Text>
           <TextInput
+            // Android reads autoCapitalize when the input is created and does
+            // not re-read it on a prop change — the screen mounts as Sales Rep,
+            // so the keyboard stayed on CAPS after switching to office/admin
+            // even though the value underneath was lowercased. Keying on the
+            // role remounts the field, which is the only thing that makes the
+            // keyboard follow.
+            key={role}
             style={styles.ipt}
             value={username}
-            onChangeText={setUsername}
+            onChangeText={(v) => setUsername(forCase(v))}
             placeholder={role === 'rep' ? 'REP-204' : role === 'office' ? 'office' : 'admin'}
             placeholderTextColor={theme.meta}
-            autoCapitalize="characters"
+            // CAPS for a rep, lowercase for office and admin. The keyboard hint
+            // and the text itself agree, so nothing is silently changed between
+            // what is typed and what is sent.
+            autoCapitalize={role === 'rep' ? 'characters' : 'none'}
             autoCorrect={false}
+            autoComplete="username"
+            textContentType="username"
+            spellCheck={false}
           />
 
           <Text style={styles.label}>PASSWORD</Text>

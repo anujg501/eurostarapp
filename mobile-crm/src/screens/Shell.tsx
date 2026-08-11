@@ -97,7 +97,7 @@ export default function Shell({ navigation, role, repId, onSignOut }: any) {
   const nav = useMemo(() => sectionNavigation(go), [go]);
   // Published so each screen's PageHead can draw the bell without every screen
   // having to carry the notice list around.
-  const chrome = useMemo(() => ({ notices, navigate: go }), [notices, go]);
+  const chrome = useMemo(() => ({ notices, navigate: go, onSignOut }), [notices, go, onSignOut]);
 
   return (
     <ChromeContext.Provider value={chrome}>

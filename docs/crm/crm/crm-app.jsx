@@ -2176,6 +2176,7 @@ function Pipeline({ st, repId }) {
   const stages = window.CRM_STAGES || [];
   const [repFilter, setRepFilter] = useState('');
   const [cityFilter, setCityFilter] = useState('');
+  const [search, setSearch] = useState('');
   const [flash, setFlash] = useState('');
   // Move a lead's stage and, if that graduated it into a customer, say so.
   const moveStage = (id, stage) => Promise.resolve(st.setStage(id, stage)).then((saved) => {
@@ -2189,7 +2190,13 @@ function Pipeline({ st, repId }) {
   // the chosen city. Works for both the admin (all reps) and a rep's own pipeline.
   const scoped = (st.leads || []).filter((l) => (!repId || l.rep === repId) && !l.flagged && (repId || !repFilter || l.rep === repFilter));
   const cities = [...new Set(scoped.map((l) => l.city).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-  const leads = scoped.filter((l) => !cityFilter || l.city === cityFilter).slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  // Free-text search across the lead (company) name, the customer (contact)
+  // name, the city and the mobile — case-insensitive substring.
+  const q = search.trim().toLowerCase();
+  const leads = scoped
+    .filter((l) => !cityFilter || l.city === cityFilter)
+    .filter((l) => !q || [l.name, l.contact, l.city, l.mobile].some((v) => (v || '').toLowerCase().indexOf(q) !== -1))
+    .slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   const stageMeta = (id) => stages.find((s) => s.id === id) || { label: '?', short: '?' };
   // "Overdue" is measured against the actual date. This was pinned to
   // 2026-06-17, so every follow-up looked on time however long it sat.
@@ -2238,12 +2245,16 @@ function Pipeline({ st, repId }) {
       </div>
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 14, alignItems: 'center', flexWrap: 'wrap' }}>
-        <span style={{ fontWeight: 700, fontSize: 13 }}>Filter by city</span>
+        <input className="disc-input" style={{ width: 280, textAlign: 'left' }} type="search"
+          placeholder="🔍 Search lead or customer name, city…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        {search && <button className="cbtn cbtn-ghost cbtn-sm" onClick={() => setSearch('')}>Clear search</button>}
+        <span style={{ fontWeight: 700, fontSize: 13, marginLeft: 6 }}>Filter by city</span>
         <select className="disc-input" style={{ width: 180, textAlign: 'left' }} value={cityFilter} onChange={(e) => setCityFilter(e.target.value)}>
           <option value="">All cities ({cities.length})</option>
           {cities.map((c) => <option key={c} value={c}>{c} ({scoped.filter((l) => l.city === c).length})</option>)}
         </select>
         {cityFilter && <button className="cbtn cbtn-ghost cbtn-sm" onClick={() => setCityFilter('')}>Clear</button>}
+        {(search || cityFilter) && <span className="crm-muted" style={{ fontSize: 12.5 }}>{leads.length} match{leads.length === 1 ? '' : 'es'}</span>}
       </div>
 
       <div className="crm-card">

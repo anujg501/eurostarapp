@@ -184,7 +184,7 @@ function OrderDetailScreen({ route, setRoute, persona, addToCart }) {
     if (!window.confirm(`Request cancellation of ${order.id}?\n\nThe trade desk will confirm before anything is cancelled.`)) return;
     const text =
       `Cancellation request — ${order.id}\n` +
-      `${persona.company || ''}${persona.account ? ' · ' + persona.account : ''}\n` +
+      `${persona.company || ''}${(persona.code || persona.account) ? ' · ' + (persona.code || persona.account) : ''}\n` +
       `Placed ${formatDate(order.date)} · ${itemCount.toLocaleString('en-IN')} pcs · ${formatINR(grand)}\n\n` +
       'Please confirm whether this order can still be cancelled.';
     window.open('https://wa.me/917710065480?text=' + encodeURIComponent(text), '_blank');
@@ -199,7 +199,7 @@ function OrderDetailScreen({ route, setRoute, persona, addToCart }) {
   const messageTradeDesk = () => {
     const text =
       `Hello Eurostar — about order ${order.id}\n` +
-      `${persona.company || ''}${persona.account ? ' · ' + persona.account : ''}\n` +
+      `${persona.company || ''}${(persona.code || persona.account) ? ' · ' + (persona.code || persona.account) : ''}\n` +
       `Placed ${formatDate(order.date)} · ${itemCount.toLocaleString('en-IN')} pcs · ${formatINR(grand)}\n\n`;
     window.open('https://wa.me/917710065480?text=' + encodeURIComponent(text), '_blank');
   };

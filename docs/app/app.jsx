@@ -64,6 +64,25 @@ function App() {
     var headers = {};
     try { var t = localStorage.getItem('eurostar_token'); if (t) headers.authorization = 'Bearer ' + t; } catch (e) {}
     var ph = who.phone || '';
+
+    // Stand the signed-in customer up from their own session FIRST, before the
+    // master record is fetched. Falling through to basePersona put the demo
+    // account's identity — "Kiran Jewellers", its city and its GSTIN — on a
+    // real customer's screen, and worse onto their proforma and the WhatsApp
+    // message they sent out. That happened whenever the account had no phone on
+    // the session, or the lookup simply failed. The fetch below still enriches
+    // this with the master record when it answers; it can no longer be the
+    // difference between the right name and somebody else's.
+    var ownName = who.name || '';
+    var ownInit = String(ownName).split(/\s+/).map(function (w) { return w[0]; })
+      .filter(Boolean).slice(0, 2).join('').toUpperCase();
+    setPersonaLive({
+      ...basePersona,
+      id: '', company: ownName, custId: '', code: '', contact: ownName,
+      phone: ph, email: '', location: '', gst: '', terms: 'cash',
+      tier: 'Cash account', initials: ownInit || '',
+    });
+
     if (!ph) return;
     fetch((window.EUROSTAR_API || location.origin) + '/customers/by-phone/' + encodeURIComponent(ph), { headers: headers })
       .then(function (r) { return r.ok ? r.json() : null; })

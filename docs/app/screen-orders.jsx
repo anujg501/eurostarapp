@@ -370,7 +370,12 @@ function CartView({ cart, setCart, persona, setRoute, discount }) {
     };
   }));
 
-  const proformaNo = 'PI-' + (persona.account || 'EUR') + '-' + String(Date.now()).slice(-5);
+  // `account` is not a field any persona has ever carried — the customer's code
+  // lives on `code` (CUST-1029). Reading the wrong name meant every proforma
+  // was numbered PI-EUR-… and no account code reached the PDF or the WhatsApp
+  // message, whoever was signed in.
+  const acctCode = persona.code || persona.account || '';
+  const proformaNo = 'PI-' + (acctCode || 'EUR') + '-' + String(Date.now()).slice(-5);
   const todayStr = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 
   const proformaHTML = () => {
@@ -405,7 +410,7 @@ function CartView({ cart, setCart, persona, setRoute, discount }) {
         <div style="text-align:right"><h1 style="margin:0">PROFORMA INVOICE</h1>
           <div class="meta">${proformaNo}<br>${todayStr}</div></div>
       </div>
-      <div class="bill"><strong>Bill to:</strong> ${persona.company || ''}${persona.account ? ' · ' + persona.account : ''}<br>
+      <div class="bill"><strong>Bill to:</strong> ${persona.company || ''}${acctCode ? ' · ' + acctCode : ''}<br>
         ${persona.location || ''}${persona.gst ? ' · GSTIN ' + persona.gst : ''}</div>
       <table><thead><tr><th>Product</th><th>Shape</th><th>Size</th><th style="text-align:right">Qty</th><th style="text-align:right">Rate</th><th style="text-align:right">Amount</th></tr></thead>
         <tbody>${rows}</tbody></table>
@@ -431,7 +436,7 @@ function CartView({ cart, setCart, persona, setRoute, discount }) {
   // Build the caption used both as the WhatsApp text and as the share sheet body.
   const whatsAppCaption = () => {
     const lines = cart.map((l) => `• ${l.name}${l.color ? ' ('+l.color+')' : ''} ${l.size || ''} × ${(l.qty||0).toLocaleString('en-IN')} = ${formatINR(l.lineTotal||0)}`).join('\n');
-    return `*Eurostar — Proforma ${proformaNo}*\n${persona.company || ''}${persona.account ? ' · '+persona.account : ''}\n\n${lines}\n\n*Total payable: ${formatINR(grand)}*\n(${termsShort})`;
+    return `*Eurostar — Proforma ${proformaNo}*\n${persona.company || ''}${acctCode ? ' · '+acctCode : ''}\n\n${lines}\n\n*Total payable: ${formatINR(grand)}*\n(${termsShort})`;
   };
 
   // Text-only fallback (unchanged old behaviour) — used when we can't produce or
@@ -448,7 +453,7 @@ function CartView({ cart, setCart, persona, setRoute, discount }) {
       date: todayStr,
       billTo: {
         company: persona.company || '',
-        account: persona.account || '',
+        account: acctCode,
         location: persona.location || '',
         gst: persona.gst || '',
       },

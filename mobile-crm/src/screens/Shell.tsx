@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, StyleSheet, BackHandler } from 'react-native';
 import { theme } from '../theme';
 import { ChromeContext, CrmChrome, navFor, type Notice } from '../components/Chrome';
+import Mira from '../components/Mira';
 import DeskScreen from './DeskScreen';
 import CustomersScreen from './CustomersScreen';
 import OrdersScreen from './OrdersScreen';
@@ -99,6 +100,13 @@ export default function Shell({ navigation, role, repId, onSignOut }: any) {
   // having to carry the notice list around.
   const chrome = useMemo(() => ({ notices, navigate: go, onSignOut }), [notices, go, onSignOut]);
 
+  // The section's own words ("Order desk"), not its route id ("Orders") — it is
+  // what Mira is told the person is looking at.
+  const sectionLabel = useMemo(
+    () => navFor(role).find((n) => n.id === section)?.label || section,
+    [role, section]
+  );
+
   return (
     <ChromeContext.Provider value={chrome}>
     <View style={styles.wrap}>
@@ -126,6 +134,11 @@ export default function Shell({ navigation, role, repId, onSignOut }: any) {
           </View>
         );
       })}
+
+      {/* Mira sits above every section, as she does on every page of the web
+          console. She is told which section is open so a question is answered
+          about the screen in front of the person. */}
+      <Mira role={role} section={sectionLabel} />
     </View>
     </ChromeContext.Provider>
   );

@@ -441,10 +441,18 @@ export const api = {
 
   // Mira. `page` tells her which screen the question came from, so "what should
   // I do today" is answered about this rep's desk rather than in general.
-  ask: (message: string, page: string, sessionId: string) =>
+  ask: (message: string, page: string, sessionId: string, who?: string) =>
     request<{ reply?: string; message?: string }>('/assistant/chat', {
       method: 'POST',
-      body: JSON.stringify({ sessionId, message, app: 'crm', page }),
+      body: JSON.stringify({ sessionId, message, app: 'crm', page, who, contact: who }),
       timeoutMs: 60000,
+    }),
+
+  // The clean question/answer turn, so the office sees this conversation in
+  // Mira Admin from any device — the web console pushes the same shape.
+  logChat: (sessionId: string, who: string, q: string, a: string) =>
+    request<{ ok: boolean }>('/assistant/chatlog', {
+      method: 'POST',
+      body: JSON.stringify({ app: 'crm', sessionId, who, contact: who, q, a }),
     }),
 };

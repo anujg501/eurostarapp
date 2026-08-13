@@ -427,9 +427,20 @@ function OrdersTable({ orders, advance, showRep, setCourier, setStatus }) {
     <div className="crm-card">
       <table className="crm-table">
         <thead><tr><th>{TH("Order")}</th><th>{TH("Customer")}</th>{showRep && <th>{TH("Rep")}</th>}<th>{TH("Date")}</th><th>{TH("Items")}</th><th>{TH("Status")}</th><th>{TH("Courier / Tracking")}</th><th style={{ textAlign: 'right' }}>{TH("Value")}</th>{advance && <th></th>}</tr></thead>
-        <tbody>{orders.map((o) => {const c = H.cust(o.cust);const next = FLOW[FLOW.indexOf(o.status) + 1];return (
-              <tr key={o.id}><td className="crm-id">{o.id}</td><td>{c.name}<div className="crm-muted" style={{ fontSize: 11 }}>{c.city}</div></td>
-          {showRep && <td className="crm-muted">{H.rep(c.rep).name}</td>}<td className="crm-muted" style={{ fontSize: 12 }}>{o.date}</td>
+        <tbody>{orders.map((o) => {const c = H.cust(o.cust);const next = FLOW[FLOW.indexOf(o.status) + 1];
+            // The order itself carries the business name, city and rep the API
+            // returned. This table used to read them only through the customer
+            // master list, so an order whose customer isn't in that list showed
+            // the bare code with an empty Rep column — even though the same
+            // order shows "anuj · Surat / Rohit Shah" in the incoming panel
+            // right above it. H.cust falls back to returning the id as the name,
+            // so treat that as "not found" and use the order's own fields.
+            const custName = (c.name && c.name !== o.cust) ? c.name : (o.custName || o.cust || '—');
+            const custSub = (o.cust && o.cust !== custName) ? o.cust : (c.city || o.custCity || '');
+            const repName = (c.rep && H.rep(c.rep).name) || o.repName || o.repId || '—';
+            return (
+              <tr key={o.id}><td className="crm-id">{o.id}</td><td>{custName}<div className="crm-muted" style={{ fontSize: 11 }}>{custSub}</div></td>
+          {showRep && <td className="crm-muted">{repName}</td>}<td className="crm-muted" style={{ fontSize: 12 }}>{o.date}</td>
           <td className="crm-muted">{o.items}</td>
           <td>{setStatus ?
             // A dropdown so the office can correct or change an order to ANY

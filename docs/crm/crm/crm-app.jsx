@@ -3705,20 +3705,30 @@ function CRM() {
         alert('✓ New password for ' + name + '.\n\nLogin ID: ' + (res.data.username || rep.id) + '\nPassword: ' + res.data.password + '\n\nShare these with the rep — the password is shown only once.'); }).
       catch((ex) => alert(ex.message || 'Could not reset the password.'));
     },
-    // Delete a rep for good (admin only). Removes their login from the server;
-    // any customers/orders they held are un-linked (become open for any rep).
-    // Unlike Block, this cannot be undone — so it asks first.
+    // Delete a rep for good (admin only). Removes their login AND their CRM rep
+    // record from the server; any customers/orders they held are un-linked
+    // (become open for any rep). Unlike Block, this cannot be undone — so it asks.
+    //
+    // Deletes through /reps/<repId>, not /users/<userId>: the rep directory is a
+    // merge of the Rep table (LMS-onboarded hires) and the login accounts, so
+    // removing only the login left the hire row behind and the rep walked back
+    // onto the screen at the next refresh. A rep with no login at all was never
+    // deleted anywhere — the row vanished until the page was reloaded.
     deleteRep: (id, name) => {
       if (!confirm('Delete rep “' + name + '” permanently?\n\nThis removes their login for good and un-links their customers (which become open for any rep to solicit). It cannot be undone.')) return;
-      const rep = (reps || []).find((r) => r.id === id);
       const dropLocal = () => {
         setReps((rs) => rs.filter((r) => r.id !== id));
         setCustomers((cs) => cs.map((c) => c.rep === id ? { ...c, rep: '' } : c));
         try { if (Array.isArray(window.CRM_REPS)) { const i = window.CRM_REPS.findIndex((x) => x.id === id); if (i !== -1) window.CRM_REPS.splice(i, 1); } } catch (e) {}
       };
-      if (!rep || !rep.userId) { dropLocal(); return; } // no login behind it — just drop the row
-      crmApiJson('DELETE', '/users/' + encodeURIComponent(rep.userId)).
-      then((res) => { if (!res.ok) throw new Error((res.data && res.data.error) || 'Could not delete the rep.'); dropLocal(); }).
+      crmApiJson('DELETE', '/reps/' + encodeURIComponent(id)).
+      then((res) => {
+        // Nothing on the server behind this row (a leftover seed/demo rep) —
+        // dropping it from the screen is the whole job.
+        const notOnServer = !res.ok && res.data && /no rep with that id/i.test(res.data.error || '');
+        if (!res.ok && !notOnServer) throw new Error((res.data && res.data.error) || 'Could not delete the rep.');
+        dropLocal();
+      }).
       catch((ex) => alert(ex.message || 'Could not delete the rep.'));
     },
     delinkCustomer: (id) => {

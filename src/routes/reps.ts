@@ -226,6 +226,43 @@ repsRouter.put(
   })
 );
 
+// DELETE /reps/:repId — remove a rep for good, from BOTH tables.
+//
+// GET /reps above merges two sources: the Rep table (LMS "Onboard to CRM"
+// hires) and the User table (logins). Deleting only the login left the Rep row
+// behind, so the rep reappeared on the next refresh — and an LMS-onboarded rep
+// with no login at all had nothing deleted server-side whatsoever. Delete both,
+// and un-link what pointed at them so nothing is left dangling.
+repsRouter.delete(
+  '/:repId',
+  authenticate,
+  requireInternal,
+  asyncHandler(async (req, res) => {
+    const repId = req.params.repId;
+    const ownerUsername = process.env.SEED_ADMIN_USER ?? 'admin';
+
+    // The login, if there is one. Reps created in the CRM use their repId as
+    // the username, LMS-onboarded ones may only match on repId — try both.
+    const user = await prisma.user.findFirst({
+      where: { role: 'rep', OR: [{ repId }, { userId: repId }] },
+    });
+    if (user && user.userId === ownerUsername) return fail(res, 400, 'The owner account cannot be removed.');
+
+    const hires = await prisma.rep.deleteMany({ where: { repId } });
+    if (!user && hires.count === 0) return fail(res, 404, 'No rep with that id');
+
+    // Leads carry the public repId; hand them back to the unassigned pool
+    // rather than leaving them pointed at a rep who no longer exists.
+    await prisma.lead.updateMany({ where: { rep: repId }, data: { rep: '', assigned: false } });
+
+    // Customers and orders point at the login row (repUserId), which the
+    // optional relation nulls out when the user goes.
+    if (user) await prisma.user.delete({ where: { id: user.id } });
+
+    return ok(res, { deleted: true, repId, hadLogin: !!user, hires: hires.count });
+  })
+);
+
 // --- Morning attendance (photo check-in) ------------------------------------
 // A rep marks themselves present for a day; office/admin see the month grid.
 

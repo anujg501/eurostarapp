@@ -50,7 +50,11 @@ function AdminRoot({ cands, actions, questions, testCfg, settings, notifs, audit
   // hire him?" answers about that candidate rather than asking which one. The
   // shim picks this up; it describes only what is already on screen.
   React.useEffect(() => {
-    const label = (NAV[role] || []).find(n => n.id === page);
+    // LMS_NAV, not NAV[role]: neither `NAV` nor `role` exists in this component
+    // — AdminRoot is the admin panel and its nav is one flat list. Reading them
+    // threw a ReferenceError while rendering, and because the sign-in gate had
+    // already hidden itself for a valid staff token, the page was left blank.
+    const label = LMS_NAV.find(n => n.id === page);
     const parts = ['Eurostar LMS admin — ' + ((label && label.label) || page) + ' screen'];
     if (drawerCand) {
       parts.push(`candidate open: ${drawerCand.name} (${drawerCand.candId}) · stage ${drawerCand.stage}` +
@@ -59,7 +63,7 @@ function AdminRoot({ cands, actions, questions, testCfg, settings, notifs, audit
     }
     if (page === 'approval') parts.push(`${pending} candidate(s) awaiting a decision`);
     window.__miraPage = parts.join(' · ');
-  }, [page, drawerCand, pending, role]);
+  }, [page, drawerCand, pending]);
 
   let screen;
   if (page === 'dashboard') screen = <LmsDashboard go={go} cands={cands} actions={actions} openCand={openCand} />;

@@ -2230,7 +2230,7 @@ function Pipeline({ st, repId }) {
   // Scope first (by rep), then derive the city list from that scope so the city
   // dropdown only ever offers cities that exist for the current view, then apply
   // the chosen city. Works for both the admin (all reps) and a rep's own pipeline.
-  const scoped = (st.leads || []).filter((l) => (!repId || l.rep === repId) && !l.flagged && (repId || !repFilter || l.rep === repFilter));
+  const scoped = (st.leads || []).filter((l) => (!repId || l.rep === repId) && !l.flagged && (repId || !repFilter || (repFilter === '__none' ? !l.rep : l.rep === repFilter)));
   const cities = [...new Set(scoped.map((l) => l.city).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   // Free-text search across the lead (company) name, the customer (contact)
   // name, the city and the mobile — case-insensitive substring.
@@ -2274,6 +2274,7 @@ function Pipeline({ st, repId }) {
         <span style={{ fontWeight: 700, fontSize: 13 }}>View pipeline for:</span>
         <select className="disc-input" style={{ width: 220, textAlign: 'left' }} value={repFilter} onChange={(e) => setRepFilter(e.target.value)}>
           <option value="">All reps</option>
+          <option value="__none">— Unassigned only —</option>
           {(window.CRM_REPS || []).map((r) => <option key={r.id} value={r.id}>{r.name}{r.region ? ' · ' + r.region : ''}</option>)}
         </select>
         {repFilter && <span className="crm-muted" style={{ fontSize: 12.5 }}>{leads.length} customer{leads.length === 1 ? '' : 's'} · {leads.filter((l) => l.stage < 6 && l.stage > 0 && l.followUp < today).length} follow-up(s) due — ready for your weekly call.</span>}

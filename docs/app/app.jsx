@@ -44,7 +44,12 @@ function App() {
     // name, not the demo "Kiran Jewellers". The actual customer is chosen on the
     // checkout screen. Before this, staff fell through to the demo persona.
     if (who.role !== 'customer') {
-      var sName = who.name || basePersona.company;
+      // Never borrow the demo account's name here. A staff member whose session
+      // carried no name showed up as the demo firm "Kiran Jewellers" — in the
+      // header chip and, worse, as their own firm and contact person on My
+      // Account. Their login id is a poor label but it is at least theirs.
+      var sName = who.name || who.username || who.repId ||
+        (who.role === 'rep' ? 'Sales Rep' : who.role === 'office' ? 'Back Office' : 'Admin');
       var sInit = String(sName).split(/\s+/).map(function (w) { return w[0]; }).filter(Boolean).slice(0, 2).join('').toUpperCase();
       setPersonaLive({
         ...basePersona,
@@ -87,7 +92,9 @@ function App() {
     fetch((window.EUROSTAR_API || location.origin) + '/customers/by-phone/' + encodeURIComponent(ph), { headers: headers })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (c) {
-        var name = (c && c.name) || who.name || basePersona.company;
+        // Same rule as the city below: no fallback to the demo account, whose
+        // name is another firm's.
+        var name = (c && c.name) || who.name || '';
         var initials = String(name).split(/\s+/).map(function (w) { return w[0]; }).filter(Boolean).slice(0, 2).join('').toUpperCase();
         setPersonaLive({
           ...basePersona,

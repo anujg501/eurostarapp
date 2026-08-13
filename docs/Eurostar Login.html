@@ -3401,6 +3401,14 @@ img[src*="assets/products/"] {
       });
     }
 
+    // /auth/login and /auth/otp/verify answer with { accessToken, refreshToken,
+    // user: { id, role, name, repId } } — the name and repId are INSIDE user.
+    // Every sign-in here read them off the top level instead, so eurostar_user
+    // was stored with no name at all: the shop's header chip fell back to the
+    // generic "Sales Rep", and My Account fell all the way through to the demo
+    // account "Kiran Jewellers" for a real, freshly-created rep.
+    function sessionUser(data) { return (data && data.user) || {}; }
+
     function saveSession(token, who, refreshToken) {
       try {
         localStorage.setItem('eurostar_token', token);
@@ -3545,7 +3553,7 @@ img[src*="assets/products/"] {
           // login on this browser made checkout show the customer picker to a
           // plain customer.
           try { localStorage.setItem('eurostar_login_mode', 'customer'); } catch (e) {}
-          saveSession(r.data.accessToken, { role: 'customer', name: r.data.name, phone: phone }, r.data.refreshToken);
+          saveSession(r.data.accessToken, { role: 'customer', name: sessionUser(r.data).name || r.data.name || '', phone: phone }, r.data.refreshToken);
           toast('Verified — welcome');
           setTimeout(enterApp, 400);
           return;
@@ -3600,7 +3608,7 @@ img[src*="assets/products/"] {
       }).then(function (r) {
         busy(btn, false);
         if (r.ok && r.data && r.data.accessToken) {
-          saveSession(r.data.accessToken, { role: 'rep', name: r.data.name, username: id }, r.data.refreshToken);
+          saveSession(r.data.accessToken, { role: 'rep', name: sessionUser(r.data).name || id, repId: sessionUser(r.data).repId || id, username: id }, r.data.refreshToken);
           toast('Signed in as rep');
           setTimeout(enterApp, 400);
           return;
@@ -3638,7 +3646,7 @@ img[src*="assets/products/"] {
       }).then(function (r) {
         busy(btn, false);
         if (r.ok && r.data && r.data.accessToken) {
-          saveSession(r.data.accessToken, { role: 'office', name: r.data.name, username: u }, r.data.refreshToken);
+          saveSession(r.data.accessToken, { role: 'office', name: sessionUser(r.data).name || u, username: u }, r.data.refreshToken);
           toast('Signed in — back office');
           setTimeout(enterApp, 400);
           return;

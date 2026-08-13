@@ -2213,9 +2213,25 @@ function Pipeline({ st, repId }) {
   // 2026-06-17, so every follow-up looked on time however long it sat.
   const today = new Date().toISOString().slice(0, 10);
   const [showAdd, setShowAdd] = useState(false);
+  const [bulkRep, setBulkRep] = useState('');
   const fileRef = React.useRef(null);
+  // Bulk upload: if a rep is chosen in "Assign all to", every uploaded lead goes
+  // to that rep; otherwise the file's Rep ID column / city routing decides.
   const onBulk = (e) => {const f = e.target.files && e.target.files[0];if (!f) return;
-    st.bulkLeads(f);e.target.value = '';};
+    st.bulkLeads(f, false, bulkRep || undefined);e.target.value = '';};
+  // Assign the leads currently shown (after search / city filter) to the chosen
+  // rep — the one-click fix for a file uploaded without rep ids.
+  const assignShown = () => {
+    if (!bulkRep) { alert('First choose a rep in “Assign all to”.'); return; }
+    const ids = leads.map((l) => l.id);
+    if (!ids.length) { alert('No leads shown to assign.'); return; }
+    const repName = (window.CRM_REPS || []).find((r) => r.id === bulkRep);
+    if (!confirm('Assign all ' + ids.length + ' shown lead(s) to ' + (repName ? repName.name : bulkRep) + '?')) return;
+    Promise.resolve(st.reassignLeads(ids, bulkRep)).then(() => {
+      setFlash('✓ ' + ids.length + ' lead(s) assigned to ' + (repName ? repName.name : bulkRep) + '.');
+      setTimeout(() => setFlash(''), 4000);
+    });
+  };
   return (
     <div className="crm-body">
       <PageHead title={repId ? 'My pipeline & follow-ups' : 'Customer pipeline'} sub={repId ? 'Track each lead through the lifecycle' : 'All reps · lifecycle stage of every lead'} />
@@ -2241,6 +2257,17 @@ function Pipeline({ st, repId }) {
         <button className="cbtn cbtn-ghost cbtn-sm" onClick={() => fileRef.current && fileRef.current.click()}>⬆ Bulk upload (Excel)</button>
         <button className="cbtn cbtn-ghost cbtn-sm" onClick={() => st.autoForwardLeads()}>⚡ Auto-forward by city</button>
         <button className="cbtn cbtn-ghost cbtn-sm" onClick={downloadLeadTemplate}>↓ Template</button>
+      </div>}
+
+      {!repId &&
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center', padding: '10px 14px', background: 'var(--surface-2,#f6f3ec)', border: '1px solid var(--divider,#e6e0d2)', borderRadius: 10 }}>
+        <span style={{ fontWeight: 700, fontSize: 13 }}>Assign all to rep:</span>
+        <select className="disc-input" style={{ width: 230, textAlign: 'left' }} value={bulkRep} onChange={(e) => setBulkRep(e.target.value)}>
+          <option value="">— choose a rep —</option>
+          {(window.CRM_REPS || []).map((r) => <option key={r.id} value={r.id}>{r.name} · {r.id}{r.region ? ' · ' + r.region : ''}</option>)}
+        </select>
+        <span className="crm-muted" style={{ fontSize: 12.5 }}>Set this, then <b>Bulk upload</b> — every uploaded lead goes to this rep. Or apply it to leads already on screen:</span>
+        <button className="cbtn cbtn-accent cbtn-sm" disabled={!bulkRep || !leads.length} onClick={assignShown}>Assign {leads.length} shown lead(s) to this rep</button>
       </div>}
 
       {!repId && showAdd &&
@@ -3536,9 +3563,17 @@ function CRM() {
     // downloadable template). Rows matching an existing customer are flagged for
     // review; the rest are created and, unless noAssign (Back Office holds them
     // for the admin), routed to their city rep.
-    bulkLeads: (file, noAssign) => {
+    bulkLeads: (file, noAssign, forceRep) => {
       const ext = (file.name.split('.').pop() || '').toLowerCase();
       const followUp = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
+      // Match a rep id from the file to a real CRM rep, case-insensitively, so
+      // "Rep-206", "rep-206" and "REP-206" all land on the same rep.
+      const canonRep = (raw) => {
+        const q = String(raw || '').trim().toLowerCase();
+        if (!q) return '';
+        const hit = (window.CRM_REPS || []).find((r) => String(r.id).toLowerCase() === q);
+        return hit ? hit.id : '';
+      };
       const load = (rows) => {
         const created = []; let flaggedN = 0; const base = Date.now();
         rows.forEach((r, i) => {
@@ -3554,7 +3589,9 @@ function CRM() {
           const id = 'LD-' + (base + i);
           const fm = masterMatch(gst, name, city, mobile);
           if (fm) { flaggedN++; created.push({ id, name, contact, city, mobile, address, gst, rep: '', stage: 1, followUp, assigned: false, note, flagged: true, flagName: fm.name, flagBy: fm._by }); return; }
-          const repId = noAssign ? '' : String(r[6] || '').trim();
+          // "Assign all to rep" (forceRep) wins; else the file's Rep ID column
+          // (case-insensitive); else auto-forward by city — unless noAssign.
+          const repId = forceRep ? forceRep : (noAssign ? '' : canonRep(r[6]));
           const rep = repId || (noAssign ? '' : (window.CRM_CITY_REP || {})[city] || '');
           created.push({ id, name, contact, city, mobile, address, gst, rep, stage: 1, followUp, assigned: !!repId, note, flagged: false, flagName: '', flagBy: '' });
         });
@@ -3749,6 +3786,9 @@ function CRM() {
       catch((ex) => alert(ex.message));
     },
     reassignLead: (id, rep) => st.patchLead(id, { rep, assigned: !!rep }),
+    // Reassign many leads at once (e.g. a whole city or a filtered list) to one
+    // rep — used by "Assign N shown leads to this rep" in the pipeline.
+    reassignLeads: (ids, rep) => Promise.all((ids || []).map((id) => st.patchLead(id, { rep, assigned: !!rep }))),
     leaders,
     // Escalation contacts persist to the server; the server assigns the real id.
     addLeader: (lr) => {

@@ -1,5 +1,23 @@
 // shell.jsx — App shell (topbar, persona pill, navigation)
 
+// Who is signed in on this device, for stamping an order with the rep who
+// placed it. Every order used to be posted as "Rohit Shah / REP-204" — that was
+// a hard-coded fallback in all three places an order is sent, and nothing ever
+// wrote the eurostar-rep-name / eurostar-rep-id keys it fell back from, so the
+// fallback was what the office received every single time. Sign-in writes
+// eurostar_user; when nobody is signed in these come back empty and the server
+// fills them from the session token (or the customer's own rep).
+function esWhoAmI() {
+  var who = null, name = '', repId = '';
+  try { who = JSON.parse(localStorage.getItem('eurostar_user') || 'null'); } catch (e) {}
+  try {
+    name = (who && who.name) || localStorage.getItem('eurostar-rep-name') || '';
+    repId = (who && who.repId) || localStorage.getItem('eurostar-rep-id') || '';
+  } catch (e) {}
+  return { name: name, repId: repId };
+}
+window.esWhoAmI = esWhoAmI;
+
 function UniversalSearch({ setRoute }) {
   const [q, setQ] = React.useState('');
   const [open, setOpen] = React.useState(false);

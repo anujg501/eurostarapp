@@ -258,11 +258,31 @@ ordersRouter.post(
     // rep only as a repId string ("REP-204"), so resolve that to the User id —
     // without it repUserId stayed null on every customer order and the
     // rep-scoped GET /orders (where repUserId = me.sub) returned nothing.
-    const repIdForOrder = d.repId ?? (staff ? me?.repId ?? null : null);
+    // Who the order is credited to. A rep signed in on the Sales App is
+    // authoritative over anything the payload says: the app shipped with a
+    // hard-coded "Rohit Shah" / "REP-204" fallback for the rep fields, so every
+    // order reached the office stamped with that one rep whoever actually placed
+    // it. The token cannot be wrong about who is signed in; the payload can.
+    const meIsRep = me?.role === 'rep';
+    let repName: string | null = meIsRep ? me!.name : d.rep ?? (staff ? me!.name : null);
+    let repIdForOrder: string | null = meIsRep ? me?.repId ?? d.repId ?? null : d.repId ?? (staff ? me?.repId ?? null : null);
     let repUserId: string | null = staff ? me!.sub : null;
     if (!repUserId && repIdForOrder) {
       const repUser = await prisma.user.findFirst({ where: { role: 'rep', repId: repIdForOrder }, select: { id: true } });
       repUserId = repUser?.id ?? null;
+    }
+    // A customer ordering for themselves names no rep at all. Credit the rep who
+    // owns that customer, rather than leaving the office with a blank column.
+    if (!repUserId && !repIdForOrder && customer?.repUserId) {
+      const owner = await prisma.user.findUnique({
+        where: { id: customer.repUserId },
+        select: { id: true, name: true, repId: true },
+      });
+      if (owner) {
+        repUserId = owner.id;
+        repName = repName ?? owner.name;
+        repIdForOrder = owner.repId ?? null;
+      }
     }
 
     const data = {
@@ -271,8 +291,8 @@ ordersRouter.post(
       customerName: customer?.name ?? customerNameFromPayload ?? me?.name,
       customerCode: customer?.code ?? customerObj?.code ?? d.code,
       city,
-      repName: d.rep ?? (staff ? me!.name : null),
-      repId: d.repId ?? (staff ? me!.repId ?? null : null),
+      repName,
+      repId: repIdForOrder,
       subtotal,
       tax,
       shipping,

@@ -8,28 +8,66 @@ export interface AuthedRequest extends Request {
   user?: AccessClaims;
 }
 
-export function authenticate(req: AuthedRequest, res: Response, next: NextFunction) {
+/**
+ * Is the account behind this token still allowed in?
+ *
+ * A signed token proves who was signed in when it was issued, not that the
+ * account still exists. Deleting or blocking a rep in the CRM left their open
+ * session working for the rest of the access token's life — every screen, every
+ * write — because nothing here ever looked at the database. Their refresh token
+ * dies with the row (it cascades), so the session could not be renewed, but up
+ * to fifteen minutes of full access is not "logged out".
+ *
+ * One primary-key lookup per authenticated request, deliberately uncached: the
+ * point is that revoking access takes effect on the very next request.
+ */
+async function accountUsable(sub: string): Promise<boolean> {
+  const user = await prisma.user.findUnique({ where: { id: sub }, select: { active: true } });
+  return !!user && user.active;
+}
+
+export async function authenticate(req: AuthedRequest, res: Response, next: NextFunction) {
   const header = req.headers.authorization;
   if (!header || !header.startsWith('Bearer ')) {
     return fail(res, 401, 'Not signed in');
   }
   const token = header.slice('Bearer '.length);
+  let claims: AccessClaims;
   try {
-    req.user = verifyAccessToken(token);
-    return next();
+    claims = verifyAccessToken(token);
   } catch {
     return fail(res, 401, 'Session expired or invalid, please sign in again');
   }
+  let usable: boolean;
+  try {
+    usable = await accountUsable(claims.sub);
+  } catch {
+    // The database is unreachable, which says nothing about this account. 503,
+    // not 401: the sign-in gates sign a user out on 401, and a database blip is
+    // not a reason to throw every signed-in person back to the login screen.
+    return fail(res, 503, 'Service temporarily unavailable, please try again');
+  }
+  if (!usable) {
+    // 401, not 403: the session is over, not the permission. The apps' sign-in
+    // gates treat 401 as "clear this session and go to the login screen", which
+    // is exactly what should happen to a deleted or blocked account.
+    return fail(res, 401, 'This account is no longer active. Please sign in again.');
+  }
+  req.user = claims;
+  return next();
 }
 
 // Optional auth: attach user if present, but don't block if missing.
-export function optionalAuth(req: AuthedRequest, _res: Response, next: NextFunction) {
+export async function optionalAuth(req: AuthedRequest, _res: Response, next: NextFunction) {
   const header = req.headers.authorization;
   if (header?.startsWith('Bearer ')) {
     try {
-      req.user = verifyAccessToken(header.slice('Bearer '.length));
+      const claims = verifyAccessToken(header.slice('Bearer '.length));
+      // A deleted/blocked account is treated as anonymous rather than rejected —
+      // these routes serve signed-out callers too.
+      if (await accountUsable(claims.sub)) req.user = claims;
     } catch {
-      /* ignore — treated as anonymous */
+      /* bad token, or the lookup failed — treated as anonymous */
     }
   }
   return next();

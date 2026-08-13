@@ -54,6 +54,23 @@
           .catch(function () { /* offline: keep the app usable */ });
       }
 
+      // Validate for real. Rendering is not blocked on the round trip — if the
+      // token is expired we renew it; only an unrenewable session bounces.
+      function validateSession() {
+        var tok = null;
+        try { tok = localStorage.getItem('eurostar_token'); } catch (e) {}
+        if (!tok) return toLogin();
+        fetch((window.EUROSTAR_API || location.origin) + '/auth/me', {
+          headers: { authorization: 'Bearer ' + tok },
+        })
+          .then(function (r) {
+            if (r.status === 401 || r.status === 403) tryRefresh();
+          })
+          .catch(function () {
+            /* offline: keep the app usable — the API still guards every write */
+          });
+      }
+
       try {
         // ?enter=1 is used by the mobile preview frame to skip the round-trip.
         if (new URLSearchParams(location.search).get('enter') === '1') return;
@@ -65,17 +82,19 @@
         // riding on a stale flag.
         try { sessionStorage.removeItem('eurostar_enter'); } catch (e) {}
 
-        // Validate for real. Rendering is not blocked on the round trip — if the
-        // token is expired we renew it; only an unrenewable session bounces.
-        fetch((window.EUROSTAR_API || location.origin) + '/auth/me', {
-          headers: { authorization: 'Bearer ' + token },
-        })
-          .then(function (r) {
-            if (r.status === 401 || r.status === 403) tryRefresh();
-          })
-          .catch(function () {
-            /* offline: keep the app usable — the API still guards every write */
-          });
+        validateSession();
+
+        // …and keep checking. Validating only at page load meant an account
+        // deleted or blocked in the CRM stayed usable for as long as its owner
+        // left the tab open — they were signed out on their next reload, which
+        // might be tomorrow. The server now refuses a deleted or blocked
+        // account on the very next request; this is what turns that refusal
+        // into an actual sign-out on screen rather than pages that quietly
+        // stop working.
+        setInterval(validateSession, 60000);
+        document.addEventListener('visibilitychange', function () {
+          if (!document.hidden) validateSession();
+        });
       } catch (e) {}
     })();
   </script>

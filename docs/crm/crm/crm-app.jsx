@@ -2183,6 +2183,37 @@ function OfficeLeads({ st }) {
 
 }
 
+// The pipeline's Note cell. Typed locally and saved on blur (or Enter) rather
+// than on every keystroke — a lead note is a sentence, not a toggle, and one PUT
+// per character would be a write storm. The lead already carries `note`; nothing
+// on the pipeline screen offered a way to fill it in.
+function LeadNoteCell({ lead, onSave }) {
+  const [text, setText] = useState(lead.note || '');
+  // Follow the row when the note changes underneath us (another tab, a reload),
+  // but never while this cell is being typed into.
+  const [editing, setEditing] = useState(false);
+  React.useEffect(() => { if (!editing) setText(lead.note || ''); }, [lead.note, editing]);
+  const commit = () => {
+    setEditing(false);
+    const next = text.trim();
+    if (next === (lead.note || '')) return;
+    onSave(next);
+  };
+  return (
+    <input
+      className="disc-input"
+      style={{ width: 150, textAlign: 'left' }}
+      placeholder="Add a note…"
+      title={text || 'Add a note'}
+      value={text}
+      onFocus={() => setEditing(true)}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
+    />);
+
+}
+
 function Pipeline({ st, repId }) {
   const stages = window.CRM_STAGES || [];
   const [repFilter, setRepFilter] = useState('');
@@ -2296,14 +2327,15 @@ function Pipeline({ st, repId }) {
       </div>
 
       <div className="crm-card">
-        <table className="crm-table" style={{ minWidth: 920 }}>
-          <thead><tr><th>{TH("Lead")}</th><th>{TH("Customer")}</th><th>{TH("City")}</th>{!repId && <th>{TH("Rep")}</th>}<th>{TH("Source")}</th><th style={{ minWidth: 230 }}>{TH("Stage")}</th><th>{TH("Next follow-up")}</th><th></th></tr></thead>
+        <table className="crm-table" style={{ minWidth: 1080 }}>
+          <thead><tr><th>{TH("Lead")}</th><th>{TH("Customer")}</th><th>{TH("City")}</th><th>{TH("Note")}</th>{!repId && <th>{TH("Rep")}</th>}<th>{TH("Source")}</th><th style={{ minWidth: 230 }}>{TH("Stage")}</th><th>{TH("Next follow-up")}</th><th></th></tr></thead>
           <tbody>{leads.map((l) => {const overdue = l.stage < 6 && l.stage > 0 && l.followUp < today;const closed = l.stage === 0;return (
                 <tr key={l.id} style={{ opacity: closed ? 0.55 : 1 }}>
               <td>{l.name}<div className="crm-muted" style={{ fontSize: 11 }}>{l.mobile}</div>
                 {l.customerCode && <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--emerald-ink)', marginTop: 2 }}>✓ In customer book · {l.customerCode}</div>}</td>
               <td className="crm-muted">{l.contact || '—'}</td>
               <td className="crm-muted">{l.city}</td>
+              <td><LeadNoteCell lead={l} onSave={(note) => st.patchLead(l.id, { note })} /></td>
               {!repId && <td>
                 <select className="disc-input" style={{ width: 118, textAlign: 'left' }} value={l.rep || ''} onChange={(e) => st.reassignLead(l.id, e.target.value)}>
                   <option value="">— Unassigned —</option>

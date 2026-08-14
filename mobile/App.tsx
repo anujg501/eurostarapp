@@ -5,7 +5,7 @@ import { NavigationContainer, useNavigation } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { loadToken, setToken, api } from './src/api';
+import { loadToken, clearSession, api } from './src/api';
 import { theme } from './src/theme';
 import { CartProvider, useCart } from './src/cart';
 import LoginScreen from './src/screens/LoginScreen';
@@ -185,7 +185,7 @@ export default function App() {
           setRole(me.role || 'customer');
           setSignedIn(true);
         } catch {
-          await setToken(null);
+          await clearSession();
         }
       }
       setReady(true);
@@ -203,7 +203,7 @@ export default function App() {
   }, []);
 
   const signOut = useCallback(async () => {
-    await setToken(null);
+    await clearSession();
     setSignedIn(false);
   }, []);
 

@@ -59,7 +59,9 @@
       function validateSession() {
         var tok = null;
         try { tok = localStorage.getItem('eurostar_token'); } catch (e) {}
-        if (!tok) return toLogin();
+        // No access token, but "keep me signed in" may have stored a refresh
+        // token — renew from it before giving up and showing the login screen.
+        if (!tok) return tryRefresh();
         fetch((window.EUROSTAR_API || location.origin) + '/auth/me', {
           headers: { authorization: 'Bearer ' + tok },
         })
@@ -76,7 +78,9 @@
         if (new URLSearchParams(location.search).get('enter') === '1') return;
 
         var token = localStorage.getItem('eurostar_token');
-        if (!token) return toLogin();
+        // No access token but a remembered refresh token → renew instead of
+        // bouncing to login (and wiping the refresh token in toLogin()).
+        if (!token) return tryRefresh();
 
         // Consume the one-time pass so a later refresh re-validates rather than
         // riding on a stale flag.

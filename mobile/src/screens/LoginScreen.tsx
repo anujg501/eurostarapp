@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView } from 'react-native';
-import { api, setToken } from '../api';
+import { api, saveSession } from '../api';
 import { theme } from '../theme';
 
 const STAFF_ROLES: { key: string; label: string }[] = [
@@ -43,7 +43,7 @@ export default function LoginScreen({ onSignedIn }: { onSignedIn: () => void }) 
     setBusy(true);
     try {
       const res = await api.verifyOtp(phone, otp, needSignup ? name : undefined, needSignup ? gstin : undefined);
-      await setToken(res.accessToken);
+      await saveSession(res);
       onSignedIn();
     } catch (e: any) {
       if (/GSTIN|name/i.test(e.message)) {
@@ -62,7 +62,7 @@ export default function LoginScreen({ onSignedIn }: { onSignedIn: () => void }) 
     setBusy(true);
     try {
       const res = await api.staffLogin(staffRole, username.trim(), password);
-      await setToken(res.accessToken);
+      await saveSession(res);
       onSignedIn();
     } catch (e: any) {
       Alert.alert('Sign in failed', e.message || 'Wrong username or password');

@@ -23,6 +23,7 @@ export type Product = {
 };
 
 let accessToken: string | null = null;
+let refreshToken: string | null = null;
 
 export async function loadToken(): Promise<string | null> {
   if (accessToken) return accessToken;
@@ -36,7 +37,60 @@ export async function setToken(token: string | null): Promise<void> {
   else await AsyncStorage.removeItem('eurostar_token');
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+// The "keep me signed in" (remember) refresh token. The access token lives ~12h;
+// the refresh token lives 30 days and is what actually keeps a phone signed in.
+// The app used to throw it away and store only the access token, so a day later
+// the session was dead and the app demanded a fresh login — this is the fix.
+async function loadRefreshToken(): Promise<string | null> {
+  if (refreshToken) return refreshToken;
+  refreshToken = await AsyncStorage.getItem('eurostar_refresh');
+  return refreshToken;
+}
+
+export async function setRefreshToken(token: string | null): Promise<void> {
+  refreshToken = token;
+  if (token) await AsyncStorage.setItem('eurostar_refresh', token);
+  else await AsyncStorage.removeItem('eurostar_refresh');
+}
+
+// Store both tokens returned by a login ("remember"). Call this from the login
+// screen instead of setToken() so the refresh token is kept.
+export async function saveSession(res: { accessToken: string; refreshToken?: string }): Promise<void> {
+  await setToken(res.accessToken);
+  if (res.refreshToken) await setRefreshToken(res.refreshToken);
+}
+
+// Sign out: drop both tokens.
+export async function clearSession(): Promise<void> {
+  await setToken(null);
+  await setRefreshToken(null);
+}
+
+// Exchange the 30-day refresh token for a fresh access token. Returns true when
+// the session lives on, false when the phone really must sign in again.
+async function renewAccessToken(): Promise<boolean> {
+  const rt = await loadRefreshToken();
+  if (!rt) return false;
+  try {
+    const resp = await fetch(BASE_URL + '/auth/refresh', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({ refreshToken: rt }),
+    });
+    if (!resp.ok) {
+      if (resp.status === 401 || resp.status === 403) await setRefreshToken(null); // truly dead
+      return false;
+    }
+    const data = await resp.json();
+    if (!data?.accessToken) return false;
+    await setToken(data.accessToken);
+    return true;
+  } catch {
+    return false; // offline: keep the refresh token and try again later
+  }
+}
+
+async function request<T>(path: string, options: RequestInit = {}, isRetry = false): Promise<T> {
   const headers: Record<string, string> = {
     'content-type': 'application/json',
     accept: 'application/json',
@@ -46,6 +100,14 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (token) headers.authorization = `Bearer ${token}`;
 
   const resp = await fetch(BASE_URL + path, { ...options, headers });
+
+  // An expired (or missing) access token is not the end of the session — renew
+  // it once with the refresh token and replay the request. Only a refresh that
+  // fails means the phone really has to sign in again.
+  if (resp.status === 401 && !isRetry) {
+    if (await renewAccessToken()) return request<T>(path, options, true);
+  }
+
   const text = await resp.text();
   let data: any = null;
   try {
@@ -71,14 +133,14 @@ export const api = {
     }),
 
   verifyOtp: (phone: string, otp: string, name?: string, gstin?: string) =>
-    request<{ accessToken: string; user: any }>('/auth/otp/verify', {
+    request<{ accessToken: string; refreshToken?: string; user: any }>('/auth/otp/verify', {
       method: 'POST',
       body: JSON.stringify({ phone, otp, name, gstin, remember: true }),
     }),
 
   // Staff (rep / office / admin) sign in with username + password.
   staffLogin: (role: string, username: string, password: string) =>
-    request<{ accessToken: string; user: any }>('/auth/login', {
+    request<{ accessToken: string; refreshToken?: string; user: any }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ role, username, password, remember: true }),
     }),

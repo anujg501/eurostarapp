@@ -950,6 +950,42 @@ function LmsQuestionBank() {
     });
   };
 
+  // One-click: replace the live question bank with the built-in standard set
+  // (window.LMS_QUESTIONS) — the moderate, course-aligned MCQ / True-False
+  // questions written for the 18 modules. This clears the current questions
+  // first (so old/easy/off-topic ones are removed) and then bulk-loads the
+  // standard set, mapping each question's "M3" code to the real module id via
+  // the modules already loaded from the server. True-False answers convert to
+  // the server's 0=True / 1=False convention; MCQ answers are option indexes.
+  const seedStandardQuestions = () => {
+    if (busy) return;
+    const std = window.LMS_QUESTIONS || [];
+    if (!std.length) { alert('The standard question set did not load — reload the page and try again.'); return; }
+    if (!mods.length) { alert('No modules found. Create the standard modules first (Modules → Create standard modules), then load the questions so each maps to its module.'); return; }
+    const toItem = (q) => {
+      const m = /^M(\d+)$/i.exec(String(q.mod || '').trim());
+      const moduleId = (m && mods[+m[1] - 1]) ? mods[+m[1] - 1].id : ((mods[0] || {}).id || null);
+      if (q.type === 'True-False') return { moduleId, type: 'True-False', prompt: q.q, answer: q.answer ? 0 : 1 };
+      return { moduleId, type: 'MCQ', prompt: q.q, options: q.options, answer: q.answer };
+    };
+    const items = std.map(toItem);
+    const existing = (QALL || []).slice();
+    if (!confirm('Load the standard set of ' + items.length + ' moderate, course-aligned questions?\n\nThis REPLACES the current bank' + (existing.length ? ' of ' + existing.length + ' question(s)' : '') + ' — the existing questions are removed first, then the standard set is added.')) return;
+    setBusy(true); setEditErr('');
+    const delAll = existing.length
+      ? Promise.all(existing.map(q => qApi('/' + q.id, { method: 'DELETE' })))
+      : Promise.resolve();
+    delAll
+      .then(() => qApi('/bulk', { method: 'POST', body: JSON.stringify({ questions: items }) }))
+      .then(res => {
+        setBusy(false);
+        if (!res || !res.ok || !res.data) { flash('✕ Could not load the standard questions — try again.'); load(); return; }
+        const d = res.data;
+        load().then(() => flash('✓ Loaded ' + d.added + ' standard question(s)' + (d.skipped ? ' · ' + d.skipped + ' skipped' : '') + '.'));
+      })
+      .catch(() => { setBusy(false); flash('✕ Could not load the standard questions — try again.'); load(); });
+  };
+
   // Parse a CSV line respecting quotes.
   const parseCsvLine = (line) => {
     const out = []; let cur = '', inQ = false;
@@ -1037,6 +1073,7 @@ function LmsQuestionBank() {
         <LmsPageHead title="Question Bank" sub={`${QALL.length} question${QALL.length === 1 ? '' : 's'} · ${mods.length} module${mods.length === 1 ? '' : 's'} · MCQ & True/False`} />
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" onChange={onFile} style={{ display: 'none' }} />
+          <button className="lms-btn lms-btn-ghost" onClick={seedStandardQuestions} disabled={busy} title="Replace the bank with the built-in moderate, course-aligned question set">★ Load standard set</button>
           <button className="lms-btn lms-btn-ghost" onClick={downloadTemplate}>↓ Template</button>
           <button className="lms-btn lms-btn-ghost" onClick={() => fileRef.current && fileRef.current.click()}>⬆ Bulk upload</button>
           <button className="lms-btn lms-btn-ghost" onClick={() => setShowCfg(s => !s)}>⚙ Test config</button>

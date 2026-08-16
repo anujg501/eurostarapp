@@ -469,108 +469,115 @@ function lmsLangLabel(lang) {
 // Question bank — full assessment across all 18 training modules (MCQ / True-False).
 // Sourced from the module notes. The test draws a randomised subset
 // (LMS_TEST_CONFIG.count); raise that count to sample more of the bank per attempt.
+// Moderate difficulty: scenario / application questions (not plain recall), each
+// tied to its module's notes so the test genuinely checks the course. All
+// auto-scored — MCQ (answer = correct option index) and True-False (answer =
+// true/false). Distractors are plausible, so a candidate must actually
+// understand the material, not just recognise a keyword.
 const LMS_QUESTIONS = [
   // ---- M1 · Welcome to Eurostar ----
-  { id: 'Q1',  mod: 'M1', type: 'MCQ',        q: 'Since which year has Eurostar supplied the jewellery trade?', options: ['1980', '1995', '2005', '2012'], answer: 0 },
-  { id: 'Q2',  mod: 'M1', type: 'MCQ',        q: 'Who does Eurostar sell to?', options: ['The general public', 'Jewellery manufacturers & wholesalers', 'Only export markets', 'Retail walk-ins'], answer: 1 },
-  { id: 'Q3',  mod: 'M1', type: 'MCQ',        q: 'Which are Eurostar’s three promises to customers?', options: ['Lowest price, gifts, credit', 'Consistent quality, consistent sizing, reliable supply', 'Fast ads, big discounts, free courier', 'Gold, silver, brass'], answer: 1 },
-  { id: 'Q4',  mod: 'M1', type: 'True-False', q: 'The big idea: specials open the door, the relationship builds trust, and White Round is the goal.', answer: true },
+  { id: 'Q1',  mod: 'M1', type: 'MCQ',        q: 'A walk-in asks to buy a single stone for a ring they want to wear. What is the right response?', options: ['Sell them one piece at the packet rate', 'Explain Eurostar supplies the trade (manufacturers & wholesalers), not the public', 'Give them a retail price list', 'Refer them to our website checkout'], answer: 1 },
+  { id: 'Q2',  mod: 'M1', type: 'MCQ',        q: 'A new rep tells a customer "our main promise is the lowest price in the market." What is wrong with that?', options: ['Nothing — price is our promise', 'Our three promises are consistent quality, consistent sizing and reliable supply — not lowest price', 'We only promise fast courier', 'We promise free credit'], answer: 1 },
+  { id: 'Q3',  mod: 'M1', type: 'MCQ',        q: 'In Eurostar’s core strategy, what is the ultimate goal a rep works toward with each customer?', options: ['One big moissanite order', 'Selling as many specials as possible', 'Steady, repeating White Round Zirconia business', 'The highest single invoice'], answer: 2 },
+  { id: 'Q4',  mod: 'M1', type: 'True-False', q: 'Eurostar has supplied the jewellery trade for over 40 years, since 1980.', answer: true },
 
   // ---- M2 · The Product Range — Overview ----
-  { id: 'Q5',  mod: 'M2', type: 'MCQ',        q: 'What are the four ways Eurostar sells goods?', options: ['Piece, carat, packet, strip', 'Gram, litre, box, roll', 'Dozen, gross, pair, set', 'Small, medium, large, XL'], answer: 0 },
-  { id: 'Q6',  mod: 'M2', type: 'MCQ',        q: 'In the packet model, the pieces inside one packet…', options: ['Are always 100', 'Change with the size (small size = more pieces)', 'Never change', 'Are decided by the customer'], answer: 1 },
-  { id: 'Q7',  mod: 'M2', type: 'MCQ',        q: 'Moissanite, lab-grown and beads are usually sold by…', options: ['Carat (weight)', 'Strip', 'Piece', 'Packet'], answer: 0 },
-  { id: 'Q8',  mod: 'M2', type: 'True-False', q: '“Calibrated” means every stone in a size is the same, so it drops straight into the setting.', answer: true },
-  { id: 'Q9',  mod: 'M2', type: 'True-False', q: 'A fresher is expected to know every exact price in week one.', answer: false },
+  { id: 'Q5',  mod: 'M2', type: 'MCQ',        q: 'A customer orders one packet of a small size and one packet of a large size of the same product. What is true about the piece counts?', options: ['Both packets hold the same number of pieces', 'The small size packet holds more pieces; the large size holds fewer', 'The large size packet holds more pieces', 'The customer decides the piece count'], answer: 1 },
+  { id: 'Q6',  mod: 'M2', type: 'MCQ',        q: 'Which product is sold by the strip rather than by piece, carat or packet?', options: ['Moissanite', 'Multi Sapphire', 'White Round CZ', 'HD Zirconia'], answer: 1 },
+  { id: 'Q7',  mod: 'M2', type: 'MCQ',        q: 'Which group of products is sold by carat (weight)?', options: ['Colour CZ, MOP, corundum', 'Moissanite, lab-grown and beads', 'White Round CZ and pearls', 'Alpanite and navratna'], answer: 1 },
+  { id: 'Q8',  mod: 'M2', type: 'True-False', q: '"Calibrated" means every stone of a given size is identical, so it drops straight into the setting.', answer: true },
+  { id: 'Q9',  mod: 'M2', type: 'True-False', q: 'A rep is expected to memorise every exact price in their first week rather than confirm it on the app.', answer: false },
 
   // ---- M3 · Product Knowledge — Deep Dive ----
-  { id: 'Q10', mod: 'M3', type: 'MCQ',        q: 'Which product gives gold jewellers ~25% more gross weight for the same size?', options: ['Alpanite', 'HD (High Density) Zirconia', 'Colour CZ', 'Pearls'], answer: 1 },
-  { id: 'Q11', mod: 'M3', type: 'MCQ',        q: 'Which is the top (icy white) moissanite colour grade?', options: ['DEF', 'GH', 'IJ', 'KL'], answer: 0 },
-  { id: 'Q12', mod: 'M3', type: 'MCQ',        q: 'Alpanite is best described as…', options: ['A natural diamond', 'Eurostar’s proprietary wax-castable coloured synthetics', 'A type of pearl', 'A gold alloy'], answer: 1 },
-  { id: 'Q13', mod: 'M3', type: 'MCQ',        q: 'Which product suits a premium buyer who wants a certificate?', options: ['Rajkot zirconia', 'Lab-grown / IGI-certified gems', 'Shampoo packet', 'Plain beads'], answer: 1 },
-  { id: 'Q14', mod: 'M3', type: 'True-False', q: 'You should only ever pitch White Round — other products rarely bring business.', answer: false },
+  { id: 'Q10', mod: 'M3', type: 'MCQ',        q: 'A gold jeweller who sells by gross weight wants a whiter look without raising the cost per piece. Which product fits best, and why?', options: ['Moissanite — it sparkles the most', 'HD Zirconia — it is ~25% heavier, adding gross weight', 'Alpanite — it comes in colours', 'Pearls — they are inexpensive'], answer: 1 },
+  { id: 'Q11', mod: 'M3', type: 'MCQ',        q: 'A customer wants the whitest, iciest moissanite you offer. Which colour grade do you quote?', options: ['GH (near-white, better value)', 'DEF (top, icy white)', 'VVS', 'IJ'], answer: 1 },
+  { id: 'Q12', mod: 'M3', type: 'MCQ',        q: 'Which best describes Alpanite?', options: ['A natural certified gemstone', 'Eurostar’s proprietary wax-castable coloured synthetics', 'A premium moissanite grade', 'A freshwater pearl line'], answer: 1 },
+  { id: 'Q13', mod: 'M3', type: 'MCQ',        q: 'A premium buyer insists on a certificate for every stone. Which line do you steer them to?', options: ['Rajkot zirconia', 'Colour CZ', 'Lab-grown / IGI-certifiable gems', 'Plain beads'], answer: 2 },
+  { id: 'Q14', mod: 'M3', type: 'True-False', q: 'Because White Round is our volume seller, the other categories rarely lead to big orders.', answer: false },
 
   // ---- M4 · Hero Product — White Round CZ ----
-  { id: 'Q15', mod: 'M4', type: 'MCQ',        q: 'Which is the FIRST question that drives the White Round grade choice?', options: ['What is their budget?', 'What metal does the customer work in?', 'Which city are they in?', 'How big is their shop?'], answer: 1 },
-  { id: 'Q16', mod: 'M4', type: 'MCQ',        q: 'For a GOLD customer selling by gross weight, you lead with…', options: ['HD Zirconia (extra weight)', 'Rajkot packet', 'Eternal star cut', 'The cheapest option'], answer: 0 },
-  { id: 'Q17', mod: 'M4', type: 'MCQ',        q: 'For a BRASS (imitation) customer you offer…', options: ['Eurostar Laser Engraved', 'Rajkot Mass Produced Zirconia only', 'Elements American rough', 'Moissanite'], answer: 1 },
-  { id: 'Q18', mod: 'M4', type: 'MCQ',        q: 'Which is the most premium White Round grade?', options: ['Eternal', 'Prizma', 'Eurostar Laser Engraved', 'Euro AAA'], answer: 2 },
-  { id: 'Q19', mod: 'M4', type: 'True-False', q: 'Our white round is castable and withstands temperatures above 1000°C.', answer: true },
+  { id: 'Q15', mod: 'M4', type: 'MCQ',        q: 'Before you recommend a White Round grade, what must you establish first?', options: ['The customer’s budget', 'Which metal the customer works in', 'The customer’s city', 'The size of their shop'], answer: 1 },
+  { id: 'Q16', mod: 'M4', type: 'MCQ',        q: 'A customer casts in GOLD and sells by gross weight. Which do you lead with?', options: ['Rajkot packet', 'HD Zirconia', 'Eternal', 'The cheapest grade'], answer: 1 },
+  { id: 'Q17', mod: 'M4', type: 'MCQ',        q: 'A customer makes imitation jewellery in BRASS. Which grade(s) are appropriate?', options: ['Eurostar Laser Engraved', 'Elements H/HH', 'Rajkot Silver / Shampoo Packet only', 'Moissanite'], answer: 2 },
+  { id: 'Q18', mod: 'M4', type: 'MCQ',        q: 'Which list orders White Round grades correctly from finest to cheapest?', options: ['Rajkot, Eternal, Prizma, Euro AAA, GQ, Elements, Laser', 'Laser Engraved, Elements, GQ, Euro AAA, Prizma, Eternal, Rajkot', 'GQ, Laser, Elements, Rajkot, Prizma, Eternal, Euro AAA', 'Elements, Rajkot, GQ, Laser, Euro AAA, Prizma, Eternal'], answer: 1 },
+  { id: 'Q19', mod: 'M4', type: 'True-False', q: 'Our White Round is fully castable and withstands 1000°C+, so it does not break during hand setting.', answer: true },
 
   // ---- M5 · Knowing Your Customer ----
-  { id: 'Q20', mod: 'M5', type: 'MCQ',        q: 'Eurostar’s customers mainly judge stones on…', options: ['Retail display appeal', 'Cost per piece, consistency & casting behaviour', 'Advertising', 'Gift packaging'], answer: 1 },
-  { id: 'Q21', mod: 'M5', type: 'MCQ',        q: 'A premium gold & diamond house is best led toward…', options: ['Rajkot shampoo packet', 'Elements / Euro AAA, Moissanite, IGI lab-grown', 'Eternal only', 'Brass fittings'], answer: 1 },
-  { id: 'Q22', mod: 'M5', type: 'True-False', q: 'In the first meeting a rep should ask and listen more than they talk.', answer: true },
+  { id: 'Q20', mod: 'M5', type: 'MCQ',        q: 'Our customers are manufacturers and wholesalers. What do they mainly judge stones on?', options: ['Retail display appeal', 'Cost per piece, consistency across a bulk order and casting behaviour', 'Advertising and packaging', 'Which celebrity endorses them'], answer: 1 },
+  { id: 'Q21', mod: 'M5', type: 'MCQ',        q: 'You are meeting a premium gold & diamond house. Which product mix fits them best?', options: ['Rajkot shampoo packet and brass fittings', 'Elements / Euro AAA, Moissanite, IGI lab-grown', 'Eternal and Alpanite economy only', 'Plain beads and coral'], answer: 1 },
+  { id: 'Q22', mod: 'M5', type: 'MCQ',        q: 'A mass-silver and imitation maker wants the lowest workable cost. What suits them?', options: ['Moissanite and IGI lab-grown', 'Prizma, Eternal, Alpanite economy, Rajkot zirconia', 'Elements and Euro AAA', 'Only white round GQ'], answer: 1 },
+  { id: 'Q23', mod: 'M5', type: 'True-False', q: 'In a first meeting you should talk more than you listen, to show off your product knowledge.', answer: false },
 
   // ---- M6 · Marketing & Building Your Territory ----
-  { id: 'Q23', mod: 'M6', type: 'MCQ',        q: 'What is the strongest source of new customers?', options: ['Cold visits only', 'Referrals from happy customers', 'Random calls', 'Waiting for walk-ins'], answer: 1 },
-  { id: 'Q24', mod: 'M6', type: 'MCQ',        q: 'What is the minimum monthly new-customer target?', options: ['10', '25', '50', '100'], answer: 2 },
-  { id: 'Q25', mod: 'M6', type: 'MCQ',        q: 'Why should you know the competition and market prices?', options: ['To copy them', 'To position Eurostar’s quality, sizing & reliability', 'To badmouth them', 'It doesn’t matter'], answer: 1 },
-  { id: 'Q26', mod: 'M6', type: 'True-False', q: 'You should plan visit routes so no market pocket is neglected and good customers are revisited.', answer: true },
+  { id: 'Q24', mod: 'M6', type: 'MCQ',        q: 'Which is the strongest source of new customers?', options: ['Cold visits with no introduction', 'Referrals from happy customers', 'Random phone dialling', 'Waiting for walk-ins'], answer: 1 },
+  { id: 'Q25', mod: 'M6', type: 'MCQ',        q: 'You meet a promising new customer in the market. When should you add them in the app?', options: ['At the end of the month', 'The same day you meet them', 'Only after their first order ships', 'Only if the office asks'], answer: 1 },
+  { id: 'Q26', mod: 'M6', type: 'MCQ',        q: 'What is the minimum monthly new-customer target for a rep?', options: ['10', '25', '50', '100'], answer: 2 },
+  { id: 'Q27', mod: 'M6', type: 'True-False', q: 'Knowing competitors’ offers and prices helps you position Eurostar’s quality, sizing and reliability.', answer: true },
 
   // ---- M7 · The Eurostar Selling Strategy ----
-  { id: 'Q27', mod: 'M7', type: 'MCQ',        q: 'Why do we NOT lead with white round on the first visit?', options: ['It is out of stock', 'The customer already has a supplier and doesn’t trust us yet', 'It is too expensive', 'It is not profitable'], answer: 1 },
-  { id: 'Q28', mod: 'M7', type: 'MCQ',        q: 'The four steps of the strategy are…', options: ['Open, Deliver, Bridge, (or go straight if they ask)', 'Call, Email, Wait, Close', 'Discount, Gift, Credit, Beg', 'Show, Argue, Push, Leave'], answer: 0 },
-  { id: 'Q29', mod: 'M7', type: 'True-False', q: 'If a customer asks for white round on their own, that is the perfect outcome.', answer: true },
+  { id: 'Q28', mod: 'M7', type: 'MCQ',        q: 'It is your first visit to a customer who already has a supplier. What should you open with?', options: ['A hard pitch on white round', 'Something special to get attention', 'A demand that they switch suppliers', 'A discount on their whole range'], answer: 1 },
+  { id: 'Q29', mod: 'M7', type: 'MCQ',        q: 'Which is the correct order of the four-step selling strategy?', options: ['Open with a special → deliver a small order perfectly → bridge to white round with a trial → (go straight to white round if they ask)', 'Quote white round → give credit → discount → close', 'Cold call → email → wait → chase', 'Show catalog → argue price → push → leave'], answer: 0 },
+  { id: 'Q30', mod: 'M7', type: 'True-False', q: 'If a customer asks for white round themselves on the first visit, you should still hold back and sell a special first.', answer: false },
 
   // ---- M8 · The Sales Conversation ----
-  { id: 'Q30', mod: 'M8', type: 'MCQ',        q: 'The five stages of the conversation are…', options: ['Open, Discover, Show, Bridge, Close', 'Greet, Sell, Bill, Pack, Leave', 'Call, Meet, Quote, Wait, Chase', 'Ask, Argue, Agree, Order, Go'], answer: 0 },
-  { id: 'Q31', mod: 'M8', type: 'MCQ',        q: 'For a Head-Office lead, your first step is to…', options: ['Just turn up', 'Call and fix an appointment', 'Send a WhatsApp price list', 'Wait for them to call'], answer: 1 },
-  { id: 'Q32', mod: 'M8', type: 'True-False', q: 'Getting the app onto the customer’s phone is as important as getting the first order.', answer: true },
-  { id: 'Q33', mod: 'M8', type: 'True-False', q: 'You should leave a meeting without agreeing any next step.', answer: false },
+  { id: 'Q31', mod: 'M8', type: 'MCQ',        q: 'What are the five stages of the sales conversation, in order?', options: ['Open → Discover → Show → Bridge → Close', 'Greet → Sell → Bill → Pack → Leave', 'Call → Meet → Quote → Wait → Chase', 'Ask → Argue → Agree → Order → Go'], answer: 0 },
+  { id: 'Q32', mod: 'M8', type: 'MCQ',        q: 'You have been given a Head-Office lead. What is your first step?', options: ['Just turn up at their door', 'Call and fix an appointment before visiting', 'Send a WhatsApp price list and wait', 'Add them to the pipeline and forget it'], answer: 1 },
+  { id: 'Q33', mod: 'M8', type: 'MCQ',        q: 'In the "Show" stage, what do you present first?', options: ['The app price list', 'The sample folder — let them hold the stones — then the app', 'A signed contract', 'A credit application'], answer: 1 },
+  { id: 'Q34', mod: 'M8', type: 'True-False', q: 'You should never leave a meeting without agreeing a small, clear next step.', answer: true },
 
   // ---- M9 · Handling Objections ----
-  { id: 'Q34', mod: 'M9', type: 'MCQ',        q: 'The correct way to handle any objection is…', options: ['Argue and prove them wrong', 'Acknowledge → reassure → offer a small trial', 'Drop the price immediately', 'Walk away'], answer: 1 },
-  { id: 'Q35', mod: 'M9', type: 'MCQ',        q: 'Which objection is actually the BEST one to hear?', options: ['“Your price is high”', '“I’ll think about it”', '“I only buy white round”', '“I already have a supplier”'], answer: 2 },
-  { id: 'Q36', mod: 'M9', type: 'True-False', q: 'It is good practice to run down a competitor to win the order.', answer: false },
+  { id: 'Q35', mod: 'M9', type: 'MCQ',        q: 'What is the correct way to handle any objection?', options: ['Argue and prove them wrong', 'Acknowledge → reassure → offer a small trial', 'Drop the price immediately', 'Walk away politely'], answer: 1 },
+  { id: 'Q36', mod: 'M9', type: 'MCQ',        q: 'A customer says "your price is high." What is the best reply?', options: ['"Fine, I’ll give you a discount."', '"Let’s compare the same grade — poor calibration costs more in setting time and rejections."', '"Our competitor is cheating you."', '"Then you can’t afford quality."'], answer: 1 },
+  { id: 'Q37', mod: 'M9', type: 'MCQ',        q: 'Which objection is actually the BEST one to hear?', options: ['"Your price is high"', '"I’ll think about it"', '"I only buy white round"', '"I already have a supplier"'], answer: 2 },
+  { id: 'Q38', mod: 'M9', type: 'True-False', q: 'Running down a competitor is an acceptable way to win an order.', answer: false },
 
   // ---- M10 · The Sales App — Ordering ----
-  { id: 'Q37', mod: 'M10', type: 'MCQ',       q: 'What is the ordering flow on the Sales App?', options: ['Category → Grade → Colour → Shape → Size', 'Login → Pay → Ship', 'Search → Pay → Done', 'Cart → Grade → Pay'], answer: 0 },
-  { id: 'Q38', mod: 'M10', type: 'MCQ',       q: 'Which step does White Round skip?', options: ['It skips Size', 'It jumps Grade → Sizes (skips Colour & Shape)', 'It skips Grade', 'It skips the cart'], answer: 1 },
-  { id: 'Q39', mod: 'M10', type: 'MCQ',       q: 'A greyed-out size with a “Sold out” tag means…', options: ['It is on discount', 'It is temporarily offline — you cannot add it', 'It is the cheapest', 'It needs an RFQ fee'], answer: 1 },
-  { id: 'Q40', mod: 'M10', type: 'True-False', q: 'The RFQ Enquiry has a ₹10,000 minimum order value.', answer: true },
+  { id: 'Q39', mod: 'M10', type: 'MCQ',       q: 'What is the ordering flow on the Sales App?', options: ['Category → Grade → Colour → Shape → Size', 'Login → Pay → Ship', 'Search → Pay → Done', 'Cart → Grade → Pay'], answer: 0 },
+  { id: 'Q40', mod: 'M10', type: 'MCQ',       q: 'Why does ordering White Round skip the Colour and Shape steps?', options: ['Those steps are broken', 'It is only ever white and round, so it jumps Grade → Sizes', 'The customer picks them later', 'To save data'], answer: 1 },
+  { id: 'Q41', mod: 'M10', type: 'MCQ',       q: 'A size shows greyed-out with a "Sold out" tag. What does it mean, and can you add it?', options: ['It is on discount — add it', 'It is temporarily offline — you cannot add it', 'It is the cheapest — add it', 'It just needs an RFQ fee'], answer: 1 },
+  { id: 'Q42', mod: 'M10', type: 'True-False', q: 'It is fine to crop out the customer’s unique code before sharing a price screenshot.', answer: false },
+  { id: 'Q43', mod: 'M10', type: 'True-False', q: 'The RFQ Enquiry (for specials) has a ₹10,000 minimum order value.', answer: true },
 
   // ---- M11 · The Rep CRM — Your Day ----
-  { id: 'Q41', mod: 'M11', type: 'MCQ',       q: 'Which are the four Quick Actions on My Desk?', options: ['Take an order, Add customer, Log payment, Call manager', 'Chat, Email, Print, Scan', 'Search, Filter, Sort, Export', 'Login, Logout, Refresh, Help'], answer: 0 },
-  { id: 'Q42', mod: 'M11', type: 'True-False', q: 'The red alert on My Desk flags overdue payments you should clear first.', answer: true },
+  { id: 'Q44', mod: 'M11', type: 'MCQ',       q: 'Which are the four Quick Actions on the CRM My Desk?', options: ['Take an order, Add customer, Log payment, Call manager', 'Chat, Email, Print, Scan', 'Search, Filter, Sort, Export', 'Login, Logout, Refresh, Help'], answer: 0 },
+  { id: 'Q45', mod: 'M11', type: 'MCQ',       q: 'You open the CRM and see a red alert and an amber alert. Which do you handle first, and what is the red one?', options: ['The amber alert — new-customer target', 'The red alert — overdue payments', 'Either, they are the same', 'Neither, they clear on their own'], answer: 1 },
+  { id: 'Q46', mod: 'M11', type: 'True-False', q: 'The Sales App is for ordering; the CRM is for managing your day.', answer: true },
 
   // ---- M12 · Visits — Check-in, Check-out & OTP ----
-  { id: 'Q43', mod: 'M12', type: 'MCQ',       q: 'During OTP check-out, who receives the code?', options: ['The rep', 'The customer’s own phone', 'The Sales Head', 'Head Office'], answer: 1 },
-  { id: 'Q44', mod: 'M12', type: 'MCQ',       q: 'What happens if you don’t check out by 11:59 PM?', options: ['Nothing', 'The visit is auto-marked “Check out failed”', 'You get a bonus', 'The order cancels'], answer: 1 },
-  { id: 'Q45', mod: 'M12', type: 'True-False', q: 'Missing your daily attendance check-in means you are marked absent.', answer: true },
+  { id: 'Q47', mod: 'M12', type: 'MCQ',       q: 'At visit check-out, whose phone receives the OTP?', options: ['The rep’s phone', 'The customer’s own phone', 'The Sales Head’s phone', 'Head Office'], answer: 1 },
+  { id: 'Q48', mod: 'M12', type: 'MCQ',       q: 'You forget to check out of a visit by 11:59 PM. What happens?', options: ['Nothing', 'It is auto-marked "Check out failed"', 'You earn a bonus', 'The order is cancelled'], answer: 1 },
+  { id: 'Q49', mod: 'M12', type: 'True-False', q: 'Skipping your morning attendance selfie means you are marked absent.', answer: true },
 
   // ---- M13 · Logging Payments ----
-  { id: 'Q46', mod: 'M13', type: 'MCQ',       q: 'Why must a rep log every collection?', options: ['To earn points', 'Otherwise the customer keeps getting reminders even after paying', 'It is optional', 'To unlock discounts'], answer: 1 },
-  { id: 'Q47', mod: 'M13', type: 'MCQ',       q: 'When logging a CASH payment, what extra detail is required?', options: ['The customer’s birthday', 'Who is carrying the cash to Head Office (name & phone)', 'The weather', 'A discount code'], answer: 1 },
-  { id: 'Q48', mod: 'M13', type: 'True-False', q: 'After you submit a payment it shows “Pending verification” until the office confirms it.', answer: true },
+  { id: 'Q50', mod: 'M13', type: 'MCQ',       q: 'A customer paid last week but still keeps getting reminders. What most likely went wrong?', options: ['The office lost the money', 'The collection was never logged in the CRM', 'The customer paid twice', 'The app is down'], answer: 1 },
+  { id: 'Q51', mod: 'M13', type: 'MCQ',       q: 'When logging a CASH payment, besides amount and date, what extra detail must you record?', options: ['The customer’s birthday', 'Who is carrying the cash to Head Office (name & phone)', 'The weather that day', 'A discount code'], answer: 1 },
+  { id: 'Q52', mod: 'M13', type: 'True-False', q: 'A logged payment reads "Pending verification" until the office confirms it.', answer: true },
 
   // ---- M14 · Prices, MOQ, Credit & Delivery ----
-  { id: 'Q49', mod: 'M14', type: 'MCQ',       q: 'What is the minimum order value?', options: ['₹500', '₹1,000', '₹5,000', '₹10,000'], answer: 1 },
-  { id: 'Q50', mod: 'M14', type: 'MCQ',       q: 'What is the courier rule?', options: ['Always free', 'Flat ₹300 at ₹1,000; free above ₹1,000', 'Always ₹300', 'Customer arranges own courier'], answer: 1 },
-  { id: 'Q51', mod: 'M14', type: 'MCQ',       q: 'Who can approve credit terms?', options: ['The rep, on the spot', 'Only the office, in the CRM', 'The customer', 'Anyone'], answer: 1 },
-  { id: 'Q52', mod: 'M14', type: 'True-False', q: 'A rep may promise a discount or price on their own authority.', answer: false },
+  { id: 'Q53', mod: 'M14', type: 'MCQ',       q: 'What is the minimum order value and the courier rule?', options: ['₹500 min; courier always free', '₹1,000 min; flat ₹300 courier at ₹1,000, free above ₹1,000', '₹5,000 min; customer arranges courier', '₹10,000 min; courier always ₹300'], answer: 1 },
+  { id: 'Q54', mod: 'M14', type: 'MCQ',       q: 'A customer asks you for 30-day credit on the spot. What do you do?', options: ['Grant it — you have the authority', 'Route it to the office — only they approve credit in the CRM; never promise it yourself', 'Refuse credit to everyone', 'Give credit but charge extra'], answer: 1 },
+  { id: 'Q55', mod: 'M14', type: 'True-False', q: 'Every new customer starts as a cash customer (pay, then ship).', answer: true },
+  { id: 'Q56', mod: 'M14', type: 'True-False', q: 'A rep may offer a discount on their own authority to close a deal.', answer: false },
 
   // ---- M15 · After the Order — Follow-up & Pipeline ----
-  { id: 'Q53', mod: 'M15', type: 'MCQ',       q: 'After a trial is delivered, the rep should always…', options: ['Wait for the customer to call', 'Go back for feedback (Stage 4)', 'Close the lead', 'Offer a bigger discount'], answer: 1 },
-  { id: 'Q54', mod: 'M15', type: 'MCQ',       q: 'Which is the correct early pipeline order?', options: ['First call → Met & added → Sample order → Feedback', 'Feedback → First call → Sample → Met', 'Sample → First call → Feedback → Met', 'Met → Feedback → First call → Sample'], answer: 0 },
-  { id: 'Q55', mod: 'M15', type: 'True-False', q: 'A lead that isn’t interested should be closed honestly so the team isn’t chasing it.', answer: true },
+  { id: 'Q57', mod: 'M15', type: 'MCQ',       q: 'You have delivered a trial order. What is the most important next step, and why?', options: ['Close the lead — the job is done', 'Wait for the customer to call you', 'Go back for feedback (Stage 4) — that is where a special trial becomes repeating white-round business', 'Offer a bigger discount'], answer: 2 },
+  { id: 'Q58', mod: 'M15', type: 'MCQ',       q: 'Which is the correct early pipeline order?', options: ['First call → Met & added → Sample order → Feedback', 'Feedback → First call → Sample → Met', 'Sample → First call → Feedback → Met', 'Met → Feedback → First call → Sample'], answer: 0 },
+  { id: 'Q59', mod: 'M15', type: 'True-False', q: 'A lead that clearly will not buy should be left open so the team keeps chasing it.', answer: false },
 
   // ---- M16 · Salary & Commission ----
-  { id: 'Q56', mod: 'M16', type: 'MCQ',        q: 'How is a rep paid?', options: ['Commission only', 'A fixed salary PLUS commission on monthly sales', 'Fixed salary only', 'Per visit'], answer: 1 },
-  { id: 'Q57', mod: 'M16', type: 'MCQ',        q: 'Commission on monthly sales is…', options: ['A flat 2% always', 'Slab-based — a higher rate on higher sales bands', 'Decided by the rep', 'Paid only above ₹50 lakh'], answer: 1 },
-  { id: 'Q58', mod: 'M16', type: 'True-False', q: 'The minimum monthly sales target is deliberately kept low to encourage new reps.', answer: true },
-  { id: 'Q59', mod: 'M16', type: 'True-False', q: 'Only confirmed, paid orders count toward your commission — so you must log every payment.', answer: true },
+  { id: 'Q60', mod: 'M16', type: 'MCQ',        q: 'How is a rep paid?', options: ['Commission only', 'A fixed salary PLUS slab-based commission on monthly sales', 'Fixed salary only', 'A flat fee per visit'], answer: 1 },
+  { id: 'Q61', mod: 'M16', type: 'MCQ',        q: 'One rep sells ₹4 lakh in a month, another sells ₹12 lakh. What is true about their commission rate?', options: ['Both earn the same flat rate', 'The higher seller earns a higher rate on the top band — slabs rise with sales', 'The lower seller earns more per rupee', 'Commission is only paid above ₹50 lakh'], answer: 1 },
+  { id: 'Q62', mod: 'M16', type: 'True-False', q: 'Only confirmed, paid orders count toward your commission — so you must log every payment.', answer: true },
 
   // ---- M17 · Conduct & Confidentiality ----
-  { id: 'Q60', mod: 'M17', type: 'True-False', q: 'Price lists and customer data are strictly confidential and must not be shared with outsiders.', answer: true },
-  { id: 'Q61', mod: 'M17', type: 'MCQ',       q: 'If you are stuck at a customer or unsure on price, you should…', options: ['Guess a price', 'Call your Area Sales Manager or Sales Head right away', 'Leave immediately', 'Promise anything to close'], answer: 1 },
-  { id: 'Q62', mod: 'M17', type: 'True-False', q: 'Every price view carries a unique code that traces who shared it.', answer: true },
+  { id: 'Q63', mod: 'M17', type: 'MCQ',       q: 'You are stuck at a customer and unsure on a price. What is the professional move?', options: ['Guess a price to look confident', 'Call your Area Sales Manager or Sales Head right away', 'Leave and come back another day', 'Promise whatever it takes to close'], answer: 1 },
+  { id: 'Q64', mod: 'M17', type: 'True-False', q: 'Price lists and customer data are strictly confidential and must not be shared with outsiders or competitors.', answer: true },
+  { id: 'Q65', mod: 'M17', type: 'True-False', q: 'The unique code on each price view is only decorative and traces nothing.', answer: false },
 
   // ---- M18 · Dress Code & Visiting Cards ----
-  { id: 'Q63', mod: 'M18', type: 'MCQ',        q: 'What must a rep wear on every field visit?', options: ['Any formal shirt', 'The Eurostar T-shirt provided to them', 'A suit and tie', 'Whatever is comfortable'], answer: 1 },
-  { id: 'Q64', mod: 'M18', type: 'MCQ',        q: 'How should you hand your visiting card to a customer?', options: ['Toss it on the table', 'With both hands, respectfully', 'With the left hand', 'Only if they ask'], answer: 1 },
-  { id: 'Q65', mod: 'M18', type: 'True-False', q: 'If the Eurostar T-shirt is at the wash, a plain clean ironed formal shirt in a sober colour is acceptable.', answer: true },
-  { id: 'Q66', mod: 'M18', type: 'True-False', q: 'Slippers/flip-flops are acceptable footwear for field visits.', answer: false },
+  { id: 'Q66', mod: 'M18', type: 'MCQ',        q: 'What must a rep wear on every field visit?', options: ['Any formal shirt', 'The Eurostar T-shirt provided to them', 'A suit and tie', 'Whatever is comfortable'], answer: 1 },
+  { id: 'Q67', mod: 'M18', type: 'MCQ',        q: 'How should you hand your visiting card to a customer?', options: ['Toss it on the table', 'With both hands, respectfully', 'With the left hand', 'Only if they ask for it'], answer: 1 },
+  { id: 'Q68', mod: 'M18', type: 'True-False', q: 'If your Eurostar T-shirt is unavailable, a plain, clean, well-ironed formal shirt in a sober colour is an acceptable fallback.', answer: true },
 ];
 
 // Time slots for the screening scheduler
@@ -590,7 +597,7 @@ const LMS_STATES = ['Maharashtra','Kerala','Karnataka','Jharkhand','Gujarat','Ta
 const LMS_EXP = ['0–1 yr','1–3 yrs','3–5 yrs','5+ yrs'];
 
 // ----- Test configuration (editable in Settings; drives the actual assessment) -----
-const LMS_TEST_CONFIG = { count: 15, passPct: 70, durationMin: 15, randomize: true };
+const LMS_TEST_CONFIG = { count: 20, passPct: 70, durationMin: 20, randomize: true };
 
 // ----- Onboarding document checklist (collected after hire) -----
 const LMS_ONBOARD_DOCS = [

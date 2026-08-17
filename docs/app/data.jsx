@@ -3891,7 +3891,7 @@ window.evileyeSizes = evileyeSizes; window.evileyeSku = evileyeSku;
 // Bracelet: colours differ per style. Cartier = full 21-colour chart; Rolex = 6 metallic finishes.
 const BRACELET_BY_GRADE = {
   cartier: {
-    imgPrefix: 'assets/products/bracelet-',
+    imgPrefix: '/assets/products/bracelet-',
     colors: [
       { id: 'silver', name: 'Silver', hex: '#C0C2C4' }, { id: 'lavender', name: 'Lavender', hex: '#9B7BBF' },
       { id: 'wine', name: 'Wine', hex: '#6E1A2A' }, { id: 'royal', name: 'Royal Blue', hex: '#1E3A8A' },
@@ -3907,7 +3907,7 @@ const BRACELET_BY_GRADE = {
     ],
   },
   rolex: {
-    imgPrefix: 'assets/products/rolexbr-',
+    imgPrefix: '/assets/products/rolexbr-',
     colors: [
       { id: 'silver', name: 'Silver', hex: '#C0C2C4' },
       { id: 'mauve', name: 'Mauve', hex: '#9E6E7A' },
@@ -3919,8 +3919,8 @@ const BRACELET_BY_GRADE = {
   },
 };
 const BRACELET_HERO = {
-  cartier: 'assets/products/bracelet-cartier-hero.jpeg',
-  rolex: 'assets/products/bracelet-rolex-hero.jpeg',
+  cartier: '/assets/products/bracelet-cartier-hero.jpeg',
+  rolex: '/assets/products/bracelet-rolex-hero.jpeg',
 };
 
 // ---- Admin overlays: shapes / colours added from the Sales App Admin panel ----

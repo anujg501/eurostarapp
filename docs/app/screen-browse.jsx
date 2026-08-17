@@ -334,7 +334,7 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
       <div className="pricepad-wrap"><PriceWatermark code={custCode} company={custCompany} />
       <BraceletOrderPad grade={grade}
         colors={(BRACELET_BY_GRADE[grade.id] || {}).colors || colors}
-        imgPrefix={(BRACELET_BY_GRADE[grade.id] || {}).imgPrefix || 'assets/products/bracelet-'}
+        imgPrefix={(BRACELET_BY_GRADE[grade.id] || {}).imgPrefix || '/assets/products/bracelet-'}
         category={category}
         qtyBySize={qtyBySize} setQtyBySize={setQtyBySize}
         onBack={() => pickGrade(null)} addToCart={addToCart} setRoute={setRoute} />
@@ -366,7 +366,7 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
           {/* Ice Cut colour chart — always visible on colour step */}
           {category.id === 'icecut' &&
           <div className="icecut-hero">
-            <img src="assets/products/icecut-colorchart.jpeg" alt="Ice Cut CZ colour card — full colour range with G-codes" />
+            <img src="/assets/products/icecut-colorchart.jpeg" alt="Ice Cut CZ colour card — full colour range with G-codes" />
             <div className="icecut-hero-cap">
               {needsSubShade
                 ? <React.Fragment><strong>Step 2:</strong> Now select your specific G-code from the chart above.</React.Fragment>
@@ -442,7 +442,7 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
           {category.id === 'laser' && !needsSubShade &&
         <div className="laser-auth" style={{ marginTop: 24 }}>
             <div className="laser-auth-img">
-              <img src="assets/products/laser-packet.png" alt="Genuine Eurostar sealed laser-engraved packet — Cubic Zirconia White Round" />
+              <img src="/assets/products/laser-packet.png" alt="Genuine Eurostar sealed laser-engraved packet — Cubic Zirconia White Round" />
             </div>
             <div className="laser-auth-body">
               <div className="laser-auth-eyebrow">{T('what_receive', "What you'll receive")}</div>
@@ -614,8 +614,8 @@ const GEM_PHOTOS = {
   grey: 'black', champagne: 'yellow', multi: 'royal'
 };
 const productPhoto = (colorId) =>
-  /^op\d/.test(colorId) ? `assets/products/opal-${colorId}.png` :
-  GEM_PHOTOS[colorId] ? `assets/products/gem-${GEM_PHOTOS[colorId]}.png` : null;
+  /^op\d/.test(colorId) ? `/assets/products/opal-${colorId}.png` :
+  GEM_PHOTOS[colorId] ? `/assets/products/gem-${GEM_PHOTOS[colorId]}.png` : null;
 
 // Shared so productImageFor() (product-images.jsx) resolves the stock photo the
 // same way everywhere, instead of each screen reimplementing the fallback.
@@ -652,7 +652,7 @@ function BraceletOrderPad({ grade, colors, imgPrefix, category, qtyBySize, setQt
   // bracelet asset for that style.
   const img = (id) =>
     (window.getStoredProductImage && window.getStoredProductImage('bracelet', id, 'round', grade.id)) ||
-    (imgPrefix || 'assets/products/bracelet-') + id + '.jpg';
+    (imgPrefix || '/assets/products/bracelet-') + id + '.jpg';
   const q = qtyBySize[selId] || 0;
   const setQ = (v) => setQtyBySize((p) => ({ ...p, [selId]: Math.max(0, parseInt(v, 10) || 0) }));
   const bump = (d) => setQtyBySize((p) => ({ ...p, [selId]: Math.max(0, (p[selId] || 0) + d) }));

@@ -249,18 +249,6 @@ export default function LoginScreen({ onSignedIn }: { onSignedIn: () => void }) 
                     <Text style={styles.link}>Send the code again</Text>
                   </TouchableOpacity>
                 )}
-
-                {/* The way between the two, as the website words it. */}
-                <TouchableOpacity
-                  style={styles.switchRow}
-                  onPress={() => switchMode(signup ? 'signin' : 'signup')}
-                  disabled={busy}
-                >
-                  <Text style={styles.switchTxt}>
-                    {signup ? 'Already registered? ' : 'First time here? '}
-                    <Text style={styles.switchLink}>{signup ? 'Sign in' : 'Create your account'}</Text>
-                  </Text>
-                </TouchableOpacity>
               </>
             ) : (
               <>
@@ -302,6 +290,20 @@ export default function LoginScreen({ onSignedIn }: { onSignedIn: () => void }) 
               <Text style={styles.rememberTxt}>Keep me signed in on this device</Text>
             </TouchableOpacity>
 
+            {/* Under the remember tick, where the website puts it. */}
+            {who === 'customer' && (
+              <TouchableOpacity
+                style={styles.switchRow}
+                onPress={() => switchMode(signup ? 'signin' : 'signup')}
+                disabled={busy}
+              >
+                <Text style={styles.switchTxt}>
+                  {signup ? 'Already registered? ' : 'First time here? '}
+                  <Text style={styles.switchLink}>{signup ? 'Sign in' : 'Create your account'}</Text>
+                </Text>
+              </TouchableOpacity>
+            )}
+
             <Text style={styles.foot}>Eurostar Technologies · Estd 1980</Text>
           </View>
         </ScrollView>
@@ -332,7 +334,9 @@ const styles = StyleSheet.create({
   h1: { fontSize: 28, fontWeight: '700', color: theme.ink, marginTop: 22 },
   sub: { fontSize: 13.5, color: theme.meta, marginTop: 6, lineHeight: 20 },
 
-  label: { fontSize: 11.5, fontWeight: '700', color: theme.gold, letterSpacing: 0.8, marginTop: 20, marginBottom: 7 },
+  // Muted, as the website's field labels are. Gold belongs to the eyebrow on
+  // the emerald hero; on cream it read as a warning rather than a label.
+  label: { fontSize: 11.5, fontWeight: '700', color: theme.meta, letterSpacing: 0.8, marginTop: 20, marginBottom: 7 },
   phoneRow: { flexDirection: 'row', gap: 8, alignItems: 'stretch' },
   cc: { justifyContent: 'center', paddingHorizontal: 14, backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border, borderRadius: 10 },
   ccTxt: { fontSize: 15, fontWeight: '600', color: theme.ink2 },

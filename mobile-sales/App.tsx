@@ -6,10 +6,16 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { api, loadToken, setToken } from './src/api';
 import { theme } from './src/theme';
+import { LangContext, loadLang, saveLang, type Lang } from './src/i18n';
 import LoginScreen from './src/screens/LoginScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import CategoryScreen from './src/screens/CategoryScreen';
 import OrdersScreen from './src/screens/OrdersScreen';
+import AccountScreen from './src/screens/AccountScreen';
+import FranchiseScreen from './src/screens/FranchiseScreen';
+import CheckoutScreen from './src/screens/CheckoutScreen';
+import ConfirmedScreen from './src/screens/ConfirmedScreen';
+import SplashPopup from './src/components/SplashPopup';
 
 const Stack = createNativeStackNavigator();
 
@@ -29,9 +35,14 @@ type Defaultable = { defaultProps?: Record<string, unknown> };
 export default function App() {
   const [ready, setReady] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
+  // Stored under the same key the web storefront uses, so a language chosen on
+  // the laptop is the language the phone opens in.
+  const [lang, setLangState] = useState<Lang>('en');
+  const setLang = useCallback((l: Lang) => { setLangState(l); saveLang(l).catch(() => {}); }, []);
 
   useEffect(() => {
     (async () => {
+      setLangState(await loadLang().catch(() => 'en' as Lang));
       const token = await loadToken();
       if (token) {
         // A stored token is worth trusting until the back room says otherwise.
@@ -74,6 +85,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <StatusBar style="dark" />
+      <LangContext.Provider value={{ lang, setLang }}>
       <NavigationContainer>
         <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.paper } }}>
           <Stack.Screen name="Home">
@@ -81,8 +93,17 @@ export default function App() {
           </Stack.Screen>
           <Stack.Screen name="Category" component={CategoryScreen} />
           <Stack.Screen name="Orders" component={OrdersScreen} />
+          <Stack.Screen name="Franchise" component={FranchiseScreen} />
+          <Stack.Screen name="Checkout" component={CheckoutScreen} />
+          <Stack.Screen name="Confirmed" component={ConfirmedScreen} />
+          <Stack.Screen name="Account">
+            {(props) => <AccountScreen {...props} onSignOut={signOut} />}
+          </Stack.Screen>
         </Stack.Navigator>
       </NavigationContainer>
+      {/* Over whichever screen the customer lands on, as the storefront does. */}
+      <SplashPopup />
+      </LangContext.Provider>
     </SafeAreaProvider>
   );
 }

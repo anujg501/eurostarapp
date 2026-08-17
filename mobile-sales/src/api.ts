@@ -168,6 +168,22 @@ export function laserDiscount(shape: string, mm: number): number {
   return 0.21;                         // round 2.10 mm and up
 }
 
+/**
+ * Drop null and undefined members before a value is sent back to the server.
+ *
+ * The optional columns on a cart line are nullable, so reading a cart gives
+ * back `grade: null` for anything not set — and the write schemas are
+ * `.optional()`, which accepts a missing key but rejects an explicit null. Any
+ * line saved from what the server returned therefore failed validation with
+ * "Invalid request data", which is what made removing an older cart line — one
+ * stored before the app filled those fields in — impossible.
+ */
+export function stripNulls<T extends object>(o: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(o).filter(([, v]) => v !== null && v !== undefined)
+  ) as Partial<T>;
+}
+
 /** The first key that exists, most specific first — mirrors the shop's own lookup. */
 export function priceFor(
   block: Record<string, PriceRow> | undefined,

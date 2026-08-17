@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Modal } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { api, type Customer } from '../api';
+import { api, stripNulls, type Customer } from '../api';
 import { theme } from '../theme';
 import Mira from '../components/Mira';
 import { ShopHeader } from '../components/ShopChrome';
@@ -166,7 +166,9 @@ export default function CheckoutScreen({ navigation }: any) {
         code: buyer?.code || '',
         city: (buyer?.city || '').split(',')[0].trim(),
         value: t.grand,
-        lines: lines.map((l: any) => ({
+        // Same null-stripping as the cart edits: an older line carries nulls in
+        // the fields it never set, and the order schema rejects an explicit null.
+        lines: lines.map((l: any) => stripNulls({
           name: l.name, categoryKey: l.categoryKey, grade: l.grade, colour: l.colour,
           shape: l.shape, size: l.size, unit: l.unit, unitMode: l.unit,
           ct: l.qty, unitPrice: l.unitPrice, lineTotal: lineTotal(l),

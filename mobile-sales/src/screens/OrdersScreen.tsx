@@ -514,7 +514,11 @@ export default function OrdersScreen({ navigation }: any) {
               {shown.map((o, i) => {
                 const tone = TONE[o.status] || TONE.pending;
                 return (
-                  <View key={o.id} style={[styles.line, i > 0 && styles.lineSep]}>
+                  <TouchableOpacity
+                    key={o.id}
+                    style={[styles.line, i > 0 && styles.lineSep]}
+                    onPress={() => navigation.navigate('OrderDetail', { id: o.id })}
+                  >
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text style={styles.lineName}>{o.id}</Text>
                       <Text style={styles.lineMeta}>{when(o)}</Text>
@@ -523,7 +527,8 @@ export default function OrdersScreen({ navigation }: any) {
                       <Text style={styles.lineAmt}>{money(o.grand)}</Text>
                       <Text style={[styles.pill, { backgroundColor: tone.bg, color: tone.fg }]}>{o.status}</Text>
                     </View>
-                  </View>
+                    <Feather name="chevron-right" size={17} color={theme.meta} />
+                  </TouchableOpacity>
                 );
               })}
             </View>

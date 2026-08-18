@@ -15,6 +15,7 @@ import AccountScreen from './src/screens/AccountScreen';
 import FranchiseScreen from './src/screens/FranchiseScreen';
 import CheckoutScreen from './src/screens/CheckoutScreen';
 import ConfirmedScreen from './src/screens/ConfirmedScreen';
+import OrderDetailScreen from './src/screens/OrderDetailScreen';
 import SplashPopup from './src/components/SplashPopup';
 
 const Stack = createNativeStackNavigator();
@@ -96,6 +97,7 @@ export default function App() {
           <Stack.Screen name="Franchise" component={FranchiseScreen} />
           <Stack.Screen name="Checkout" component={CheckoutScreen} />
           <Stack.Screen name="Confirmed" component={ConfirmedScreen} />
+          <Stack.Screen name="OrderDetail" component={OrderDetailScreen} />
           <Stack.Screen name="Account">
             {(props) => <AccountScreen {...props} onSignOut={signOut} />}
           </Stack.Screen>

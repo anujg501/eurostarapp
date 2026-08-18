@@ -113,12 +113,29 @@ export type Product = {
   stock?: string;
 };
 
+export type OrderLine = {
+  pid?: string; categoryKey?: string; grade?: string; colour?: string;
+  shape?: string; size?: string; unit?: string; qty?: number;
+  unitPrice?: number; lineTotal?: number;
+};
+
 export type Order = {
   id: string;
   status: string;
   grand?: number;
+  subtotal?: number;
+  tax?: number;
+  shipping?: number;
+  insurance?: number;
+  isExport?: boolean;
+  paid?: boolean;
+  customer?: string;
+  code?: string;
+  city?: string;
+  dispatchBy?: string;
   createdAt?: string;
   date?: string;
+  items?: OrderLine[];
 };
 
 /**
@@ -135,8 +152,13 @@ export type PriceRow = { rate: number; pcs?: number | null; size?: string };
 export type PriceSnapshot = {
   __catalog__: Record<string, {
     name: string;
+    // How the category is sold — ct, pkt or pc. The arithmetic on the size pad
+    // depends on it: a carat rate is per carat, not per piece in a carat.
+    unit?: string;
     grades: { id: string; name: string }[];
     coloursByGrade: Record<string, { id: string; name: string; hex?: string }[]>;
+    // The shop's own shape order per grade — the price keys are not in it.
+    shapesByGrade?: Record<string, string[]>;
   }>;
 } & Record<string, any>;
 
@@ -299,6 +321,7 @@ export const api = {
   catalog: () => request<{ categories: Category[] }>('/catalog'),
   products: () => request<{ products: Product[] }>('/catalog/products'),
   orders: () => request<Order[]>('/orders'),
+  order: (id: string) => request<Order>(`/orders/${encodeURIComponent(id)}`),
 
   // The hero wording the office sets in Admin > Content. The web storefront
   // reads the same record, so the shop says one thing on both — hardcoding the

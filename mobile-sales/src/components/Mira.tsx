@@ -1,13 +1,102 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, TextInput, Modal, ScrollView,
-  ActivityIndicator, KeyboardAvoidingView, Platform,
+  ActivityIndicator, KeyboardAvoidingView, Platform, Image,
 } from 'react-native';
 import { Feather, MaterialIcons } from '@expo/vector-icons';
-import { api } from '../api';
+import { useNavigation } from '@react-navigation/native';
+import { api, BASE_URL } from '../api';
 import { theme } from '../theme';
 
-type Msg = { role: 'user' | 'assistant'; text: string };
+type Msg = { role: 'user' | 'assistant'; text: string; images?: string[] };
+
+/**
+ * Mira answers with pictures by marking them in the text, the same way she
+ * does on the website: <<IMG>>name<<END>>. A name from the office's library
+ * resolves through the back room, and so does a catalogue key like
+ * "laser|white|round"; /assistant/media serves both. The markers are lifted
+ * out so the customer never sees them.
+ */
+/**
+ * Fetch a picture and hand it over as data.
+ *
+ * Android's image loader never issued a request for these URLs — the same URL
+ * fetched from the phone's own shell, and every other call in the app goes
+ * through fine, so the picture arrived as an empty frame with nothing in the
+ * server log to show for it. fetch is the path that demonstrably works over the
+ * dev tunnel, so the bytes come back that way and go straight into <Image>.
+ * These are catalogue thumbnails, a few tens of kilobytes each.
+ */
+async function asDataUri(url: string): Promise<string | null> {
+  try {
+    const r = await fetch(url);
+    if (!r.ok) return null;
+    const mime = r.headers.get('content-type') || 'image/jpeg';
+    const blob = await r.blob();
+    return await new Promise<string | null>((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const out = typeof reader.result === 'string' ? reader.result : null;
+        // React Native hands back a blob with no type, so FileReader labels the
+        // JPEG "application/octet-stream" — which Android's <Image> will not
+        // draw. The response said what it is; use that.
+        resolve(out ? out.replace(/^data:[^;]*;/, `data:${mime};`) : null);
+      };
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+/** What Mira asked the app to do, alongside what she said. */
+type Actions = { go: string | null; escalate: string | null };
+
+/**
+ * The silent markers Mira appends. The website acts on all of them; the phone
+ * used to show the raw text, so <<GO>>orders<<END>> reached the customer as
+ * literal gibberish. Anything not handled here is still stripped rather than
+ * shown.
+ */
+function splitActions(text: string): Actions & { text: string } {
+  let clean = text;
+  const take = (re: RegExp) => {
+    const m = clean.match(re);
+    if (!m) return null;
+    clean = clean.replace(m[0], '').trim();
+    return (m[1] || '').trim();
+  };
+  const go = take(/<<GO>>([\s\S]*?)<<END>>/);
+  const escalate = take(/<<ESCALATE>>([\s\S]*?)<<END>>/);
+  // Cart and reorder are the website's to place; on the phone they would put
+  // goods in a basket the customer never confirmed, so they are only cleared
+  // from the text.
+  take(/<<CART>>([\s\S]*?)<<END>>/);
+  take(/<<REORDER>>([\s\S]*?)<<END>>/);
+  return { text: clean, go, escalate };
+}
+
+function splitImages(text: string): { text: string; images: string[] } {
+  const images: string[] = [];
+  let clean = text;
+  const marker = /<<IMG>>([\s\S]*?)<<END>>/;
+  let m: RegExpMatchArray | null;
+  while ((m = clean.match(marker))) {
+    const key = (m[1] || '').trim();
+    if (key) images.push(`${BASE_URL}/assistant/media?key=${encodeURIComponent(key)}`);
+    clean = clean.replace(m[0], '').trim();
+  }
+  // A bare media link is a picture to look at, not a URL to copy out.
+  const link = /(?:https?:\/\/[^\s)]+)?\/assistant\/media\?key=([^\s)]+)/i;
+  let l: RegExpMatchArray | null;
+  while ((l = clean.match(link))) {
+    let key = l[1];
+    try { key = decodeURIComponent(key); } catch { /* use it as it came */ }
+    images.push(`${BASE_URL}/assistant/media?key=${encodeURIComponent(key)}`);
+    clean = clean.replace(l[0], '').replace(/\s{2,}/g, ' ').trim();
+  }
+  return { text: clean, images };
+}
 
 const ROLE_LABEL: Record<string, string> = {
   customer: 'Customer', rep: 'Sales Rep', office: 'Back Office', admin: 'Administration',
@@ -31,6 +120,7 @@ const HISTORY = 12;
  */
 export default function Mira({ role, section }: { role: string; section: string }) {
   const [open, setOpen] = useState(false);
+  const nav = useNavigation();
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
@@ -70,7 +160,29 @@ export default function Mira({ role, section }: { role: string; section: string 
       answer = `⚠ ${e?.message || 'Could not reach Mira just now. Please try again.'}`;
     }
 
-    setMsgs((m) => [...m, { role: 'assistant', text: answer }]);
+    const acted = answer.startsWith('⚠') ? { text: answer, go: null, escalate: null } : splitActions(answer);
+    const shown = answer.startsWith('⚠')
+      ? { text: acted.text, images: [] as string[] }
+      : splitImages(acted.text);
+    setMsgs((m) => [...m, { role: 'assistant', text: shown.text, images: [] }]);
+    // The bubble is shown at once; each picture drops in as its bytes arrive.
+    if (shown.images.length) {
+      const at = msgs.length + 1; // this reply's index in the thread
+      shown.images.forEach(async (url) => {
+        const data = await asDataUri(url);
+        if (!data) return;
+        setMsgs((m) =>
+          m.map((msg, i) => (i === at ? { ...msg, images: [...(msg.images || []), data] } : msg))
+        );
+        setTimeout(() => scroller.current?.scrollToEnd({ animated: true }), 50);
+      });
+    }
+    // The website opens the screen she names a moment after answering; same
+    // here, and only for the screens the app actually has.
+    const SCREEN: Record<string, string> = { orders: 'Orders', home: 'Home', franchise: 'Franchise' };
+    const dest = acted.go ? SCREEN[acted.go.toLowerCase()] : undefined;
+    if (dest) setTimeout(() => { setOpen(false); (nav as any).navigate(dest); }, 900);
+
     setBusy(false);
     setTimeout(() => scroller.current?.scrollToEnd({ animated: true }), 50);
 
@@ -131,7 +243,12 @@ export default function Mira({ role, section }: { role: string; section: string 
 
               {msgs.map((m, i) => (
                 <View key={i} style={[styles.bubble, m.role === 'user' ? styles.mine : styles.hers]}>
-                  <Text style={m.role === 'user' ? styles.mineTxt : styles.hersTxt}>{m.text}</Text>
+                  {!!m.text && (
+                    <Text style={m.role === 'user' ? styles.mineTxt : styles.hersTxt}>{m.text}</Text>
+                  )}
+                  {(m.images || []).map((uri) => (
+                    <Image key={uri} source={{ uri }} style={styles.shot} resizeMode="cover" />
+                  ))}
                 </View>
               ))}
 
@@ -201,6 +318,7 @@ const styles = StyleSheet.create({
   sub: { color: 'rgba(253,250,242,0.8)', fontSize: 11.5, marginTop: 1 },
 
   msgs: { padding: 14, gap: 10 },
+  shot: { width: 240, height: 190, borderRadius: 10, marginTop: 8, backgroundColor: theme.paper },
   empty: { paddingVertical: 24, paddingHorizontal: 6 },
   emptyTitle: { fontSize: 15, fontWeight: '700', color: theme.ink, marginBottom: 6 },
   emptyTxt: { fontSize: 13, color: theme.meta, lineHeight: 20 },

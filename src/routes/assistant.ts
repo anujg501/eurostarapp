@@ -6,6 +6,7 @@ import { asyncHandler, ok, fail, failValidation } from '../util/http';
 import { getSetting, KEYS } from '../services/settings';
 import { AuthedRequest, authenticate, requireRole, requireInternal, optionalAuth } from '../auth/middleware';
 import { focusFor, imageIndex, opsDigest, siteDigest, siteKnowledgeStats, studyDigest } from '../services/siteKnowledge';
+import { SALES_GUIDE } from '../services/miraSalesGuide';
 
 export const assistantRouter = Router();
 
@@ -397,6 +398,31 @@ async function generateReply(
     // A catalogue read failing must not take the assistant down with it; she
     // falls back to the office's own knowledge.
   }
+  // The image library, described to the model.
+  //
+  // The website appends this itself and sends it as `context`, so Mira could
+  // offer pictures there and nowhere else — the phone sends no context, was
+  // never told the library exists, and so never sent an image at all. Say it
+  // here for any client that has not said it, which leaves the web exactly as
+  // it was.
+  // The website composes this itself and sends it as `context`; anything that
+  // did not — the phone — would otherwise get a plainer Mira than the shop has.
+  const salesGuide = !context && audience === 'customer' ? SALES_GUIDE : '';
+
+  let imageFacts = '';
+  if (!context && audience === 'customer') {
+    const lib = await getSetting<{ name?: string; desc?: string }[]>(KEYS.miraImages, []).catch(() => []);
+    const named = (lib || []).filter((im) => (im?.name || '').trim());
+    imageFacts = [
+      'SENDING PICTURES: append <<IMG>>name<<END>> at the very end of your message to show the customer a picture. Send one only when they clearly ask to see that specific item, and never substitute a different picture for the one asked for.',
+      named.length
+        ? 'These are the only library images you may send by name:\n- ' +
+          named.map((im) => (im.name || '').trim() + (im.desc ? ' (' + im.desc + ')' : '')).join('\n- ')
+        : 'The office has not put any images in the library yet.',
+      'You may also send a catalogue photo by its key, in the form <<IMG>>category|colour|shape<<END>> (for example laser|white|round), for anything the shop sells.',
+    ].join('\n');
+  }
+
   const fromApp = context ? `Context from the app the customer is using:\n${context}` : '';
 
   // Said out loud for each audience. The real control is what `scoped` holds —
@@ -431,7 +457,7 @@ async function generateReply(
     : '';
 
   const systemPrompt =
-    buildSystemPrompt(cfg, [BOUNDARY[audience], where, fromApp, live, scoped].filter(Boolean).join('\n\n')) ||
+    buildSystemPrompt(cfg, [BOUNDARY[audience], where, fromApp, salesGuide, imageFacts, live, scoped].filter(Boolean).join('\n\n')) ||
     DEFAULT_SYSTEM;
   return config.assistant.provider === 'gemini'
     ? replyWithGemini(message, systemPrompt)
@@ -487,6 +513,14 @@ async function fetchWithRetry(url: string, init: RequestInit, label: string): Pr
   return resp;
 }
 
+// A saturated model does not recover between one customer and the next, so
+// paying for two retries and 2.5s of waiting on every single question — before
+// falling back to the model that does answer — made Mira take 20-25s to say
+// anything. Once the preferred model has refused, it is left alone for a few
+// minutes and the fallback is used directly; after that it gets another go.
+const PRIMARY_COOLDOWN_MS = 5 * 60 * 1000;
+let primaryColdUntil = 0;
+
 // Google Gemini — used when GEMINI_API_KEY is set (provider auto-switches to gemini).
 async function replyWithGemini(message: string, systemPrompt: string): Promise<string> {
   if (!config.assistant.geminiKey) return NOT_CONNECTED;
@@ -506,16 +540,22 @@ async function replyWithGemini(message: string, systemPrompt: string): Promise<s
   const at = (model: string) =>
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
-  let resp = await fetchWithRetry(at(config.assistant.geminiModel), init, 'Gemini');
+  const alt = config.assistant.geminiFallbackModel;
+  const usable = alt && alt !== config.assistant.geminiModel ? alt : '';
+  const skipPrimary = usable && Date.now() < primaryColdUntil;
+
+  let resp = skipPrimary
+    ? await fetchWithRetry(at(usable), init, 'Gemini(fallback)')
+    : await fetchWithRetry(at(config.assistant.geminiModel), init, 'Gemini');
 
   // Still oversubscribed after the retries. Mira's prompt carries the live
   // catalogue, and a busy flagship model refuses a request that size while its
   // lite sibling serves it — an answer from the lite model beats \"having
   // trouble replying\". Only reached once the preferred model has given up.
-  const alt = config.assistant.geminiFallbackModel;
-  if (TRANSIENT.has(resp.status) && alt && alt !== config.assistant.geminiModel) {
-    console.warn(`[mira] Gemini ${resp.status} — falling back to ${alt}`);
-    resp = await fetchWithRetry(at(alt), init, 'Gemini(fallback)');
+  if (!skipPrimary && TRANSIENT.has(resp.status) && usable) {
+    console.warn(`[mira] Gemini ${resp.status} — falling back to ${usable} for the next ${PRIMARY_COOLDOWN_MS / 60000} min`);
+    primaryColdUntil = Date.now() + PRIMARY_COOLDOWN_MS;
+    resp = await fetchWithRetry(at(usable), init, 'Gemini(fallback)');
   }
 
   if (!resp.ok) {

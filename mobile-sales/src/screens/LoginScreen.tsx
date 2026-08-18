@@ -175,37 +175,8 @@ export default function LoginScreen({ onSignedIn }: { onSignedIn: () => void }) 
                     : "Sign in with your registered mobile number — we'll text you a code."}
                 </Text>
 
-                {signup && (
-                  <>
-                    <Text style={styles.label}>FIRM / BUSINESS NAME</Text>
-                    <TextInput
-                      style={styles.ipt}
-                      value={bizName}
-                      onChangeText={setBizName}
-                      placeholder="As it appears on your GST certificate"
-                      placeholderTextColor={theme.meta}
-                      autoCapitalize="words"
-                    />
-
-                    <Text style={styles.label}>GSTIN</Text>
-                    <TextInput
-                      style={styles.ipt}
-                      value={gstin}
-                      // Stored and sent uppercase, which is the only form a
-                      // GSTIN takes.
-                      onChangeText={(v) => setGstin(v.toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 15))}
-                      placeholder="27ABCDE1234F1Z5"
-                      placeholderTextColor={theme.meta}
-                      autoCapitalize="characters"
-                      autoCorrect={false}
-                      maxLength={15}
-                    />
-                    {!!gstin && !validGst && (
-                      <Text style={styles.bad}>That does not look like a 15-character GSTIN.</Text>
-                    )}
-                  </>
-                )}
-
+                {/* Field order follows the login page exactly: mobile first,
+                    then the two first-time details. */}
                 <Text style={styles.label}>MOBILE NUMBER</Text>
                 <View style={styles.phoneRow}>
                   <View style={styles.cc}><Text style={styles.ccTxt}>+91</Text></View>
@@ -213,12 +184,45 @@ export default function LoginScreen({ onSignedIn }: { onSignedIn: () => void }) 
                     style={[styles.ipt, { flex: 1 }]}
                     value={phone}
                     onChangeText={(v) => { setPhone(v.replace(/\D/g, '').slice(0, 10)); setSent(false); }}
-                    placeholder="9820000000"
+                    placeholder="10-digit mobile"
                     placeholderTextColor={theme.meta}
                     keyboardType="number-pad"
                     maxLength={10}
                   />
                 </View>
+
+                {signup && (
+                  <>
+                    <Text style={styles.label}>BUSINESS NAME</Text>
+                    <TextInput
+                      style={styles.ipt}
+                      value={bizName}
+                      onChangeText={setBizName}
+                      placeholder="e.g. Kiran Jewellers"
+                      placeholderTextColor={theme.meta}
+                      autoCapitalize="words"
+                      maxLength={80}
+                    />
+                    <Text style={styles.hint}>Appears on your orders and invoices.</Text>
+
+                    <Text style={styles.label}>GST NUMBER (GSTIN)</Text>
+                    <TextInput
+                      style={styles.ipt}
+                      value={gstin}
+                      // Stored and sent uppercase, which is the only form a
+                      // GSTIN takes.
+                      onChangeText={(v) => setGstin(v.toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 15))}
+                      placeholder="e.g. 27ABCDE1234F1Z5"
+                      placeholderTextColor={theme.meta}
+                      autoCapitalize="characters"
+                      autoCorrect={false}
+                      maxLength={15}
+                    />
+                    {!!gstin && !validGst
+                      ? <Text style={styles.bad}>Enter a valid 15-character GSTIN.</Text>
+                      : <Text style={styles.hint}>15-character GSTIN — one-time, for trade pricing &amp; invoicing.</Text>}
+                  </>
+                )}
 
                 {sent && (
                   <>

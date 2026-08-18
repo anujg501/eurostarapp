@@ -134,14 +134,27 @@ export default function CategoryScreen({ route, navigation }: any) {
       `|${colourId || ''}|`,
       '||',
     ];
+    // Shown in the shop's own order, not the order the price keys happen to
+    // sit in — those are close but not the same (moissanite ships baguette and
+    // tapered the other way round), which put the grid out of step with the
+    // website. Anything priced but missing from the list still shows, at the end.
+    const canon = meta?.shapesByGrade?.[gradeId || ''] || meta?.shapesByGrade?.[''] || [];
+    const inOrder = (list: string[]) => {
+      const rank = (x: string) => { const i = canon.indexOf(x); return i === -1 ? canon.length : i; };
+      // Admin > Catalog is the gate, as it is on the web: a shape the office
+      // removed from the category is not offered, even if a sheet still prices
+      // it. With no list to go on, everything priced is shown.
+      const keep = canon.length ? list.filter((x) => canon.includes(x)) : list;
+      return [...keep].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+    };
     for (const prefix of want) {
       const hit = [...new Set(
         Object.keys(block).filter((k) => k.startsWith(prefix)).map((k) => k.split('|')[2])
       )].filter(Boolean);
-      if (hit.length) return hit;
+      if (hit.length) return inOrder(hit);
     }
     return [];
-  }, [block, gradeId, colourId]);
+  }, [block, gradeId, colourId, meta]);
   const shapeId = shape || (shapes.length === 1 ? shapes[0] : null);
 
   // Every shape the category sells, ignoring what has been picked so far. The
@@ -240,15 +253,21 @@ export default function CategoryScreen({ route, navigation }: any) {
 
   // What the customer has picked so far. Pieces and money are worked out from
   // the packet count, because a packet is what actually ships.
+  // How this category is sold decides the arithmetic, exactly as it does on
+  // the website: a carat category quotes ₹/ct and the quantity IS carats, so
+  // the rate must not be multiplied by the pieces in one. Treating every
+  // category as packets is what left Moissanite showing 0 pieces and ₹0.
+  const unit: string = meta?.unit || 'pkt';
+  const perUnit = (row: PriceRow) => (unit === 'pkt' ? (row.pcs || 0) * row.rate : row.rate);
   const picked = useMemo(() => {
     const lines = sizes
       .map((s) => ({ s, packets: qty[s.key] || 0 }))
       .filter((l) => l.packets > 0);
     const pcs = lines.reduce((a, l) => a + l.packets * (l.s.row.pcs || 0), 0);
-    const net = lines.reduce((a, l) => a + l.packets * (l.s.row.pcs || 0) * l.s.row.rate, 0);
+    const net = lines.reduce((a, l) => a + l.packets * perUnit(l.s.row), 0);
     const packets = lines.reduce((a, l) => a + l.packets, 0);
     return { lines, pcs, net, packets };
-  }, [sizes, qty]);
+  }, [sizes, qty, unit]);
 
   const bump = (key: string, by: number) =>
     setQty((q) => {
@@ -270,11 +289,12 @@ export default function CategoryScreen({ route, navigation }: any) {
         colour: colourId || undefined,
         shape: shapeId || undefined,
         size: l.s.size,
-        unit: 'pkt',
+        unit,
         qty: l.packets,
-        // Per PACKET, rounded to the rupee — the server takes integers, and a
-        // packet price is a whole number where a per-piece rate is not.
-        unitPrice: Math.round(l.s.row.rate * (l.s.row.pcs || 1)),
+        // The price of ONE of whatever is being counted — a packet where the
+        // category sells packets, a carat where it sells carats. A packet
+        // price on a carat line overcharged by the pieces in a carat.
+        unitPrice: Math.round(perUnit(l.s.row)),
       }));
       await api.createCart(lines);
       setQty({});
@@ -452,7 +472,7 @@ export default function CategoryScreen({ route, navigation }: any) {
                 const disc = cat === 'laser' ? laserDiscount(shapeId || '', mm) : 0;
                 const list = disc > 0 ? row.rate / (1 - disc) : 0;
                 const packets = qty[s.key] || 0;
-                const lineTotal = packets * (row.pcs || 0) * row.rate;
+                const lineTotal = packets * perUnit(row);
                 return (
                   <View key={s.key} style={[styles.padRow, packets > 0 && styles.padRowOn]}>
                     <View style={styles.padHead}>
@@ -469,13 +489,13 @@ export default function CategoryScreen({ route, navigation }: any) {
 
                     {!!row.pcs && (
                       <Text style={styles.packetNote}>
-                        1 packet = {row.pcs.toLocaleString('en-IN')} pieces
+                        {unit === 'pkt' ? '1 packet = ' + row.pcs.toLocaleString('en-IN') + ' pieces' : row.pcs.toLocaleString('en-IN') + ' pcs / ' + unit}
                       </Text>
                     )}
 
                     <View style={styles.qtyRow}>
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.qtyLabel}>PACKETS TO ORDER</Text>
+                        <Text style={styles.qtyLabel}>{unit === 'ct' ? 'ORDER QTY' : unit === 'pkt' ? 'PACKETS TO ORDER' : 'PIECES TO ORDER'}</Text>
                         <View style={styles.stepper}>
                           <TouchableOpacity style={styles.stepBtn} onPress={() => bump(s.key, -1)}>
                             <Feather name="minus" size={16} color={theme.ink2} />
@@ -525,17 +545,33 @@ export default function CategoryScreen({ route, navigation }: any) {
         <View style={styles.summary}>
           <View style={styles.sumGrid}>
             <Sum label="SIZES SELECTED" value={String(picked.lines.length)} />
-            <Sum label="TOTAL PACKETS" value={picked.packets.toLocaleString('en-IN')} />
+            {unit === 'pkt'
+              ? <Sum label="TOTAL PACKETS" value={picked.packets.toLocaleString('en-IN')} />
+              : <Sum label="TOTAL CARATS" value={picked.packets.toLocaleString('en-IN')} />}
             <Sum label="APPROX PIECES" value={picked.pcs.toLocaleString('en-IN')} />
             <Sum label="ORDER TOTAL (NET)" value={money(picked.net)} />
           </View>
-          <TouchableOpacity
-            style={[styles.addBtn, adding && { opacity: 0.6 }]}
-            onPress={addToCart}
-            disabled={adding}
-          >
-            {adding ? <ActivityIndicator color="#fff" /> : <Text style={styles.addTxt}>Add to cart</Text>}
-          </TouchableOpacity>
+          {/* Both actions the website's bar carries, and the same wording —
+              the count in the label moves with the sizes picked. */}
+          <View style={styles.sumActions}>
+            <TouchableOpacity
+              style={[styles.addBtn, adding && { opacity: 0.6 }]}
+              onPress={addToCart}
+              disabled={adding}
+            >
+              {adding ? <ActivityIndicator color="#fff" /> : (
+                <>
+                  <Feather name="shopping-bag" size={15} color="#fff" />
+                  <Text style={styles.addTxt}>
+                    Add {picked.lines.length} size{picked.lines.length === 1 ? '' : 's'} to order
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.clearBtn} onPress={() => setQty({})} disabled={adding}>
+              <Text style={styles.clearTxt}>Clear</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
 
@@ -655,7 +691,13 @@ const styles = StyleSheet.create({
   sumCell: { width: '50%', marginBottom: 12 },
   sumLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 0.6, color: 'rgba(253,250,242,0.62)' },
   sumValue: { fontSize: 19, fontWeight: '800', color: '#FDFAF2', marginTop: 3 },
-  addBtn: { backgroundColor: theme.emerald, borderRadius: 10, paddingVertical: 13, alignItems: 'center', alignSelf: 'flex-start', paddingHorizontal: 26 },
+  sumActions: { flexDirection: 'row', gap: 10, alignItems: 'stretch' },
+  clearBtn: {
+    justifyContent: 'center', paddingHorizontal: 22, borderRadius: 10,
+    backgroundColor: 'rgba(253,250,242,0.10)', borderWidth: 1, borderColor: 'rgba(253,250,242,0.28)',
+  },
+  clearTxt: { color: theme.onDark, fontSize: 14.5, fontWeight: '700' },
+  addBtn: { flex: 1, flexDirection: 'row', gap: 8, backgroundColor: theme.emerald, borderRadius: 10, paddingVertical: 13, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
   addTxt: { color: '#fff', fontSize: 15, fontWeight: '700' },
 
   empty: { fontSize: 13, color: theme.meta, paddingVertical: 16 },

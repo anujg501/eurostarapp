@@ -9,7 +9,7 @@ import { api, type PriceSnapshot } from './api';
 //   1. memory   — free for the rest of the app run
 //   2. storage  — survives a restart, so a returning customer waits on nothing
 //   3. network  — only on a first ever run, or as a quiet background refresh
-const KEY = 'eurostar-price-snapshot-v1';
+const KEY = 'eurostar-price-snapshot-v2'; // v2: catalogue gained shapesByGrade
 
 let MEM: PriceSnapshot | null = null;
 let INFLIGHT: Promise<PriceSnapshot> | null = null;

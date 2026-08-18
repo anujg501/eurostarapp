@@ -267,7 +267,7 @@ if (win.MOISS_PRICE && typeof win.moissRate === 'function') {
       for (const size of Object.keys(win.MOISS_PRICE[sh])) {
         const rate = win.moissRate(sh, size, gr.id);
         if (rate == null || !(rate > 0)) continue;
-        moissOut[[gr.id, '', String(sh).toLowerCase(), normSize(size)].join('|')] = { rate, pcs: 0, size };
+        moissOut[[gr.id, '', String(sh).toLowerCase(), normSize(size)].join('|')] = { rate, pcs: win.moissPcsPerCt(sh, size), size };
         n++;
       }
     }
@@ -310,7 +310,7 @@ if (typeof win.msRate === 'function' && typeof win.msSizes === 'function' && typ
       for (const size of win.msSizes(gr.id, sh) || []) {
         const rate = win.msRate(gr.id, sh, size);
         if (rate == null || !(rate > 0)) continue;
-        msOut[[gr.id, '', String(sh).toLowerCase(), normSize(size)].join('|')] = { rate, pcs: 0, size };
+        msOut[[gr.id, '', String(sh).toLowerCase(), normSize(size)].join('|')] = { rate, pcs: win.pcsPerCt(size), size };
         n++;
       }
     }
@@ -332,7 +332,7 @@ if (typeof win.msRate === 'function' && typeof win.msSizes === 'function' && typ
     for (const sh of shapes) for (const size of win.lgCreatedSizes(sh) || []) {
       const rate = win.lgCreatedCt(sh, size);
       if (rate == null || !(rate > 0)) continue;
-      lgOut[['created', '', String(sh).toLowerCase(), normSize(size)].join('|')] = { rate, pcs: 0, size };
+      lgOut[['created', '', String(sh).toLowerCase(), normSize(size)].join('|')] = { rate, pcs: win.pcsPerCt(size), size };
       n++;
     }
   }
@@ -501,7 +501,13 @@ if ((GRADES.bracelet || []).length) {
     for (const g of source) {
       coloursByGrade[g.id] = baseColours(cat, g.id).map(slimColour);
     }
-    catalog[cat] = { name: c.name, grades, coloursByGrade };
+    // The shop's own shape order, per grade. Key insertion order in the
+    // price tables is NOT this order — moissanite alone ships baguette and
+    // tapered the other way round — so the apps had nothing authoritative to
+    // sort their shape grid by.
+    const shapesByGrade = {};
+    for (const g of source) shapesByGrade[g.id] = shapesFor(cat, g.id);
+    catalog[cat] = { name: c.name, unit: win.catUnit(cat), grades, coloursByGrade, shapesByGrade };
   }
   snapshot.__catalog__ = catalog;
   console.log(`Catalog: ${Object.keys(catalog).length} categories with grade/colour flow.`);

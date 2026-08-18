@@ -119,6 +119,9 @@ export const config = {
     model: (process.env.ASSISTANT_MODEL ?? 'claude-opus-4-8').trim(),
     geminiKey: (process.env.GEMINI_API_KEY ?? '').trim(),
     geminiModel: (process.env.GEMINI_MODEL ?? 'gemini-flash-latest').trim(),
+    // Used only when the model above answers 429/5xx after retries — the
+    // flagship refuses Mira's catalogue-sized prompt while it is saturated.
+    geminiFallbackModel: (process.env.GEMINI_FALLBACK_MODEL ?? 'gemini-flash-lite-latest').trim(),
   },
 
   // Google Maps — public browser key used only to draw the rep check-in map in

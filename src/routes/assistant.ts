@@ -442,7 +442,7 @@ async function generateReply(
 async function replyWithAnthropic(message: string, systemPrompt: string): Promise<string> {
   if (!config.assistant.apiKey) return NOT_CONNECTED;
 
-  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+  const resp = await fetchWithRetry('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
@@ -455,7 +455,7 @@ async function replyWithAnthropic(message: string, systemPrompt: string): Promis
       system: systemPrompt,
       messages: [{ role: 'user', content: message }],
     }),
-  });
+  }, 'Anthropic');
 
   if (!resp.ok) {
     // The visitor gets a calm apology, but the reason has to reach the server
@@ -468,12 +468,30 @@ async function replyWithAnthropic(message: string, systemPrompt: string): Promis
   return data?.content?.[0]?.text ?? "I didn't catch that — could you rephrase?";
 }
 
+// A model that is momentarily oversubscribed answers 503 (or 429), and the
+// provider's own advice is to try again shortly — so one attempt is not enough
+// to call it a failure. Two quick retries turn most spikes into a normal reply
+// instead of "having trouble replying", which is what customers were seeing on
+// a perfectly healthy server.
+const TRANSIENT = new Set([429, 500, 502, 503, 504]);
+const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function fetchWithRetry(url: string, init: RequestInit, label: string): Promise<Response> {
+  const waits = [700, 1800];
+  let resp = await fetch(url, init);
+  for (let i = 0; i < waits.length && TRANSIENT.has(resp.status); i++) {
+    console.warn(`[mira] ${label} ${resp.status} — retrying in ${waits[i]}ms`);
+    await pause(waits[i]);
+    resp = await fetch(url, init);
+  }
+  return resp;
+}
+
 // Google Gemini — used when GEMINI_API_KEY is set (provider auto-switches to gemini).
 async function replyWithGemini(message: string, systemPrompt: string): Promise<string> {
   if (!config.assistant.geminiKey) return NOT_CONNECTED;
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${config.assistant.geminiModel}:generateContent`;
-  const resp = await fetch(url, {
+  const init: RequestInit = {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
@@ -484,7 +502,21 @@ async function replyWithGemini(message: string, systemPrompt: string): Promise<s
       contents: [{ role: 'user', parts: [{ text: message }] }],
       generationConfig: { maxOutputTokens: 1024 },
     }),
-  });
+  };
+  const at = (model: string) =>
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+
+  let resp = await fetchWithRetry(at(config.assistant.geminiModel), init, 'Gemini');
+
+  // Still oversubscribed after the retries. Mira's prompt carries the live
+  // catalogue, and a busy flagship model refuses a request that size while its
+  // lite sibling serves it — an answer from the lite model beats \"having
+  // trouble replying\". Only reached once the preferred model has given up.
+  const alt = config.assistant.geminiFallbackModel;
+  if (TRANSIENT.has(resp.status) && alt && alt !== config.assistant.geminiModel) {
+    console.warn(`[mira] Gemini ${resp.status} — falling back to ${alt}`);
+    resp = await fetchWithRetry(at(alt), init, 'Gemini(fallback)');
+  }
 
   if (!resp.ok) {
     // Same reasoning as the Anthropic branch: log why, answer politely.

@@ -20,6 +20,14 @@ export const authRouter = Router();
 
 // Basic GSTIN shape check (15 chars: 2 state + 10 PAN + 3 more).
 const GSTIN_RE = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+// PAN shape check (10 chars: 5 letters + 4 digits + 1 letter). Not every trade
+// customer is GST-registered, so a PAN is accepted as their tax identifier too.
+const PAN_RE = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
+// A customer's tax id is a valid GSTIN OR a valid PAN.
+const isTaxId = (v: string): boolean => {
+  const u = (v || '').toUpperCase();
+  return GSTIN_RE.test(u) || PAN_RE.test(u);
+};
 
 async function issueSession(user: { id: string; role: string; name: string; repId: string | null }, remember: boolean) {
   const accessToken = signAccessToken({
@@ -125,13 +133,13 @@ authRouter.post(
         // Genuinely new customer: name + GSTIN are required. The code stays
         // valid so the details can be supplied without a fresh SMS.
         if (!name || !gstin) {
-          return fail(res, 422, 'New customer: please provide your name and GSTIN', { signupRequired: true });
+          return fail(res, 422, 'New customer: please provide your name and GST / PAN number', { signupRequired: true });
         }
-        if (!GSTIN_RE.test(gstin.toUpperCase())) {
-          return fail(res, 422, 'That GSTIN does not look valid');
+        if (!isTaxId(gstin)) {
+          return fail(res, 422, 'That GST / PAN number does not look valid');
         }
-        // A GSTIN identifies one firm — it must not register twice. If the
-        // customer master already holds this GSTIN under a *different* phone,
+        // A GSTIN or PAN identifies one firm — it must not register twice. If
+        // the customer master already holds this id under a *different* phone,
         // that firm has an account; refuse rather than fork it. (A record the
         // CRM pre-created for this same firm has no phone yet, so it is not a
         // conflict — createCustomerMaster claims it below.)
@@ -139,7 +147,7 @@ authRouter.post(
         if (gnorm) {
           const owner = await prisma.customer.findFirst({ where: { gstinNorm: gnorm } });
           if (owner && owner.phone && phoneDigits(owner.phone) !== phoneDigits(phone)) {
-            return fail(res, 409, 'This GSTIN is already registered to another account.', { gstinTaken: true });
+            return fail(res, 409, 'This GST / PAN number is already registered to another account.', { gstinTaken: true });
           }
         }
         user = await prisma.user.create({
@@ -150,7 +158,7 @@ authRouter.post(
         // login user was created and the rest of the app found nobody.
         await createCustomerMaster(name, phone, gstin.toUpperCase());
       }
-    } else if (gstin && !user.gstin && GSTIN_RE.test(gstin.toUpperCase())) {
+    } else if (gstin && !user.gstin && isTaxId(gstin)) {
       user = await prisma.user.update({ where: { id: user.id }, data: { gstin: gstin.toUpperCase() } });
     }
 

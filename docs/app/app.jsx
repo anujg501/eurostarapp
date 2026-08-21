@@ -335,6 +335,27 @@ function App() {
     setCart(c => [...c, { ...line, addedAt: Date.now() + Math.random() }]);
     setToast({ kind: 'cart', name: line.name, qty: line.qty, ct: line.ct });
     setTimeout(() => setToast(null), 3200);
+    // GA4 e-commerce: one add_to_cart per line added.
+    try {
+      if (window.eurostarTrack) window.eurostarTrack('add_to_cart', {
+        currency: 'INR',
+        value: window.eurostarLineValue ? window.eurostarLineValue(line) : 0,
+        items: [window.eurostarLineItem ? window.eurostarLineItem(line) : { item_name: line.name || 'Item', quantity: line.qty || 1 }],
+      });
+    } catch (e) {}
+  };
+
+  // GA4 e-commerce: fire once when an order is actually placed. transaction_id
+  // (the order number) lets Google Analytics de-duplicate if it repeats.
+  const trackPurchase = (id, value) => {
+    try {
+      if (window.eurostarTrack) window.eurostarTrack('purchase', {
+        transaction_id: id || '',
+        currency: 'INR',
+        value: value || 0,
+        items: window.eurostarCartItems ? window.eurostarCartItems(cart) : [],
+      });
+    } catch (e) {}
   };
 
   const toggleWishlist = (pid) => {
@@ -384,6 +405,7 @@ function App() {
                       const o = { id, customer: persona.company, code: persona.code || '', city: (persona.location || '').split(',')[0].trim(), rep: esWhoAmI().name, repId: esWhoAmI().repId, value: details.grand || 0, dispatchBy: details.dispatchBy || '', isExport: !!details.isExport, paid: false, ts: Date.now(), source: 'Sales App', queuedOffline: true, lines };
                       try { const q = JSON.parse(localStorage.getItem('eurostar-offline-orders') || '[]') || []; q.push(o); localStorage.setItem('eurostar-offline-orders', JSON.stringify(q)); } catch (e) {}
                       setQueued((n) => n + 1);
+                      trackPurchase(id, details.grand);
                       setCart([]);
                       // replace: the order is placed, so Back should not return
                       // to the checkout form for an already-submitted cart.
@@ -396,6 +418,7 @@ function App() {
                     // is only after payment succeeds (see onPaid below), so
                     // leaving the payment screen by Back still has the cart.
                     if (isCredit) {
+                      trackPurchase(id, details.grand);
                       setCart([]);
                       navigate({ name: 'confirmed', order: { id, ...details, lines } }, { replace: true });
                     } else {
@@ -406,6 +429,8 @@ function App() {
     case 'payment':
       screen = <PaymentScreen order={route.order || { id: 'SO-24900', grand: 0 }} persona={persona}
                   onPaid={() => {
+                    // Paid order: purchase completes now, after payment succeeds.
+                    trackPurchase((route.order || {}).id, (route.order || {}).grand);
                     setCart([]); // payment went through — this is the placement
                     navigate({ name: 'confirmed', order: { ...(route.order || {}), paid: true } }, { replace: true });
                   }}

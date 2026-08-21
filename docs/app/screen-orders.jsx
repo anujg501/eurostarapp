@@ -772,7 +772,18 @@ function CartView({ cart, setCart, persona, setRoute, discount }) {
 
           <button className="btn btn-accent btn-lg btn-block" style={{ marginTop: 20 }}
                   disabled={belowMin}
-                  onClick={() => !belowMin && setRoute({ name: 'checkout' })}>
+                  onClick={() => {
+                    if (belowMin) return;
+                    // GA4 e-commerce: customer starts checkout with the current cart.
+                    try {
+                      if (window.eurostarTrack) window.eurostarTrack('begin_checkout', {
+                        currency: 'INR',
+                        value: grand || 0,
+                        items: window.eurostarCartItems ? window.eurostarCartItems(cart) : [],
+                      });
+                    } catch (e) {}
+                    setRoute({ name: 'checkout' });
+                  }}>
             <IconCheck size={16} /> Proceed to checkout — {formatINR(grand)}
           </button>
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>

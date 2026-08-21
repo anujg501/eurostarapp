@@ -19,7 +19,7 @@
  */
 (function () {
   // ▼▼▼ PASTE YOUR GA4 MEASUREMENT ID HERE ▼▼▼
-  var GA4_ID = 'G-XXXXXXXXXX';
+  var GA4_ID = 'G-BXWLN26K62';
   // ▲▲▲ e.g. 'G-ABCD123456' — leave the placeholder to keep analytics off ▲▲▲
 
   // Guard: stay completely inert until a real ID is set (placeholder still has X's).

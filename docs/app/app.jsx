@@ -136,6 +136,14 @@ function App() {
     try {
       const p = new URLSearchParams(window.location.search);
       if (p.get('editCart')) return { name: 'orders', tab: 'cart', editCart: p.get('editCart'), editCustomer: p.get('customer') || '' };
+      // Deep link: ?go=cat~grade~colour~shape lands the customer straight on a
+      // product (e.g. ?go=moissanite~def~white~alphabet). Grade/colour/shape are
+      // optional — the browse screen seeds its steps from whatever is provided.
+      const go = p.get('go');
+      if (go) {
+        const parts = String(go).split('~');
+        if (parts[0]) return { name: 'browse', cat: parts[0], grade: parts[1] || undefined, color: parts[2] || undefined, shape: parts[3] || undefined };
+      }
     } catch (e) {}
     return { name: 'home' };
   });
@@ -304,14 +312,17 @@ function App() {
   // Using the absolute href (not a relative path) is what reliably strips an
   // existing fragment in Chromium.
   const cleanUrl = function () { return window.location.href.split('#')[0]; };
+  // Same, but also drops the query string — used once the customer navigates so
+  // a deep-link ?go=… does not linger in the address bar while they browse on.
+  const cleanUrlNoQuery = function () { return window.location.origin + window.location.pathname; };
 
   const navigate = (next, opts) => {
     try {
-      // Keep the URL clean (no hash, no path change) — the page is carried in
-      // history.state, not the address bar. pushState still adds a real
-      // history entry even with an unchanged URL, so Back/Forward work.
-      if (opts && opts.replace) window.history.replaceState(next, '', cleanUrl());
-      else window.history.pushState(next, '', cleanUrl());
+      // Keep the URL clean (no hash, no query, no path change) — the page is
+      // carried in history.state, not the address bar. pushState still adds a
+      // real history entry even with an unchanged URL, so Back/Forward work.
+      if (opts && opts.replace) window.history.replaceState(next, '', cleanUrlNoQuery());
+      else window.history.pushState(next, '', cleanUrlNoQuery());
     } catch (e) {}
     setRoute(next);
     window.scrollTo({ top: 0, behavior: 'instant' });

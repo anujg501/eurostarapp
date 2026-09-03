@@ -3281,6 +3281,16 @@ img[src*="assets/products/"] {
   (function () {
     var CATALOG = 'Eurostar Sales website.html';
 
+    // Return the customer to a deep-linked product (?go=…) after sign-in, if the
+    // shop stored one before bouncing them here. Consumed once, then cleared.
+    function catalogTarget() {
+      try {
+        var go = localStorage.getItem('eurostar_go');
+        if (go) { localStorage.removeItem('eurostar_go'); return CATALOG + '?go=' + encodeURIComponent(go); }
+      } catch (e) {}
+      return CATALOG;
+    }
+
     // Returning, remembered customer → skip login, open the catalog directly.
     // Never auto-skip when embedded in the Claude mobile preview frame, so the
     // login screen is always the first thing shown there.
@@ -3288,7 +3298,7 @@ img[src*="assets/products/"] {
     try {
       if (!inPreviewFrame && localStorage.getItem('eurostar_authed') === '1' && localStorage.getItem('eurostar_remember_cust') === '1') {
         try { sessionStorage.setItem('eurostar_enter', '1'); } catch (e) {}
-        window.location.replace(CATALOG);
+        window.location.replace(catalogTarget());
       }
     } catch (e) {}
 
@@ -3437,7 +3447,7 @@ img[src*="assets/products/"] {
       } catch (e) {}
       // replace(), not href: this drops the login page from browser history so
       // a signed-in user pressing Back never lands back on the login screen.
-      window.location.replace(CATALOG);
+      window.location.replace(catalogTarget());
     }
 
     function busy(btn, on, label) {

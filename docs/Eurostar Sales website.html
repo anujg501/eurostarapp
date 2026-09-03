@@ -23,6 +23,10 @@
       var LOGIN = 'Eurostar Login.html';
       function toLogin() {
         try {
+          // Remember a deep link (?go=…) so the login page can return the
+          // customer to the exact product they clicked, not the generic shop.
+          var go = new URLSearchParams(location.search).get('go');
+          if (go) localStorage.setItem('eurostar_go', go); else localStorage.removeItem('eurostar_go');
           localStorage.removeItem('eurostar_token');
           localStorage.removeItem('eurostar_refresh');
           localStorage.removeItem('eurostar_authed');
@@ -220,7 +224,7 @@
   <script type="text/babel" src="app/shell.jsx?v=4"></script>
   <script type="text/babel" src="app/screen-home.jsx?v=7"></script>
   <script type="text/babel" src="app/screen-catalog.jsx"></script>
-  <script type="text/babel" src="app/screen-browse.jsx?v=10"></script>
+  <script type="text/babel" src="app/screen-browse.jsx?v=11"></script>
   <script type="text/babel" src="app/screen-product.jsx"></script>
   <script type="text/babel" src="app/screen-orders.jsx?v=3"></script>
   <script type="text/babel" src="app/screen-checkout.jsx?v=5"></script>
@@ -228,7 +232,7 @@
   <!-- Wire Mira's chat to the back room (provides window.claude.complete live). -->
   <script src="app/mira-claude-shim.js"></script>
   <script type="text/babel" src="app/chatbot.jsx?v=3"></script>
-  <script type="text/babel" src="app/app.jsx?v=10"></script>
+  <script type="text/babel" src="app/app.jsx?v=11"></script>
   <script src="app/lightbox.js"></script>
 
   <template id="__bundler_thumbnail" data-bg-color="#0E5C4A">

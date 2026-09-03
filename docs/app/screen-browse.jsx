@@ -12,11 +12,13 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
   const grades = GRADES_BY_CATEGORY[route.cat] || [];
   const baseShapeIds = SHAPES_BY_CATEGORY[route.cat] || ['round'];
 
-  const [gradeId, setGradeId] = React.useState(null);
+  // A deep link (?go=cat~grade~colour~shape) arrives as route.grade/color/shape;
+  // seed the drill-down from it so the customer lands straight on the product.
+  const [gradeId, setGradeId] = React.useState(route.grade || null);
   const [subGradeId, setSubGradeId] = React.useState(null);
-  const [colorId, setColorId] = React.useState(null);
+  const [colorId, setColorId] = React.useState(route.color || null);
   const [subShadeId, setSubShadeId] = React.useState(null);
-  const [shape, setShape] = React.useState(null);
+  const [shape, setShape] = React.useState(route.shape || null);
   const [subShape, setSubShape] = React.useState(null);
   const [qtyBySize, setQtyBySize] = React.useState({});
 
@@ -153,6 +155,16 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
   }
 
   // Step: 1 grade · 2 colour · 3 shape · 4 sizes
+  // Deep-link resolve (once): a grade came in via ?go= but no colour, and the
+  // grade has a single colour (e.g. Moissanite → White) — select it so the
+  // customer skips the one-option colour step and lands on the shape/size pad.
+  const deepLinkedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (deepLinkedRef.current) return;
+    deepLinkedRef.current = true;
+    if (route.grade && !colorId && Array.isArray(colors) && colors.length === 1) setColorId(colors[0].id);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const step = !grade || needsSub ? 1 : !color || needsSubShade ? 2 : (!shape || needsSubShape) ? 3 : 4;
 
   return (
@@ -959,6 +971,16 @@ function AlphabetOrderPad({ grade, color, category, qtyBySize, setQtyBySize, onB
     setQtyBySize({});
   };
 
+  // A direct, shareable link that lands a customer straight on this product.
+  const shareLink = () => {
+    const go = ['moissanite', (grade && grade.id) || 'def', (color && color.id) || 'white', 'alphabet'].join('~');
+    const url = location.origin + location.pathname + '?go=' + go;
+    const ok = () => { try { alert('Product link copied — share it with customers:\n\n' + url); } catch (e) {} };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(ok, () => window.prompt('Copy this product link:', url));
+    } else { window.prompt('Copy this product link:', url); }
+  };
+
   const muted = { color: 'var(--fg-meta)', fontSize: 12.5 };
   return (
     <div className="browse-step">
@@ -968,9 +990,12 @@ function AlphabetOrderPad({ grade, color, category, qtyBySize, setQtyBySize, onB
           <h1>Choose your letters</h1>
           <p>Faceted A–Z letters · fixed {fmt(price)} per piece. Set a quantity under each letter.</p>
         </div>
-        <button className="btn btn-ghost" onClick={onBack}>
-          {window.IconArrowLeft ? <window.IconArrowLeft size={16} /> : null} Change shape
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button className="btn btn-ghost" onClick={shareLink} title="Copy a direct link to this product">🔗 Share link</button>
+          <button className="btn btn-ghost" onClick={onBack}>
+            {window.IconArrowLeft ? <window.IconArrowLeft size={16} /> : null} Change shape
+          </button>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16 }}>

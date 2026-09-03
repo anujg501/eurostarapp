@@ -133,6 +133,7 @@ const SHAPES = [
   { id: 'butterfly', name: 'Butterfly', note: 'Carved butterfly' },
   { id: 'flower5', name: '5-Petal Flower', note: 'Drilled flower' },
   { id: 'star', name: 'Star', note: '14 mm star' },
+  { id: 'alphabet', name: 'Alphabet', note: 'A–Z faceted letters' },
   { id: 'palm', name: 'Palm', note: 'Hamsa palm motif' },
   { id: 'round-cabs', name: 'Round Cabs', note: 'Round cabochon' },
   { id: 'oval-cabs', name: 'Oval Cabs', note: 'Oval cabochon' },
@@ -688,7 +689,7 @@ const GRADES_BY_CATEGORY = {
 
 // Shapes offered per category
 const SHAPES_BY_CATEGORY = {
-  moissanite: ['round','oval','pear','princess','cushion','emerald','marquise','heart','asscher','radiant','trillion','triangle','square-radiant','star','baguette','tapered'],
+  moissanite: ['round','oval','pear','princess','cushion','emerald','marquise','heart','asscher','radiant','trillion','triangle','square-radiant','star','baguette','tapered','alphabet'],
   rajkot:     ['round'],
   cz:         ['round','oval','pear','princess','cushion','marquise','baguette','tapered','heart','trillion'],
   whitecz:    ['round'],
@@ -726,6 +727,51 @@ const NAVRATNA_SHAPES_BY_GRADE = {
   natural: ['round','oval','pear','cushion','marquise'],
   created: ['round'],
 };
+
+// ---------------------------------------------------------------------------
+// Moissanite DEF White — "Alphabet" shape: faceted A–Z letters, sold by piece
+// at a flat rate. Each letter carries its own carat weight and finished mm
+// size (from the factory packing sheet). Only the letters listed here exist;
+// letters absent from the sheet are not offered. Ordered by piece, not carat.
+// ---------------------------------------------------------------------------
+const MOISS_ALPHABET_PRICE = 5000; // ₹ per piece, fixed for every letter
+// [ letter, carat weight, finished size in mm ]
+const MOISS_ALPHABET = [
+  ['A', 1.00, '8 × 7 × 3.5'],
+  ['B', 1.60, '8 × 6'],
+  ['C', 0.90, '8 × 7'],
+  ['D', 1.60, '8 × 7'],
+  ['E', 1.30, '8 × 7'],
+  ['F', 1.20, '8 × 7'],
+  ['G', 1.40, '8 × 7'],
+  ['I', 1.00, '8 × 5'],
+  ['J', 1.00, '8 × 6.5'],
+  ['K', 1.40, '8 × 7'],
+  ['L', 1.10, '8 × 7'],
+  ['M', 1.40, '8 × 8'],
+  ['N', 1.40, '8 × 7'],
+  ['P', 1.30, '8 × 6.5'],
+  ['R', 1.55, '8 × 6.5'],
+  ['S', 1.10, '8 × 6'],
+  ['T', 1.10, '8 × 7'],
+  ['U', 1.40, '8 × 6.5'],
+  ['V', 0.70, '8 × 7'],
+  ['Y', 1.10, '8 × 7'],
+];
+// The letters, as the "sizes" of the alphabet shape (used for the shape-card count).
+function moissAlphabetSizes(shape) {
+  return shape === 'alphabet' ? MOISS_ALPHABET.map((r) => r[0]) : [];
+}
+// Full per-letter detail for the order pad.
+function moissAlphabetList() {
+  return MOISS_ALPHABET.map((r) => ({ letter: r[0], ct: r[1], dim: r[2] }));
+}
+// One letter's SKU: fixed price + its weight & size.
+function moissAlphabetSku(letter) {
+  const r = MOISS_ALPHABET.find((x) => x[0] === String(letter || '').toUpperCase());
+  return r ? { price: MOISS_ALPHABET_PRICE, ct: r[1], dim: r[2] } : null;
+}
+Object.assign(window, { MOISS_ALPHABET_PRICE, moissAlphabetSizes, moissAlphabetList, moissAlphabetSku });
 
 // Pearls: drilling/format options depend on the chosen grade (Natural vs Created).
 const PEARL_SHAPES_BY_GRADE = {

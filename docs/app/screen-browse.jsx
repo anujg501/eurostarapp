@@ -81,9 +81,14 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
   // operator's add/remove silently did nothing. Honour Admin as the gate: a
   // shape it removed disappears everywhere, while a shape it lists still needs
   // real data behind it before it can show.
-  const shapeIds = (Array.isArray(baseShapeIds) && baseShapeIds.length && Array.isArray(rawShapeIds))
+  const shapeIdsRaw = (Array.isArray(baseShapeIds) && baseShapeIds.length && Array.isArray(rawShapeIds))
     ? rawShapeIds.filter((s) => baseShapeIds.indexOf(s) !== -1)
     : rawShapeIds;
+  // 'alphabet' (A–Z faceted letters) is offered only under Moissanite DEF White.
+  const shapeIds = (Array.isArray(shapeIdsRaw) && shapeIdsRaw.indexOf('alphabet') !== -1
+      && !(route.cat === 'moissanite' && grade && grade.id === 'def'))
+    ? shapeIdsRaw.filter((s) => s !== 'alphabet')
+    : shapeIdsRaw;
   // Some shapes (e.g. Opaque · Cut Stones) open a second grid of cut shapes.
   const baseShapeMeta = shape ? findShape(shape) : null;
   const shapeSubs = baseShapeMeta && baseShapeMeta.subShapes ? baseShapeMeta.subShapes : null;
@@ -508,6 +513,7 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
               category.id === 'navratna' && window.navSizes ? window.navSizes(_gid, s) :
               category.id === 'labgrown' && _gid === 'labgrown' && window.lgSizes ? window.lgSizes(_cid, s) :
               category.id === 'multisapphire' && window.msSizes ? window.msSizes(_gid, s) :
+              category.id === 'moissanite' && s === 'alphabet' && window.moissAlphabetSizes ? window.moissAlphabetSizes(s) :
               [];
             let sizes = sheetSizesForCard.length ? sheetSizesForCard : skuSizesForCard.length ? skuSizesForCard : category.id === 'mop' ? window.MOP_PRICES[s] || [] : FULL_SIZES[s] || ['4.00 mm'];
             // Keep the shape-card size count in step with the pad's add/remove edits.
@@ -914,8 +920,116 @@ function PolkiSeriesPad({ product, grade, color, category, seriesKey, designs,
 }
 
 // ===== Reusable size/carat order pad =====
+// Moissanite DEF White · Alphabet — A–Z faceted letters, flat ₹/piece.
+// A grid of letter tiles (photo + weight + finished size), each with its own
+// quantity. Photos are the admin-uploaded per-letter images (keyed
+// moissanite | colour | "alphabet-<L>"); until one is uploaded a clean faceted
+// letter glyph stands in. Adds one cart line per letter with quantity > 0.
+function AlphabetOrderPad({ grade, color, category, qtyBySize, setQtyBySize, onBack, addToCart, setRoute }) {
+  const fmt = (n) => window.formatINR ? window.formatINR(n) : '₹' + Number(n).toLocaleString('en-IN');
+  const price = window.MOISS_ALPHABET_PRICE || 5000;
+  const letters = window.moissAlphabetList ? window.moissAlphabetList() : [];
+  const colId = (color && color.id) || 'white';
+  const photoFor = (L) => (window.getStoredProductImage
+    ? window.getStoredProductImage('moissanite', colId, 'alphabet-' + L, grade && grade.id) : null);
+
+  const bump = (L, d) => setQtyBySize((p) => ({ ...p, [L]: Math.max(0, (p[L] || 0) + d) }));
+  const setQ = (L, v) => setQtyBySize((p) => ({ ...p, [L]: Math.max(0, parseInt(v, 10) || 0) }));
+
+  const chosen = Object.entries(qtyBySize).filter(([, n]) => n > 0);
+  const totalPcs = chosen.reduce((s, [, n]) => s + n, 0);
+  const totalAmt = totalPcs * price;
+
+  const onAddAll = () => {
+    if (!chosen.length) return;
+    chosen.forEach(([L, n]) => {
+      const sku = window.moissAlphabetSku ? window.moissAlphabetSku(L) : null;
+      if (!sku) return;
+      addToCart({
+        pid: 'EUR-MOI-ALPHA-' + L,
+        name: 'Moissanite ' + (grade ? grade.name : 'DEF White') + ' — Letter ' + L,
+        shape: 'alphabet', size: L, quality: grade ? grade.name : 'DEF White',
+        color: color ? color.name : 'White', colorHex: color ? color.hex : '#F2EFE8',
+        qty: n, ct: +(sku.ct * n).toFixed(2), unitMode: 'pc', pcsPerUnit: 1,
+        unitPrice: price, perCtPrice: price, certFee: 0,
+        lineTotal: n * price, tone: 'def-white', toneHex: color ? color.hex : '#F2EFE8',
+        imageUrl: photoFor(L) || null,
+      });
+    });
+    setQtyBySize({});
+  };
+
+  const muted = { color: 'var(--fg-meta)', fontSize: 12.5 };
+  return (
+    <div className="browse-step">
+      <div className="page-head" style={{ marginBottom: 18 }}>
+        <div>
+          <div className="crumb">{category.short} · {grade ? grade.name : 'DEF White'} · Alphabet</div>
+          <h1>Choose your letters</h1>
+          <p>Faceted A–Z letters · fixed {fmt(price)} per piece. Set a quantity under each letter.</p>
+        </div>
+        <button className="btn btn-ghost" onClick={onBack}>
+          {window.IconArrowLeft ? <window.IconArrowLeft size={16} /> : null} Change shape
+        </button>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16 }}>
+        {letters.map(({ letter, ct, dim }) => {
+          const n = qtyBySize[letter] || 0;
+          const photo = photoFor(letter);
+          return (
+            <div key={letter} className="card" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column',
+              border: '1px solid var(--line, #E3DAC6)', borderRadius: 14, background: 'var(--surface, #FDFAF2)' }}>
+              <div style={{ position: 'relative', height: 150, background: '#0d0d0f',
+                display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {photo
+                  ? <img src={photo} alt={'Letter ' + letter} loading="lazy"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : <span style={{ fontFamily: 'var(--font-serif, Georgia, serif)', fontSize: 64, fontWeight: 500,
+                      color: 'rgba(245,231,196,0.92)', textShadow: '0 2px 14px rgba(255,255,255,0.25)' }}>{letter}</span>}
+              </div>
+              <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                  <div style={{ fontFamily: 'var(--font-serif, Georgia, serif)', fontSize: 22, fontWeight: 600 }}>{letter}</div>
+                  <div style={{ fontWeight: 700, fontSize: 14 }}>{fmt(price)} <span style={muted}>/pc</span></div>
+                </div>
+                <div style={muted}>Weight : {ct.toFixed(2)} ct</div>
+                <div style={muted}>Dimensions : {dim} mm</div>
+                <div className="size-pad-stepper" style={{ marginTop: 8 }}>
+                  <button onClick={() => bump(letter, -1)} disabled={n <= 0} aria-label="decrease">
+                    {window.IconMinus ? <window.IconMinus size={13} /> : '−'}
+                  </button>
+                  <input type="number" value={n || ''} placeholder="0" min={0}
+                    onChange={(e) => setQ(letter, e.target.value)} onFocus={(e) => e.target.select()} />
+                  <button onClick={() => bump(letter, 1)} aria-label="increase">
+                    {window.IconPlus ? <window.IconPlus size={13} /> : '+'}
+                  </button>
+                </div>
+              </div>
+            </div>);
+        })}
+      </div>
+
+      <div className="order-summary" style={{ marginTop: 20 }}>
+        <div className="order-summary-stats">
+          <div><div className="stat-label">Letters chosen</div><div className="stat-value">{chosen.length}</div></div>
+          <div><div className="stat-label">Total pieces</div><div className="stat-value">{totalPcs.toLocaleString('en-IN')}</div></div>
+          <div><div className="stat-label">Order total</div><div className="stat-value money">{fmt(totalAmt)}</div></div>
+        </div>
+        <button className="btn btn-accent btn-lg" disabled={chosen.length === 0} onClick={onAddAll}>Add to cart</button>
+      </div>
+    </div>);
+}
+
 function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQtyBySize,
   onBack, onChangeColor, onChangeGrade, addToCart, setRoute }) {
+  // Moissanite DEF White · Alphabet uses a bespoke letter pad, not a size list.
+  if (category.id === 'moissanite' && shape === 'alphabet') {
+    return <AlphabetOrderPad grade={grade} color={color} category={category}
+      qtyBySize={qtyBySize} setQtyBySize={setQtyBySize}
+      onBack={onBack} addToCart={addToCart} setRoute={setRoute} />;
+  }
   // White Polki series (B/C/X/Z/PCJ/GJ) use a design-based pad, not a size list.
   if (category.id === 'polki') {
     const sk = (grade.id.match(/-(b|c|x|z|pcj|gj)$/) || [])[1];

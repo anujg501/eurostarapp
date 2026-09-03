@@ -210,6 +210,11 @@
       }
       keepSheetShapes('whitefancy', shapesOfTable(window.WHITEFANCY_SHAPES_BY_GRADE));
       keepSheetShapes('polki', shapesOfTable(window.POLKI_SHAPES_BY_GRADE));
+      // Moissanite "Alphabet" (DEF White A–Z letters) is a sheet-driven shape,
+      // not one the operator adds/removes in Admin > Catalog — keep it so the
+      // backend catalog list never drops it. (Grade-scoped to DEF in the browse
+      // screen so it only shows under DEF White.)
+      keepSheetShapes('moissanite', window.moissAlphabetSizes ? ['alphabet'] : []);
       keepSheetShapes('labgrown', []
         .concat(window.LABGROWN_SHAPES || [])
         .concat(window.LABCORUNDUM_SHAPES || [])

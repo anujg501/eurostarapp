@@ -139,7 +139,10 @@ function App() {
       // Deep link: ?go=cat~grade~colour~shape lands the customer straight on a
       // product (e.g. ?go=moissanite~def~white~alphabet). Grade/colour/shape are
       // optional — the browse screen seeds its steps from whatever is provided.
-      const go = p.get('go');
+      // Short, memorable aliases expand to the full path so shared links stay tidy.
+      const GO_ALIASES = { alphabet: 'moissanite~def~white~alphabet' };
+      let go = p.get('go');
+      if (go && GO_ALIASES[go]) go = GO_ALIASES[go];
       if (go) {
         const parts = String(go).split('~');
         if (parts[0]) return { name: 'browse', cat: parts[0], grade: parts[1] || undefined, color: parts[2] || undefined, shape: parts[3] || undefined };

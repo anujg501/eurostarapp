@@ -973,8 +973,8 @@ function AlphabetOrderPad({ grade, color, category, qtyBySize, setQtyBySize, onB
 
   // A direct, shareable link that lands a customer straight on this product.
   const shareLink = () => {
-    const go = ['moissanite', (grade && grade.id) || 'def', (color && color.id) || 'white', 'alphabet'].join('~');
-    const url = location.origin + location.pathname + '?go=' + go;
+    // Short, memorable alias (expands to moissanite~def~white~alphabet on load).
+    const url = location.origin + location.pathname + '?go=alphabet';
     const ok = () => { try { alert('Product link copied — share it with customers:\n\n' + url); } catch (e) {} };
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(url).then(ok, () => window.prompt('Copy this product link:', url));

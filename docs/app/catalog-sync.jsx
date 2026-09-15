@@ -222,6 +222,16 @@
 
       if (cat && Array.isArray(cat.categories) && cat.categories.length) {
         var mapped = cat.categories.map(toClientCategory);
+        // The "Pre Drilled Zirconia Stones" category is code-driven — its custom
+        // order pad keys on category.id === 'predrilled' — and is not managed in
+        // Admin > Catalog. The backend list would otherwise drop it, so re-insert
+        // the hardcoded entry right after Colour CZ.
+        var predrilledCat = CATEGORIES.filter(function (c) { return c.id === 'predrilled'; })[0];
+        if (predrilledCat && !mapped.some(function (c) { return c.id === 'predrilled'; })) {
+          var czIdx = mapped.map(function (c) { return c.id; }).indexOf('cz');
+          if (czIdx >= 0) mapped.splice(czIdx + 1, 0, predrilledCat);
+          else mapped.push(predrilledCat);
+        }
         Array.prototype.splice.apply(CATEGORIES, [0, CATEGORIES.length].concat(mapped));
       }
 

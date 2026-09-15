@@ -42,6 +42,10 @@ const CATEGORIES = [
   { id: 'cz', name: 'Color Cubic Zirconias', short: 'Color CZ',
     blurb: 'Calibrated CZ in 80+ shades. Heat-stable.',
     count: 4860 },
+  { id: 'predrilled', name: 'Pre Drilled Zirconia Stones', short: 'Pre Drilled Zirconia',
+    blurb: 'Zirconia stones pre-drilled for stringing & setting',
+    skipGrade: true,
+    count: 0 },
   { id: 'whitecz', name: 'White Round Cubic Zirconia', short: 'White Round CZ',
     blurb: 'Calibrated white round CZ — heat-stable, fully calibrated.',
     count: 980 },
@@ -644,6 +648,10 @@ const GRADES_BY_CATEGORY = {
     { id: 'evileye', name: 'Real MOP Evil Eye', tier: 'Natural MOP', desc: 'Real mother of pearl with evil-eye motif',
       tone: 'def-white', basePrice: 40, unit: 'pc' },
   ],
+  predrilled: [
+    { id: 'predrilled', name: 'Pre Drilled Zirconia', tier: 'Standard', origin: 'Zirconia',
+      desc: 'Zirconia stones pre-drilled for stringing & setting', tone: 'def-white', basePrice: 15, unit: 'pkt' },
+  ],
   bracelet: [
     { id: 'rolex',   name: 'Rolex Style',   tier: 'Fashion', desc: 'Rolex-style bracelet',
       tone: 'def-white', basePrice: 850, unit: 'pc' },
@@ -726,6 +734,69 @@ const NAVRATNA_SHAPES_BY_GRADE = {
   natural: ['round','oval','pear','cushion','marquise'],
   created: ['round'],
 };
+
+// ---------------------------------------------------------------------------
+// Pre Drilled Zirconia Stones — 39 pre-drilled white zirconia stones, each a
+// distinct shape + finished mm size, sold by the piece with a 1,000-pc MOQ.
+// Two drill options: one-side (₹15/pc) or two-side (₹25/pc). Photos are
+// uploaded in Admin (Pre Drilled images) and resolved by imgNo. Shapes were
+// identified from the reference photos; sizes are the labelled mm dimensions.
+// [ imgNo, shapeName, size mm ]
+// ---------------------------------------------------------------------------
+const PREDRILLED_PRICE_1 = 15;   // ₹ per piece, one-side drill
+const PREDRILLED_PRICE_2 = 25;   // ₹ per piece, two-side drill
+const PREDRILLED_MOQ = 1000;     // minimum pieces per item
+const PREDRILLED_STONES = [
+  ['01', 'Heart',        '8 × 7'],
+  ['02', 'Octagon',      '8 × 8'],
+  ['03', 'Rhombus',      '3 × 6'],
+  ['04', 'Rhombus',      '7.5 × 3.5'],
+  ['05', 'Pentagon',     '6 × 6'],
+  ['06', 'Long Octagon', '10 × 5'],
+  ['07', 'Hexagon',      '6.0'],
+  ['08', 'Fan',          '7.5 × 6'],
+  ['09', 'Clover',       '6 × 6'],
+  ['10', 'Pentagon',     '4.5 × 3'],
+  ['11', 'Baguette',     '4 × 8'],
+  ['12', 'Long Hexagon', '7 × 3.5'],
+  ['13', 'Half Moon',    '5.7 × 5.9'],
+  ['14', 'Flower',       '5.0'],
+  ['15', 'Half Moon',    '5.0'],
+  ['16', 'Pear',         '4.5 × 8'],
+  ['17', 'Long Hexagon', '5 × 2.5'],
+  ['18', 'Marquise',     '6 × 4'],
+  ['19', 'Kite',         '4 × 6'],
+  ['20', 'Rhombus',      '7.5 × 4'],
+  ['21', 'Rhombus',      '3 × 6'],
+  ['22', 'Long Hexagon', '7 × 4'],
+  ['23', 'Heart',        '5 × 4'],
+  ['24', 'Hexagon',      '4.0'],
+  ['25', 'Pentagon',     '5 × 5'],
+  ['26', 'Baguette',     '5 × 2.5'],
+  ['27', 'Marquise',     '8.5 × 3.5'],
+  ['28', 'Kite',         '6.5 × 4'],
+  ['29', 'Baguette',     '6 × 3'],
+  ['30', 'Marquise',     '3 × 6'],
+  ['31', 'Marquise',     '5 × 2.5'],
+  ['32', 'Long Hexagon', '7 × 3'],
+  ['33', 'Heart',        '4 × 3.5'],
+  ['34', 'Half Moon',    '3 × 6'],
+  ['35', 'Long Hexagon', '5 × 3'],
+  ['36', 'Pear',         '4.5 × 3'],
+  ['37', 'Long Hexagon', '5 × 2'],
+  ['38', 'Kite',         '5 × 4'],
+  ['39', 'Rhombus',      '5 × 2.5'],
+];
+function predrilledStones() {
+  return PREDRILLED_STONES.map((r) => ({ id: r[0], shape: r[1], size: r[2] }));
+}
+// One stone's photo: the admin upload keyed  predrilled | white | pd-<imgNo>.
+// Falls back to null (the pad draws a placeholder) until a photo is uploaded.
+function predrilledImg(id) {
+  return (window.getStoredProductImage
+    ? window.getStoredProductImage('predrilled', 'white', 'pd-' + id) : null) || null;
+}
+Object.assign(window, { PREDRILLED_STONES, predrilledStones, predrilledImg, PREDRILLED_PRICE_1, PREDRILLED_PRICE_2, PREDRILLED_MOQ });
 
 // Pearls: drilling/format options depend on the chosen grade (Natural vs Created).
 const PEARL_SHAPES_BY_GRADE = {
@@ -1480,6 +1551,7 @@ const COLORS_BY_CATEGORY = {
   ],
   polki: [{ id: 'default', name: 'Polki', hex: '#EFE6CF' }],
   evileye: [{ id: 'default', name: 'Evil Eye', hex: '#2A6FDB' }],
+  predrilled: [{ id: 'white', name: 'White', hex: '#F2EFE8' }],
   bracelet: [
     { id: 'silver', name: 'Silver', hex: '#C0C2C4' }, { id: 'lavender', name: 'Lavender', hex: '#9B7BBF' },
     { id: 'wine', name: 'Wine', hex: '#6E1A2A' }, { id: 'royal', name: 'Royal Blue', hex: '#1E3A8A' },
@@ -1636,6 +1708,7 @@ const UNIT_BY_CATEGORY = {
   laser:       'pkt', alpanite: 'pkt', cabochon: 'pkt', pearls: 'pkt',
   highdensity: 'pkt', corundum: 'pkt', labopal:  'pkt', opaque: 'pkt',
   cz:          'pkt', fancycut: 'pkt', mop:      'pc', navratna: 'pkt',
+  predrilled:  'pkt',
   coral:       'pkt', hotfix:   'pkt', whitecz:  'pkt', whitefancy: 'pkt', clover: 'pkt',
   icecut: 'pkt', ourosa: 'pkt',
   polki: 'pkt', evileye: 'pkt', bracelet: 'pc', hollowmop: 'pkt',
@@ -1648,6 +1721,7 @@ const unitMoq  = (unit) => unit === 'ct' ? 3 : 1;
 const ORIGIN_BY_CATEGORY = {
   moissanite: 'Synthetic', laser: 'Synthetic', cz: 'Zirconia',
   whitecz: 'Zirconia', whitefancy: 'Zirconia', rajkot: 'Zirconia',
+  predrilled: 'Zirconia',
   labgrown: 'Synthetic', multisapphire: 'Synthetic', alpanite: 'Synthetic',
   corundum: 'Synthetic', highdensity: 'Zirconia', fancycut: 'Synthetic',
   labopal: 'Synthetic', hotfix: 'Synthetic', coral: 'Synthetic',

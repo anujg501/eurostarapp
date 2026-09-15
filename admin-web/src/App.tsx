@@ -11,6 +11,7 @@ import { Marketing } from './screens/Marketing';
 import { AddCategory } from './screens/AddCategory';
 import { BulkUploadPage } from './screens/BulkUpload';
 import { Pricing } from './screens/Pricing';
+import { PredrilledImages } from './screens/PredrilledImages';
 import { TweaksPanel } from './TweaksPanel';
 
 type ScreenId =
@@ -21,6 +22,7 @@ type ScreenId =
   | 'bulk'
   | 'media'
   | 'colourimages'
+  | 'predrilledimages'
   | 'homethumbs'
   | 'splash'
   | 'repbroadcast'
@@ -37,6 +39,7 @@ const NAV: { id: ScreenId; label: string }[] = [
   { id: 'bulk', label: 'Bulk upload' },
   { id: 'media', label: 'Product images' },
   { id: 'colourimages', label: 'Colour images' },
+  { id: 'predrilledimages', label: 'Pre Drilled images' },
   { id: 'homethumbs', label: 'Home thumbnails' },
   { id: 'splash', label: 'Pop-up window' },
   { id: 'repbroadcast', label: 'Rep broadcast' },
@@ -53,6 +56,7 @@ const TITLES: Record<ScreenId, string> = {
   bulk: 'Bulk upload',
   media: 'Product images',
   colourimages: 'Colour images',
+  predrilledimages: 'Pre Drilled images',
   homethumbs: 'Home thumbnails',
   splash: 'Pop-up window',
   repbroadcast: 'Rep broadcast',
@@ -208,6 +212,7 @@ export function App() {
         {screen === 'bulk' && <BulkUploadPage />}
         {screen === 'media' && <Media key="products" initialTab="products" />}
         {screen === 'colourimages' && <Media key="colours" initialTab="colours" />}
+        {screen === 'predrilledimages' && <PredrilledImages />}
         {screen === 'homethumbs' && <Media key="thumbs" initialTab="thumbs" />}
         {screen === 'splash' && <Marketing only="splash" />}
         {screen === 'repbroadcast' && <Marketing only="broadcast" />}

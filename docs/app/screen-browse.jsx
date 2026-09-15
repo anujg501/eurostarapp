@@ -357,7 +357,14 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
         onBack={() => pickGrade(null)} addToCart={addToCart} setRoute={setRoute} />
       </div>
       }
-      {step === 2 && category.id !== 'bracelet' &&
+      {step === 2 && category.id === 'predrilled' &&
+      <div className="pricepad-wrap"><PriceWatermark code={custCode} company={custCompany} />
+      <PredrilledOrderPad category={category}
+        qtyBySize={qtyBySize} setQtyBySize={setQtyBySize}
+        onBack={() => setRoute({ name: 'home' })} addToCart={addToCart} setRoute={setRoute} />
+      </div>
+      }
+      {step === 2 && category.id !== 'bracelet' && category.id !== 'predrilled' &&
       <div className="browse-step">
           <div className="page-head" style={{ marginBottom: 20 }}>
             <div>
@@ -657,6 +664,117 @@ const PEARL_HEADERS = {
 };
 
 // ===== Bracelet order pad — one page: pick colour (real photo) + set quantity (per piece) =====
+// Pre Drilled Zirconia Stones — a photo-card grid of 39 pre-drilled stones.
+// Each card: photo (tap to zoom), shape, size, MOQ note, a 1-side/2-side drill
+// price toggle and a quantity stepper that steps by the 1,000-pc MOQ. Adds one
+// cart line per stone (>= MOQ) carrying its drill choice, price and photo.
+function PredrilledOrderPad({ category, qtyBySize, setQtyBySize, onBack, addToCart, setRoute }) {
+  const fmt = (n) => window.formatINR ? window.formatINR(n) : '₹' + Number(n).toLocaleString('en-IN');
+  const stones = window.predrilledStones ? window.predrilledStones() : [];
+  const P1 = window.PREDRILLED_PRICE_1 || 15;
+  const P2 = window.PREDRILLED_PRICE_2 || 25;
+  const MOQ = window.PREDRILLED_MOQ || 1000;
+  const [drillBy, setDrillBy] = React.useState({});
+  const drillOf = (id) => drillBy[id] || 'one';
+  const priceOf = (id) => drillOf(id) === 'two' ? P2 : P1;
+
+  const qtyOf = (id) => qtyBySize[id] || 0;
+  const setQ = (id, v) => setQtyBySize((p) => ({ ...p, [id]: Math.max(0, parseInt(String(v).replace(/\D/g, ''), 10) || 0) }));
+  const bump = (id, d) => setQtyBySize((p) => { const next = (p[id] || 0) + d * MOQ; return { ...p, [id]: next < 0 ? 0 : next }; });
+
+  const belowMin = (id) => { const q = qtyOf(id); return q > 0 && q < MOQ; };
+  const selected = stones.filter((s) => qtyOf(s.id) > 0);
+  const anyBelow = selected.some((s) => belowMin(s.id));
+  const totalPcs = selected.reduce((a, s) => a + qtyOf(s.id), 0);
+  const itemCount = selected.filter((s) => qtyOf(s.id) >= MOQ).length;
+  const totalAmt = selected.reduce((a, s) => a + (qtyOf(s.id) >= MOQ ? qtyOf(s.id) * priceOf(s.id) : 0), 0);
+
+  const onAddAll = () => {
+    const addable = stones.filter((s) => qtyOf(s.id) >= MOQ);
+    if (!addable.length || anyBelow) return;
+    addable.forEach((s) => {
+      const side = drillOf(s.id);
+      const price = side === 'two' ? P2 : P1;
+      const n = qtyOf(s.id);
+      addToCart({
+        pid: 'predrilled-' + s.id + '-' + (side === 'two' ? 'two' : 'one'),
+        name: 'Pre Drilled ' + s.shape + ' ' + s.size + ' mm (' + (side === 'two' ? '2-side drill' : '1-side drill') + ')',
+        shape: 'predrilled', size: s.size, quality: 'Pre Drilled Zirconia',
+        color: 'White', colorHex: '#F2EFE8',
+        qty: n, ct: n, unitMode: 'pc', pcsPerUnit: 1,
+        unitPrice: price, perCtPrice: price, certFee: 0,
+        lineTotal: n * price, tone: 'def-white', toneHex: '#F2EFE8',
+        imageUrl: (window.predrilledImg ? window.predrilledImg(s.id) : null) || null,
+      });
+    });
+    setQtyBySize({});
+  };
+
+  const muted = { color: 'var(--fg-meta)', fontSize: 12.5 };
+  return (
+    <div className="browse-step">
+      <div className="page-head" style={{ marginBottom: 18 }}>
+        <div>
+          <div className="crumb">{category.short}</div>
+          <h1>Pre Drilled Zirconia Stones</h1>
+          <p>Pre-drilled white zirconia for stringing &amp; setting. Pick each stone's drill side and quantity — sold by the piece, minimum {MOQ.toLocaleString('en-IN')} pc per item.</p>
+        </div>
+        <button className="btn btn-ghost" onClick={onBack}>
+          {window.IconArrowLeft ? <window.IconArrowLeft size={16} /> : null} Back
+        </button>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16 }}>
+        {stones.map((s) => {
+          const n = qtyOf(s.id);
+          const photo = window.predrilledImg ? window.predrilledImg(s.id) : null;
+          const side = drillOf(s.id);
+          const low = belowMin(s.id);
+          return (
+            <div key={s.id} className="card" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', border: '1px solid var(--line, #E3DAC6)', borderRadius: 14, background: 'var(--surface, #FDFAF2)' }}>
+              <div className="predrilled-card-art" style={{ position: 'relative', height: 150, background: '#0d0d0f', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: photo ? 'zoom-in' : 'default' }}>
+                {photo
+                  ? <img src={photo} alt={s.shape + ' ' + s.size + ' mm'} loading="lazy" data-predrilled-zoom
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : <span style={{ fontFamily: 'var(--font-serif, Georgia, serif)', fontSize: 15, color: 'rgba(245,231,196,0.75)', textAlign: 'center', padding: '0 10px' }}>{s.shape}<br />{s.size} mm</span>}
+              </div>
+              <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                  <div style={{ fontWeight: 600, fontSize: 16 }}>{s.shape}</div>
+                  <div style={{ fontWeight: 700, fontSize: 14 }}>{fmt(priceOf(s.id))} <span style={muted}>/pc</span></div>
+                </div>
+                <div style={muted}>Size : {s.size} mm · MOQ {MOQ.toLocaleString('en-IN')} pc</div>
+                <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
+                  <button className={'btn btn-sm ' + (side === 'one' ? 'btn-accent' : 'btn-secondary')} style={{ flex: 1, fontSize: 12 }} onClick={() => setDrillBy((p) => ({ ...p, [s.id]: 'one' }))}>1-side · {fmt(P1)}</button>
+                  <button className={'btn btn-sm ' + (side === 'two' ? 'btn-accent' : 'btn-secondary')} style={{ flex: 1, fontSize: 12 }} onClick={() => setDrillBy((p) => ({ ...p, [s.id]: 'two' }))}>2-side · {fmt(P2)}</button>
+                </div>
+                <div className="size-pad-stepper" style={{ marginTop: 6 }}>
+                  <button onClick={() => bump(s.id, -1)} disabled={n <= 0} aria-label="decrease">{window.IconMinus ? <window.IconMinus size={13} /> : '−'}</button>
+                  <input type="number" value={n || ''} placeholder="0" min={0} step={MOQ}
+                    onChange={(e) => setQ(s.id, e.target.value)} onFocus={(e) => e.target.select()} />
+                  <button onClick={() => bump(s.id, 1)} aria-label="increase">{window.IconPlus ? <window.IconPlus size={13} /> : '+'}</button>
+                </div>
+                {low && <div style={{ color: '#B3261E', fontSize: 12, fontWeight: 600 }}>Min {MOQ.toLocaleString('en-IN')} pc</div>}
+                {n >= MOQ && <div style={{ ...muted, textAlign: 'right' }}>{fmt(n * priceOf(s.id))}</div>}
+              </div>
+            </div>);
+        })}
+      </div>
+
+      <div className="order-summary" style={{ marginTop: 20 }}>
+        <div className="order-summary-stats">
+          <div><div className="stat-label">Items</div><div className="stat-value">{itemCount}</div></div>
+          <div><div className="stat-label">Total pieces</div><div className="stat-value">{totalPcs.toLocaleString('en-IN')}</div></div>
+          <div><div className="stat-label">Order total</div><div className="stat-value money">{fmt(totalAmt)}</div></div>
+        </div>
+        <button className="btn btn-accent btn-lg" disabled={itemCount === 0 || anyBelow} onClick={onAddAll}>
+          {anyBelow ? 'Fix quantities below ' + MOQ.toLocaleString('en-IN') : 'Add to cart'}
+        </button>
+      </div>
+    </div>);
+}
+
 function BraceletOrderPad({ grade, colors, imgPrefix, category, qtyBySize, setQtyBySize, onBack, addToCart, setRoute }) {
   const fmt = (n) => window.formatINR ? window.formatINR(n) : '₹' + Number(n).toLocaleString('en-IN');
   // Admin > Pricing edit (₹ per bracelet, per style) wins over the style's base

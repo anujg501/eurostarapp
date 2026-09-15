@@ -4,7 +4,7 @@
    order-detail line images, and any <img> from assets/products/.
    Selection controls (colour cards, shape cards) are intentionally excluded. */
 (function () {
-  var ZOOM_CONTAINERS = '.pad-header-art, .pdp-main-img, .cart-group-art, .line-item-art, .polki-design-thumb';
+  var ZOOM_CONTAINERS = '.pad-header-art, .pdp-main-img, .cart-group-art, .line-item-art, .polki-design-thumb, .predrilled-card-art';
 
   // Build overlay once
   var overlay = document.createElement('div');

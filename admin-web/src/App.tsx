@@ -13,6 +13,7 @@ import { Users } from './screens/Users';
 import { Marketing } from './screens/Marketing';
 import { AddCategory } from './screens/AddCategory';
 import { Pricing } from './screens/Pricing';
+import { PredrilledImages } from './screens/PredrilledImages';
 import { TweaksPanel } from './TweaksPanel';
 
 type ScreenId =
@@ -25,6 +26,7 @@ type ScreenId =
   | 'alphabetphotos'
   | 'catalogue'
   | 'colourimages'
+  | 'predrilledimages'
   | 'homethumbs'
   | 'splash'
   | 'repbroadcast'
@@ -43,6 +45,7 @@ const NAV: { id: ScreenId; label: string }[] = [
   { id: 'alphabetphotos', label: 'Alphabet letter photos' },
   { id: 'catalogue', label: 'Catalogue (PDF)' },
   { id: 'colourimages', label: 'Colour images' },
+  { id: 'predrilledimages', label: 'Pre Drilled images' },
   { id: 'homethumbs', label: 'Home thumbnails' },
   { id: 'splash', label: 'Pop-up window' },
   { id: 'repbroadcast', label: 'Rep broadcast' },
@@ -61,6 +64,7 @@ const TITLES: Record<ScreenId, string> = {
   alphabetphotos: 'Alphabet letter photos',
   catalogue: 'Catalogue (PDF)',
   colourimages: 'Colour images',
+  predrilledimages: 'Pre Drilled images',
   homethumbs: 'Home thumbnails',
   splash: 'Pop-up window',
   repbroadcast: 'Rep broadcast',
@@ -218,6 +222,7 @@ export function App() {
         {screen === 'alphabetphotos' && <AlphabetPhotos />}
         {screen === 'catalogue' && <Catalogue />}
         {screen === 'colourimages' && <Media key="colours" initialTab="colours" />}
+        {screen === 'predrilledimages' && <PredrilledImages />}
         {screen === 'homethumbs' && <Media key="thumbs" initialTab="thumbs" />}
         {screen === 'splash' && <Marketing only="splash" />}
         {screen === 'repbroadcast' && <Marketing only="broadcast" />}

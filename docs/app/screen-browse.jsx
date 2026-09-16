@@ -715,9 +715,9 @@ function PredrilledOrderPad({ category, qtyBySize, setQtyBySize, onBack, addToCa
     <div className="browse-step">
       <div className="page-head" style={{ marginBottom: 18 }}>
         <div>
-          <div className="crumb">{category.short}</div>
-          <h1>Pre Drilled Zirconia Stones</h1>
-          <p>Pre-drilled white zirconia for stringing &amp; setting. Pick each stone's drill side and quantity — sold by the piece, minimum {MOQ.toLocaleString('en-IN')} pc per item.</p>
+          <div className="crumb">{category.short} · White</div>
+          <h1>Choose your stones</h1>
+          <p>{fmt(P1)}/pc one-side drill · {fmt(P2)}/pc two-side drill · MOQ {MOQ.toLocaleString('en-IN')} pc per item</p>
         </div>
         <button className="btn btn-ghost" onClick={onBack}>
           {window.IconArrowLeft ? <window.IconArrowLeft size={16} /> : null} Back

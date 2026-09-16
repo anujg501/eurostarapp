@@ -227,7 +227,13 @@
         // Admin > Catalog. The backend list would otherwise drop it, so re-insert
         // the hardcoded entry right after Colour CZ.
         var predrilledCat = CATEGORIES.filter(function (c) { return c.id === 'predrilled'; })[0];
-        if (predrilledCat && !mapped.some(function (c) { return c.id === 'predrilled'; })) {
+        var mappedPd = mapped.filter(function (c) { return c.id === 'predrilled'; })[0];
+        if (mappedPd) {
+          // Admin may also carry a 'predrilled' category; force the code-driven
+          // behaviour (skip the grade step; the custom stone pad renders).
+          mappedPd.skipGrade = true;
+          if (predrilledCat && predrilledCat.short) mappedPd.short = predrilledCat.short;
+        } else if (predrilledCat) {
           var czIdx = mapped.map(function (c) { return c.id; }).indexOf('cz');
           if (czIdx >= 0) mapped.splice(czIdx + 1, 0, predrilledCat);
           else mapped.push(predrilledCat);

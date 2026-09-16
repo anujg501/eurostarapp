@@ -1167,6 +1167,13 @@ function AlphabetOrderPad({ grade, color, category, qtyBySize, setQtyBySize, onB
 
 function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQtyBySize,
   onBack, onChangeColor, onChangeGrade, addToCart, setRoute }) {
+  // Pre Drilled Zirconia uses its own 39-stone pad, whatever grade/colour/shape
+  // the flow arrived with — never a size list.
+  if (category.id === 'predrilled') {
+    return <PredrilledOrderPad category={category}
+      qtyBySize={qtyBySize} setQtyBySize={setQtyBySize}
+      onBack={onBack} addToCart={addToCart} setRoute={setRoute} />;
+  }
   // Moissanite DEF White · Alphabet uses a bespoke letter pad, not a size list.
   if (category.id === 'moissanite' && shape === 'alphabet') {
     return <AlphabetOrderPad grade={grade} color={color} category={category}

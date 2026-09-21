@@ -276,16 +276,24 @@
         { token: 'crimson',  price: 500 },  // Crimson (PU flat)
         { token: 'gents',    price: 750 },  // Gents Heavy (braided)
       ];
-      (GRADES_BY_CATEGORY.bracelet || []).forEach(function (g) {
-        if (!g) return;
-        var hay = ((g.name || '') + ' ' + (g.id || '')).toLowerCase();
-        for (var i = 0; i < BRACELET_PC_PRICE.length; i++) {
-          if (hay.indexOf(BRACELET_PC_PRICE[i].token) !== -1) {
-            g.basePrice = BRACELET_PC_PRICE[i].price; g.unit = 'pc'; delete g.fromText;
-            break;
+      // Build NEW grade objects rather than mutating the ones the API returned
+      // (those may be frozen — assigning to a frozen object throws in strict
+      // mode, which would reject this whole promise and drop every synced
+      // grade). Wrapped in try/catch so a price tweak can never break the sync.
+      try {
+        GRADES_BY_CATEGORY.bracelet = (GRADES_BY_CATEGORY.bracelet || []).map(function (g) {
+          if (!g) return g;
+          var hay = ((g.name || '') + ' ' + (g.id || '')).toLowerCase();
+          for (var i = 0; i < BRACELET_PC_PRICE.length; i++) {
+            if (hay.indexOf(BRACELET_PC_PRICE[i].token) !== -1) {
+              var ng = Object.assign({}, g, { basePrice: BRACELET_PC_PRICE[i].price, unit: 'pc' });
+              delete ng.fromText;
+              return ng;
+            }
           }
-        }
-      });
+          return g;
+        });
+      } catch (e) { /* never let pricing break the catalogue */ }
 
       // eslint-disable-next-line no-console
       console.log('[Eurostar] catalogue synced —', CATEGORIES.length, 'categories,', PRODUCTS.length, 'products');

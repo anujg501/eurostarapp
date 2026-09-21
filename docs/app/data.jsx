@@ -655,9 +655,9 @@ const GRADES_BY_CATEGORY = {
   ],
   bracelet: [
     { id: 'rolex',   name: 'Rolex Style',   tier: 'Fashion', desc: 'Rolex-style bracelet',
-      tone: 'def-white', basePrice: 850, unit: 'pc' },
+      tone: 'def-white', basePrice: 500, unit: 'pc' },
     { id: 'cartier', name: 'Cartier Style', tier: 'Fashion', desc: 'Cartier-style bracelet',
-      tone: 'def-white', basePrice: 950, unit: 'pc' },
+      tone: 'def-white', basePrice: 750, unit: 'pc' },
   ],
   hollowmop: [
     { id: 'white', name: 'White MOP', tier: 'Natural', desc: 'Hollow white mother of pearl shapes',

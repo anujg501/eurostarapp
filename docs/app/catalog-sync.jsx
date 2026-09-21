@@ -257,6 +257,31 @@
         });
       }
 
+      // Fancy Jewellery Bracelets — authoritative per-piece prices.
+      // These grades are created in Admin (backend KV) with placeholder prices;
+      // the real ₹/pc is set here by grade name so the storefront card ("from
+      // ₹X/pc") and the order price are correct regardless of the backend id.
+      // Keep this list in sync with the price list Eurostar publishes.
+      var BRACELET_PC_PRICE = {
+        'rolex style': 500,
+        'cartier style': 750,
+        'matrix': 750,
+        'obsidian': 500,
+        'omega': 250,
+        'alpha': 250,
+        'designer rakhi': 200,
+        'magnetic halo': 750,
+        'crimson': 500,
+        'gents heavy': 750,
+      };
+      (GRADES_BY_CATEGORY.bracelet || []).forEach(function (g) {
+        if (!g) return;
+        var byName = BRACELET_PC_PRICE[(g.name || '').toLowerCase().trim()];
+        var byId = BRACELET_PC_PRICE[(g.id || '').toLowerCase().replace(/-/g, ' ').trim()];
+        var price = byName != null ? byName : byId;
+        if (price != null) { g.basePrice = price; g.unit = 'pc'; delete g.fromText; }
+      });
+
       // eslint-disable-next-line no-console
       console.log('[Eurostar] catalogue synced —', CATEGORIES.length, 'categories,', PRODUCTS.length, 'products');
     })

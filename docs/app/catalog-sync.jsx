@@ -259,27 +259,32 @@
 
       // Fancy Jewellery Bracelets — authoritative per-piece prices.
       // These grades are created in Admin (backend KV) with placeholder prices;
-      // the real ₹/pc is set here by grade name so the storefront card ("from
-      // ₹X/pc") and the order price are correct regardless of the backend id.
-      // Keep this list in sync with the price list Eurostar publishes.
-      var BRACELET_PC_PRICE = {
-        'rolex style': 500,
-        'cartier style': 750,
-        'matrix': 750,
-        'obsidian': 500,
-        'omega': 250,
-        'alpha': 250,
-        'designer rakhi': 200,
-        'magnetic halo': 750,
-        'crimson': 500,
-        'gents heavy': 750,
-      };
+      // the real ₹/pc is set here so the storefront card ("from ₹X/pc") and the
+      // order price are correct regardless of the backend id. Matching is by a
+      // distinctive token found in the grade's name or id, so it still applies
+      // if a category name carries extra words or different spacing/case.
+      // Keep this in sync with the price list Eurostar publishes.
+      var BRACELET_PC_PRICE = [
+        { token: 'rolex',    price: 500 },
+        { token: 'cartier',  price: 750 },
+        { token: 'matrix',   price: 750 },
+        { token: 'obsidian', price: 500 },
+        { token: 'omega',    price: 250 },
+        { token: 'alpha',    price: 250 },
+        { token: 'rakhi',    price: 200 },  // Designer Rakhi (double lock)
+        { token: 'halo',     price: 750 },  // Magnetic Halo
+        { token: 'crimson',  price: 500 },  // Crimson (PU flat)
+        { token: 'gents',    price: 750 },  // Gents Heavy (braided)
+      ];
       (GRADES_BY_CATEGORY.bracelet || []).forEach(function (g) {
         if (!g) return;
-        var byName = BRACELET_PC_PRICE[(g.name || '').toLowerCase().trim()];
-        var byId = BRACELET_PC_PRICE[(g.id || '').toLowerCase().replace(/-/g, ' ').trim()];
-        var price = byName != null ? byName : byId;
-        if (price != null) { g.basePrice = price; g.unit = 'pc'; delete g.fromText; }
+        var hay = ((g.name || '') + ' ' + (g.id || '')).toLowerCase();
+        for (var i = 0; i < BRACELET_PC_PRICE.length; i++) {
+          if (hay.indexOf(BRACELET_PC_PRICE[i].token) !== -1) {
+            g.basePrice = BRACELET_PC_PRICE[i].price; g.unit = 'pc'; delete g.fromText;
+            break;
+          }
+        }
       });
 
       // eslint-disable-next-line no-console

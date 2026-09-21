@@ -252,8 +252,13 @@
           if (!Array.isArray(extra) || !extra.length) return;
           var existing = GRADES_BY_CATEGORY[key] || [];
           var seen = {};
-          existing.forEach(function (g) { seen[g.id] = true; });
-          GRADES_BY_CATEGORY[key] = existing.concat(extra.filter(function (g) { return g && g.id && !seen[g.id]; }));
+          var norm = function (s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ''); };
+          existing.forEach(function (g) { if (g) { seen[g.id] = true; seen['n:' + norm(g.name)] = true; } });
+          // Skip a backend grade already provided as a built-in (matched by id OR
+          // by name) so the same style never shows twice.
+          GRADES_BY_CATEGORY[key] = existing.concat(extra.filter(function (g) {
+            return g && g.id && !seen[g.id] && !seen['n:' + norm(g.name)];
+          }));
         });
       }
 

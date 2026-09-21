@@ -350,8 +350,8 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
       {step === 2 && category.id === 'bracelet' &&
       <div className="pricepad-wrap"><PriceWatermark code={custCode} company={custCompany} />
       <BraceletOrderPad grade={grade}
-        colors={(BRACELET_BY_GRADE[grade.id] || {}).colors || colors}
-        imgPrefix={(BRACELET_BY_GRADE[grade.id] || {}).imgPrefix || '/assets/products/bracelet-'}
+        colors={((window.braceletStyleFor && window.braceletStyleFor(grade)) || BRACELET_BY_GRADE[grade.id] || {}).colors || colors}
+        imgPrefix={((window.braceletStyleFor && window.braceletStyleFor(grade)) || BRACELET_BY_GRADE[grade.id] || {}).imgPrefix || '/assets/products/bracelet-'}
         category={category}
         qtyBySize={qtyBySize} setQtyBySize={setQtyBySize}
         onBack={() => pickGrade(null)} addToCart={addToCart} setRoute={setRoute} />
@@ -833,8 +833,8 @@ function BraceletOrderPad({ grade, colors, imgPrefix, category, qtyBySize, setQt
       <div className="brc-layout">
         {/* Left: live preview + quantity for the selected colour */}
         <div className="brc-preview card">
-          <div className="brc-preview-img">
-            <img src={img(sel.id)} alt={sel.name + ' bracelet'} />
+          <div className="brc-preview-img" style={{ backgroundColor: sel.hex || '#eee' }}>
+            <img key={sel.id} src={img(sel.id)} alt={sel.name + ' bracelet'} onError={(e) => { e.target.style.display = 'none'; }} />
           </div>
           <div className="brc-preview-body">
             <div className="brc-preview-name">{sel.name}</div>
@@ -862,7 +862,7 @@ function BraceletOrderPad({ grade, colors, imgPrefix, category, qtyBySize, setQt
             return (
               <button key={c.id} className={`brc-swatch ${c.id === selId ? 'active' : ''}`}
               onClick={() => setSelId(c.id)}>
-                <div className="brc-swatch-img"><img src={img(c.id)} alt={c.name} /></div>
+                <div className="brc-swatch-img" style={{ backgroundColor: c.hex || '#eee' }}><img src={img(c.id)} alt={c.name} onError={(e) => { e.target.style.display = 'none'; }} /></div>
                 <div className="brc-swatch-name">{c.name}</div>
                 {cq > 0 && <span className="brc-swatch-badge">{cq}</span>}
               </button>);

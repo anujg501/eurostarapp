@@ -4250,13 +4250,13 @@ const BRACELET_BY_GRADE = {
 const BRACELET_HERO = {
   cartier: '/assets/products/bracelet-cartier-hero.jpeg',
   rolex: '/assets/products/bracelet-rolex-hero.jpeg',
-  matrix: '/assets/products/bracelet-matrix-hero.jpeg?v=2',
-  obsidian: '/assets/products/bracelet-obsidian-hero.jpeg?v=2',
-  omega: '/assets/products/bracelet-omega-hero.jpeg?v=2',
-  'magnetic-halo': '/assets/products/bracelet-magnetic-halo-hero.jpeg?v=2',
-  'designer-rakhi': '/assets/products/bracelet-designer-rakhi-hero.jpeg?v=2',
-  crimson: '/assets/products/bracelet-crimson-hero.jpeg?v=2',
-  'gents-heavy': '/assets/products/bracelet-gents-heavy-hero.jpeg?v=2',
+  matrix: '/assets/products/bracelet-matrix-hero.jpeg?v=3',
+  obsidian: '/assets/products/bracelet-obsidian-hero.jpeg?v=3',
+  omega: '/assets/products/bracelet-omega-hero.jpeg?v=3',
+  'magnetic-halo': '/assets/products/bracelet-magnetic-halo-hero.jpeg?v=3',
+  'designer-rakhi': '/assets/products/bracelet-designer-rakhi-hero.jpeg?v=3',
+  crimson: '/assets/products/bracelet-crimson-hero.jpeg?v=3',
+  'gents-heavy': '/assets/products/bracelet-gents-heavy-hero.jpeg?v=3',
 };
 // Resolve a bracelet grade to its colour set. Direct id match first; then a
 // normalised-name / token fallback, so a style still finds its colours even if

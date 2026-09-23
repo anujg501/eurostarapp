@@ -1240,11 +1240,13 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   };
   // Natural: per-size ₹/ct comes from the rate sheet (falls back to grade base rate).
   const natRateCt = (size) => natStrip ? (msRateFor(size) || product.price) : product.price;
+  const natPcs = (size) => (natStrip && window.msPcs) ? window.msPcs(grade.id, shape, size) : null;
+  const natHasPcs = natStrip && window.msSizes && window.msSizes(grade.id, shape).some((s) => natPcs(s) != null);
   const msRows = msActive ? window.msSizes(grade.id, shape).map((s) => window.msRow(grade.id, shape, s)) : [];
   const msHasInch = msRows.some((r) => r && r[4] != null);
   const msHasCt = msRows.some((r) => r && r[3] != null);
   const msHasPcs = msRows.some((r) => r && r[2] != null);
-  const stripCols = natStrip ? '96px 120px 96px 1fr 120px'
+  const stripCols = natStrip ? (natHasPcs ? '96px 120px 96px 96px 1fr 120px' : '96px 120px 96px 1fr 120px')
     : msActive ? ['96px', msHasInch ? '78px' : null, msHasCt ? '92px' : null, msHasPcs ? '80px' : null, '104px', '1fr', '120px'].filter(Boolean).join(' ')
     : '120px 160px 1fr 130px';
   const moqUnits = category.id === 'beads' ? 100 : (category.id === 'moissanite' || category.id === 'labgrown' ? 1 : unitMoq(unit));
@@ -1907,6 +1909,7 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
         <div className="size-pad-head" style={{ gridTemplateColumns: stripCols }}>
           <span>Size</span>
           {natStrip && <span style={{ textAlign: 'center' }}>Carats / strip</span>}
+          {natStrip && natHasPcs && <span style={{ textAlign: 'center' }}>Pcs / strip</span>}
           {msActive && msHasInch && <span style={{ textAlign: 'center' }}>Inches</span>}
           {msActive && msHasCt && <span style={{ textAlign: 'center' }}>Approx ct</span>}
           {msActive && msHasPcs && <span style={{ textAlign: 'center' }}>Pcs / line</span>}
@@ -1928,6 +1931,9 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
             </div>
             {natStrip &&
               <div className="size-pad-pcs">{natCarats(s)} <span className="size-pad-unit-sfx">ct</span></div>
+              }
+            {natStrip && natHasPcs &&
+              <div className="size-pad-pcs">{(() => { const p = natPcs(s); return p != null ? <React.Fragment>{p}<span className="size-pad-unit-sfx"> pcs</span></React.Fragment> : <span style={{ color: 'var(--ink-4)' }}>—</span>; })()}</div>
               }
             {msActive && msHasInch &&
               <div className="size-pad-pcs ms-inch">{(() => { const mr = window.msRow(grade.id, shape, s); return mr && mr[4] != null ? <React.Fragment>{mr[4]}<span className="size-pad-unit-sfx"> in</span></React.Fragment> : <span style={{ color: 'var(--ink-4)' }}>—</span>; })()}</div>

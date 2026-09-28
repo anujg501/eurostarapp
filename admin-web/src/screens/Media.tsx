@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   adminApi,
+  getToken,
   uploadImage,
   productImageKey,
   resolveProductImage,
@@ -470,7 +471,7 @@ function ProductPhotos({ standalone = false }: { standalone?: boolean } = {}) {
     return m ? '.' + m[1].toLowerCase().replace('jpeg', 'jpg') : '.jpg';
   };
 
-  const bytesForImage = async (val: string): Promise<Uint8Array | null> => {
+  const bytesForImage = async (key: string, val: string): Promise<Uint8Array | null> => {
     try {
       if (val.startsWith('data:')) {
         const bin = atob(val.slice(val.indexOf(',') + 1));
@@ -478,9 +479,19 @@ function ProductPhotos({ standalone = false }: { standalone?: boolean } = {}) {
         for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
         return arr;
       }
-      const r = await fetch(val, { headers: { accept: 'image/*' } });
-      if (!r.ok) return null;
-      return new Uint8Array(await r.arrayBuffer());
+      // Production photos live on the object store (a different host), which a
+      // browser fetch() cannot read for CORS reasons. Pull the bytes back through
+      // our own origin instead, so this works regardless of where the file lives.
+      const token = getToken();
+      const r = await fetch(`/admin/photo-proxy?key=${encodeURIComponent(key)}`, {
+        headers: { accept: 'image/*', ...(token ? { authorization: `Bearer ${token}` } : {}) },
+      });
+      if (r.ok) return new Uint8Array(await r.arrayBuffer());
+      // Last resort: try the raw URL directly (same-origin relative paths, or a
+      // host that happens to allow CORS).
+      const direct = await fetch(val, { headers: { accept: 'image/*' } });
+      if (!direct.ok) return null;
+      return new Uint8Array(await direct.arrayBuffer());
     } catch {
       return null;
     }
@@ -514,7 +525,7 @@ function ProductPhotos({ standalone = false }: { standalone?: boolean } = {}) {
       const used: Record<string, number> = {};
       let missed = 0;
       for (const k of keys) {
-        const data = await bytesForImage(images[k]);
+        const data = await bytesForImage(k, images[k]);
         if (!data) {
           missed++;
           continue;

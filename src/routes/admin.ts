@@ -113,6 +113,74 @@ kv(
 // Category display order.
 kv(adminRouter, '/catorder', KEYS.catOrder, z.array(z.string()), []);
 
+// GET /admin/photo-proxy?key=<image key> — the bytes of one uploaded product
+// photo, served same-origin. The Admin "Download photos (ZIP)" export needs to
+// READ each image's bytes, but in production the photos live on the object
+// store (a different host), and a browser fetch() cannot read a cross-origin
+// image for CORS reasons — it can only display it. This streams the bytes back
+// through our own origin so the export works. Staff-only. The key is resolved
+// against our own product-images store, so no caller-supplied URL is ever
+// fetched (no SSRF); the resolved link is additionally checked to be our media
+// host before we fetch it.
+adminRouter.get(
+  '/photo-proxy',
+  ...officeOnly,
+  asyncHandler(async (req, res) => {
+    const key = typeof req.query.key === 'string' ? req.query.key.trim() : '';
+    if (!key) return fail(res, 400, 'Pass ?key=category|colour|shape');
+
+    const images = await getSetting<Record<string, string>>(KEYS.productImages, {});
+    const val = images[key];
+    if (!val) return fail(res, 404, 'No image for that key');
+
+    // Inlined base64 (no object store configured) — decode and serve.
+    const m = /^data:([^;,]+);base64,(.+)$/i.exec(val);
+    if (m) {
+      res.setHeader('Content-Type', m[1]);
+      res.setHeader('Cache-Control', 'private, max-age=60');
+      return res.end(Buffer.from(m[2], 'base64'));
+    }
+
+    // Otherwise a link to the media host. Allow ONLY our object store, never an
+    // arbitrary URL, then stream the bytes back same-origin.
+    const target = val.startsWith('//') ? `https:${val}` : val;
+    let host = '';
+    try {
+      host = new URL(target).host;
+    } catch {
+      return fail(res, 400, 'Bad image URL');
+    }
+    let publicBaseHost = '';
+    if (config.spaces.publicBase) {
+      try {
+        publicBaseHost = new URL(
+          /^https?:\/\//i.test(config.spaces.publicBase) ? config.spaces.publicBase : `https://${config.spaces.publicBase}`
+        ).host;
+      } catch {
+        /* ignore a malformed publicBase */
+      }
+    }
+    const allowed =
+      host.endsWith('.digitaloceanspaces.com') ||
+      (!!config.spaces.bucket && host.includes(config.spaces.bucket)) ||
+      (!!publicBaseHost && host === publicBaseHost);
+    if (!allowed) return fail(res, 400, 'Image host not allowed');
+
+    let upstream: Response;
+    try {
+      upstream = await fetch(target);
+    } catch {
+      return fail(res, 502, 'Could not reach the media host');
+    }
+    if (!upstream.ok) return fail(res, 502, `Media host returned ${upstream.status}`);
+    const ct = upstream.headers.get('content-type') || 'image/jpeg';
+    const buf = Buffer.from(await upstream.arrayBuffer());
+    res.setHeader('Content-Type', ct);
+    res.setHeader('Cache-Control', 'private, max-age=60');
+    return res.end(buf);
+  })
+);
+
 // Marketing splash pop-up shown in the Sales app.
 adminRouter.get(
   '/splash',

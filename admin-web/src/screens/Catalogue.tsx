@@ -118,10 +118,9 @@ function buildCatalogue(cat__: Catalog, images: ProductImages): CatGroup[] {
   return out;
 }
 
-// The professional print document (self-contained HTML + CSS).
+// The professional print document (self-contained HTML + CSS), organised
+// category → grade → colour → shape.
 function catalogueHtml(groups: CatGroup[]): string {
-  const today = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
-
   const card = (colourName: string, it: Item) => `
     <figure class="pc">
       <div class="pc-img"><img src="${esc(it.url)}" alt="${esc(colourName + ' ' + it.shapeName)}" loading="lazy"
@@ -155,6 +154,15 @@ function catalogueHtml(groups: CatGroup[]): string {
     </section>`,
     )
     .join('');
+
+  return docHtml(sections);
+}
+
+// Shared print-document shell: cover page, the caller's sections, and the back
+// page with the office details. Both the by-category and by-shape catalogues
+// pour their sections into this so the two stay visually identical.
+function docHtml(sections: string): string {
+  const today = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
 
   const offices = COMPANY.offices
     .map(([label, addr]) => `<p><b>${esc(label)}:</b><br/>${esc(addr)}</p>`)
@@ -237,12 +245,133 @@ function catalogueHtml(groups: CatGroup[]): string {
 </body></html>`;
 }
 
+// ── By-shape organisation ───────────────────────────────────────────────────
+// Same photos, regrouped so the top level is the SHAPE and every colour that
+// exists in that shape sits under it (grouped by category). This is the
+// "catalogue of all colours, shape-wise" view.
+type ShapeItem = {
+  cat: string;
+  catName: string;
+  grade: string;
+  gradeName: string;
+  colour: string;
+  colourName: string;
+  hex?: string;
+  url: string;
+};
+type ShapeGroup = { shape: string; shapeName: string; items: ShapeItem[]; count: number };
+
+// Jewellery-trade reading order; any shape not listed sorts after, alphabetically.
+const SHAPE_ORDER = [
+  'round', 'oval', 'pear', 'marquise', 'princess', 'cushion', 'heart', 'trillion', 'triangle',
+  'asscher', 'radiant', 'emerald', 'baguette', 'baguette-step', 'baguette-prince', 'tapered', 'tapper',
+  'octagon-step', 'octagon-princess', 'square', 'hexagon', 'long-hexa', 'kite', 'star',
+];
+
+function buildByShape(cat__: Catalog, images: ProductImages): ShapeGroup[] {
+  const colourInfo = (cat: string, colour: string): { name: string; hex?: string } => {
+    if (colour === '_packet') return { name: 'Packet' };
+    const cbg = cat__[cat]?.coloursByGrade || {};
+    for (const g of Object.keys(cbg)) {
+      const hit = cbg[g].find((c) => c.id === colour);
+      if (hit) return { name: hit.name, hex: hit.hex };
+    }
+    return { name: titleCase(colour) };
+  };
+  const gradeInfo = (cat: string, grade: string): string =>
+    grade ? cat__[cat]?.grades.find((g) => g.id === grade)?.name || titleCase(grade) : '';
+  const catNameOf = (cat: string): string => cat__[cat]?.name || titleCase(cat);
+
+  const byShape: Record<string, ShapeItem[]> = {};
+  for (const [key, url] of Object.entries(images)) {
+    if (!url) continue;
+    const parts = key.split('|');
+    const cat = parts[0];
+    let grade = '';
+    let colour = '';
+    let shape = '';
+    if (GRADE_SCOPED[cat] && parts.length === 4) {
+      grade = parts[1];
+      colour = parts[2];
+      shape = parts[3];
+    } else if (parts.length === 3) {
+      colour = parts[1];
+      shape = parts[2];
+    } else {
+      continue;
+    }
+    if (!cat || !colour || !shape) continue;
+    if (colour.startsWith('_') && colour !== '_packet') continue;
+    const cn = colourInfo(cat, colour);
+    (byShape[shape] ??= []).push({
+      cat,
+      catName: catNameOf(cat),
+      grade,
+      gradeName: gradeInfo(cat, grade),
+      colour,
+      colourName: cn.name,
+      hex: cn.hex,
+      url,
+    });
+  }
+
+  const out: ShapeGroup[] = Object.keys(byShape).map((shape) => {
+    const items = byShape[shape]
+      .slice()
+      .sort((a, b) => a.catName.localeCompare(b.catName) || a.colourName.localeCompare(b.colourName));
+    return { shape, shapeName: SHAPE_NAMES[shape] || titleCase(shape), items, count: items.length };
+  });
+  out.sort(
+    (a, b) =>
+      ((SHAPE_ORDER.indexOf(a.shape) + 1 || 99) - (SHAPE_ORDER.indexOf(b.shape) + 1 || 99)) ||
+      a.shapeName.localeCompare(b.shapeName),
+  );
+  return out;
+}
+
+// The print document for the by-shape catalogue. Reuses docHtml's shell + CSS so
+// it matches the by-category one exactly; a section per shape, cards grouped by
+// category, each card labelled with its colour (and category · grade beneath).
+function catalogueHtmlByShape(groups: ShapeGroup[]): string {
+  const card = (it: ShapeItem) => `
+    <figure class="pc">
+      <div class="pc-img"><img src="${esc(it.url)}" alt="${esc(it.colourName + ' ' + it.catName)}" loading="lazy"
+        onerror="this.parentNode.classList.add('pc-broken');this.remove();"/></div>
+      <figcaption><b>${esc(it.colourName)}</b><span>${esc(it.gradeName ? it.catName + ' · ' + it.gradeName : it.catName)}</span></figcaption>
+    </figure>`;
+
+  const sections = groups
+    .map((g) => {
+      const byCat: Record<string, { catName: string; items: ShapeItem[] }> = {};
+      for (const it of g.items) (byCat[it.cat] ??= { catName: it.catName, items: [] }).items.push(it);
+      const cats = Object.keys(byCat).sort((a, b) => byCat[a].catName.localeCompare(byCat[b].catName));
+      return `
+    <section class="cat">
+      <div class="cat-head"><h2>${esc(g.shapeName)}</h2><div class="cat-rule"></div>
+        <p class="cat-sub">${g.count} design${g.count === 1 ? '' : 's'} · every colour</p></div>
+      ${cats
+        .map(
+          (c) => `
+        <div class="grade">
+          <h3>${esc(byCat[c].catName)}</h3>
+          <div class="grid">${byCat[c].items.map(card).join('')}</div>
+        </div>`,
+        )
+        .join('')}
+    </section>`;
+    })
+    .join('');
+
+  return docHtml(sections);
+}
+
 export function Catalogue() {
   const [images, setImages] = useState<ProductImages>({});
   const [cat__, setCat__] = useState<Catalog>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [picked, setPicked] = useState<Record<string, boolean>>({});
+  const [mode, setMode] = useState<'category' | 'shape'>('category');
 
   useEffect(() => {
     (async () => {
@@ -260,6 +389,7 @@ export function Catalogue() {
   }, []);
 
   const groups = useMemo(() => buildCatalogue(cat__, images), [cat__, images]);
+  const shapeGroupsAll = useMemo(() => buildByShape(cat__, images), [cat__, images]);
 
   // Default: everything with photos is selected.
   useEffect(() => {
@@ -267,14 +397,28 @@ export function Catalogue() {
   }, [groups]);
 
   const selected = groups.filter((g) => picked[g.cat]);
-  const totalPhotos = selected.reduce((n, g) => n + g.count, 0);
+
+  // By-shape view of the SAME picked categories: filter each shape's items to
+  // the ticked categories and drop any shape left empty, re-counting as we go.
+  const selectedShape: ShapeGroup[] = shapeGroupsAll
+    .map((g) => {
+      const items = g.items.filter((it) => picked[it.cat]);
+      return { ...g, items, count: items.length };
+    })
+    .filter((g) => g.count > 0);
+
+  const totalPhotos =
+    mode === 'category'
+      ? selected.reduce((n, g) => n + g.count, 0)
+      : selectedShape.reduce((n, g) => n + g.count, 0);
+  const hasSelection = mode === 'category' ? selected.length > 0 : selectedShape.length > 0;
 
   const generate = () => {
-    if (!selected.length) {
+    if (!hasSelection) {
       alert('Pick at least one category to include.');
       return;
     }
-    const html = catalogueHtml(selected);
+    const html = mode === 'category' ? catalogueHtml(selected) : catalogueHtmlByShape(selectedShape);
     const w = window.open('', '_blank');
     if (!w) {
       alert('Please allow pop-ups for this site, then click Generate again — the catalogue opens in a new tab.');
@@ -292,9 +436,10 @@ export function Catalogue() {
       <div className="ad-pagehead">
         <h2>Product catalogue (PDF)</h2>
         <p className="ad-muted">
-          Make a professional PDF lookbook from the photos you have uploaded — cover, your office details, and a section
-          per category organised by grade → colour → shape (photo &amp; name). Tick the categories you want (one, a few,
-          or all), then Generate — it opens a print-ready page; choose <b>Save as PDF</b>.
+          Make a professional PDF lookbook from the photos you have uploaded — cover, your office details, and the
+          photos with names. Choose how to organise it: <b>by category</b> (grade → colour → shape) or <b>by shape</b>{' '}
+          (each shape with every colour under it). Tick the categories to include, then Generate — it opens a print-ready
+          page; choose <b>Save as PDF</b>.
         </p>
       </div>
 
@@ -308,6 +453,40 @@ export function Catalogue() {
       ) : (
         <>
           <section className="ad-card ad-card-pad" style={{ marginBottom: 16 }}>
+            <div className="ad-row" style={{ alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 14 }}>
+              <strong>Organise by</strong>
+              <div style={{ display: 'inline-flex', border: '1px solid var(--line,#e6e2d6)', borderRadius: 8, overflow: 'hidden' }}>
+                <button
+                  className="ad-btn ad-btn-sm"
+                  style={{
+                    borderRadius: 0,
+                    border: 0,
+                    background: mode === 'category' ? 'var(--brand,#0e3a2e)' : 'transparent',
+                    color: mode === 'category' ? '#fff' : 'inherit',
+                  }}
+                  onClick={() => setMode('category')}
+                >
+                  Category → colour → shape
+                </button>
+                <button
+                  className="ad-btn ad-btn-sm"
+                  style={{
+                    borderRadius: 0,
+                    border: 0,
+                    background: mode === 'shape' ? 'var(--brand,#0e3a2e)' : 'transparent',
+                    color: mode === 'shape' ? '#fff' : 'inherit',
+                  }}
+                  onClick={() => setMode('shape')}
+                >
+                  Shape → every colour
+                </button>
+              </div>
+              <span className="ad-muted" style={{ fontSize: 12.5 }}>
+                {mode === 'shape'
+                  ? 'One section per shape, with every colour (across the ticked categories) shown under it.'
+                  : 'One section per category, organised grade → colour → shape.'}
+              </span>
+            </div>
             <div className="ad-row" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
               <strong>Categories to include</strong>
               <span className="ad-row" style={{ gap: 8 }}>
@@ -328,8 +507,10 @@ export function Catalogue() {
 
           <section className="ad-card ad-card-pad">
             <div className="ad-row" style={{ gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-              <button className="ad-btn ad-btn-pri" disabled={!selected.length} onClick={generate}>
-                Generate catalogue ({selected.length} categor{selected.length === 1 ? 'y' : 'ies'}, {totalPhotos} photo{totalPhotos === 1 ? '' : 's'})
+              <button className="ad-btn ad-btn-pri" disabled={!hasSelection} onClick={generate}>
+                {mode === 'shape'
+                  ? `Generate catalogue (${selectedShape.length} shape${selectedShape.length === 1 ? '' : 's'}, ${totalPhotos} photo${totalPhotos === 1 ? '' : 's'})`
+                  : `Generate catalogue (${selected.length} categor${selected.length === 1 ? 'y' : 'ies'}, ${totalPhotos} photo${totalPhotos === 1 ? '' : 's'})`}
               </button>
               <span className="ad-muted" style={{ fontSize: 13 }}>
                 Opens a new tab → click <b>🖨 Save as PDF</b> at the top. For one category, tick just that one; to combine, tick a few.

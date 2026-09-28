@@ -13,6 +13,7 @@ import {
   type ProductImages,
 } from '../lib/api';
 import { useImageCropper } from './ImageCropper';
+import { makeZip, type ZipEntry } from '../lib/zip';
 
 // Shared "Save changes" UX for the image screens. Uploads still push the file
 // to storage on pick, but the key→url map (what the Sales App actually reads)
@@ -310,6 +311,7 @@ function ProductPhotos({ standalone = false }: { standalone?: boolean } = {}) {
   const [loading, setLoading] = useState(true);
   const { dirty, setDirty, saveState, setSaveState } = useSaveBar();
   const { cropNode, requestCrop } = useImageCropper();
+  const [exporting, setExporting] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -442,6 +444,128 @@ function ProductPhotos({ standalone = false }: { standalone?: boolean } = {}) {
     { id: 'shampoo', name: 'AA Shampoo Packet' },
   ];
 
+  // ── Export photos as a ZIP ────────────────────────────────────────────────
+  // Downloads the actual uploaded photos straight from the operator's browser
+  // (where they already are), so it works even when a photo lives on the server.
+  // Grade-scoped keys are "cat|grade|colour|shape"; legacy keys "cat|colour|shape".
+  const EXPORT_CAT_FOLDER: Record<string, string> = {
+    cz: 'Color-CZ',
+    corundum: 'Synthetic-Corundum',
+    alpanite: 'Alpanite',
+  };
+  const shapeOf = (key: string) => {
+    const p = key.split('|');
+    return p[p.length - 1];
+  };
+  const catOf = (key: string) => key.split('|')[0];
+
+  const extForImage = (val: string): string => {
+    if (val.startsWith('data:')) {
+      const m = /^data:image\/([a-z0-9+]+)/i.exec(val);
+      const e = m ? m[1].toLowerCase() : 'jpg';
+      return '.' + (e === 'jpeg' ? 'jpg' : e);
+    }
+    const clean = val.split('?')[0].split('#')[0];
+    const m = /\.(jpe?g|png|webp|gif|avif)$/i.exec(clean);
+    return m ? '.' + m[1].toLowerCase().replace('jpeg', 'jpg') : '.jpg';
+  };
+
+  const bytesForImage = async (val: string): Promise<Uint8Array | null> => {
+    try {
+      if (val.startsWith('data:')) {
+        const bin = atob(val.slice(val.indexOf(',') + 1));
+        const arr = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+        return arr;
+      }
+      const r = await fetch(val, { headers: { accept: 'image/*' } });
+      if (!r.ok) return null;
+      return new Uint8Array(await r.arrayBuffer());
+    } catch {
+      return null;
+    }
+  };
+
+  const zipNameForKey = (key: string, val: string): { folder: string; file: string } => {
+    const parts = key.split('|');
+    let c = '';
+    let grade = '';
+    let colour = '';
+    let shape = '';
+    if (parts.length >= 4) [c, grade, colour, shape] = parts;
+    else if (parts.length === 3) [c, colour, shape] = parts;
+    else [c, colour] = parts;
+    const folder = EXPORT_CAT_FOLDER[c] || cats.find((x) => x.key === c)?.name || c;
+    const file = [grade, colour, shape].filter(Boolean).join('__') + extForImage(val);
+    return { folder, file };
+  };
+
+  const runExport = async (label: string, zipFile: string, match: (key: string) => boolean) => {
+    if (exporting) return;
+    const keys = Object.keys(images).filter((k) => images[k] && match(k));
+    if (!keys.length) {
+      alert('No photos found for that selection yet.');
+      return;
+    }
+    setExporting(label);
+    setError('');
+    try {
+      const entries: ZipEntry[] = [];
+      const used: Record<string, number> = {};
+      let missed = 0;
+      for (const k of keys) {
+        const data = await bytesForImage(images[k]);
+        if (!data) {
+          missed++;
+          continue;
+        }
+        const { folder, file } = zipNameForKey(k, images[k]);
+        const baseName = `${folder}/${file}`;
+        let name = baseName;
+        if (used[baseName]) {
+          const dot = file.lastIndexOf('.');
+          const base = dot > 0 ? file.slice(0, dot) : file;
+          const ext = dot > 0 ? file.slice(dot) : '';
+          name = `${folder}/${base}-${used[baseName] + 1}${ext}`;
+        }
+        used[baseName] = (used[baseName] || 0) + 1;
+        entries.push({ name, data });
+      }
+      if (!entries.length) {
+        alert('Could not download any of those photos (network problem?). Nothing was saved.');
+        return;
+      }
+      const blob = makeZip(entries);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = zipFile;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      if (missed) {
+        setError(`Downloaded ${entries.length} photo(s); ${missed} could not be fetched and were skipped.`);
+      }
+    } finally {
+      setExporting('');
+    }
+  };
+
+  const exportMarquiseTrio = () =>
+    runExport(
+      'marquise',
+      'eurostar-marquise-photos.zip',
+      (k) => ['cz', 'corundum', 'alpanite'].includes(catOf(k)) && shapeOf(k) === 'marquise',
+    );
+  const exportThisCategory = () =>
+    runExport('category', `eurostar-${cat || 'category'}-photos.zip`, (k) => k === cat || k.startsWith(cat + '|'));
+  const exportEverything = () => runExport('all', 'eurostar-all-product-photos.zip', () => true);
+
+  const marquiseCount = Object.keys(images).filter(
+    (k) => images[k] && ['cz', 'corundum', 'alpanite'].includes(catOf(k)) && shapeOf(k) === 'marquise',
+  ).length;
+
   if (loading) return <section className="ad-card ad-card-pad ad-muted">Loading…</section>;
 
   return (
@@ -489,6 +613,52 @@ function ProductPhotos({ standalone = false }: { standalone?: boolean } = {}) {
           </button>
         </div>
       </div>
+
+      <div
+        style={{
+          display: 'flex',
+          gap: 10,
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          marginTop: 14,
+          padding: '12px 14px',
+          border: '1px solid var(--line, #e6e2d6)',
+          borderRadius: 10,
+          background: 'var(--paper-2, #faf8f2)',
+        }}
+      >
+        <span style={{ fontWeight: 600, fontSize: 13 }}>⬇ Download photos as ZIP</span>
+        <button
+          className="ad-btn ad-btn-pri ad-btn-sm"
+          disabled={!!exporting}
+          title="Downloads every uploaded Marquise photo across Color CZ, Synthetic Corundum and Alpanite as one .zip."
+          onClick={() => void exportMarquiseTrio()}
+        >
+          {exporting === 'marquise'
+            ? 'Preparing…'
+            : `Marquise — CZ · Corundum · Alpanite${marquiseCount ? ` (${marquiseCount})` : ''}`}
+        </button>
+        <button
+          className="ad-btn ad-btn-ghost ad-btn-sm"
+          disabled={!!exporting || !catImageKeys.length}
+          title="Downloads every uploaded photo in the category selected above."
+          onClick={() => void exportThisCategory()}
+        >
+          {exporting === 'category' ? 'Preparing…' : `This category${catImageKeys.length ? ` (${catImageKeys.length})` : ''}`}
+        </button>
+        <button
+          className="ad-btn ad-btn-ghost ad-btn-sm"
+          disabled={!!exporting}
+          title="Downloads every uploaded product photo across all categories."
+          onClick={() => void exportEverything()}
+        >
+          {exporting === 'all' ? 'Preparing…' : 'Every product photo'}
+        </button>
+        <span className="ad-muted" style={{ fontSize: 12, flexBasis: '100%', marginTop: 2 }}>
+          Photos download straight to this device — real uploaded images, grouped in folders by category.
+        </span>
+      </div>
+
       {scoped && (
         <p className="ad-muted" style={{ marginTop: 10, marginBottom: 0, fontSize: 12.5 }}>
           Each grade has its own photos — switch the grade above to give{' '}

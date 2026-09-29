@@ -566,7 +566,7 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
              the Synthetic Corundum (lab ruby) range. Lets a customer see that an
              IGI report on the goods reads "Laboratory Grown Corundum". The image
              lives under /assets/products/ so the site-wide lightbox zooms it. */}
-          {((category.id === 'multisapphire' && grade.id === 'labcreated') || category.id === 'corundum') &&
+          {((category.id === 'multisapphire' && grade.id === 'labcreated') || category.id === 'corundum' || (category.id === 'labgrown' && grade.id === 'labcorundum')) &&
         <div style={{ marginTop: 28, padding: '22px 20px', border: '1px solid var(--line, #e6e2d6)',
             borderRadius: 14, background: 'var(--paper-2, #faf8f2)' }}>
             <div style={{ maxWidth: 760, margin: '0 auto 16px', textAlign: 'center' }}>

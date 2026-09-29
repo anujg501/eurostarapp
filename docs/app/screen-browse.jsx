@@ -561,6 +561,33 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
           })}
           </div>
 
+          {/* Lab-grown corundum proof — shown under the shapes for the grades that
+             genuinely test as laboratory-grown corundum: Lab Sapphire strips and
+             the Synthetic Corundum (lab ruby) range. Lets a customer see that an
+             IGI report on the goods reads "Laboratory Grown Corundum". The image
+             lives under /assets/products/ so the site-wide lightbox zooms it. */}
+          {((category.id === 'multisapphire' && grade.id === 'labcreated') || category.id === 'corundum') &&
+        <div style={{ marginTop: 28, padding: '22px 20px', border: '1px solid var(--line, #e6e2d6)',
+            borderRadius: 14, background: 'var(--paper-2, #faf8f2)' }}>
+            <div style={{ maxWidth: 760, margin: '0 auto 16px', textAlign: 'center' }}>
+              <div style={{ fontSize: 12, letterSpacing: '.14em', textTransform: 'uppercase',
+                color: 'var(--fg-meta, #8a8578)', fontWeight: 700, marginBottom: 6 }}>Certification</div>
+              <h3 style={{ margin: '0 0 8px', fontSize: 22 }}>Independently certifiable as laboratory-grown corundum</h3>
+              <p style={{ margin: 0, color: 'var(--fg-meta, #6b675d)', fontSize: 14, lineHeight: 1.55 }}>
+                These are genuine lab-grown corundum. Send any stone for testing and the report reads{' '}
+                <strong>“Laboratory Grown Corundum”</strong> — the same crystal, colour and 9-Mohs hardness as
+                natural sapphire &amp; ruby. Tap the certificate to zoom in; verify any report at igi.org.
+              </p>
+            </div>
+            <img src="/assets/products/igi-lab-sapphire-cert.jpg"
+              alt="IGI Identification Report — Laboratory Grown Corundum (Laboratory Grown Ruby), report 817649367"
+              loading="lazy"
+              style={{ display: 'block', width: '100%', maxWidth: 900, margin: '0 auto', height: 'auto',
+                borderRadius: 10, border: '1px solid var(--line, #e6e2d6)', cursor: 'zoom-in',
+                boxShadow: '0 2px 14px rgba(0,0,0,.06)' }} />
+          </div>
+        }
+
           {category.id === 'moissanite' && grade.id === 'def' &&
         <div className="moiss-docs">
             <div className="moiss-docs-head">

@@ -24,6 +24,7 @@
   }
   function close() {
     overlay.classList.remove('open');
+    overlay.classList.remove('lb-photo-mode');
     overlay.style.display = 'none';
     stage.innerHTML = '';
     cap.textContent = '';
@@ -31,6 +32,7 @@
   }
 
   function openFromImg(img) {
+    overlay.classList.add('lb-photo-mode');
     stage.style.background = '#fff';
     stage.innerHTML = '';
     var bi = document.createElement('img');
@@ -46,6 +48,7 @@
     var img = container.querySelector('img');
     if (img) { openFromImg(img); return; }
     // Vector gem render — clone the whole tile so the backdrop comes along
+    overlay.classList.remove('lb-photo-mode');
     var cs = getComputedStyle(container);
     stage.style.background = cs.backgroundColor && cs.backgroundColor !== 'rgba(0, 0, 0, 0)'
       ? cs.backgroundColor : 'var(--paper-2)';

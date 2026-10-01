@@ -488,7 +488,8 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
             </div>
             <div className="moiss-docs-cards" style={{ gridTemplateColumns: '1fr' }}>
               <DocUploadCard catId="labgrown" gradeId="labgrown" docId="igi"
-            label="IGI Certificate" caption="Sample IGI certificate" />
+            label="IGI Certificate" caption="Sample IGI certificate"
+            defaultImg="/assets/products/igi-lab-emerald-cert.jpg" />
             </div>
           </div>
         }

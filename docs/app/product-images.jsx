@@ -186,7 +186,7 @@ function ProductHero({ category, color, shape, grade, photo, hex, lightenTone })
 
 // Document upload card (warranty card / certificate) — keyed independently of colour/shape.
 // storeKey parts are joined the same way as product images, so it persists in the same store.
-function DocUploadCard({ catId, gradeId, docId, label, caption }) {
+function DocUploadCard({ catId, gradeId, docId, label, caption, defaultImg }) {
   const [img, setImg] = React.useState(() => getStoredProductImage(catId, '_' + docId, gradeId));
   const [busy, setBusy] = React.useState(false);
   const fileRef = React.useRef(null);
@@ -217,6 +217,8 @@ function DocUploadCard({ catId, gradeId, docId, label, caption }) {
       <div className="doc-card-art pad-header-art" style={{ position: 'relative' }}>
         {img
           ? <img src={img} alt={label} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+          : defaultImg
+          ? <img src={defaultImg} alt={label} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           : <div className="doc-card-empty">{label}</div>}
         <input ref={fileRef} type="file" accept="image/*" onChange={onPick} style={{ display: 'none' }} />
         <button type="button" data-no-zoom className="hero-upload-btn"

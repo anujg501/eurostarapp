@@ -487,9 +487,17 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
                  issued individually and provided with your order.</p>
             </div>
             <div className="moiss-docs-cards" style={{ gridTemplateColumns: '1fr' }}>
-              <DocUploadCard catId="labgrown" gradeId="labgrown" docId="igi"
-            label="IGI Certificate" caption="Sample IGI certificate"
-            defaultImg="/assets/products/igi-lab-emerald-cert.jpg" />
+              <figure style={{ margin: 0 }}>
+                <img src="/assets/products/igi-lab-emerald-cert.jpg"
+                  alt="IGI Colored Stone Report — Laboratory Grown Emerald (Beryl), report 803622976"
+                  loading="lazy"
+                  style={{ display: 'block', width: '100%', height: 'auto', borderRadius: 10,
+                    border: '1px solid var(--line, #e6e2d6)', cursor: 'zoom-in',
+                    boxShadow: '0 2px 14px rgba(0,0,0,.06)' }} />
+                <figcaption style={{ marginTop: 8, fontSize: 12.5, color: 'var(--fg-meta, #8a8578)', textAlign: 'center' }}>
+                  Sample IGI certificate · tap to zoom
+                </figcaption>
+              </figure>
             </div>
           </div>
         }

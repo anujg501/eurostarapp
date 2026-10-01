@@ -140,7 +140,7 @@ function App() {
       // product (e.g. ?go=moissanite~def~white~alphabet). Grade/colour/shape are
       // optional — the browse screen seeds its steps from whatever is provided.
       // Short, memorable aliases expand to the full path so shared links stay tidy.
-      const GO_ALIASES = { alphabet: 'moissanite~def~white~alphabet' };
+      const GO_ALIASES = { alphabet: 'moissanite~def~white~alphabet', predrilled: 'predrilled~predrilled' };
       let go = p.get('go');
       if (go && GO_ALIASES[go]) go = GO_ALIASES[go];
       if (go) {

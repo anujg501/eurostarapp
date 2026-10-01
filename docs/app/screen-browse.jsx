@@ -162,7 +162,10 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
   React.useEffect(() => {
     if (deepLinkedRef.current) return;
     deepLinkedRef.current = true;
-    if (route.grade && !colorId && Array.isArray(colors) && colors.length === 1) setColorId(colors[0].id);
+    // Pre-Drilled lands on its own stone pad at the colour step (step 2), so do
+    // NOT auto-pick its single colour — that would skip past the pad to a shape
+    // grid it doesn't use. Every other single-colour line still auto-advances.
+    if (route.grade && !colorId && Array.isArray(colors) && colors.length === 1 && route.cat !== 'predrilled') setColorId(colors[0].id);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const step = !grade || needsSub ? 1 : !color || needsSubShade ? 2 : (!shape || needsSubShape) ? 3 : 4;

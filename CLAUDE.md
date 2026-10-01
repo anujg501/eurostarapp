@@ -52,3 +52,10 @@ When the user uploads a price-list spreadsheet for a colour/grade:
 ## Product images (per-grade)
 - Photos are stored via the backend (`PUT /admin/product-images`), keyed `cat|colour|shape`, or `cat|grade|colour|shape` for grade-scoped categories.
 - Grade-scoped categories (grade is the real visual variant, or colours repeat across grades): `mop, multisapphire, opaque, labgrown, navratna, hollowmop, bracelet`. Keep `PIMG_GRADE_SCOPED` (storefront `docs/app/product-images.jsx`) and `GRADE_SCOPED` (`admin-web/src/lib/api.ts`) in sync.
+
+## Eurostar Fine (gold jewellery site, `docs/fine/`)
+- Served at `/fine/`. 14K/18K made-to-order jewellery using shop gems; see `docs/fine/README.md`.
+- Price = gold (weight × 24K rate × purity; 18K weight = 14K × 1.18) + making ₹1,500/g (min ₹2,500/piece) + stones (shop price × progressive markup 10×/6×/4× slabs) + 3% GST.
+- Stone prices come live from `docs/price-snapshot.json` — never hard-code them. Gold rate lives in `docs/fine/gold-rate.json`.
+- After a price-sheet change or design edit, run `node scripts/check-fine-prices.cjs` (exit 1 = a design uses a stone the shop no longer prices).
+- Always label gems honestly (moissanite / lab-grown / created / natural). Don't use CZ, Rajkot, Prizma, beads or fashion grades in the fine line.

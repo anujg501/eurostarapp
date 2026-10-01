@@ -334,7 +334,10 @@
 
   async function boot() {
     const get = (u) => fetch(u, { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
-    const [snapshot, weights, goldRate] = await Promise.all([get('../price-snapshot.json'), get('moiss-weights.json'), get('gold-rate.json')]);
+    // A standalone copy (single HTML file) carries its data inline as FINE_DATA.
+    const pre = window.FINE_DATA;
+    const [snapshot, weights, goldRate] = pre ? [pre.snapshot, pre.weights, pre.goldRate]
+      : await Promise.all([get('../price-snapshot.json'), get('moiss-weights.json'), get('gold-rate.json')]);
     if (!snapshot) {
       $app.innerHTML = '<div class="wrap"><div class="page-head"><h1>We\'ll be right back</h1><p>Prices could not be loaded. Please refresh in a moment.</p></div></div>';
       return;

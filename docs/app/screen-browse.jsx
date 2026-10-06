@@ -557,6 +557,7 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
               category.id === 'navratna' && window.navSizes ? window.navSizes(_gid, s) :
               category.id === 'labgrown' && _gid === 'labgrown' && window.lgSizes ? window.lgSizes(_cid, s) :
               category.id === 'multisapphire' && window.msSizes ? window.msSizes(_gid, s) :
+              category.id === 'icecut' && window.icecutShapeRows ? window.icecutShapeRows(s).map((r) => r.s) :
               category.id === 'moissanite' && s === 'alphabet' && window.moissAlphabetSizes ? window.moissAlphabetSizes(s) :
               [];
             let sizes = sheetSizesForCard.length ? sheetSizesForCard : skuSizesForCard.length ? skuSizesForCard : category.id === 'mop' ? window.MOP_PRICES[s] || [] : FULL_SIZES[s] || ['4.00 mm'];

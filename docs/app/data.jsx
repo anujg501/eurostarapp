@@ -61,7 +61,7 @@ const CATEGORIES = [
   { id: 'clover', name: 'Clover', short: 'Clover',
     blurb: 'Four-leaf clover motifs in natural & synthetic stones.',
     count: 240 },
-  { id: 'icecut', name: 'Ice Cut Stones', short: 'Ice Cut',
+  { id: 'icecut', name: 'Ice Cut Stones', short: 'Ice Cut', skipGrade: true,
     blurb: 'Frosted ice-cut stones with a soft matte sparkle.',
     count: 160 },
   { id: 'ourosa', name: 'Ourosa', short: 'Ourosa', skipGrade: true,

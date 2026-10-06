@@ -250,6 +250,10 @@
           if (czIdx >= 0) mapped.splice(czIdx + 1, 0, predrilledCat);
           else mapped.push(predrilledCat);
         }
+        // Ice Cut has a single grade; force the grade step to be skipped (the
+        // backend category may not carry the flag). The colour step is first.
+        var mappedIce = mapped.filter(function (c) { return c.id === 'icecut'; })[0];
+        if (mappedIce) mappedIce.skipGrade = true;
         Array.prototype.splice.apply(CATEGORIES, [0, CATEGORIES.length].concat(mapped));
       }
 

@@ -114,6 +114,23 @@ const ICECUT_SHAPES = {
     { s: '9 mm',  ps: '9×9 mm',  wt: 7.75, pcs: 25 },
     { s: '10 mm', ps: '10×10 mm',wt: 11.25, pcs: 25 },
   ] },
+  cushion: { name: 'Cushion', group: 'g2', rows: [
+    { s: '4 mm',  ps: '4×4 mm',  wt: 0.70, pcs: 100 },
+    { s: '5 mm',  ps: '5×5 mm',  wt: 1.25, pcs: 50 },
+    { s: '6 mm',  ps: '6×6 mm',  wt: 2.25, pcs: 50 },
+    { s: '7 mm',  ps: '7×7 mm',  wt: 3.30, pcs: 25 },
+    { s: '8 mm',  ps: '8×8 mm',  wt: 4.95, pcs: 25 },
+    { s: '9 mm',  ps: '9×9 mm',  wt: 7.65, pcs: 25 },
+    { s: '10 mm', ps: '10×10 mm',wt: 10.40, pcs: 25 },
+  ] },
+  'oblong-cushion': { name: 'Oblong Cushion', group: 'g1', rows: [
+    { s: '6×4 mm',  ps: '6×4 mm',  wt: 1.00, pcs: 50 },
+    { s: '7×5 mm',  ps: '7×5 mm',  wt: 1.75, pcs: 50 },
+    { s: '8×6 mm',  ps: '8×6 mm',  wt: 2.65, pcs: 25 },
+    { s: '9×7 mm',  ps: '9×7 mm',  wt: 4.30, pcs: 25 },
+    { s: '10×8 mm', ps: '10×8 mm', wt: 6.10, pcs: 25 },
+    { s: '11×9 mm', ps: '11×9 mm', wt: 8.80, pcs: 25 },
+  ] },
 };
 
 const icecutShapeRows = (shape) => (ICECUT_SHAPES[shape] && ICECUT_SHAPES[shape].rows) || [];

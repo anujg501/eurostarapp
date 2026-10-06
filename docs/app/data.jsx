@@ -725,7 +725,7 @@ const SHAPES_BY_CATEGORY = {
   pearls:     ['fulldrilled','undrilled','halfdrilled','cabs'],
   navratna:   ['round','oval','pear','cushion','marquise','heart'],
   clover:     ['clover'],
-  icecut:     ['heart','oval','pear','radiant','square-radiant'],
+  icecut:     ['heart','oval','pear','radiant','square-radiant','cushion','oblong-cushion'],
   ourosa:     ['round'],
   beads:      ['plain-beads','faceted-beads','oval-maniya','drops'],
   laser:      ['round','marquise','oval','pear','square','heart','curved-trillion','cushion','oblong-cushion','asscher','radiant','baguette-prince','baguette-step','tapered-baguette','triangle','octagon'],

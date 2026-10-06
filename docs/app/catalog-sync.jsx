@@ -166,7 +166,7 @@
       // Shapes retired from a category. The backend catalog overlay is add-only
       // and still holds these from an earlier seeding, so filter them out here
       // (and strip any that already leaked into the built-in list).
-      var DEPRECATED_SHAPES = { laser: ['invisible-square', 'leaf'] };
+      var DEPRECATED_SHAPES = { laser: ['invisible-square', 'leaf'], icecut: ['oblong', 'square', 'round', 'marquise'] };
       Object.keys(DEPRECATED_SHAPES).forEach(function (key) {
         if (!SHAPES_BY_CATEGORY[key]) return;
         DEPRECATED_SHAPES[key].forEach(function (sid) {

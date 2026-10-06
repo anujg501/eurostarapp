@@ -1526,9 +1526,6 @@ const COLORS_BY_CATEGORY = {
   // (white / normal / special1 / special2 / paribas) from the ICE CUT price sheet
   // (006_ICE_CUT, GJ 01-10-26). Pricing: icecut-data.jsx looks up the tier column.
   icecut: [
-    { id: 'g01', name: 'G01 Deep Red',              hex: '#9B1B1B', tier: 'normal' },
-    { id: 'g02', name: 'G02 China Deep Red',        hex: '#C0272D', tier: 'normal' },
-    { id: 'g13', name: 'G13 Dark Yellow',           hex: '#E0A020', tier: 'normal' },
     { id: 'g14', name: 'G14 Medium Yellow',         hex: '#E8C240', tier: 'normal' },
     { id: 'g15', name: 'G15 Light Yellow',          hex: '#EDD873', tier: 'normal' },
     { id: 'g40', name: 'G40 White',                 hex: '#F2EFE8', tier: 'white' },
@@ -1536,9 +1533,7 @@ const COLORS_BY_CATEGORY = {
     { id: 'g19', name: 'G19 Middle Green',          hex: '#4CA64C', tier: 'special2' },
     { id: 'g20', name: 'G20 Deep Green',            hex: '#2E7D4F', tier: 'special2' },
     { id: 'g21', name: 'G21 Emerald Green',         hex: '#1F7A52', tier: 'special2' },
-    { id: 'g27', name: 'G27 Paraiba Mint Green',    hex: '#7FD0B0', tier: 'paribas' },
     { id: 'g28', name: 'G28 Paraiba Green',         hex: '#3FB8A0', tier: 'paribas' },
-    { id: 'g29', name: 'G29 Paraiba Blue',          hex: '#2E9FC0', tier: 'paribas' },
     { id: 'g30', name: 'G30 Ice Blue',              hex: '#BFE0ED', tier: 'special2' },
     { id: 'g31', name: 'G31 Sky Blue',              hex: '#8FC7E8', tier: 'special2' },
     { id: 'g32', name: 'G32 Light Aquamarine',      hex: '#AEDCE6', tier: 'special2' },
@@ -1547,7 +1542,6 @@ const COLORS_BY_CATEGORY = {
     { id: 'g35', name: 'G35 Sapphire Blue',         hex: '#27409A', tier: 'special2' },
     { id: 'g56', name: 'G56 Light Fancy Purple Blue', hex: '#9AA6E0', tier: 'normal' },
     { id: 'g55', name: 'G55 Fancy Purple',          hex: '#8E4FB0', tier: 'special1' },
-    { id: 'g41', name: 'G41 Light Pink',            hex: '#F0B9CC', tier: 'normal' },
     { id: 'g44', name: 'G44 Medium Pink',           hex: '#E088A8', tier: 'normal' },
     { id: 'g45', name: 'G45 Dark Pink',             hex: '#D14C84', tier: 'special1' },
   ],

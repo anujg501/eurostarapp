@@ -44,6 +44,10 @@
 "url": "/assets/icecut-hero/icecut__g15__oval.jpg"
 },
 {
+"key": "icecut|g15|pear",
+"url": "/assets/icecut-hero/icecut__g15__pear.jpg"
+},
+{
 "key": "icecut|g15|radiant",
 "url": "/assets/icecut-hero/icecut__g15__radiant.jpg"
 },
@@ -52,8 +56,16 @@
 "url": "/assets/icecut-hero/icecut__g15__square-radiant.jpg"
 },
 {
+"key": "icecut|g18|cushion",
+"url": "/assets/icecut-hero/icecut__g18__cushion.jpg"
+},
+{
 "key": "icecut|g18|heart",
 "url": "/assets/icecut-hero/icecut__g18__heart.jpg"
+},
+{
+"key": "icecut|g18|oblong-cushion",
+"url": "/assets/icecut-hero/icecut__g18__oblong-cushion.jpg"
 },
 {
 "key": "icecut|g18|oval",
@@ -128,8 +140,16 @@
 "url": "/assets/icecut-hero/icecut__g20__square-radiant.jpg"
 },
 {
+"key": "icecut|g21|cushion",
+"url": "/assets/icecut-hero/icecut__g21__cushion.jpg"
+},
+{
 "key": "icecut|g21|heart",
 "url": "/assets/icecut-hero/icecut__g21__heart.jpg"
+},
+{
+"key": "icecut|g21|oblong-cushion",
+"url": "/assets/icecut-hero/icecut__g21__oblong-cushion.jpg"
 },
 {
 "key": "icecut|g21|oval",
@@ -144,12 +164,48 @@
 "url": "/assets/icecut-hero/icecut__g21__radiant.jpg"
 },
 {
+"key": "icecut|g21|square-radiant",
+"url": "/assets/icecut-hero/icecut__g21__square-radiant.jpg"
+},
+{
 "key": "icecut|g28|cushion",
 "url": "/assets/icecut-hero/icecut__g28__cushion.jpg"
 },
 {
+"key": "icecut|g28|heart",
+"url": "/assets/icecut-hero/icecut__g28__heart.jpg"
+},
+{
+"key": "icecut|g28|oblong-cushion",
+"url": "/assets/icecut-hero/icecut__g28__oblong-cushion.jpg"
+},
+{
 "key": "icecut|g28|oval",
 "url": "/assets/icecut-hero/icecut__g28__oval.jpg"
+},
+{
+"key": "icecut|g28|pear",
+"url": "/assets/icecut-hero/icecut__g28__pear.jpg"
+},
+{
+"key": "icecut|g28|radiant",
+"url": "/assets/icecut-hero/icecut__g28__radiant.jpg"
+},
+{
+"key": "icecut|g28|square-radiant",
+"url": "/assets/icecut-hero/icecut__g28__square-radiant.jpg"
+},
+{
+"key": "icecut|g30|cushion",
+"url": "/assets/icecut-hero/icecut__g30__cushion.jpg"
+},
+{
+"key": "icecut|g30|heart",
+"url": "/assets/icecut-hero/icecut__g30__heart.jpg"
+},
+{
+"key": "icecut|g30|oblong-cushion",
+"url": "/assets/icecut-hero/icecut__g30__oblong-cushion.jpg"
 },
 {
 "key": "icecut|g30|oval",
@@ -168,8 +224,20 @@
 "url": "/assets/icecut-hero/icecut__g30__square-radiant.jpg"
 },
 {
+"key": "icecut|g31|cushion",
+"url": "/assets/icecut-hero/icecut__g31__cushion.jpg"
+},
+{
 "key": "icecut|g31|heart",
 "url": "/assets/icecut-hero/icecut__g31__heart.jpg"
+},
+{
+"key": "icecut|g31|oblong-cushion",
+"url": "/assets/icecut-hero/icecut__g31__oblong-cushion.jpg"
+},
+{
+"key": "icecut|g31|oval",
+"url": "/assets/icecut-hero/icecut__g31__oval.jpg"
 },
 {
 "key": "icecut|g31|pear",
@@ -178,6 +246,10 @@
 {
 "key": "icecut|g31|radiant",
 "url": "/assets/icecut-hero/icecut__g31__radiant.jpg"
+},
+{
+"key": "icecut|g31|square-radiant",
+"url": "/assets/icecut-hero/icecut__g31__square-radiant.jpg"
 },
 {
 "key": "icecut|g32|cushion",
@@ -206,6 +278,10 @@
 {
 "key": "icecut|g32|square-radiant",
 "url": "/assets/icecut-hero/icecut__g32__square-radiant.jpg"
+},
+{
+"key": "icecut|g33|cushion",
+"url": "/assets/icecut-hero/icecut__g33__cushion.jpg"
 },
 {
 "key": "icecut|g33|heart",
@@ -240,6 +316,10 @@
 "url": "/assets/icecut-hero/icecut__g35__heart.jpg"
 },
 {
+"key": "icecut|g35|oblong-cushion",
+"url": "/assets/icecut-hero/icecut__g35__oblong-cushion.jpg"
+},
+{
 "key": "icecut|g35|oval",
 "url": "/assets/icecut-hero/icecut__g35__oval.jpg"
 },
@@ -256,8 +336,16 @@
 "url": "/assets/icecut-hero/icecut__g35__square-radiant.jpg"
 },
 {
+"key": "icecut|g38|cushion",
+"url": "/assets/icecut-hero/icecut__g38__cushion.jpg"
+},
+{
 "key": "icecut|g38|heart",
 "url": "/assets/icecut-hero/icecut__g38__heart.jpg"
+},
+{
+"key": "icecut|g38|oblong-cushion",
+"url": "/assets/icecut-hero/icecut__g38__oblong-cushion.jpg"
 },
 {
 "key": "icecut|g38|oval",
@@ -272,8 +360,16 @@
 "url": "/assets/icecut-hero/icecut__g38__radiant.jpg"
 },
 {
+"key": "icecut|g38|square-radiant",
+"url": "/assets/icecut-hero/icecut__g38__square-radiant.jpg"
+},
+{
 "key": "icecut|g40|cushion",
 "url": "/assets/icecut-hero/icecut__g40__cushion.jpg"
+},
+{
+"key": "icecut|g40|heart",
+"url": "/assets/icecut-hero/icecut__g40__heart.jpg"
 },
 {
 "key": "icecut|g40|oblong-cushion",
@@ -292,8 +388,16 @@
 "url": "/assets/icecut-hero/icecut__g40__radiant.jpg"
 },
 {
+"key": "icecut|g40|square-radiant",
+"url": "/assets/icecut-hero/icecut__g40__square-radiant.jpg"
+},
+{
 "key": "icecut|g44|cushion",
 "url": "/assets/icecut-hero/icecut__g44__cushion.jpg"
+},
+{
+"key": "icecut|g44|heart",
+"url": "/assets/icecut-hero/icecut__g44__heart.jpg"
 },
 {
 "key": "icecut|g44|oblong-cushion",
@@ -320,12 +424,28 @@
 "url": "/assets/icecut-hero/icecut__g45__cushion.jpg"
 },
 {
+"key": "icecut|g45|heart",
+"url": "/assets/icecut-hero/icecut__g45__heart.jpg"
+},
+{
+"key": "icecut|g45|oblong-cushion",
+"url": "/assets/icecut-hero/icecut__g45__oblong-cushion.jpg"
+},
+{
 "key": "icecut|g45|oval",
 "url": "/assets/icecut-hero/icecut__g45__oval.jpg"
 },
 {
+"key": "icecut|g45|pear",
+"url": "/assets/icecut-hero/icecut__g45__pear.jpg"
+},
+{
 "key": "icecut|g45|radiant",
 "url": "/assets/icecut-hero/icecut__g45__radiant.jpg"
+},
+{
+"key": "icecut|g45|square-radiant",
+"url": "/assets/icecut-hero/icecut__g45__square-radiant.jpg"
 },
 {
 "key": "icecut|g55|cushion",
@@ -334,6 +454,10 @@
 {
 "key": "icecut|g55|heart",
 "url": "/assets/icecut-hero/icecut__g55__heart.jpg"
+},
+{
+"key": "icecut|g55|oblong-cushion",
+"url": "/assets/icecut-hero/icecut__g55__oblong-cushion.jpg"
 },
 {
 "key": "icecut|g55|oval",
@@ -348,6 +472,22 @@
 "url": "/assets/icecut-hero/icecut__g55__radiant.jpg"
 },
 {
+"key": "icecut|g55|square-radiant",
+"url": "/assets/icecut-hero/icecut__g55__square-radiant.jpg"
+},
+{
+"key": "icecut|g56|cushion",
+"url": "/assets/icecut-hero/icecut__g56__cushion.jpg"
+},
+{
+"key": "icecut|g56|heart",
+"url": "/assets/icecut-hero/icecut__g56__heart.jpg"
+},
+{
+"key": "icecut|g56|oblong-cushion",
+"url": "/assets/icecut-hero/icecut__g56__oblong-cushion.jpg"
+},
+{
 "key": "icecut|g56|oval",
 "url": "/assets/icecut-hero/icecut__g56__oval.jpg"
 },
@@ -358,5 +498,9 @@
 {
 "key": "icecut|g56|radiant",
 "url": "/assets/icecut-hero/icecut__g56__radiant.jpg"
+},
+{
+"key": "icecut|g56|square-radiant",
+"url": "/assets/icecut-hero/icecut__g56__square-radiant.jpg"
 }
 ]

@@ -17,62 +17,124 @@ const ICECUT_SHAPE_GROUP = {
   marquise: 'g3',
 };
 
-// Rows: { s, w, n, s1, s2, pb } — ₹ per piece.
+// Price-sheet rows: { s, w, n, s1, s2, pb } — ₹ per PIECE, by tier column.
+// Source: 006_ICE_CUT (GJ 01-10-26). A null = that tier is "On quote" for the size.
 const ICECUT_PRICES = {
+  // OS / PS / OBCU / RA — elongated a×b (Oval, Pear, Radiant…).
   g1: [
-    { s: '4×3 mm', w: 21, n: 24, s1: 28, s2: 45, pb: 113 },
-    { s: '5×3 mm', w: 23, n: 25, s1: 30, s2: 50, pb: 125 },
-    { s: '6×4 mm', w: 29, n: 33, s1: 40, s2: 68, pb: 175 },
-    { s: '7×5 mm', w: 35, n: 40, s1: 55, s2: 100, pb: 250 },
-    { s: '8×6 mm', w: 43, n: 50, s1: 70, s2: 138, pb: 350 },
-    { s: '9×7 mm', w: 55, n: 65, s1: 88, s2: 188, pb: 450 },
-    { s: '10×8 mm', w: 70, n: 85, s1: 113, s2: 238, pb: 575 },
-    { s: '11×9 mm', w: 105, n: 125, s1: 150, s2: 350, pb: 750 },
-    { s: '12×10 mm', w: 150, n: 175, s1: 213, s2: 475, pb: 1025 },
-    { s: '14×10 mm', w: 213, n: 250, s1: 300, s2: 650, pb: 1325 },
+    { s: '4×3 mm',  w: 21,  n: 24,   s1: 28,  s2: 50,  pb: 113 },
+    { s: '5×3 mm',  w: 23,  n: 25,   s1: 30,  s2: 55,  pb: 125 },
+    { s: '6×4 mm',  w: 29,  n: 33,   s1: 40,  s2: 73,  pb: 175 },
+    { s: '7×5 mm',  w: 35,  n: 40,   s1: 55,  s2: 100, pb: 250 },
+    { s: '8×6 mm',  w: 43,  n: 53,   s1: 70,  s2: 138, pb: 350 },
+    { s: '9×7 mm',  w: 55,  n: 65,   s1: 88,  s2: 188, pb: 450 },
+    { s: '10×7 mm', w: 100, n: null, s1: null, s2: null, pb: null },
+    { s: '10×8 mm', w: 70,  n: 100,  s1: 113, s2: 238, pb: 575 },
+    { s: '11×9 mm', w: 105, n: 125,  s1: 150, s2: 350, pb: 750 },
+    { s: '12×10 mm',w: 150, n: 175,  s1: 213, s2: 475, pb: 1025 },
+    { s: '14×10 mm',w: 213, n: 250,  s1: 300, s2: 650, pb: 1325 },
   ],
+  // SQ / RD / CU — square/round a×a (Heart, Square Radiant, Round…).
   g2: [
-    { s: '3×3 mm', w: 20, n: 23, s1: 25, s2: 40, pb: 95 },
-    { s: '4×4 mm', w: 23, n: 25, s1: 30, s2: 50, pb: 125 },
-    { s: '5×5 mm', w: 29, n: 33, s1: 40, s2: 68, pb: 175 },
-    { s: '6×6 mm', w: 35, n: 40, s1: 55, s2: 100, pb: 250 },
-    { s: '7×7 mm', w: 43, n: 50, s1: 70, s2: 138, pb: 350 },
-    { s: '8×8 mm', w: 55, n: 65, s1: 88, s2: 188, pb: 450 },
-    { s: '9×9 mm', w: 70, n: 85, s1: 113, s2: 238, pb: 575 },
-    { s: '10×10 mm', w: 105, n: 125, s1: 150, s2: 350, pb: 750 },
-    { s: '11×11 mm', w: 150, n: 175, s1: 213, s2: 475, pb: 1025 },
-    { s: '12×12 mm', w: 213, n: 250, s1: 300, s2: 650, pb: 1325 },
+    { s: '3×3 mm',  w: 20,  n: 23,  s1: 25,  s2: 40,  pb: 95 },
+    { s: '4×4 mm',  w: 23,  n: 25,  s1: 30,  s2: 53,  pb: 125 },
+    { s: '5×5 mm',  w: 29,  n: 33,  s1: 40,  s2: 73,  pb: 175 },
+    { s: '6×6 mm',  w: 35,  n: 40,  s1: 55,  s2: 100, pb: 250 },
+    { s: '7×7 mm',  w: 43,  n: 53,  s1: 70,  s2: 138, pb: 350 },
+    { s: '8×8 mm',  w: 55,  n: 73,  s1: 88,  s2: 188, pb: 450 },
+    { s: '9×9 mm',  w: 70,  n: 85,  s1: 113, s2: 238, pb: 575 },
+    { s: '10×10 mm',w: 105, n: 125, s1: 150, s2: 350, pb: 750 },
+    { s: '11×11 mm',w: 150, n: 175, s1: 213, s2: 475, pb: 1025 },
+    { s: '12×12 mm',w: 213, n: 250, s1: 300, s2: 650, pb: 1325 },
   ],
+  // MAQ — marquise a×b.
   g3: [
-    { s: '3×1.5 mm', w: 20, n: 23, s1: 25, s2: 40, pb: 95 },
-    { s: '4×2 mm', w: 21, n: 24, s1: 28, s2: 45, pb: 108 },
-    { s: '5×2.5 mm', w: 23, n: 25, s1: 30, s2: 50, pb: 125 },
-    { s: '6×3 mm', w: 30, n: 33, s1: 40, s2: 68, pb: 163 },
-    { s: '7×3.5 mm', w: 33, n: 38, s1: 50, s2: 88, pb: 225 },
-    { s: '8×4 mm', w: 35, n: 45, s1: 63, s2: 113, pb: 275 },
-    { s: '10×5 mm', w: 55, n: 65, s1: 88, s2: 188, pb: 425 },
-    { s: '12×6 mm', w: 90, n: 113, s1: 138, s2: 275, pb: 650 },
+    { s: '3×1.5 mm', w: 20, n: 23,  s1: 25,  s2: 40,  pb: 95 },
+    { s: '4×2 mm',   w: 21, n: 24,  s1: 28,  s2: 45,  pb: 108 },
+    { s: '5×2.5 mm', w: 23, n: 25,  s1: 30,  s2: 50,  pb: 125 },
+    { s: '6×3 mm',   w: 30, n: 33,  s1: 40,  s2: 68,  pb: 163 },
+    { s: '7×3.5 mm', w: 33, n: 38,  s1: 50,  s2: 88,  pb: 225 },
+    { s: '8×4 mm',   w: 35, n: 45,  s1: 63,  s2: 113, pb: 275 },
+    { s: '10×5 mm',  w: 55, n: 65,  s1: 88,  s2: 188, pb: 425 },
+    { s: '12×6 mm',  w: 90, n: 113, s1: 138, s2: 275, pb: 650 },
   ],
 };
 
-const icecutRows = (shape) => ICECUT_PRICES[ICECUT_SHAPE_GROUP[shape] || 'g2'] || [];
 const TIER_COL = { white: 'w', normal: 'n', special1: 's1', special2: 's2', paribas: 'pb' };
+const ICECUT_GRID = '1fr 92px 96px 132px 150px 116px';
 
-// Pieces per packet (MOQ) by the stone's largest dimension (mm). One rule across
-// every Ice Cut shape and colour: ≤6 → 100, 7–9 → 50, 10 → 25, 11 mm+ → 10.
-const ICECUT_MOQ = (size) => {
-  const ns = String(size).match(/[\d.]+/g);
-  const mx = ns ? Math.max.apply(null, ns.map(Number)) : 0;
-  if (mx <= 6) return 100;
-  if (mx <= 9) return 50;
-  if (mx <= 10) return 25;
-  return 10;
+// Per-shape size tables (overhaul 01-10-26). Each row: display size `s`, the
+// price-sheet size `ps` it maps to, weight per piece `wt` (ct), and pieces per
+// packet `pcs`. Price is ICECUT_PRICES[group][ps] read by the colour's tier.
+const ICECUT_SHAPES = {
+  heart: { name: 'Heart', group: 'g2', rows: [
+    { s: '5 mm',  ps: '5×5 mm',  wt: 1.00, pcs: 50 },
+    { s: '6 mm',  ps: '6×6 mm',  wt: 1.80, pcs: 50 },
+    { s: '7 mm',  ps: '7×7 mm',  wt: 3.30, pcs: 50 },
+    { s: '8 mm',  ps: '8×8 mm',  wt: 4.50, pcs: 25 },
+    { s: '9 mm',  ps: '9×9 mm',  wt: 5.80, pcs: 25 },
+    { s: '10 mm', ps: '10×10 mm', wt: 9.20, pcs: 25 },
+  ] },
+  oval: { name: 'Oval', group: 'g1', rows: [
+    { s: '5×3 mm',  ps: '5×3 mm',  wt: 0.45, pcs: 100 },
+    { s: '6×4 mm',  ps: '6×4 mm',  wt: 0.95, pcs: 50 },
+    { s: '7×5 mm',  ps: '7×5 mm',  wt: 1.75, pcs: 50 },
+    { s: '8×6 mm',  ps: '8×6 mm',  wt: 2.45, pcs: 25 },
+    { s: '9×7 mm',  ps: '9×7 mm',  wt: 3.90, pcs: 25 },
+    { s: '10×8 mm', ps: '10×8 mm', wt: 5.60, pcs: 25 },
+    { s: '12×10 mm',ps: '12×10 mm',wt: 10.70, pcs: 25 },
+  ] },
+  pear: { name: 'Pear', group: 'g1', rows: [
+    { s: '4×3 mm',  ps: '4×3 mm',  wt: 0.30, pcs: 100 },
+    { s: '5×3 mm',  ps: '5×3 mm',  wt: 0.40, pcs: 100 },
+    { s: '6×4 mm',  ps: '6×4 mm',  wt: 0.80, pcs: 50 },
+    { s: '7×5 mm',  ps: '7×5 mm',  wt: 1.60, pcs: 50 },
+    { s: '8×6 mm',  ps: '8×6 mm',  wt: 2.65, pcs: 25 },
+    { s: '9×7 mm',  ps: '9×7 mm',  wt: 3.70, pcs: 25 },
+    { s: '10×8 mm', ps: '10×8 mm', wt: 5.50, pcs: 25 },
+  ] },
+  radiant: { name: 'Radiant', group: 'g1', rows: [
+    { s: '4×3 mm',  ps: '4×3 mm',  wt: 0.40, pcs: 100 },
+    { s: '5×3 mm',  ps: '5×3 mm',  wt: 0.50, pcs: 100 },
+    { s: '6×4 mm',  ps: '6×4 mm',  wt: 0.95, pcs: 50 },
+    { s: '7×5 mm',  ps: '7×5 mm',  wt: 1.75, pcs: 50 },
+    { s: '8×6 mm',  ps: '8×6 mm',  wt: 3.10, pcs: 25 },
+    { s: '9×7 mm',  ps: '9×7 mm',  wt: 4.65, pcs: 25 },
+    { s: '10×7 mm', ps: '10×7 mm', wt: 5.20, pcs: 25 },
+    { s: '10×8 mm', ps: '10×8 mm', wt: 6.75, pcs: 25 },
+    { s: '11×9 mm', ps: '11×9 mm', wt: 9.40, pcs: 25 },
+  ] },
+  'square-radiant': { name: 'Square Radiant', group: 'g2', rows: [
+    { s: '3 mm',  ps: '3×3 mm',  wt: 0.25, pcs: 100 },
+    { s: '4 mm',  ps: '4×4 mm',  wt: 0.70, pcs: 100 },
+    { s: '5 mm',  ps: '5×5 mm',  wt: 1.40, pcs: 50 },
+    { s: '6 mm',  ps: '6×6 mm',  wt: 2.25, pcs: 50 },
+    { s: '7 mm',  ps: '7×7 mm',  wt: 3.70, pcs: 25 },
+    { s: '8 mm',  ps: '8×8 mm',  wt: 5.00, pcs: 25 },
+    { s: '9 mm',  ps: '9×9 mm',  wt: 7.75, pcs: 25 },
+    { s: '10 mm', ps: '10×10 mm',wt: 11.25, pcs: 25 },
+  ] },
 };
+
+const icecutShapeRows = (shape) => (ICECUT_SHAPES[shape] && ICECUT_SHAPES[shape].rows) || [];
+const icecutGroup = (shape) => (ICECUT_SHAPES[shape] && ICECUT_SHAPES[shape].group) || (ICECUT_SHAPE_GROUP[shape] || 'g2');
+const _icecutPriceRow = (group, ps) => (ICECUT_PRICES[group] || []).find((r) => r.s === ps) || null;
+// ₹ per piece for a shape + colour-tier + price-sheet size; null = On quote.
+const icecutPrice = (shape, tier, ps) => {
+  const col = TIER_COL[tier] || 'w';
+  const r = _icecutPriceRow(icecutGroup(shape), ps);
+  return r && r[col] != null ? r[col] : null;
+};
+// Back-compat: the raw group rows for a shape (used by the price-snapshot).
+const icecutRows = (shape) => ICECUT_PRICES[icecutGroup(shape)] || [];
 
 function IceCutOrderPad({ grade, color, shape, category, qtyBySize, setQtyBySize, onBack, onChangeColor, addToCart, setRoute }) {
   const fmt = (n) => (window.formatINR ? window.formatINR(n) : '₹' + Number(n).toLocaleString('en-IN'));
   const shapeMeta = (window.findShape && window.findShape(shape)) || { name: shape };
-  const col = TIER_COL[color.id] || 'w';
+  // The colour carries its own price tier (white / normal / special1 / special2 /
+  // paribas). Older links may still pass a tier id as the colour id, so fall back.
+  const tier = color.tier || color.id || 'white';
+  const tierName = (ICECUT_TIERS.find((t) => t.id === tier) || {}).name || '';
   const hex = color.hex || '#EFE9DD';
   const tint = window.lightenTone ? window.lightenTone(hex) : 'var(--paper-2)';
   // Same resolver the shape cards use — see laser-data.jsx.
@@ -83,7 +145,7 @@ function IceCutOrderPad({ grade, color, shape, category, qtyBySize, setQtyBySize
   const catId = category.id;
   const ovrPrice = (s) => (window.priceOverride ? window.priceOverride(catId, grade && grade.id, color.id, shape, s) : null);
   const ovrPk = (s) => (window.pcsOverride ? window.pcsOverride(catId, s) : null);
-  const baseRows = icecutRows(shape);
+  const baseRows = icecutShapeRows(shape);
   let rows = baseRows;
   if (window.applySizeOverrides) {
     const bySize = {};
@@ -91,15 +153,23 @@ function IceCutOrderPad({ grade, color, shape, category, qtyBySize, setQtyBySize
     rows = window.applySizeOverrides(catId, shape, baseRows.map((r) => r.s))
       .map((s) => bySize[s] || { s });
   }
-  // Per-piece price for this tier (an operator edit wins) and pcs per packet.
-  const priceOf = (r) => { if (!r) return 0; const o = ovrPrice(r.s); return o != null ? o : (r[col] || 0); };
-  const ppp = (r) => { const o = ovrPk(r && r.s); if (o != null) return o; return r ? ICECUT_MOQ(r.s) : 1; };
+  // Per-piece price (an operator edit wins), else the sheet price for this tier;
+  // null = "On quote" (e.g. Radiant 10×7 for non-white colours). pcs is per-size.
+  const priceOf = (r) => {
+    if (!r) return null;
+    const o = ovrPrice(r.s);
+    if (o != null) return o;
+    return icecutPrice(shape, tier, r.ps || r.s);
+  };
+  const ppp = (r) => { const o = ovrPk(r && r.s); if (o != null) return o; return (r && r.pcs) || 1; };
+  const pktPrice = (r) => { const p = priceOf(r); return p == null ? null : p * ppp(r); };
 
   const setQty = (size, v) => setQtyBySize((p) => ({ ...p, [size]: Math.max(0, parseInt(v, 10) || 0) }));
   const bump = (size, d) => setQtyBySize((p) => ({ ...p, [size]: Math.max(0, (p[size] || 0) + d) }));
 
-  const lines = Object.entries(qtyBySize).filter(([, q]) => q > 0);
   const rowBySize = (size) => rows.find((r) => r.s === size);
+  // Only priced rows count — an "On quote" size can't be added or totalled.
+  const lines = Object.entries(qtyBySize).filter(([size, q]) => q > 0 && priceOf(rowBySize(size)) != null);
   const totalPkts = lines.reduce((s, [, q]) => s + q, 0);
   const totalAmt = lines.reduce((s, [size, q]) => {
     const r = rowBySize(size); return s + q * ppp(r) * priceOf(r);
@@ -108,7 +178,7 @@ function IceCutOrderPad({ grade, color, shape, category, qtyBySize, setQtyBySize
   const onAddAll = () => {
     if (lines.length === 0) return;
     lines.forEach(([size, q]) => {
-      const r = rowBySize(size); const price = priceOf(r); const pieces = q * ppp(r);
+      const r = rowBySize(size); const price = priceOf(r); if (price == null) return; const pieces = q * ppp(r);
       addToCart({
         pid: 'icecut-' + color.id + '-' + shape + '-' + size.replace(/\s/g, ''),
         name: color.name + ' Ice Cut ' + shapeMeta.name,
@@ -147,7 +217,7 @@ function IceCutOrderPad({ grade, color, shape, category, qtyBySize, setQtyBySize
             {color.name} Ice Cut {shapeMeta.name}
           </h1>
           <p style={{ margin: 0, color: 'var(--fg-muted)', fontSize: 14 }}>
-            Crushed ice-cut CZ · ordered by the packet · priced per piece · pieces-per-packet (MOQ) by size.
+            Crushed ice-cut CZ · ordered and priced by the packet.{tierName ? ' Price tier: ' + tierName + '.' : ''}
           </p>
         </div>
         <button className="btn btn-ghost btn-sm" onClick={onBack}>
@@ -156,38 +226,52 @@ function IceCutOrderPad({ grade, color, shape, category, qtyBySize, setQtyBySize
       </div>
 
       <div className="size-pad pkt-pad" style={{ marginTop: 16 }}>
-        <div className="size-pad-head" style={{ gridTemplateColumns: '1fr 110px 100px 1fr 130px' }}>
+        <div className="size-pad-head" style={{ gridTemplateColumns: ICECUT_GRID }}>
           <span>Size</span>
+          <span style={{ textAlign: 'right' }}>Weight / pc</span>
           <span style={{ textAlign: 'center' }}>Pcs / packet</span>
-          <span style={{ textAlign: 'right' }}>₹ / pc</span>
+          <span style={{ textAlign: 'right' }}>₹ / packet</span>
           <span style={{ textAlign: 'center' }}>Packets</span>
           <span style={{ textAlign: 'right' }}>Line total</span>
         </div>
         {rows.map((r) => {
           const price = priceOf(r);
+          const onQuote = price == null;
+          const packet = pktPrice(r);
           const q = qtyBySize[r.s] || 0;
           const pieces = q * ppp(r);
           return (
             <div key={r.s} className={`size-pad-row ${q > 0 ? 'filled' : ''}`}
-              style={{ gridTemplateColumns: '1fr 110px 100px 1fr 130px' }}>
+              style={{ gridTemplateColumns: ICECUT_GRID }}>
               <div className="size-pad-size"><div className="size-pad-mm" style={{ fontSize: 15 }}>{r.s}</div></div>
+              <div className="size-pad-price" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                {r.wt != null ? r.wt.toFixed(2) + ' ct' : <span style={{ color: 'var(--ink-4)' }}>—</span>}
+              </div>
               <div className="size-pad-pcs">{ppp(r)}</div>
-              <div className="size-pad-price">{fmt(price)}</div>
+              <div className="size-pad-price">
+                {onQuote
+                  ? <span style={{ color: 'var(--fg-muted)' }}>On quote</span>
+                  : <React.Fragment>{fmt(packet)}<div className="size-pad-pcs-note" style={{ textAlign: 'right' }}>{fmt(price)}/pc</div></React.Fragment>}
+              </div>
               <div className="size-pad-input-wrap">
-                <div className="size-pad-stepper">
-                  <button onClick={() => bump(r.s, -1)} disabled={q <= 0} aria-label="decrease">
-                    {window.IconMinus ? <window.IconMinus size={12} /> : '−'}
-                  </button>
-                  <input type="number" value={q || ''} placeholder="0" min={0}
-                    onChange={(e) => setQty(r.s, e.target.value)} onFocus={(e) => e.target.select()} />
-                  <button onClick={() => bump(r.s, 1)} aria-label="increase">
-                    {window.IconPlus ? <window.IconPlus size={12} /> : '+'}
-                  </button>
-                </div>
-                {q > 0 && <div className="size-pad-pcs-note">= {pieces.toLocaleString('en-IN')} pcs</div>}
+                {onQuote
+                  ? <span style={{ color: 'var(--ink-4)', fontSize: 13 }}>—</span>
+                  : <React.Fragment>
+                      <div className="size-pad-stepper">
+                        <button onClick={() => bump(r.s, -1)} disabled={q <= 0} aria-label="decrease">
+                          {window.IconMinus ? <window.IconMinus size={12} /> : '−'}
+                        </button>
+                        <input type="number" value={q || ''} placeholder="0" min={0}
+                          onChange={(e) => setQty(r.s, e.target.value)} onFocus={(e) => e.target.select()} />
+                        <button onClick={() => bump(r.s, 1)} aria-label="increase">
+                          {window.IconPlus ? <window.IconPlus size={12} /> : '+'}
+                        </button>
+                      </div>
+                      {q > 0 && <div className="size-pad-pcs-note">= {pieces.toLocaleString('en-IN')} pcs</div>}
+                    </React.Fragment>}
               </div>
               <div className="size-pad-total">
-                {q > 0 ? fmt(pieces * price) : <span style={{ color: 'var(--ink-4)' }}>—</span>}
+                {q > 0 && !onQuote ? fmt(pieces * price) : <span style={{ color: 'var(--ink-4)' }}>—</span>}
               </div>
             </div>
           );
@@ -209,5 +293,6 @@ function IceCutOrderPad({ grade, color, shape, category, qtyBySize, setQtyBySize
 }
 
 Object.assign(window, {
-  ICECUT_TIERS, ICECUT_SHAPE_GROUP, ICECUT_PRICES, icecutRows, IceCutOrderPad, TIER_COL, ICECUT_MOQ,
+  ICECUT_TIERS, ICECUT_SHAPE_GROUP, ICECUT_PRICES, ICECUT_SHAPES, icecutRows, icecutShapeRows,
+  icecutGroup, icecutPrice, IceCutOrderPad, TIER_COL,
 });

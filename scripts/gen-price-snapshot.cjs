@@ -229,23 +229,23 @@ if (typeof win.mopRows === 'function' && typeof win.mopPrice === 'function') {
   console.log(`MOP: ${n} rows.`);
 }
 
-// Ice Cut — its own pad (icecut-data.jsx): per-piece price by colour TIER
-// (white/normal/special1/special2/paribas) × shape-group, pcs by size (MOQ).
-if (typeof win.icecutRows === 'function' && win.TIER_COL && typeof win.ICECUT_MOQ === 'function') {
+// Ice Cut — its own pad (icecut-data.jsx): 24 G-code colours, each carrying a
+// price TIER; per-shape size tables carry weight + pcs/packet; ₹/piece looked up
+// from the tier×group×size matrix. "On quote" sizes (null price) are skipped.
+if (typeof win.icecutShapeRows === 'function' && typeof win.icecutPrice === 'function') {
   const colours = COLORS.icecut || [];
   const shapes = SHAPES.icecut || [];
   const iceOut = {};
   let n = 0;
   for (const co of colours) {
-    const col = win.TIER_COL[co.id];
-    if (!col) continue;
+    const tier = co.tier || co.id;
     for (const sh of shapes) {
-      for (const r of win.icecutRows(sh) || []) {
-        const price = r[col];
+      for (const r of win.icecutShapeRows(sh) || []) {
+        const price = win.icecutPrice(sh, tier, r.ps || r.s);
         if (price == null || !(price > 0)) continue;
         iceOut[['', co.id, String(sh).toLowerCase(), normSize(r.s)].join('|')] = {
           rate: price,
-          pcs: win.ICECUT_MOQ(r.s),
+          pcs: r.pcs,
           size: r.s,
         };
         n++;

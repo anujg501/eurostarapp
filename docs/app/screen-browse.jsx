@@ -412,7 +412,7 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
               category.id === 'cz' ?
               'Multiple colours to choose from. Castable premium cubic zirconia.' :
               category.id === 'icecut' ?
-              'Pick the price tier for your colour — use the colour card above to find which tier it falls in.' :
+              (colors.length + ' colours — pick your G-code below.') :
               <React.Fragment>{colors.length} {T('colours_available', 'colours available in this grade.')}{' '}
                  {T('pick_colour_hint', 'Select the tone you want to order.')}</React.Fragment>}</p>
             </div>
@@ -420,17 +420,6 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
               <IconArrowLeft size={16} /> {needsSubShade ? 'Change colour' : 'Change grade'}
             </button>
           </div>
-          {/* Ice Cut colour chart — always visible on colour step */}
-          {category.id === 'icecut' &&
-          <div className="icecut-hero">
-            <img src="/assets/products/icecut-colorchart.jpeg" alt="Ice Cut CZ colour card — full colour range with G-codes" />
-            <div className="icecut-hero-cap">
-              {needsSubShade
-                ? <React.Fragment><strong>Step 2:</strong> Now select your specific G-code from the chart above.</React.Fragment>
-                : <React.Fragment><strong>Crushed Ice Cutting — colour card.</strong> Find your colour and its G-code, then pick its price tier below.</React.Fragment>}
-            </div>
-          </div>
-          }
           {needsSubShade ?
           (category.id === 'icecut' ?
           <div className="icecut-gcode-grid">
@@ -449,17 +438,7 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
               </button>
             )}
           </div>) : null}
-          {!needsSubShade && (category.id === 'icecut' ?
-        <div className="icecut-tier-grid">
-            {colors.map((c) =>
-          <button key={c.id} className={`icecut-tier-card tier-${c.id}`} onClick={() => pickColor(c.id)}>
-                <div className="icecut-tier-swatch" />
-                <div className="icecut-tier-name">{c.name}</div>
-                {c.codes && <div className="icecut-tier-codes">{c.codes}</div>}
-              </button>
-          )}
-          </div> :
-
+          {!needsSubShade && (
         <div className="color-pick-grid">
             {colors.map((c) =>
           <button key={c.id} className="color-pick-card" onClick={() => pickColor(c.id)}>

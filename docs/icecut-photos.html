@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ice Cut — bulk photo upload</title>
+<style>
+  :root { --green:#0e3a2e; --gold:#d8b25c; --line:#e6e2d6; --paper:#faf7f0; --ink:#1a2420; --meta:#8a8578; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:'Segoe UI',system-ui,Arial,sans-serif; background:var(--paper); color:var(--ink); }
+  header { background:var(--green); color:#f4efe1; padding:20px 22px; }
+  header h1 { margin:0; font-size:22px; font-family:Georgia,serif; }
+  header p { margin:6px 0 0; font-size:13.5px; opacity:.9; }
+  .wrap { max-width:1100px; margin:0 auto; padding:22px 16px 60px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:18px 18px; margin-bottom:18px; }
+  .bar { display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
+  button { background:var(--gold); color:#14231d; border:0; border-radius:9px; padding:13px 22px; font-weight:700;
+    font-size:15px; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:default; }
+  button.ghost { background:transparent; border:1px solid var(--line); color:var(--ink); }
+  .status { font-size:14px; }
+  .ok { color:#1d7a3a; } .err { color:#b23a2e; } .muted { color:var(--meta); }
+  .prog { height:10px; background:#eee; border-radius:6px; overflow:hidden; margin-top:12px; }
+  .prog > i { display:block; height:100%; width:0; background:var(--green); transition:width .2s; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); gap:10px; margin-top:16px; }
+  .tile { border:1px solid var(--line); border-radius:9px; overflow:hidden; background:#fbf9f3; }
+  .tile img { width:100%; aspect-ratio:1/1; object-fit:cover; display:block; }
+  .tile span { display:block; font-size:10.5px; color:var(--meta); text-align:center; padding:4px 2px; }
+  code { background:#f0ece1; padding:1px 5px; border-radius:4px; font-size:12.5px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Ice Cut — bulk photo upload</h1>
+  <p>Applies all 90 Ice Cut hero photos to the website in one click — to the right colour &amp; shape automatically.</p>
+</header>
+<div class="wrap">
+
+  <div class="card">
+    <div class="bar">
+      <button id="apply">Apply all Ice Cut photos to the website</button>
+      <button class="ghost" id="preview">Preview below</button>
+      <span class="status muted" id="count">Loading…</span>
+    </div>
+    <div class="prog" id="progwrap" style="display:none"><i id="prog"></i></div>
+    <p class="status" id="msg" style="margin:12px 0 0"></p>
+    <p class="muted" style="font-size:12.5px;margin:10px 0 0">
+      You must be signed in to the Admin panel in this browser first (so this page has your login).
+      It only <b>adds/updates</b> the Ice Cut photos — nothing else is touched. Changes appear on the storefront within a minute.
+    </p>
+  </div>
+
+  <div class="card" id="previewCard" style="display:none">
+    <strong>What will be applied (<span id="pcount"></span> photos)</strong>
+    <div class="grid" id="grid"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var TOKEN_KEY = 'eurostar-admin-token';
+  var manifest = [];
+  var $ = function (id) { return document.getElementById(id); };
+  function token() { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } }
+  function setMsg(t, cls) { var m = $('msg'); m.textContent = t; m.className = 'status ' + (cls || ''); }
+
+  fetch('/assets/icecut-hero/_manifest.json', { cache: 'no-store' })
+    .then(function (r) { return r.json(); })
+    .then(function (list) {
+      manifest = list || [];
+      $('count').textContent = manifest.length + ' photos ready';
+    })
+    .catch(function () { $('count').textContent = 'Could not load the photo list.'; });
+
+  $('preview').onclick = function () {
+    var c = $('previewCard'); c.style.display = 'block';
+    $('pcount').textContent = manifest.length;
+    if ($('grid').children.length) return;
+    manifest.forEach(function (e) {
+      var d = document.createElement('div'); d.className = 'tile';
+      var parts = e.key.split('|');
+      d.innerHTML = '<img loading="lazy" src="' + e.url + '"><span>' + parts[1] + ' · ' + parts[2] + '</span>';
+      $('grid').appendChild(d);
+    });
+  };
+
+  $('apply').onclick = function () {
+    var tk = token();
+    if (!tk) {
+      setMsg('Not signed in. Open the Admin panel (/admin) and sign in first, then reload this page.', 'err');
+      return;
+    }
+    if (!manifest.length) { setMsg('No photos to apply.', 'err'); return; }
+    $('apply').disabled = true; $('progwrap').style.display = 'block';
+    setMsg('Reading current photos…', 'muted');
+    var H = { 'content-type': 'application/json', authorization: 'Bearer ' + tk, accept: 'application/json' };
+    fetch('/admin/product-images', { headers: { authorization: 'Bearer ' + tk, accept: 'application/json' } })
+      .then(function (r) {
+        if (r.status === 401 || r.status === 403) throw new Error('Your admin session has expired — reopen /admin, sign in, then reload this page.');
+        return r.ok ? r.json() : {};
+      })
+      .then(function (current) {
+        var map = (current && typeof current === 'object') ? current : {};
+        manifest.forEach(function (e) { map[e.key] = e.url; });
+        $('prog').style.width = '55%';
+        setMsg('Saving ' + manifest.length + ' Ice Cut photos…', 'muted');
+        return fetch('/admin/product-images', { method: 'PUT', headers: H, body: JSON.stringify(map) });
+      })
+      .then(function (r) {
+        if (!r.ok) throw new Error('Save failed (' + r.status + ').');
+        $('prog').style.width = '100%';
+        setMsg('✓ Done — all ' + manifest.length + ' Ice Cut photos are now on the website. Open the shop and check (allow ~1 minute, then hard-refresh).', 'ok');
+      })
+      .catch(function (e) { setMsg(e.message || 'Something went wrong.', 'err'); $('apply').disabled = false; });
+  };
+})();
+</script>
+</body>
+</html>

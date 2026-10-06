@@ -151,6 +151,18 @@
           });
         });
       }
+      // Colours retired from a category. The backend overlay is add-only and
+      // still holds the OLD Ice Cut price-tier cards (White / Normal / Special 1 /
+      // Special 2 / Paraiba) from before the 24 G-code overhaul, so they re-appear
+      // on top of the real colours (24 → 29). Strip them here so customers only
+      // see the G-codes. The G-codes carry the tier internally for pricing.
+      var DEPRECATED_COLORS = { icecut: ['white', 'normal', 'special1', 'special2', 'paribas'] };
+      Object.keys(DEPRECATED_COLORS).forEach(function (key) {
+        if (!COLORS_BY_CATEGORY[key]) return;
+        COLORS_BY_CATEGORY[key] = COLORS_BY_CATEGORY[key].filter(function (c) {
+          return DEPRECATED_COLORS[key].indexOf(c.id) === -1;
+        });
+      });
       // Shapes retired from a category. The backend catalog overlay is add-only
       // and still holds these from an earlier seeding, so filter them out here
       // (and strip any that already leaked into the built-in list).

@@ -255,6 +255,16 @@
         // backend category may not carry the flag). The colour step is first.
         var mappedIce = mapped.filter(function (c) { return c.id === 'icecut'; })[0];
         if (mappedIce) mappedIce.skipGrade = true;
+        // Lab Grown Diamonds is code-driven (custom LabDiamondOrderPad, Round
+        // priced per carat, other shapes on request) and not managed in Admin >
+        // Catalog, so the backend list would drop it. Re-insert the hardcoded
+        // entry right before Lab Grown / Created.
+        var labDiamondCat = CATEGORIES.filter(function (c) { return c.id === 'labdiamond'; })[0];
+        if (labDiamondCat && !mapped.some(function (c) { return c.id === 'labdiamond'; })) {
+          var lgIdx = mapped.map(function (c) { return c.id; }).indexOf('labgrown');
+          if (lgIdx >= 0) mapped.splice(lgIdx, 0, labDiamondCat);
+          else mapped.push(labDiamondCat);
+        }
         Array.prototype.splice.apply(CATEGORIES, [0, CATEGORIES.length].concat(mapped));
       }
 

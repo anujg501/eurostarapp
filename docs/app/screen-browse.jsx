@@ -259,6 +259,7 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
               category.id === 'pearls' ? 'Eurostar Pearls' :
               category.id === 'highdensity' ? 'HD Zirconia' :
               category.id === 'corundum' ? 'Synthetic Lab Grown Corrundums' :
+              category.id === 'labdiamond' ? 'Premium Lab Grown Diamonds' :
               category.id === 'labgrown' ? 'Lab Grown & Created Gemstones' :
               category.id === 'opaque' ? 'Opaque Colour Created Stones' :
               category.id === 'cz' ? 'Various Colour Cubic Zirconia' :
@@ -286,6 +287,8 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
               'Pearls made for all types of jewellery. We have varieties like string or half-drilled. Pick the grade you want to order from — pricing differs by grade.' :
               category.id === 'highdensity' ?
               'New technology developed, most suitable for gold jewellery sold by gross weight only. With this technology we can provide 25% more weight for the same height — achieved by binding the molecules more closely. The result is higher lustre, stronger and shinier diamonds.' :
+              category.id === 'labdiamond' ?
+              'CVD Indigeniusly Grown and Processed LabGrown Diamonds' :
               <React.Fragment>{category.blurb} Pick the grade you want to order from — pricing differs by grade.</React.Fragment>}</p>
             </div>
           </div>
@@ -553,6 +556,8 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
               <h1>{needsSubShape ? T('choose_cut', 'Choose a cut shape') : T('choose_shape', 'Choose a shape')}</h1>
               <p>{needsSubShape
                 ? 'Pick the exact cut — then choose your sizes and quantities.'
+                : category.id === 'labdiamond'
+                ? 'EF color VVS clarity , EX cutting'
                 : 'Pick a shape to see its sizes and pricing.'}</p>
             </div>
             {needsSubShape ? <button className="btn btn-ghost" onClick={() => setShape(null)}>
@@ -1268,6 +1273,11 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
   }
   if (category.id === 'icecut') {
     return <IceCutOrderPad grade={grade} color={color} shape={shape} category={category}
+    qtyBySize={qtyBySize} setQtyBySize={setQtyBySize}
+    onBack={onBack} onChangeColor={onChangeColor} addToCart={addToCart} setRoute={setRoute} />;
+  }
+  if (category.id === 'labdiamond') {
+    return <LabDiamondOrderPad grade={grade} color={color} shape={shape} category={category}
     qtyBySize={qtyBySize} setQtyBySize={setQtyBySize}
     onBack={onBack} onChangeColor={onChangeColor} addToCart={addToCart} setRoute={setRoute} />;
   }

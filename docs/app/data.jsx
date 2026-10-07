@@ -27,6 +27,9 @@ const CATEGORIES = [
   { id: 'corundum', name: 'Synthetic Corrundums', short: 'Corrundum',
     blurb: 'Synthetic / lab-grown gemstones with wide variety.',
     count: 760 },
+  { id: 'labdiamond', name: 'Lab Grown Diamonds', short: 'Lab Diamonds',
+    blurb: 'CVD EF VVS LAB GROWN DIAMONDS',
+    count: 0 },
   { id: 'labgrown', name: 'Lab Grown / Created', short: 'Lab Grown',
     blurb: 'Gemstones with IGI certificate & natural inclusions like real gemstones.',
     count: 2110 },
@@ -470,6 +473,11 @@ const GRADES_BY_CATEGORY = {
       desc: 'Most economical · suitable for mass-produced silver & imitation jewellery',
       tone: 'def-white', basePrice: 62, unit: 'ct', packetPriced: true },
   ],
+  labdiamond: [
+    { id: 'labdiamond', name: 'Lab Grown Diamonds', tier: 'Certified', origin: 'Lab Grown',
+      desc: 'CVD lab-grown diamonds — round priced per carat, fancy shapes price on request',
+      tone: 'def-white', basePrice: 6500, unit: 'ct', fromText: 'from ₹6,500', fromUnit: 'ct' },
+  ],
   labgrown: [
     { id: 'labgrown', name: 'Lab Grown Beryl', tier: 'Certified', origin: 'Lab Grown',
       desc: 'IGI-certified lab-grown gemstones with natural-like inclusions, 100% wax castable',
@@ -719,6 +727,7 @@ const SHAPES_BY_CATEGORY = {
   cz:         ['round','oval','pear','princess','cushion','marquise','baguette','tapered','heart','trillion'],
   whitecz:    ['round'],
   whitefancy: ['oval','pear','princess','cushion','marquise','heart','baguette','tapered'],
+  labdiamond: ['round','oval','pear','princess','cushion','emerald','marquise','heart','baguette','tapered'],
   labgrown:   ['oval','round','pear','cushion','emerald','heart','baguette','tapered'],
   fancycut:   ['trillion','pear','heart','marquise','baguette','tapered'],
   mop:        ['round','pearoval','square','heart','marquise','triangle','baguette','bellflower','bulgari','butterfly','natrivershell'],
@@ -1770,6 +1779,7 @@ const pearlStringPrice = (size) => PEARL_STRING_PRICE_BY_SIZE[size] || 0;
 // By packet (size-varying pcs): everything else.  Hotfix = fixed gross.
 const UNIT_BY_CATEGORY = {
   moissanite:    'ct',
+  labdiamond:    'ct',
   labgrown:      'ct',
   beads:         'ct',
   multisapphire: 'ct',   // synthetic grade overrides to 'strip' at grade level
@@ -1791,7 +1801,7 @@ const ORIGIN_BY_CATEGORY = {
   moissanite: 'Synthetic', laser: 'Synthetic', cz: 'Zirconia',
   whitecz: 'Zirconia', whitefancy: 'Zirconia', rajkot: 'Zirconia',
   predrilled: 'Zirconia',
-  labgrown: 'Synthetic', multisapphire: 'Synthetic', alpanite: 'Synthetic',
+  labdiamond: 'Lab Grown', labgrown: 'Synthetic', multisapphire: 'Synthetic', alpanite: 'Synthetic',
   corundum: 'Synthetic', highdensity: 'Zirconia', fancycut: 'Synthetic',
   labopal: 'Synthetic', hotfix: 'Synthetic', coral: 'Synthetic',
   mop: 'Natural / Synthetic', pearls: 'Natural / Cultured',

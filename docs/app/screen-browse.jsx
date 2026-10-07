@@ -503,6 +503,34 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
           </div>
         }
 
+          {/* Ice Cut full colour reference card — the physical "Color Card CZ"
+             chart, below the orderable G-codes. Tap to enlarge full-screen
+             (lightbox auto-zooms any /assets/products/ image). */}
+          {category.id === 'icecut' &&
+        <div className="moiss-docs" style={{ marginTop: 28 }}>
+            <div className="moiss-docs-head">
+              <div className="moiss-docs-eyebrow">Full colour reference</div>
+              <h3>The Color Card — CZ for Crushed Ice Cutting</h3>
+              <p>Every Ice Cut colour we cut, with its G-code and name. The{' '}
+                 <strong>{colors.length} colours above</strong> are ready to order now;
+                 the rest are made to order. <strong>Tap the card to enlarge.</strong></p>
+            </div>
+            <div className="moiss-docs-cards" style={{ gridTemplateColumns: '1fr' }}>
+              <figure style={{ margin: 0 }}>
+                <img src="/assets/products/icecut-color-card.jpg"
+                  alt="The Color Card — CZ for Crushed Ice Cutting — full Ice Cut colour chart with G-codes"
+                  loading="lazy"
+                  style={{ display: 'block', width: '100%', maxWidth: 680, margin: '0 auto', height: 'auto',
+                    borderRadius: 10, border: '1px solid var(--line, #e6e2d6)', cursor: 'zoom-in',
+                    boxShadow: '0 2px 14px rgba(0,0,0,.06)' }} />
+                <figcaption style={{ marginTop: 8, fontSize: 12.5, color: 'var(--fg-meta, #8a8578)', textAlign: 'center' }}>
+                  Reference chart · colours vary slightly by batch · tap to zoom
+                </figcaption>
+              </figure>
+            </div>
+          </div>
+        }
+
           {/* Lab-grown corundum certificate — on the colour step for the multi-colour
              certified lines (Synthetic Corundum, Lab Grown Corundum). */}
           {isLabCorundumCert && corundumCertPanel}

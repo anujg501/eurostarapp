@@ -440,10 +440,18 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
           </div>) : null}
           {!needsSubShade && (
         <div className="color-pick-grid">
-            {colors.map((c) =>
+            {colors.map((c) => {
+              // Ice Cut ships a real stone photo per colour, committed under
+              // /assets/icecut-swatch, so the swatches show real stones out of
+              // the box — no admin upload needed. An uploaded "Colour image"
+              // still wins; a missing file falls back to the plain hex swatch.
+              const swatchSrc = colourThumbFor(category.id, c.id)
+                || (category.id === 'icecut' ? ('/assets/icecut-swatch/icecut__' + c.id + '.jpg') : null)
+                || productPhoto(c.id);
+              return (
           <button key={c.id} className="color-pick-card" onClick={() => pickColor(c.id)}>
-                {(colourThumbFor(category.id, c.id) || productPhoto(c.id)) ?
-            <img className="color-pick-swatch" src={colourThumbFor(category.id, c.id) || productPhoto(c.id)} alt={c.name}
+                {swatchSrc ?
+            <img className="color-pick-swatch" src={swatchSrc} alt={c.name}
             loading="lazy"
             /* A missing file must leave the plain colour swatch behind, not a
                broken-image icon. */
@@ -456,7 +464,8 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
             <div className="color-pick-meta">+{Math.round((c.mult - 1) * 100)}% fancy</div>
             }
               </button>
-          )}
+              );
+            })}
           </div>)
         }
 

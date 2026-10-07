@@ -162,6 +162,22 @@ function ThumbCell({
 
 const titleCase = (s: string) => s.replace(/\b[a-z]/g, (c) => c.toUpperCase());
 
+// Lab Grown Diamonds is a code-driven storefront category (not managed in
+// Admin > Catalog), so the backend category list omits it. Inject it here —
+// right before Lab Grown / Created — so the operator still gets a thumbnail
+// slot for it. Its thumbnail saves under the key the storefront reads
+// ('labdiamond' → /admin/thumbs/categories → eurostar-cat-thumbs-v1).
+function withLabDiamond(list: Category[]): Category[] {
+  if (list.some((c) => c.key === 'labdiamond')) return list;
+  const entry: Category = {
+    key: 'labdiamond', name: 'Lab Grown Diamonds', short: 'Lab Diamonds',
+    blurb: 'CVD EF VVS LAB GROWN DIAMONDS', unit: 'ct', origin: 'Lab Grown',
+    skipGrade: false, count: 0, sortOrder: 0, hidden: false,
+  };
+  const i = list.findIndex((c) => c.key === 'labgrown');
+  return i >= 0 ? [...list.slice(0, i), entry, ...list.slice(i)] : [...list, entry];
+}
+
 function Thumbs() {
   const [cats, setCats] = useState<Category[] | null>(null);
   const [map, setMap] = useState<Record<string, string>>({});
@@ -181,7 +197,7 @@ function Thumbs() {
           adminApi.shapes(),
           adminApi.shapeThumbs(),
         ]);
-        setCats(c);
+        setCats(withLabDiamond(c));
         setMap(m ?? {});
         setShapeMap(sm ?? {});
         // The shape list is whatever the categories use, plus any shape that

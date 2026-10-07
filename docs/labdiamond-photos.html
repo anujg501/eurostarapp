@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lab Grown Diamonds — copy Moissanite photos</title>
+<style>
+  :root { --green:#0e3a2e; --gold:#d8b25c; --line:#e6e2d6; --paper:#faf7f0; --ink:#1a2420; --meta:#8a8578; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:'Segoe UI',system-ui,Arial,sans-serif; background:var(--paper); color:var(--ink); }
+  header { background:var(--green); color:#f4efe1; padding:20px 22px; }
+  header h1 { margin:0; font-size:22px; font-family:Georgia,serif; }
+  header p { margin:6px 0 0; font-size:13.5px; opacity:.9; }
+  .wrap { max-width:1100px; margin:0 auto; padding:22px 16px 60px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:18px 18px; margin-bottom:18px; }
+  .bar { display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
+  button { background:var(--gold); color:#14231d; border:0; border-radius:9px; padding:13px 22px; font-weight:700;
+    font-size:15px; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:default; }
+  button.ghost { background:transparent; border:1px solid var(--line); color:var(--ink); }
+  .status { font-size:14px; }
+  .ok { color:#1d7a3a; } .err { color:#b23a2e; } .muted { color:var(--meta); }
+  .prog { height:10px; background:#eee; border-radius:6px; overflow:hidden; margin-top:12px; }
+  .prog > i { display:block; height:100%; width:0; background:var(--green); transition:width .2s; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:12px; margin-top:16px; }
+  .tile { border:1px solid var(--line); border-radius:9px; overflow:hidden; background:#fbf9f3; }
+  .tile img { width:100%; aspect-ratio:1/1; object-fit:cover; display:block; background:#f0ece1; }
+  .tile .ph { width:100%; aspect-ratio:1/1; display:flex; align-items:center; justify-content:center;
+    color:#b23a2e; font-size:11px; text-align:center; padding:6px; }
+  .tile span { display:block; font-size:11px; color:var(--meta); text-align:center; padding:5px 3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Lab Grown Diamonds — copy Moissanite photos</h1>
+  <p>Copies your Moissanite white-stone photo for each shape onto Lab Grown Diamonds, in one click — so they appear in Admin &rsaquo; Product images and can be edited.</p>
+</header>
+<div class="wrap">
+
+  <div class="card">
+    <div class="bar">
+      <button id="apply">Copy Moissanite photos to Lab Grown Diamonds</button>
+      <button class="ghost" id="preview">Preview below</button>
+      <span class="status muted" id="count">Loading current photos…</span>
+    </div>
+    <div class="prog" id="progwrap" style="display:none"><i id="prog"></i></div>
+    <p class="status" id="msg" style="margin:12px 0 0"></p>
+    <p class="muted" style="font-size:12.5px;margin:10px 0 0">
+      You must be signed in to the Admin panel in this browser first (so this page has your login).
+      It only <b>adds/updates</b> the Lab Grown Diamonds photos (copied from Moissanite · White) — nothing
+      else is touched. Any shape with no Moissanite photo is skipped. Changes appear on the storefront within a minute.
+    </p>
+  </div>
+
+  <div class="card" id="previewCard" style="display:none">
+    <strong>What will be copied (<span id="pcount">0</span> shapes found)</strong>
+    <div class="grid" id="grid"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var TOKEN_KEY = 'eurostar-admin-token';
+  var REFRESH_KEY = 'eurostar-admin-refresh';
+  var ENDPOINT = '/admin/product-images';
+  // Lab Grown Diamonds shapes (must exist in Moissanite too — they all do).
+  var SHAPES = ['round','oval','pear','princess','cushion','emerald','marquise','heart','baguette','tapered'];
+  var SHAPE_NAMES = { round:'Round', oval:'Oval', pear:'Pear', princess:'Princess', cushion:'Cushion',
+    emerald:'Emerald', marquise:'Marquise', heart:'Heart', baguette:'Baguette', tapered:'Tapered Baguette' };
+  var current = null; // the fetched product-images map
+  var $ = function (id) { return document.getElementById(id); };
+  function token() { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } }
+  function refreshToken() { try { return localStorage.getItem(REFRESH_KEY) || ''; } catch (e) { return ''; } }
+  function setMsg(t, cls) { var m = $('msg'); m.textContent = t; m.className = 'status ' + (cls || ''); }
+  var srcKey = function (shape) { return 'moissanite|white|' + shape; };
+  var dstKey = function (shape) { return 'labdiamond|white|' + shape; };
+
+  // Renew the ~15-min admin access token from the refresh token (as the admin app
+  // does), so a save made more than 15 minutes after sign-in doesn't 401.
+  function renewAccess() {
+    var rt = refreshToken();
+    if (!rt) return Promise.resolve(false);
+    return fetch('/auth/refresh', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({ refreshToken: rt }),
+    })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (d && d.accessToken) { try { localStorage.setItem(TOKEN_KEY, d.accessToken); } catch (e) {} return true; }
+        return false;
+      })
+      .catch(function () { return false; });
+  }
+  function authFetch(url, opts, isRetry) {
+    opts = opts || {};
+    var H = {}; for (var k in (opts.headers || {})) H[k] = opts.headers[k];
+    H.authorization = 'Bearer ' + token();
+    return fetch(url, { method: opts.method || 'GET', headers: H, body: opts.body })
+      .then(function (r) {
+        if (r.status === 401 && !isRetry && refreshToken()) {
+          return renewAccess().then(function (ok) { return ok ? authFetch(url, opts, true) : r; });
+        }
+        return r;
+      });
+  }
+
+  function found() { return SHAPES.filter(function (s) { return current && current[srcKey(s)]; }); }
+
+  // Load the current photos up front so Preview and the count work before saving.
+  authFetch(ENDPOINT, { headers: { accept: 'application/json' } })
+    .then(function (r) { return r.ok ? r.json() : {}; })
+    .then(function (m) {
+      current = (m && typeof m === 'object') ? m : {};
+      var n = found().length;
+      $('count').textContent = n + ' Moissanite shape photo' + (n === 1 ? '' : 's') + ' found';
+    })
+    .catch(function () { $('count').textContent = 'Could not load current photos — sign in to /admin first.'; });
+
+  $('preview').onclick = function () {
+    if (!current) { setMsg('Still loading current photos — try again in a moment.', 'muted'); return; }
+    var c = $('previewCard'); c.style.display = 'block';
+    var f = found();
+    $('pcount').textContent = f.length;
+    var grid = $('grid'); grid.innerHTML = '';
+    SHAPES.forEach(function (s) {
+      var d = document.createElement('div'); d.className = 'tile';
+      var url = current[srcKey(s)];
+      d.innerHTML = (url ? '<img loading="lazy" src="' + url + '">' : '<div class="ph">no Moissanite photo</div>')
+        + '<span>' + SHAPE_NAMES[s] + '</span>';
+      grid.appendChild(d);
+    });
+  };
+
+  $('apply').onclick = function () {
+    if (!token()) {
+      setMsg('Not signed in. Open the Admin panel (/admin) and sign in first, then reload this page.', 'err');
+      return;
+    }
+    $('apply').disabled = true; $('progwrap').style.display = 'block';
+    setMsg('Reading current photos…', 'muted');
+    authFetch(ENDPOINT, { headers: { accept: 'application/json' } })
+      .then(function (r) {
+        if (r.status === 401 || r.status === 403) throw new Error('Your admin session has expired — reopen /admin, sign in again, then reload this page.');
+        return r.ok ? r.json() : {};
+      })
+      .then(function (m) {
+        var map = (m && typeof m === 'object') ? m : {};
+        current = map;
+        var copied = 0;
+        SHAPES.forEach(function (s) {
+          var src = map[srcKey(s)];
+          if (src) { map[dstKey(s)] = src; copied++; }
+        });
+        if (copied === 0) throw new Error('No Moissanite (White) shape photos found to copy. Upload Moissanite photos first, then run this again.');
+        $('prog').style.width = '55%';
+        setMsg('Saving ' + copied + ' Lab Grown Diamonds photo' + (copied === 1 ? '' : 's') + '…', 'muted');
+        return authFetch(ENDPOINT, {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json', accept: 'application/json' },
+          body: JSON.stringify(map),
+        }).then(function (r) { return { r: r, copied: copied }; });
+      })
+      .then(function (res) {
+        var r = res.r;
+        if (r.status === 401 || r.status === 403) throw new Error('Your admin session has expired — reopen /admin, sign in again, then reload this page.');
+        if (!r.ok) throw new Error('Save failed (' + r.status + ').');
+        $('prog').style.width = '100%';
+        setMsg('✓ Done — copied ' + res.copied + ' photo' + (res.copied === 1 ? '' : 's') + ' to Lab Grown Diamonds. Open the shop and check (allow ~1 minute, then hard-refresh).', 'ok');
+      })
+      .catch(function (e) { setMsg(e.message || 'Something went wrong.', 'err'); $('apply').disabled = false; });
+  };
+})();
+</script>
+</body>
+</html>

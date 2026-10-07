@@ -60,11 +60,49 @@
 <script>
 (function () {
   var TOKEN_KEY = 'eurostar-admin-token';
+  var REFRESH_KEY = 'eurostar-admin-refresh';
   var ENDPOINT = '/admin/thumbs/colours';
   var manifest = [];
   var $ = function (id) { return document.getElementById(id); };
   function token() { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } }
+  function refreshToken() { try { return localStorage.getItem(REFRESH_KEY) || ''; } catch (e) { return ''; } }
   function setMsg(t, cls) { var m = $('msg'); m.textContent = t; m.className = 'status ' + (cls || ''); }
+
+  // The admin access token lives ~15 min. The admin app renews it silently from
+  // the refresh token; this standalone page has to do the same or a write made
+  // more than 15 minutes after sign-in 401s. Renew once, then replay.
+  function renewAccess() {
+    var rt = refreshToken();
+    if (!rt) return Promise.resolve(false);
+    return fetch('/auth/refresh', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({ refreshToken: rt }),
+    })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (d && d.accessToken) { try { localStorage.setItem(TOKEN_KEY, d.accessToken); } catch (e) {} return true; }
+        return false;
+      })
+      .catch(function () { return false; });
+  }
+
+  // fetch that transparently renews the token once on a 401 and replays.
+  function authFetch(url, opts, isRetry) {
+    opts = opts || {};
+    var H = {}; for (var k in (opts.headers || {})) H[k] = opts.headers[k];
+    H.authorization = 'Bearer ' + token();
+    return fetch(url, { method: opts.method || 'GET', headers: H, body: opts.body })
+      .then(function (r) {
+        if (r.status === 401 && !isRetry && refreshToken()) {
+          return renewAccess().then(function (ok) {
+            if (ok) return authFetch(url, opts, true);
+            return r;
+          });
+        }
+        return r;
+      });
+  }
 
   fetch('/assets/icecut-swatch/_manifest.json', { cache: 'no-store' })
     .then(function (r) { return r.json(); })
@@ -94,10 +132,9 @@
     if (!manifest.length) { setMsg('No colours to apply.', 'err'); return; }
     $('apply').disabled = true; $('progwrap').style.display = 'block';
     setMsg('Reading current colour swatches…', 'muted');
-    var H = { 'content-type': 'application/json', authorization: 'Bearer ' + tk, accept: 'application/json' };
-    fetch(ENDPOINT, { headers: { authorization: 'Bearer ' + tk, accept: 'application/json' } })
+    authFetch(ENDPOINT, { headers: { accept: 'application/json' } })
       .then(function (r) {
-        if (r.status === 401 || r.status === 403) throw new Error('Your admin session has expired — reopen /admin, sign in, then reload this page.');
+        if (r.status === 401 || r.status === 403) throw new Error('Your admin session has expired — reopen /admin, sign in again, then reload this page.');
         return r.ok ? r.json() : {};
       })
       .then(function (current) {
@@ -105,9 +142,14 @@
         manifest.forEach(function (e) { map[e.key] = e.url; });
         $('prog').style.width = '55%';
         setMsg('Saving ' + manifest.length + ' colour swatches…', 'muted');
-        return fetch(ENDPOINT, { method: 'PUT', headers: H, body: JSON.stringify(map) });
+        return authFetch(ENDPOINT, {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json', accept: 'application/json' },
+          body: JSON.stringify(map),
+        });
       })
       .then(function (r) {
+        if (r.status === 401 || r.status === 403) throw new Error('Your admin session has expired — reopen /admin, sign in again, then reload this page.');
         if (!r.ok) throw new Error('Save failed (' + r.status + ').');
         $('prog').style.width = '100%';
         setMsg('✓ Done — all ' + manifest.length + ' Ice Cut colour swatches are now on the website. Open the shop and check (allow ~1 minute, then hard-refresh).', 'ok');

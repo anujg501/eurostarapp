@@ -33,6 +33,11 @@ function pimgKey(catId, colorId, shape, gradeId) {
 function productImageFor(catId, colorId, shape, gradeId) {
   return (
     getStoredProductImage(catId, colorId, shape, gradeId) ||
+    // Lab Grown Diamonds reuse Moissanite's white-stone photos — same white
+    // diamonds, same shapes — so a photo uploaded for Moissanite shows on Lab
+    // Diamonds too, with no separate upload. A labdiamond-specific photo (if one
+    // is ever uploaded) still wins because it is tried first above.
+    (catId === 'labdiamond' ? getStoredProductImage('moissanite', 'white', shape) : null) ||
     (typeof window.productPhoto === 'function' ? window.productPhoto(colorId) : null)
   );
 }

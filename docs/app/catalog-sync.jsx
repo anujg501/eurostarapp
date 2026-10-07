@@ -156,7 +156,8 @@
       // Special 2 / Paraiba) from before the 24 G-code overhaul, so they re-appear
       // on top of the real colours (24 → 29). Strip them here so customers only
       // see the G-codes. The G-codes carry the tier internally for pricing.
-      var DEPRECATED_COLORS = { icecut: ['white', 'normal', 'special1', 'special2', 'paribas'] };
+      var DEPRECATED_COLORS = { icecut: ['white', 'normal', 'special1', 'special2', 'paribas',
+        'g01', 'g02', 'g13', 'g27', 'g29', 'g41'] };
       Object.keys(DEPRECATED_COLORS).forEach(function (key) {
         if (!COLORS_BY_CATEGORY[key]) return;
         COLORS_BY_CATEGORY[key] = COLORS_BY_CATEGORY[key].filter(function (c) {

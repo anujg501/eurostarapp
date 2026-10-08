@@ -330,6 +330,33 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
 
           })}
           </div>
+          {/* Lab Grown Diamonds — sample IGI certificate on the grade step. Tap to
+             zoom full-screen (lightbox auto-zooms /assets/products/ images). */}
+          {category.id === 'labdiamond' &&
+        <div className="moiss-docs" style={{ marginTop: 28 }}>
+            <div className="moiss-docs-head">
+              <div className="moiss-docs-eyebrow">Certification</div>
+              <h3>Every stone is IGI certifiable as a Lab Grown Diamond</h3>
+              <p>Each diamond can be sent for independent IGI grading — the report reads{' '}
+                 <strong>“Laboratory Grown Diamond”</strong> with its full 4Cs (carat, colour, clarity, cut).
+                 Optional IGI certificate <strong>₹2,000 per piece</strong> on 1 ct+ stones.
+                 Tap the sample to zoom; verify any report at igi.org.</p>
+            </div>
+            <div className="moiss-docs-cards" style={{ gridTemplateColumns: '1fr' }}>
+              <figure style={{ margin: 0 }}>
+                <img src="/assets/products/igi-labdiamond-cert.jpg"
+                  alt="IGI Laboratory Grown Diamond Report — Round Brilliant 1.52 ct, E colour, VVS2, Excellent cut, report LG801642196"
+                  loading="lazy"
+                  style={{ display: 'block', width: '100%', height: 'auto', borderRadius: 10,
+                    border: '1px solid var(--line, #e6e2d6)', cursor: 'zoom-in',
+                    boxShadow: '0 2px 14px rgba(0,0,0,.06)' }} />
+                <figcaption style={{ marginTop: 8, fontSize: 12.5, color: 'var(--fg-meta, #8a8578)', textAlign: 'center' }}>
+                  Sample IGI Lab Grown Diamond report · tap to zoom
+                </figcaption>
+              </figure>
+            </div>
+          </div>
+        }
         </div>
       }
 

@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Baguette shapes — catalogue PDF</title>
+<style>
+  :root { --green:#0e3a2e; --gold:#d8b25c; --line:#e6e2d6; --paper:#faf7f0; --ink:#1a2420; --meta:#8a8578; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:'Segoe UI',system-ui,Arial,sans-serif; background:var(--paper); color:var(--ink); }
+  header { background:var(--green); color:#f4efe1; padding:20px 22px; }
+  header h1 { margin:0; font-size:22px; font-family:Georgia,serif; }
+  header p { margin:6px 0 0; font-size:13.5px; opacity:.9; }
+  .wrap { max-width:1180px; margin:0 auto; padding:22px 16px 60px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin-bottom:18px; }
+  .bar { display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
+  button { background:var(--gold); color:#14231d; border:0; border-radius:9px; padding:12px 20px; font-weight:700;
+    font-size:15px; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:default; }
+  .status { font-size:14px; } .ok{color:#1d7a3a;} .err{color:#b23a2e;} .muted{color:var(--meta);}
+
+  /* Catalogue sheet */
+  .sheet { background:#fff; border:1px solid var(--line); border-radius:12px; padding:26px 26px 32px; }
+  .sheet-head { text-align:center; margin-bottom:20px; }
+  .sheet-head .brand { font-family:Georgia,serif; font-size:24px; color:var(--green); }
+  .sheet-head .sub { font-size:13px; color:var(--meta); letter-spacing:.12em; text-transform:uppercase; margin-top:4px; }
+  .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
+  .item { border:1px solid var(--line); border-radius:10px; overflow:hidden; background:#fbf9f3; break-inside:avoid; }
+  .item .ph { width:100%; aspect-ratio:1/1; object-fit:cover; display:block; background:#f0ece1; }
+  .item .nm { padding:8px 8px 10px; text-align:center; font-size:12.5px; font-weight:600; color:var(--ink); line-height:1.3; }
+  .empty { text-align:center; color:var(--meta); padding:40px 10px; }
+
+  @media print {
+    @page { size:A4; margin:12mm; }
+    header, .card, .no-print { display:none !important; }
+    body { background:#fff; }
+    .wrap { max-width:none; padding:0; }
+    .sheet { border:0; border-radius:0; padding:0; }
+    .grid { gap:10mm 8mm; }
+    .item { border-color:#ddd; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Baguette shapes — catalogue PDF</h1>
+  <p>Collects every product photo in a baguette shape across the whole website, with the product name under each. Sign in to the Admin panel in this browser first, then Save as PDF.</p>
+</header>
+<div class="wrap">
+
+  <div class="card no-print">
+    <div class="bar">
+      <button id="load">Load baguette items</button>
+      <button id="save" disabled>Save as PDF</button>
+      <span class="status muted" id="count"></span>
+    </div>
+    <p class="status" id="msg" style="margin:12px 0 0"></p>
+    <p class="muted" style="font-size:12.5px;margin:10px 0 0">
+      Matches shapes: <b>Baguette, Tapered Baguette, Baguette Step, Baguette Prince</b>. Only products that have an
+      uploaded photo appear. &ldquo;Save as PDF&rdquo; opens your browser&rsquo;s print dialog — choose
+      <b>Destination: Save as PDF</b>.
+    </p>
+  </div>
+
+  <div class="sheet" id="sheet">
+    <div class="sheet-head">
+      <div class="brand">Eurostar — Baguette Shapes</div>
+      <div class="sub" id="sheetsub">Loading…</div>
+    </div>
+    <div class="grid" id="grid"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var TOKEN_KEY='eurostar-admin-token', REFRESH_KEY='eurostar-admin-refresh';
+  var $=function(id){return document.getElementById(id);};
+  function token(){ try{return localStorage.getItem(TOKEN_KEY)||'';}catch(e){return '';} }
+  function refreshToken(){ try{return localStorage.getItem(REFRESH_KEY)||'';}catch(e){return '';} }
+  function setMsg(t,c){ var m=$('msg'); m.textContent=t; m.className='status '+(c||''); }
+
+  function renewAccess(){
+    var rt=refreshToken(); if(!rt) return Promise.resolve(false);
+    return fetch('/auth/refresh',{method:'POST',headers:{'content-type':'application/json',accept:'application/json'},
+      body:JSON.stringify({refreshToken:rt})})
+      .then(function(r){return r.ok?r.json():null;})
+      .then(function(d){ if(d&&d.accessToken){try{localStorage.setItem(TOKEN_KEY,d.accessToken);}catch(e){} return true;} return false;})
+      .catch(function(){return false;});
+  }
+  function authFetch(url,isRetry){
+    return fetch(url,{headers:{authorization:'Bearer '+token(),accept:'application/json'}})
+      .then(function(r){ if(r.status===401&&!isRetry&&refreshToken()){ return renewAccess().then(function(ok){return ok?authFetch(url,true):r;}); } return r; });
+  }
+
+  // Shape ids that count as a baguette.
+  function isBaguette(shape){ shape=(shape||'').toLowerCase(); return shape.indexOf('baguette')!==-1 || shape==='tapered'; }
+  var SHAPE_NAME={ 'baguette':'Baguette','tapered':'Tapered Baguette','tapered-baguette':'Tapered Baguette',
+    'baguette-step':'Baguette Step','baguette-prince':'Baguette Prince','baguette-princess':'Baguette Princess' };
+  function shapeName(s){ return SHAPE_NAME[s] || pretty(s); }
+  function pretty(id){
+    if(!id) return '';
+    if(/^g\d+$/i.test(id)) return id.toUpperCase();             // ice-cut g-codes
+    return id.split('-').map(function(w){ return w ? w.charAt(0).toUpperCase()+w.slice(1) : w; }).join(' ');
+  }
+
+  var catNames={};
+  function catName(id){ return catNames[id] || pretty(id); }
+
+  // Key formats: cat|colour|shape  OR  cat|grade|colour|shape (grade-scoped).
+  function itemFromKey(key, url){
+    var p=key.split('|'); if(p.length<3) return null;
+    var cat=p[0], shape=p[p.length-1];
+    if(!isBaguette(shape)) return null;
+    var mids=p.slice(1,p.length-1).map(pretty).join(' ');   // grade/colour parts
+    var name=catName(cat)+' · '+mids+' · '+shapeName(shape);
+    return { name:name, url:url, sort:catName(cat)+'|'+mids };
+  }
+
+  function render(items){
+    var grid=$('grid'); grid.innerHTML='';
+    if(!items.length){ grid.innerHTML='<div class="empty">No baguette product photos were found. Upload baguette photos in Admin &rsaquo; Product images, then reload.</div>'; $('sheetsub').textContent='0 items'; return; }
+    items.sort(function(a,b){ return a.sort<b.sort?-1:a.sort>b.sort?1:0; });
+    items.forEach(function(it){
+      var d=document.createElement('div'); d.className='item';
+      d.innerHTML='<img class="ph" loading="lazy" src="'+it.url+'"><div class="nm">'+it.name+'</div>';
+      grid.appendChild(d);
+    });
+    $('sheetsub').textContent=items.length+' baguette items · '+new Date().toLocaleDateString();
+  }
+
+  function load(){
+    if(!token()){ setMsg('Not signed in. Open the Admin panel (/admin), sign in, then reload this page.','err'); return; }
+    $('load').disabled=true; setMsg('Loading product photos…','muted');
+    Promise.all([ authFetch('/admin/product-images'), authFetch('/admin/catalog/categories') ])
+      .then(function(rs){
+        if(rs[0].status===401||rs[0].status===403) throw new Error('Your admin session has expired — reopen /admin, sign in again, then reload this page.');
+        return Promise.all([ rs[0].ok?rs[0].json():{}, rs[1].ok?rs[1].json():[] ]);
+      })
+      .then(function(d){
+        var imgs=d[0]||{}, cats=d[1]||[];
+        (Array.isArray(cats)?cats:[]).forEach(function(c){ if(c&&c.key) catNames[c.key]=c.name||c.short||c.key; });
+        var items=[];
+        Object.keys(imgs).forEach(function(k){ var it=itemFromKey(k,imgs[k]); if(it&&it.url) items.push(it); });
+        render(items);
+        $('count').textContent=items.length+' baguette items';
+        setMsg(items.length? '✓ Loaded — click “Save as PDF”.' : 'No baguette photos found.', items.length?'ok':'muted');
+        $('save').disabled=!items.length; $('load').disabled=false;
+      })
+      .catch(function(e){ setMsg(e.message||'Something went wrong.','err'); $('load').disabled=false; });
+  }
+
+  $('load').onclick=load;
+  $('save').onclick=function(){ window.print(); };
+  // auto-load on open
+  load();
+})();
+</script>
+</body>
+</html>

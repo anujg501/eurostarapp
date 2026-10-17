@@ -826,18 +826,28 @@ function CartsView({ carts, orders, editItems, removeCart, setDisc, editOrder, r
   const completed = orders || [];
   const abandoned = carts.filter((c) => c.status === 'abandoned');
   const openCarts = carts.filter((c) => c.status !== 'abandoned');
-  const Row = ({ c, kind }) => {const cu = H.cust(c.cust);const d = c.appliedDisc || 0;const net = Math.round(c.value * (1 - d / 100));return (
-      <tr><td className="crm-id">{c.id}</td>
-      <td>{cu.name}{c.note && <div className="lrow-note" style={{ marginTop: 4 }}>“{c.note}”</div>}</td>
-      <td className="crm-muted">{cu.city}</td>
-      <td className="crm-muted" style={{ fontSize: 12 }}>{cu.mobile}</td>
-      <td className="crm-muted">{H.rep(cu.rep).name}</td>
+  const Row = ({ c, kind }) => {const cu = H.cust(c.cust);const d = c.appliedDisc || 0;const net = Math.round(c.value * (1 - d / 100));
+    // H.cust falls back to { name: id } when the cart has no matching Customer
+    // master record (most app shoppers sign up themselves). In that case the
+    // shopper's phone lives in c.persona — show it so the cart can be followed up.
+    const resolved = cu && cu.name && cu.name !== c.cust;
+    const mobile = (cu && cu.mobile) || c.persona || '';
+    const custName = resolved ? cu.name : (c.persona ? 'App shopper' : 'Guest cart');
+    const custSub = resolved ? (cu.city || '') : (c.persona || c.cust || '');
+    const openRow = () => { if (kind === 'order') { editOrder && editOrder(c.id); } else { editItems && editItems(c.id); } };
+    const clickCell = { cursor: 'pointer' };
+    return (
+      <tr><td className="crm-id" onClick={openRow} style={clickCell} title="View cart items">{c.id}</td>
+      <td onClick={openRow} style={clickCell} title="View cart items"><span style={{ fontWeight: 600 }}>{custName}</span>{custSub && <div className="crm-muted" style={{ fontSize: 11 }}>{custSub}</div>}{c.note && <div className="lrow-note" style={{ marginTop: 4 }}>“{c.note}”</div>}</td>
+      <td className="crm-muted">{(cu && cu.city) || ''}</td>
+      <td className="crm-muted" style={{ fontSize: 12 }}>{mobile ? <a href={'https://wa.me/91' + String(mobile).replace(/\D/g, '').slice(-10)} target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>{mobile}</a> : '—'}</td>
+      <td className="crm-muted">{H.rep(cu && cu.rep).name}</td>
       <td><Pill s={c.status} label={statusLabel(c.status)} /></td>
       <td className="crm-muted">{c.items}</td>
       <td className="crm-amt" style={{ textAlign: 'right' }}>{H.inr(net)}{d > 0 && <div className="crm-muted" style={{ fontSize: 11, textDecoration: 'line-through' }}>{H.inr(c.value)}</div>}</td>
       {kind !== 'order' && <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
         {setDisc && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, marginRight: 6 }}><input className="disc-input" style={{ width: 42 }} type="number" min="0" max="100" value={d || ''} placeholder="0%" onChange={(e) => setDisc(c.id, e.target.value)} />%</span>}
-        <button className="cbtn cbtn-ghost cbtn-sm" onClick={() => editItems(c.id)}>Edit</button>{' '}
+        <button className="cbtn cbtn-ghost cbtn-sm" onClick={() => editItems(c.id)}>View items</button>{' '}
         <button className="cbtn cbtn-ghost cbtn-sm" onClick={() => removeCart(c.id)}>Remove</button></td>}
       {kind === 'order' && <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
         <button className="cbtn cbtn-ghost cbtn-sm" onClick={() => editOrder && editOrder(c.id)}>Edit</button>{' '}

@@ -145,10 +145,20 @@
       if (repRows.length) put('eurostar-crm-reps', repRows);
       if (Array.isArray(carts)) {
         put('eurostar-crm-carts', carts.map(function (c) {
+          // personaId is the shopper's phone/username — the only contact info for
+          // a cart that isn't linked to a Customer master record, so carry it
+          // through for follow-up. Keep the real line items too (the cart detail
+          // view and the edit modal use these instead of fabricating samples).
+          var lines = Array.isArray(c.lines) ? c.lines.map(function (l) {
+            return { name: l.name || '', size: l.size || '', qty: l.qty || 0,
+              rate: l.unitPrice != null ? l.unitPrice : (l.qty ? Math.round((l.lineTotal || 0) / l.qty) : 0),
+              shape: l.shape || '', colour: l.colour || '', grade: l.grade || '', cat: l.categoryKey || '' };
+          }) : [];
           return {
-            id: c.id, cust: c.customerId || '', updated: dateOnly(c.updatedAt),
+            id: c.id, cust: c.customerId || '', persona: c.personaId || '',
+            updated: dateOnly(c.updatedAt),
             status: c.status || 'active', value: (c.totals && c.totals.grand) || 0,
-            items: Array.isArray(c.lines) ? c.lines.length : 0, age: '', note: '',
+            items: lines.length, lines: lines, age: '', note: '',
           };
         }));
       }

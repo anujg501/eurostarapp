@@ -156,6 +156,12 @@
           }) : [];
           return {
             id: c.id, cust: c.customerId || '', persona: c.personaId || '',
+            // Contact details resolved server-side from the linked customer
+            // record (staff view). These make the cart followable-up even when
+            // the CRM's code-keyed customer list can't match the cart's id.
+            custName: c.customerName || '', custCompany: c.customerCompany || '',
+            custMobile: c.customerPhone || '', custCity: c.customerCity || '',
+            custCode: c.customerCode || '',
             updated: dateOnly(c.updatedAt),
             status: c.status || 'active', value: (c.totals && c.totals.grand) || 0,
             items: lines.length, lines: lines, age: '', note: '',

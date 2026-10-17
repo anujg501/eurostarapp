@@ -827,19 +827,21 @@ function CartsView({ carts, orders, editItems, removeCart, setDisc, editOrder, r
   const abandoned = carts.filter((c) => c.status === 'abandoned');
   const openCarts = carts.filter((c) => c.status !== 'abandoned');
   const Row = ({ c, kind }) => {const cu = H.cust(c.cust);const d = c.appliedDisc || 0;const net = Math.round(c.value * (1 - d / 100));
-    // H.cust falls back to { name: id } when the cart has no matching Customer
-    // master record (most app shoppers sign up themselves). In that case the
-    // shopper's phone lives in c.persona — show it so the cart can be followed up.
+    // Prefer the contact the backend resolved from the linked customer record
+    // (c.custName / c.custMobile / c.custCity). Else the CRM's own code-keyed
+    // lookup. Else the shopper's phone (c.persona). A cart with none of these
+    // was a true guest — nothing was captured to follow up.
     const resolved = cu && cu.name && cu.name !== c.cust;
-    const mobile = (cu && cu.mobile) || c.persona || '';
-    const custName = resolved ? cu.name : (c.persona ? 'App shopper' : 'Guest cart');
-    const custSub = resolved ? (cu.city || '') : (c.persona || c.cust || '');
+    const mobile = c.custMobile || (cu && cu.mobile) || c.persona || '';
+    const city = c.custCity || (cu && cu.city) || '';
+    const custName = c.custName || (resolved ? cu.name : (c.persona ? 'App shopper' : 'Guest cart'));
+    const custSub = c.custCode || c.custCompany || (resolved ? (cu.city || '') : (c.persona || c.cust || ''));
     const openRow = () => { if (kind === 'order') { editOrder && editOrder(c.id); } else { editItems && editItems(c.id); } };
     const clickCell = { cursor: 'pointer' };
     return (
       <tr><td className="crm-id" onClick={openRow} style={clickCell} title="View cart items">{c.id}</td>
       <td onClick={openRow} style={clickCell} title="View cart items"><span style={{ fontWeight: 600 }}>{custName}</span>{custSub && <div className="crm-muted" style={{ fontSize: 11 }}>{custSub}</div>}{c.note && <div className="lrow-note" style={{ marginTop: 4 }}>“{c.note}”</div>}</td>
-      <td className="crm-muted">{(cu && cu.city) || ''}</td>
+      <td className="crm-muted">{city || '—'}</td>
       <td className="crm-muted" style={{ fontSize: 12 }}>{mobile ? <a href={'https://wa.me/91' + String(mobile).replace(/\D/g, '').slice(-10)} target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>{mobile}</a> : '—'}</td>
       <td className="crm-muted">{H.rep(cu && cu.rep).name}</td>
       <td><Pill s={c.status} label={statusLabel(c.status)} /></td>

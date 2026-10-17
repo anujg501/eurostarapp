@@ -32,7 +32,7 @@ const cartSchema = z.object({
   lines: z.array(lineSchema).default([]),
 });
 
-function serialiseCart(cart: any, rules: StoreRules) {
+function serialiseCart(cart: any, rules: StoreRules, internal = false) {
   const lines = cart.lines.map((l: any) => ({
     id: l.id,
     skuId: l.skuId,
@@ -58,6 +58,18 @@ function serialiseCart(cart: any, rules: StoreRules) {
     lines,
     totals,
     updatedAt: cart.updatedAt,
+    // Staff view only: resolve the linked customer so the CRM can show who to
+    // follow up with (name, phone, city) instead of a bare id. Never sent to a
+    // customer fetching their own cart.
+    ...(internal && cart.customer
+      ? {
+          customerName: cart.customer.contact || cart.customer.name || null,
+          customerCompany: cart.customer.name || null,
+          customerPhone: cart.customer.phone || null,
+          customerCity: cart.customer.city || null,
+          customerCode: cart.customer.code || null,
+        }
+      : {}),
   };
 }
 
@@ -73,11 +85,14 @@ cartsRouter.get(
         ...(typeof persona === 'string' ? { personaId: persona } : {}),
         ...(typeof status === 'string' ? { status } : {}),
       },
-      include: { lines: true },
+      include: { lines: true, customer: true },
       orderBy: { updatedAt: 'desc' },
     });
     // Load the rules once for the whole list rather than per cart.
     const rules = await getStoreRules();
+    // Staff/office/rep see the linked customer's contact details for follow-up;
+    // a customer fetching their own carts does not get other people's PII.
+    const internal = req.user?.role !== 'customer';
     // An open ("active") cart left untouched for a while is treated as
     // abandoned so the back office can chase it. Computed at read time — no
     // cron, no stored 'abandoned' status; a fresh save flips it back to active.
@@ -86,7 +101,7 @@ cartsRouter.get(
     return ok(
       res,
       carts.map((c) => {
-        const s = serialiseCart(c, rules);
+        const s = serialiseCart(c, rules, internal);
         if (s.status === 'active' && now - new Date(c.updatedAt).getTime() > ABANDON_MS) {
           s.status = 'abandoned';
         }

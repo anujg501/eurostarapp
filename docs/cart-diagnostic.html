@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Cart ↔ customer diagnostic</title>
+<style>
+  :root{--green:#0e3a2e;--line:#e6e2d6;--paper:#faf7f0;--ink:#1a2420;--meta:#8a8578;}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Segoe UI',system-ui,Arial,sans-serif;background:var(--paper);color:var(--ink)}
+  header{background:var(--green);color:#f4efe1;padding:18px 20px}
+  header h1{margin:0;font-size:20px;font-family:Georgia,serif}
+  .wrap{max-width:1000px;margin:0 auto;padding:20px 16px 60px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:16px}
+  button{background:#d8b25c;color:#14231d;border:0;border-radius:9px;padding:11px 18px;font-weight:700;cursor:pointer}
+  .big{font-size:15px;line-height:1.9}
+  .k{display:inline-block;min-width:34px;font-weight:700;color:var(--green)}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:10px}
+  th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+  th{background:#fbf9f3;color:var(--meta);text-transform:uppercase;font-size:11px}
+  .ok{color:#1d7a3a;font-weight:700}.no{color:#b23a2e;font-weight:700}
+  .err{color:#b23a2e}.muted{color:var(--meta)}
+  code{background:#f0ece1;padding:1px 5px;border-radius:4px}
+</style>
+</head>
+<body>
+<header><h1>Cart ↔ customer diagnostic</h1></header>
+<div class="wrap">
+  <div class="card">
+    <button id="run">Run diagnostic</button>
+    <span id="msg" class="muted" style="margin-left:12px"></span>
+    <p class="muted" style="font-size:12.5px;margin:10px 0 0">Sign in to /admin or /crm first. Reads your carts and customers and reports how the two link up. Nothing is changed. Send Anuj's Claude a screenshot of the summary.</p>
+  </div>
+  <div class="card" id="out" style="display:none">
+    <div class="big" id="summary"></div>
+    <table id="tbl"><thead><tr><th>Cart</th><th>customerId</th><th>Matches a customer?</th><th>personaId (phone)</th></tr></thead><tbody id="rows"></tbody></table>
+  </div>
+</div>
+<script>
+(function(){
+  var TOKEN_KEY='eurostar-admin-token',REFRESH_KEY='eurostar-admin-refresh';
+  var $=function(i){return document.getElementById(i)};
+  function token(){try{return localStorage.getItem(TOKEN_KEY)||''}catch(e){return ''}}
+  function rtok(){try{return localStorage.getItem(REFRESH_KEY)||''}catch(e){return ''}}
+  function renew(){var rt=rtok();if(!rt)return Promise.resolve(false);
+    return fetch('/auth/refresh',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({refreshToken:rt})})
+      .then(function(r){return r.ok?r.json():null}).then(function(d){if(d&&d.accessToken){try{localStorage.setItem(TOKEN_KEY,d.accessToken)}catch(e){}return true}return false}).catch(function(){return false})}
+  function af(u,retry){return fetch(u,{headers:{authorization:'Bearer '+token(),accept:'application/json'}})
+    .then(function(r){if(r.status===401&&!retry&&rtok())return renew().then(function(ok){return ok?af(u,true):r});return r})}
+  function esc(s){return String(s==null?'':s)}
+  $('run').onclick=function(){
+    if(!token()){$('msg').innerHTML='<span class="err">Not signed in — open /admin or /crm first.</span>';return}
+    $('msg').textContent='Loading…';
+    Promise.all([af('/carts'),af('/customers')]).then(function(rs){
+      if(rs[0].status===401||rs[0].status===403||rs[1].status===401||rs[1].status===403) throw new Error('Session expired or not a staff login. Sign in to /admin or /crm, then retry.');
+      return Promise.all([rs[0].ok?rs[0].json():[],rs[1].ok?rs[1].json():[]]);
+    }).then(function(d){
+      var carts=Array.isArray(d[0])?d[0]:[], custs=Array.isArray(d[1])?d[1]:[];
+      var byId={}; custs.forEach(function(c){ if(c.id)byId[c.id]=c; });
+      var withCid=0, matched=0, withPersona=0, neither=0;
+      carts.forEach(function(c){
+        var cid=c.customerId, per=c.personaId;
+        if(cid) withCid++;
+        if(cid&&byId[cid]) matched++;
+        if(per) withPersona++;
+        if(!cid && !per) neither++;
+      });
+      $('out').style.display='block'; $('msg').textContent='';
+      $('summary').innerHTML =
+        '<div><span class="k">'+carts.length+'</span> carts · <span class="k">'+custs.length+'</span> customers loaded</div>'+
+        '<div><span class="k">'+withCid+'</span> carts have a customerId — of those <span class="'+(matched===withCid&&withCid>0?'ok':'no')+'">'+matched+' match a loaded customer</span></div>'+
+        '<div><span class="k">'+withPersona+'</span> carts have a personaId (phone)</div>'+
+        '<div><span class="'+(neither?'no':'ok')+'">'+neither+'</span> carts have NEITHER a customerId nor a phone (truly anonymous)</div>';
+      var rows=$('rows'); rows.innerHTML='';
+      carts.slice(0,40).forEach(function(c){
+        var m=c.customerId&&byId[c.customerId];
+        var tr=document.createElement('tr');
+        tr.innerHTML='<td><code>'+esc(c.id).slice(0,14)+'…</code></td>'+
+          '<td>'+(c.customerId?('<code>'+esc(c.customerId).slice(0,14)+'…</code>'):'<span class="muted">—</span>')+'</td>'+
+          '<td>'+(m?('<span class="ok">'+esc(m.name)+'</span>'):(c.customerId?'<span class="no">no match</span>':'<span class="muted">—</span>'))+'</td>'+
+          '<td>'+(c.personaId?esc(c.personaId):'<span class="muted">—</span>')+'</td>';
+        rows.appendChild(tr);
+      });
+    }).catch(function(e){$('msg').innerHTML='<span class="err">'+esc(e.message)+'</span>'});
+  };
+})();
+</script>
+</body>
+</html>

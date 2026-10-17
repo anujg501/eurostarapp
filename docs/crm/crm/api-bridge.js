@@ -110,7 +110,8 @@
       if (Array.isArray(customers)) {
         put('eurostar-crm-customers', customers.map(function (c) {
           return {
-            id: c.code || c.id, name: c.name, city: c.city || '', gst: c.gstin || '',
+            id: c.code || c.id, rawId: c.id || '', code: c.code || '',
+            name: c.name, contact: c.contact || '', city: c.city || '', gst: c.gstin || '',
             mobile: c.phone || '', rep: c.rep || '', terms: c.terms || 'cash',
             tier: '', since: '', credit: 0, cartViewsNoOrder: 0, active: true,
           };

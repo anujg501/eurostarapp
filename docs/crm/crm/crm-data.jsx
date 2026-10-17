@@ -53,7 +53,10 @@ const CRM_CITY_REP = { 'Rajkot':'REP-204', 'Surat':'REP-204', 'Ahmedabad':'REP-2
   'Mumbai':'REP-118', 'Pune':'REP-118', 'Kozhikode':'REP-077', 'Hyderabad':'REP-077', 'Chennai':'REP-077' };
 
 const CRM_HELPERS = (() => {
-  const cust = (id) => CRM_CUSTOMERS.find((c) => c.id === id) || { name: id, city: '', rep: '' };
+  // Match by the CRM id (human code), the raw DB id (cuid — carts reference THIS),
+  // or the code. Carts carry the customer's cuid, which never equalled the
+  // code-keyed id before, so every cart fell through to "name: id" (a bare id).
+  const cust = (id) => CRM_CUSTOMERS.find((c) => c.id === id || c.rawId === id || c.code === id) || { name: id, city: '', rep: '' };
   const rep = (id) => CRM_REPS.find((r) => r.id === id) || { name: id };
   const inr = (n) => '₹' + Number(n || 0).toLocaleString('en-IN');
   const repForCart = (c) => cust(c.cust).rep;

@@ -29,7 +29,7 @@ const isTaxId = (v: string): boolean => {
   return GSTIN_RE.test(u) || PAN_RE.test(u);
 };
 
-async function issueSession(user: { id: string; role: string; name: string; repId: string | null }, remember: boolean) {
+async function issueSession(user: { id: string; role: string; name: string; repId: string | null; phone?: string | null }, remember: boolean) {
   const accessToken = signAccessToken({
     sub: user.id,
     role: user.role as Role,
@@ -54,7 +54,10 @@ async function issueSession(user: { id: string; role: string; name: string; repI
   return {
     accessToken,
     refreshToken,
-    user: { id: user.id, role: user.role, name: user.name, repId: user.repId ?? undefined },
+    // phone is returned so the storefront can stamp every synced cart with the
+    // signed-in shopper's number (personaId) — without it, self-serve customer
+    // carts reach the CRM with no contact and show as "Guest cart".
+    user: { id: user.id, role: user.role, name: user.name, repId: user.repId ?? undefined, phone: user.phone ?? undefined },
   };
 }
 

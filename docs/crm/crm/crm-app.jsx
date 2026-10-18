@@ -832,10 +832,15 @@ function CartsView({ carts, orders, editItems, removeCart, setDisc, editOrder, r
     // lookup. Else the shopper's phone (c.persona). A cart with none of these
     // was a true guest — nothing was captured to follow up.
     const resolved = cu && cu.name && cu.name !== c.cust;
-    const mobile = c.custMobile || (cu && cu.mobile) || c.persona || '';
-    const city = c.custCity || (cu && cu.city) || '';
-    const custName = c.custName || (resolved ? cu.name : (c.persona ? 'App shopper' : 'Guest cart'));
-    const custSub = c.custCode || c.custCompany || (resolved ? (cu.city || '') : (c.persona || c.cust || ''));
+    // If the cart carries only a phone (personaId) and no linked customer, still
+    // try to name it by matching that phone against the customer master.
+    const byPhone = (!resolved && !c.custName && c.persona)
+      ? CRM_CUSTOMERS.find((x) => normMobile(x.mobile) && normMobile(x.mobile) === normMobile(c.persona))
+      : null;
+    const mobile = c.custMobile || (cu && cu.mobile) || (byPhone && byPhone.mobile) || c.persona || '';
+    const city = c.custCity || (cu && cu.city) || (byPhone && byPhone.city) || '';
+    const custName = c.custName || (resolved ? cu.name : (byPhone ? byPhone.name : (c.persona ? 'App shopper' : 'Guest cart')));
+    const custSub = c.custCode || c.custCompany || (byPhone && byPhone.code) || (resolved ? (cu.city || '') : (c.persona || c.cust || ''));
     const openRow = () => { if (kind === 'order') { editOrder && editOrder(c.id); } else { editItems && editItems(c.id); } };
     const clickCell = { cursor: 'pointer' };
     return (

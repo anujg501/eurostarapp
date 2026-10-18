@@ -839,8 +839,7 @@ function CartsView({ carts, orders, editItems, removeCart, setDisc, editOrder, r
     const openRow = () => { if (kind === 'order') { editOrder && editOrder(c.id); } else { editItems && editItems(c.id); } };
     const clickCell = { cursor: 'pointer' };
     return (
-      <tr><td className="crm-id" onClick={openRow} style={clickCell} title="View cart items">{c.id}</td>
-      <td onClick={openRow} style={clickCell} title="View cart items"><span style={{ fontWeight: 600 }}>{custName}</span>{custSub && <div className="crm-muted" style={{ fontSize: 11 }}>{custSub}</div>}{c.note && <div className="lrow-note" style={{ marginTop: 4 }}>“{c.note}”</div>}</td>
+      <tr><td onClick={openRow} style={clickCell} title="View cart items"><span style={{ fontWeight: 600 }}>{custName}</span>{custSub && <div className="crm-muted" style={{ fontSize: 11 }}>{custSub}</div>}{c.note && <div className="lrow-note" style={{ marginTop: 4 }}>“{c.note}”</div>}</td>
       <td className="crm-muted">{city || '—'}</td>
       <td className="crm-muted" style={{ fontSize: 12 }}>{mobile ? <a href={'https://wa.me/91' + String(mobile).replace(/\D/g, '').slice(-10)} target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>{mobile}</a> : '—'}</td>
       <td className="crm-muted">{H.rep(cu && cu.rep).name}</td>
@@ -855,7 +854,7 @@ function CartsView({ carts, orders, editItems, removeCart, setDisc, editOrder, r
         <button className="cbtn cbtn-ghost cbtn-sm" onClick={() => editOrder && editOrder(c.id)}>Edit</button>{' '}
         <button className="cbtn cbtn-ghost cbtn-sm" onClick={() => removeOrder && removeOrder(c.id)}>Remove</button></td>}
     </tr>);};
-  const Head = () => <thead><tr><th>{TH("Ref")}</th><th>{TH("Customer")}</th><th>{TH("City")}</th><th>{TH("Mobile")}</th><th>{TH("Rep")}</th><th>{TH("Status")}</th><th>{TH("Items")}</th><th style={{ textAlign: 'right' }}>{TH("Value")}</th><th></th></tr></thead>;
+  const Head = () => <thead><tr><th>{TH("Customer")}</th><th>{TH("City")}</th><th>{TH("Mobile")}</th><th>{TH("Rep")}</th><th>{TH("Status")}</th><th>{TH("Items")}</th><th style={{ textAlign: 'right' }}>{TH("Value")}</th><th></th></tr></thead>;
   return (
     <div className="crm-body">
       <PageHead title={title} sub={sub} />
@@ -864,7 +863,7 @@ function CartsView({ carts, orders, editItems, removeCart, setDisc, editOrder, r
       <div className="crm-card">
         <table className="crm-table" style={{ minWidth: 860 }}><Head />
           <tbody>{completed.map((o) => <Row key={o.id} c={o} kind="order" />)}
-            {completed.length === 0 && <tr><td colSpan="9" className="crm-muted" style={{ padding: '14px 16px' }}>No completed orders.</td></tr>}</tbody>
+            {completed.length === 0 && <tr><td colSpan="8" className="crm-muted" style={{ padding: '14px 16px' }}>No completed orders.</td></tr>}</tbody>
         </table>
       </div>
 
@@ -872,7 +871,7 @@ function CartsView({ carts, orders, editItems, removeCart, setDisc, editOrder, r
       <div className="crm-card">
         <table className="crm-table" style={{ minWidth: 860 }}><Head />
           <tbody>{openCarts.map((c) => <Row key={c.id} c={c} />)}
-            {openCarts.length === 0 && <tr><td colSpan="9" className="crm-muted" style={{ padding: '14px 16px' }}>No open carts.</td></tr>}</tbody>
+            {openCarts.length === 0 && <tr><td colSpan="8" className="crm-muted" style={{ padding: '14px 16px' }}>No open carts.</td></tr>}</tbody>
         </table>
       </div>
 
@@ -880,7 +879,7 @@ function CartsView({ carts, orders, editItems, removeCart, setDisc, editOrder, r
       <div className="crm-card">
         <table className="crm-table" style={{ minWidth: 860 }}><Head />
           <tbody>{abandoned.map((c) => <Row key={c.id} c={c} />)}
-            {abandoned.length === 0 && <tr><td colSpan="9" className="crm-muted" style={{ padding: '14px 16px' }}>No abandoned carts.</td></tr>}</tbody>
+            {abandoned.length === 0 && <tr><td colSpan="8" className="crm-muted" style={{ padding: '14px 16px' }}>No abandoned carts.</td></tr>}</tbody>
         </table>
       </div>
     </div>);

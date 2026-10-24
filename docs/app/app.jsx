@@ -357,6 +357,14 @@ function App() {
         items: [window.eurostarLineItem ? window.eurostarLineItem(line) : { item_name: line.name || 'Item', quantity: line.qty || 1 }],
       });
     } catch (e) {}
+    // Meta Pixel: one AddToCart per line added.
+    try {
+      if (window.fbqTrack) window.fbqTrack('AddToCart', {
+        content_name: line.name || 'Item',
+        currency: 'INR',
+        value: window.eurostarLineValue ? window.eurostarLineValue(line) : 0,
+      });
+    } catch (e) {}
   };
 
   // GA4 e-commerce: fire once when an order is actually placed. transaction_id
@@ -369,6 +377,10 @@ function App() {
         value: value || 0,
         items: window.eurostarCartItems ? window.eurostarCartItems(cart) : [],
       });
+    } catch (e) {}
+    // Meta Pixel: one Purchase per order placed.
+    try {
+      if (window.fbqTrack) window.fbqTrack('Purchase', { currency: 'INR', value: value || 0 });
     } catch (e) {}
   };
 

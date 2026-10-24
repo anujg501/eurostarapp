@@ -782,6 +782,8 @@ function CartView({ cart, setCart, persona, setRoute, discount }) {
                         items: window.eurostarCartItems ? window.eurostarCartItems(cart) : [],
                       });
                     } catch (e) {}
+                    // Meta Pixel: customer starts checkout.
+                    try { if (window.fbqTrack) window.fbqTrack('InitiateCheckout', { currency: 'INR', value: grand || 0 }); } catch (e) {}
                     setRoute({ name: 'checkout' });
                   }}>
             <IconCheck size={16} /> Proceed to checkout — {formatINR(grand)}

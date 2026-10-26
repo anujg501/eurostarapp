@@ -28,14 +28,29 @@ const CATS: AlphaCat[] = [
 
 const keyOf = (catId: string, colour: string, letter: string) => `${catId}|${colour}|alphabet-${letter}`;
 
-// Guess the letter a filename belongs to: an ISOLATED single A–Z character
-// (bounded by non-letters or the ends). "A.jpg", "letter-B.png", "01_C.jpg" and
-// "white-d.jpeg" all resolve; "white.jpg" (no lone letter) does not.
-function letterFromName(name: string): string | null {
+// Guess the letter a filename points at. Two cues, in order:
+//  1) an ISOLATED single A–Z character ("A.jpg", "letter-B.png", "white-d.jpeg");
+//  2) an ISOLATED number used as a position ("1.jpg" → 1st letter, "12.png" → 12th).
+// Returns the letter within `letters`, or null when the name gives no cue.
+function letterFromName(name: string, letters: string[]): string | null {
   const base = name.replace(/\.[^.]+$/, '');
-  const m = base.match(/(?:^|[^a-z])([a-z])(?:[^a-z]|$)/i);
-  return m ? m[1].toUpperCase() : null;
+  const alpha = base.match(/(?:^|[^a-z])([a-z])(?:[^a-z]|$)/i);
+  if (alpha) {
+    const L = alpha[1].toUpperCase();
+    if (letters.includes(L)) return L;
+  }
+  const num = base.match(/(?:^|[^0-9])([0-9]{1,2})(?:[^0-9]|$)/);
+  if (num) {
+    const i = parseInt(num[1], 10) - 1;
+    if (i >= 0 && i < letters.length) return letters[i];
+  }
+  return null;
 }
+
+// Natural sort so "img2" < "img10" and "2" < "10".
+const byName = (a: File, b: File) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+
+type Pending = { file: File; url: string; letter: string };
 
 export function AlphabetPhotos() {
   const [catId, setCatId] = useState<string>(CATS[0].id);
@@ -45,10 +60,12 @@ export function AlphabetPhotos() {
   const [done, setDone] = useState('');
   const [busyLetter, setBusyLetter] = useState<string | null>(null);
   const [bulkMsg, setBulkMsg] = useState('');
+  const [review, setReview] = useState<Pending[] | null>(null);
   const bulkInput = useRef<HTMLInputElement>(null);
 
   const cat = CATS.find((c) => c.id === catId) ?? CATS[0];
   const bulkBusy = bulkMsg !== '';
+  const locked = bulkBusy || busyLetter !== null;
 
   useEffect(() => {
     (async () => {
@@ -62,8 +79,11 @@ export function AlphabetPhotos() {
     })();
   }, []);
 
+  // Free the object URLs a review panel created when it goes away / unmounts.
+  useEffect(() => () => { (review ?? []).forEach((p) => URL.revokeObjectURL(p.url)); }, [review]);
+
   const onPick = async (letter: string, file: File | null) => {
-    if (!file || busyLetter || bulkBusy) return;
+    if (!file || locked) return;
     setBusyLetter(letter);
     setError('');
     setDone('');
@@ -81,7 +101,7 @@ export function AlphabetPhotos() {
   };
 
   const onRemove = async (letter: string) => {
-    if (busyLetter || bulkBusy) return;
+    if (locked) return;
     if (!confirm(`Remove the photo for letter ${letter}? The letter tile will show the plain letter until you upload a new one.`)) return;
     setBusyLetter(letter);
     setError('');
@@ -99,49 +119,80 @@ export function AlphabetPhotos() {
     }
   };
 
-  // Pick a whole set at once: each file is matched to its letter by filename,
-  // uploaded, and the merged map is saved in one go.
-  const onBulk = async (files: FileList | null) => {
-    const list = Array.from(files ?? []);
+  // Pick a whole set at once. If every file names its letter, upload straight
+  // away. Otherwise open a review panel that lays the photos out A→Z in order
+  // so the operator can glance, fix any, and upload — no renaming needed.
+  const onBulk = (files: FileList | null) => {
+    const list = Array.from(files ?? []).sort(byName);
     if (bulkInput.current) bulkInput.current.value = '';
-    if (!list.length || busyLetter || bulkBusy) return;
+    if (!list.length || locked) return;
     setError('');
     setDone('');
 
-    const allowed = new Set(cat.letters);
-    const matched: Record<string, File> = {};
-    const unmatched: string[] = [];
+    // First, honour any letters the filenames do give us.
+    const named = new Map<File, string>();
+    const taken = new Set<string>();
     for (const f of list) {
-      const L = letterFromName(f.name);
-      if (L && allowed.has(L)) matched[L] = f; // last file for a letter wins
-      else unmatched.push(f.name);
+      const L = letterFromName(f.name, cat.letters);
+      if (L && !taken.has(L)) { named.set(f, L); taken.add(L); }
     }
-    const letters = Object.keys(matched).sort();
-    if (!letters.length) {
-      setError('Couldn’t tell which letter any of those photos belong to. Rename them like A.jpg, B.jpg … Z.jpg, or use the Upload button on each letter below.');
+
+    // Every file matched a distinct letter → straight upload, no review.
+    if (named.size === list.length) {
+      void runUpload(list.map((f) => ({ file: f, letter: named.get(f)! })));
       return;
     }
 
-    setBulkMsg(`Uploading 0 of ${letters.length}…`);
+    // Otherwise lay them out in order: named files keep their letter, the rest
+    // fill the remaining letters top-to-bottom. Operator confirms/fixes.
+    const free = cat.letters.filter((L) => !taken.has(L));
+    let fi = 0;
+    const pending: Pending[] = list.map((f) => ({
+      file: f,
+      url: URL.createObjectURL(f),
+      letter: named.get(f) ?? (fi < free.length ? free[fi++] : ''),
+    }));
+    setReview(pending);
+  };
+
+  const closeReview = () => setReview(null); // effect revokes the object URLs
+
+  // Shared uploader: takes {file, letter} rows, uploads each and saves once.
+  const runUpload = async (rows: { file: File; letter: string }[]) => {
+    const jobs = rows.filter((r) => r.letter);
+    if (!jobs.length) { setError('No photos were assigned to a letter.'); return; }
+    setBulkMsg(`Uploading 0 of ${jobs.length}…`);
+    setError('');
+    setDone('');
     try {
       const map: ProductImages = { ...images };
       let n = 0;
-      for (const L of letters) {
+      for (const r of jobs) {
         n += 1;
-        setBulkMsg(`Uploading ${n} of ${letters.length} — letter ${L}…`);
-        map[keyOf(cat.id, cat.colour, L)] = await uploadImage(matched[L], 'product-images');
+        setBulkMsg(`Uploading ${n} of ${jobs.length} — letter ${r.letter}…`);
+        map[keyOf(cat.id, cat.colour, r.letter)] = await uploadImage(r.file, 'product-images');
       }
       await adminApi.saveProductImages(map);
       setImages(map);
-      setDone(
-        `✓ ${letters.length} letter photo${letters.length > 1 ? 's' : ''} uploaded and live.` +
-          (unmatched.length ? ` Couldn’t match ${unmatched.length} file${unmatched.length > 1 ? 's' : ''} (${unmatched.join(', ')}) — add those with the per-letter Upload buttons.` : '')
-      );
+      setReview(null);
+      setDone(`✓ ${jobs.length} letter photo${jobs.length > 1 ? 's' : ''} uploaded and live.`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Some photos could not be uploaded — try again.');
     } finally {
       setBulkMsg('');
     }
+  };
+
+  const confirmReview = () => {
+    if (!review) return;
+    const chosen = review.filter((p) => p.letter);
+    if (!chosen.length) { setError('Give at least one photo a letter, or press Cancel.'); return; }
+    const dup = new Set<string>();
+    for (const p of chosen) {
+      if (dup.has(p.letter)) { setError(`Two photos are both set to letter ${p.letter}. Each letter can have only one photo — fix the duplicates first.`); return; }
+      dup.add(p.letter);
+    }
+    void runUpload(chosen.map((p) => ({ file: p.file, letter: p.letter })));
   };
 
   if (loading) return <div className="ad-body"><section className="ad-card ad-card-pad ad-muted">Loading…</section></div>;
@@ -154,7 +205,8 @@ export function AlphabetPhotos() {
         <h2>Alphabet letter photos</h2>
         <p className="ad-muted">
           Upload the picture for each letter — it appears on that letter's tile in the shop straight away, and customers
-          can tap it to see it full-screen. Pick a whole A–Z folder at once below, or set letters one at a time.
+          can tap it to see it full-screen. Pick all your photos at once below (any filenames are fine — you confirm the
+          order), or set letters one at a time.
         </p>
       </div>
 
@@ -168,7 +220,7 @@ export function AlphabetPhotos() {
             <select
               className="ad-input"
               value={catId}
-              disabled={bulkBusy || busyLetter !== null}
+              disabled={locked || review !== null}
               onChange={(e) => { setCatId(e.target.value); setError(''); setDone(''); }}
               style={{ minWidth: 280 }}
             >
@@ -182,7 +234,7 @@ export function AlphabetPhotos() {
           <div style={{ textAlign: 'right' }}>
             <label
               className="ad-btn ad-btn-pri"
-              style={{ display: 'inline-flex', cursor: bulkBusy ? 'default' : 'pointer', opacity: bulkBusy ? 0.6 : 1 }}
+              style={{ display: 'inline-flex', cursor: locked || review ? 'default' : 'pointer', opacity: locked || review ? 0.6 : 1 }}
             >
               {bulkBusy ? 'Uploading…' : '⬆ Upload all letters at once'}
               <input
@@ -191,16 +243,58 @@ export function AlphabetPhotos() {
                 accept="image/*"
                 multiple
                 hidden
-                disabled={bulkBusy || busyLetter !== null}
-                onChange={(e) => void onBulk(e.target.files)}
+                disabled={locked || review !== null}
+                onChange={(e) => onBulk(e.target.files)}
               />
             </label>
-            <div className="ad-muted" style={{ fontSize: 12.5, marginTop: 6, maxWidth: 320 }}>
-              {bulkBusy ? bulkMsg : 'Select every photo together. Name them A.jpg, B.jpg … so each lands on its letter automatically.'}
+            <div className="ad-muted" style={{ fontSize: 12.5, marginTop: 6, maxWidth: 340 }}>
+              {bulkBusy ? bulkMsg : 'Select every photo together — then line them up A→Z and confirm. No need to rename anything.'}
             </div>
           </div>
         </div>
       </section>
+
+      {review && (
+        <section className="ad-card ad-card-pad" style={{ marginBottom: 16, borderColor: 'var(--emerald, #0e3a2e)' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12 }}>
+            <div>
+              <strong>Line up your photos A → Z</strong>
+              <div className="ad-muted" style={{ fontSize: 12.5, marginTop: 3 }}>
+                I've put them in the order you picked them. Change the letter under any photo that's out of place, then upload.
+                Set a photo to “— skip —” to leave it out.
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="ad-btn ad-btn-ghost" disabled={bulkBusy} onClick={closeReview}>Cancel</button>
+              <button className="ad-btn ad-btn-pri" disabled={bulkBusy} onClick={confirmReview}>
+                {bulkBusy ? bulkMsg : `Upload ${review.filter((p) => p.letter).length} letters`}
+              </button>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 12 }}>
+            {review.map((p, i) => (
+              <div key={i} style={{ border: '1px solid var(--ad-border, #E3DAC6)', borderRadius: 10, overflow: 'hidden', background: '#fff' }}>
+                <div style={{ height: 104, background: '#0d0d0f', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <img src={p.url} alt={p.file.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                </div>
+                <div style={{ padding: '7px 8px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span className="ad-muted" style={{ fontSize: 11 }}>Letter</span>
+                  <select
+                    className="ad-input"
+                    value={p.letter}
+                    disabled={bulkBusy}
+                    style={{ flex: 1, padding: '3px 6px', fontSize: 14 }}
+                    onChange={(e) => setReview((prev) => prev && prev.map((q, j) => j === i ? { ...q, letter: e.target.value } : q))}
+                  >
+                    <option value="">— skip —</option>
+                    {cat.letters.map((L) => <option key={L} value={L}>{L}</option>)}
+                  </select>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="ad-card ad-card-pad">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 14 }}>
@@ -222,12 +316,12 @@ export function AlphabetPhotos() {
                 <div style={{ padding: '9px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                   <strong style={{ fontFamily: 'Georgia, serif', fontSize: 18 }}>{letter}</strong>
                   <div style={{ display: 'flex', gap: 6 }}>
-                    <label className="ad-btn ad-btn-ghost" style={{ display: 'inline-flex', cursor: busy || bulkBusy ? 'default' : 'pointer', fontSize: 12, padding: '4px 8px' }}>
+                    <label className="ad-btn ad-btn-ghost" style={{ display: 'inline-flex', cursor: locked ? 'default' : 'pointer', fontSize: 12, padding: '4px 8px' }}>
                       {img ? 'Replace' : 'Upload'}
-                      <input type="file" accept="image/*" hidden disabled={busy || bulkBusy} onChange={(e) => void onPick(letter, e.target.files?.[0] ?? null)} />
+                      <input type="file" accept="image/*" hidden disabled={locked} onChange={(e) => void onPick(letter, e.target.files?.[0] ?? null)} />
                     </label>
                     {img && (
-                      <button className="ad-btn ad-btn-ghost" style={{ fontSize: 12, padding: '4px 8px' }} disabled={busy || bulkBusy} onClick={() => void onRemove(letter)} title="Remove photo">×</button>
+                      <button className="ad-btn ad-btn-ghost" style={{ fontSize: 12, padding: '4px 8px' }} disabled={locked} onClick={() => void onRemove(letter)} title="Remove photo">×</button>
                     )}
                   </div>
                 </div>

@@ -1235,8 +1235,11 @@ function AlphabetOrderPad({ grade, color, category, qtyBySize, setQtyBySize, onB
           return (
             <div key={letter} className="card" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column',
               border: '1px solid var(--line, #E3DAC6)', borderRadius: 14, background: 'var(--surface, #FDFAF2)' }}>
-              <div style={{ position: 'relative', height: 150, background: '#0d0d0f',
-                display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div className={'alpha-letter-art' + (photo ? ' has-photo' : '')}
+                style={{ position: 'relative', height: 150, background: '#0d0d0f',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: photo ? 'zoom-in' : 'default' }}
+                title={photo ? 'Tap to view full-screen' : undefined}>
                 {photo
                   ? <img src={photo} alt={'Letter ' + letter} loading="lazy"
                       onError={(e) => { e.currentTarget.style.display = 'none'; }}

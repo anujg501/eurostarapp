@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>White Fancy — A–Z letter photos</title>
+<style>
+  :root { --green:#0e3a2e; --gold:#d8b25c; --line:#e6e2d6; --paper:#faf7f0; --ink:#1a2420; --meta:#8a8578; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:'Segoe UI',system-ui,Arial,sans-serif; background:var(--paper); color:var(--ink); }
+  header { background:var(--green); color:#f4efe1; padding:20px 22px; }
+  header h1 { margin:0; font-size:22px; font-family:Georgia,serif; }
+  header p { margin:6px 0 0; font-size:13.5px; opacity:.9; }
+  .wrap { max-width:1060px; margin:0 auto; padding:22px 16px 70px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:18px; margin-bottom:18px; }
+  .bar { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  button { background:var(--gold); color:#14231d; border:0; border-radius:9px; padding:13px 22px; font-weight:700; font-size:15px; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:default; }
+  button.ghost { background:transparent; border:1px solid var(--line); color:var(--ink); }
+  .status { font-size:14px; }
+  .ok { color:#1d7a3a; } .err { color:#b23a2e; } .muted { color:var(--meta); }
+  .prog { height:10px; background:#eee; border-radius:6px; overflow:hidden; margin-top:12px; }
+  .prog > i { display:block; height:100%; width:0; background:var(--green); transition:width .2s; }
+  .drop { border:2px dashed #cdbf96; border-radius:14px; padding:26px 18px; text-align:center; background:#fbf9f0; cursor:pointer; transition:.15s; }
+  .drop.hot { border-color:var(--green); background:#f1f6ef; }
+  .drop b { color:var(--green); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:12px; margin-top:16px; }
+  .slot { border:1px solid var(--line); border-radius:11px; overflow:hidden; background:#fff; cursor:pointer; position:relative; }
+  .slot .art { height:112px; background:#0d0d0f; display:flex; align-items:center; justify-content:center; }
+  .slot .art img { width:100%; height:100%; object-fit:cover; display:block; }
+  .slot .art span { font-family:Georgia,serif; font-size:48px; color:rgba(245,231,196,.9); }
+  .slot .lab { display:flex; justify-content:space-between; align-items:center; padding:7px 10px; font-size:13px; }
+  .slot .lab .L { font-weight:700; }
+  .slot .lab .mk { font-size:11px; }
+  .slot.ready { border-color:#9ccfa8; }
+  .slot.ready .lab .mk { color:#1d7a3a; }
+  .slot .lab .mk.todo { color:var(--meta); }
+  .dot { position:absolute; top:7px; right:7px; width:18px; height:18px; border-radius:50%; background:#1d7a3a; color:#fff; font-size:12px; line-height:18px; text-align:center; display:none; }
+  .slot.ready .dot { display:block; }
+  code { background:#f0ece1; padding:1px 5px; border-radius:4px; font-size:12.5px; }
+  ul { margin:8px 0 0; padding-left:18px; font-size:13px; color:var(--meta); line-height:1.7; }
+</style>
+</head>
+<body>
+<header>
+  <h1>White Fancy — A to Z letter photos</h1>
+  <p>Pick all your letter photos once. Each goes to the right letter automatically, and the whole A–Z set uploads to the website in one click.</p>
+</header>
+<div class="wrap">
+
+  <div class="card">
+    <div id="drop" class="drop">
+      <div style="font-size:30px;line-height:1">🅰️🅱️</div>
+      <p style="margin:10px 0 4px;font-size:16px"><b>Click here to choose your letter photos</b> &nbsp;(or drag &amp; drop them here)</p>
+      <p class="muted" style="margin:0;font-size:13px">Select all 26 at once. Tip: if the files are named <code>A.jpg</code>, <code>B.jpg</code> … <code>Z.jpg</code> each lands on its letter automatically.</p>
+    </div>
+    <input id="file" type="file" accept="image/*" multiple style="display:none" />
+
+    <div class="bar" style="margin-top:16px">
+      <button id="upload" disabled>Upload all to the website</button>
+      <button class="ghost" id="clear">Clear all</button>
+      <span class="status muted" id="count">0 of 26 letters ready</span>
+    </div>
+    <div class="prog" id="progwrap" style="display:none"><i id="prog"></i></div>
+    <p class="status" id="msg" style="margin:12px 0 0"></p>
+    <ul>
+      <li>You must be <b>signed in to the Admin panel</b> in this browser first (so this page has your login).</li>
+      <li>Any letter missing an auto-match? Just <b>click that letter's box</b> to pick its photo by hand.</li>
+      <li>Photos are kept <b>high-resolution and sharp</b>; customers can tap any letter on the shop to see it full-screen.</li>
+      <li>It only adds/updates White Fancy letter photos — nothing else is touched. Allow ~1 minute, then hard-refresh the shop.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <strong>A – Z &nbsp;<span class="muted" id="gcount" style="font-weight:400"></span></strong>
+    <div class="grid" id="grid"></div>
+  </div>
+</div>
+
+<input id="one" type="file" accept="image/*" style="display:none" />
+<script>
+(function () {
+  var TOKEN_KEY = 'eurostar-admin-token';
+  var REFRESH_KEY = 'eurostar-admin-refresh';
+  var ENDPOINT = '/admin/product-images';
+  var CAT = 'whitefancy', COLOUR = 'white';
+  var LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  var photos = {};              // letter -> data URL
+  var pickTarget = null;        // letter being replaced via single picker
+  var $ = function (id) { return document.getElementById(id); };
+  function token() { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } }
+  function refreshToken() { try { return localStorage.getItem(REFRESH_KEY) || ''; } catch (e) { return ''; } }
+  function setMsg(t, cls) { var m = $('msg'); m.textContent = t; m.className = 'status ' + (cls || ''); }
+  function key(L) { return CAT + '|' + COLOUR + '|alphabet-' + L; }
+
+  // --- auth: renew the 15-min access token from the refresh token, then replay ---
+  function renewAccess() {
+    var rt = refreshToken();
+    if (!rt) return Promise.resolve(false);
+    return fetch('/auth/refresh', {
+      method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({ refreshToken: rt }),
+    })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { if (d && d.accessToken) { try { localStorage.setItem(TOKEN_KEY, d.accessToken); } catch (e) {} return true; } return false; })
+      .catch(function () { return false; });
+  }
+  function authFetch(url, opts, isRetry) {
+    opts = opts || {};
+    var H = {}; for (var k in (opts.headers || {})) H[k] = opts.headers[k];
+    H.authorization = 'Bearer ' + token();
+    return fetch(url, { method: opts.method || 'GET', headers: H, body: opts.body })
+      .then(function (r) {
+        if (r.status === 401 && !isRetry && refreshToken()) {
+          return renewAccess().then(function (ok) { return ok ? authFetch(url, opts, true) : r; });
+        }
+        return r;
+      });
+  }
+
+  // --- compress to a sharp JPEG data URL (large enough for full-screen zoom,
+  //     small enough that all 26 fit in the browser store the shop reads) ---
+  function compress(file, maxDim, quality) {
+    maxDim = maxDim || 1200; quality = quality || 0.86;
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function () {
+        var img = new Image();
+        img.onload = function () {
+          var w = img.width, h = img.height;
+          if (w >= h && w > maxDim) { h = Math.round(h * maxDim / w); w = maxDim; }
+          else if (h > w && h > maxDim) { w = Math.round(w * maxDim / h); h = maxDim; }
+          else if (w === h && w > maxDim) { w = maxDim; h = maxDim; }
+          var c = document.createElement('canvas'); c.width = w; c.height = h;
+          var ctx = c.getContext('2d');
+          ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h);   // letters sit on black velvet
+          ctx.drawImage(img, 0, 0, w, h);
+          resolve(c.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = reject; img.src = reader.result;
+      };
+      reader.onerror = reject; reader.readAsDataURL(file);
+    });
+  }
+
+  // --- guess the letter a filename belongs to: an ISOLATED single A-Z char
+  //     (bounded by non-letters / ends). "A.jpg", "letter-B.png", "01_C.jpg",
+  //     "white-d.jpeg" all resolve; "white.jpg" (no lone letter) does not. ---
+  function letterFromName(name) {
+    var base = String(name || '').replace(/\.[^.]+$/, '');
+    var m = base.match(/(?:^|[^a-z])([a-z])(?:[^a-z]|$)/i);
+    return m ? m[1].toUpperCase() : null;
+  }
+
+  function render() {
+    var grid = $('grid'); grid.innerHTML = '';
+    var ready = 0;
+    LETTERS.forEach(function (L) {
+      var has = !!photos[L]; if (has) ready++;
+      var d = document.createElement('div');
+      d.className = 'slot' + (has ? ' ready' : '');
+      d.title = 'Click to ' + (has ? 'replace' : 'choose') + ' the photo for ' + L;
+      d.innerHTML =
+        '<div class="art">' + (has
+          ? '<img src="' + photos[L] + '" alt="' + L + '">'
+          : '<span>' + L + '</span>') + '</div>' +
+        '<div class="lab"><span class="L">' + L + '</span>' +
+        '<span class="mk ' + (has ? '' : 'todo') + '">' + (has ? 'ready' : 'add photo') + '</span></div>' +
+        '<div class="dot">✓</div>';
+      d.onclick = function () { pickTarget = L; $('one').value = ''; $('one').click(); };
+      grid.appendChild(d);
+    });
+    $('count').textContent = ready + ' of 26 letters ready';
+    $('gcount').textContent = '· ' + ready + '/26 added';
+    $('upload').disabled = ready === 0;
+  }
+
+  function ingest(fileList, autoAssign) {
+    var files = Array.prototype.slice.call(fileList || []);
+    if (!files.length) return;
+    setMsg('Reading ' + files.length + ' photo' + (files.length > 1 ? 's' : '') + '…', 'muted');
+    var unmatched = [];
+    var jobs = files.map(function (f) {
+      return compress(f).then(function (url) {
+        var L = autoAssign ? letterFromName(f.name) : pickTarget;
+        if (!L) { unmatched.push(f.name); return; }
+        photos[L] = url;
+      }).catch(function () { unmatched.push(f.name); });
+    });
+    Promise.all(jobs).then(function () {
+      render();
+      if (!autoAssign) { pickTarget = null; setMsg('Photo set. Upload when you are ready.', 'ok'); return; }
+      if (unmatched.length) {
+        setMsg('Added what I could match. Couldn’t tell the letter for: ' + unmatched.join(', ') +
+          ' — click those letters below to set them by hand.', 'err');
+      } else {
+        setMsg('All photos matched to letters. Review below, then press Upload.', 'ok');
+      }
+    });
+  }
+
+  // --- dropzone + pickers ---
+  var drop = $('drop');
+  drop.onclick = function () { $('file').value = ''; $('file').click(); };
+  $('file').onchange = function (e) { ingest(e.target.files, true); };
+  $('one').onchange = function (e) { ingest(e.target.files, false); };
+  ['dragenter', 'dragover'].forEach(function (ev) {
+    drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('hot'); });
+  });
+  ['dragleave', 'drop'].forEach(function (ev) {
+    drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove('hot'); });
+  });
+  drop.addEventListener('drop', function (e) { if (e.dataTransfer && e.dataTransfer.files) ingest(e.dataTransfer.files, true); });
+
+  $('clear').onclick = function () { photos = {}; render(); setMsg('', ''); };
+
+  // --- upload: merge our letters into the live product-image map, then PUT ---
+  $('upload').onclick = function () {
+    if (!token()) { setMsg('Not signed in. Open the Admin panel (/admin), sign in, then reload this page.', 'err'); return; }
+    var ready = LETTERS.filter(function (L) { return photos[L]; });
+    if (!ready.length) { setMsg('No photos chosen yet.', 'err'); return; }
+    $('upload').disabled = true; $('progwrap').style.display = 'block'; $('prog').style.width = '20%';
+    setMsg('Reading the current photo set…', 'muted');
+    authFetch(ENDPOINT, { headers: { accept: 'application/json' } })
+      .then(function (r) {
+        if (r.status === 401 || r.status === 403) throw new Error('Your admin session expired — reopen /admin, sign in again, then reload this page.');
+        return r.ok ? r.json() : {};
+      })
+      .then(function (current) {
+        var map = (current && typeof current === 'object') ? current : {};
+        ready.forEach(function (L) { map[key(L)] = photos[L]; });
+        $('prog').style.width = '60%';
+        setMsg('Uploading ' + ready.length + ' letter photo' + (ready.length > 1 ? 's' : '') + '…', 'muted');
+        return authFetch(ENDPOINT, {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json', accept: 'application/json' },
+          body: JSON.stringify(map),
+        });
+      })
+      .then(function (r) {
+        if (r.status === 401 || r.status === 403) throw new Error('Your admin session expired — reopen /admin, sign in again, then reload this page.');
+        if (!r.ok) throw new Error('Upload failed (' + r.status + ').' + (r.status === 413 ? ' The photos may be too large together — try again; they are auto-compressed, but very many huge files can still exceed the limit.' : ''));
+        $('prog').style.width = '100%';
+        setMsg('✓ Done — ' + ready.length + ' White Fancy letter photo' + (ready.length > 1 ? 's are' : ' is') +
+          ' live. Open the shop (White Fancy → Au Desus → Alphabet), allow ~1 minute, then hard-refresh.', 'ok');
+      })
+      .catch(function (e) { setMsg(e.message || 'Something went wrong.', 'err'); $('upload').disabled = false; });
+  };
+
+  render();
+  if (!token()) setMsg('Heads up: you don’t seem to be signed in to Admin in this browser. Open /admin and sign in first, then reload this page.', 'err');
+})();
+</script>
+</body>
+</html>

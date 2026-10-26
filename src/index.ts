@@ -84,7 +84,14 @@ app.use('/media', mediaRouter);
 // declared first and match only the exact page + its build assets; everything
 // else under /admin falls through to the API router below.
 const adminUiDir = path.join(process.cwd(), 'docs', 'admin-react');
-app.get(['/admin', '/admin/'], (_req, res) => res.sendFile(path.join(adminUiDir, 'index.html')));
+app.get(['/admin', '/admin/'], (_req, res) => {
+  // The page shell must revalidate every load so a freshly deployed bundle is
+  // picked up immediately — otherwise the browser can keep serving the old
+  // index.html (and the old hashed JS it points at) after an update. The hashed
+  // assets under /admin/assets are content-addressed, so they cache safely.
+  res.setHeader('Cache-Control', 'no-cache');
+  res.sendFile(path.join(adminUiDir, 'index.html'));
+});
 app.use('/admin/assets', express.static(path.join(adminUiDir, 'assets')));
 
 // Mounted before /admin so its paths are not swallowed by the admin router.

@@ -809,6 +809,53 @@ function moissAlphabetSku(letter) {
 Object.assign(window, { MOISS_ALPHABET_PRICE, moissAlphabetSizes, moissAlphabetList, moissAlphabetSku });
 
 // ---------------------------------------------------------------------------
+// White Fancy (Au Desus) — "Alphabet" shape: faceted A–Z letters in white CZ,
+// sold by piece at a flat rate. Each letter carries its own carat weight and
+// finished mm size (from the factory card). Full A–Z.
+// ---------------------------------------------------------------------------
+const WF_ALPHABET_PRICE = 1200; // ₹ per piece, fixed for every letter
+// [ letter, carat weight, finished size in mm ]
+const WF_ALPHABET = [
+  ['A', 3.00, '9.0 × 7.0 × 3.0'],
+  ['B', 4.00, '9.0 × 7.0 × 3.0'],
+  ['C', 2.70, '9.0 × 7.0 × 3.0'],
+  ['D', 3.90, '9.0 × 7.0 × 3.0'],
+  ['E', 2.75, '9.0 × 7.0 × 2.7'],
+  ['F', 2.75, '9.0 × 7.0 × 3.0'],
+  ['G', 2.80, '9.0 × 7.0 × 3.0'],
+  ['H', 3.15, '9.0 × 7.0 × 3.0'],
+  ['I', 3.20, '9.0 × 7.0 × 3.0'],
+  ['J', 2.30, '9.0 × 7.0 × 2.7'],
+  ['K', 3.00, '9.0 × 7.0 × 3.0'],
+  ['L', 2.20, '9.0 × 7.0 × 3.0'],
+  ['M', 3.50, '7.0 × 9.0 × 3.0'],
+  ['N', 3.70, '9.0 × 7.0 × 3.0'],
+  ['O', 3.65, '9.0 × 7.0 × 3.0'],
+  ['P', 3.35, '9.0 × 7.0 × 3.0'],
+  ['Q', 3.50, '8.0 × 7.0 × 3.0'],
+  ['R', 3.60, '9.0 × 7.0 × 3.0'],
+  ['S', 2.50, '9.0 × 7.0 × 3.0'],
+  ['T', 2.40, '9.0 × 7.0 × 3.0'],
+  ['U', 2.85, '9.0 × 7.0 × 3.0'],
+  ['V', 2.10, '9.0 × 7.0 × 3.0'],
+  ['W', 3.05, '7.0 × 9.0 × 3.0'],
+  ['X', 2.50, '9.0 × 6.0 × 3.0'],
+  ['Y', 2.05, '9.0 × 7.0 × 3.0'],
+  ['Z', 3.35, '9.0 × 7.0 × 3.0'],
+];
+function wfAlphabetSizes(shape) {
+  return shape === 'alphabet' ? WF_ALPHABET.map((r) => r[0]) : [];
+}
+function wfAlphabetList() {
+  return WF_ALPHABET.map((r) => ({ letter: r[0], ct: r[1], dim: r[2] }));
+}
+function wfAlphabetSku(letter) {
+  const r = WF_ALPHABET.find((x) => x[0] === String(letter || '').toUpperCase());
+  return r ? { price: WF_ALPHABET_PRICE, ct: r[1], dim: r[2] } : null;
+}
+Object.assign(window, { WF_ALPHABET_PRICE, wfAlphabetSizes, wfAlphabetList, wfAlphabetSku });
+
+// ---------------------------------------------------------------------------
 // Pre Drilled Zirconia Stones — 39 pre-drilled white zirconia stones, each a
 // distinct shape + finished mm size, sold by the piece with a 1,000-pc MOQ.
 // Two drill options: one-side (₹15/pc) or two-side (₹25/pc). Photos are
@@ -3132,7 +3179,7 @@ const WHITEFANCY_SHEETS = {
 };
 const WHITEFANCY_SHAPES_BY_GRADE = {
   leplus: ['round','oval','pear','marquise','princess','cushion','oblong-cushion','asscher','octagon-princess','octagon-step','curved-trillion','heart','star'],
-  audesus: ['round','oval','pear','marquise','princess','cushion','oblong-cushion','curved-trillion','triangle','heart','baguette'],
+  audesus: ['round','oval','pear','marquise','princess','cushion','oblong-cushion','curved-trillion','triangle','heart','baguette','alphabet'],
   excel: ['round','oval','pear','princess','marquise','heart','triangle','octagon-step','octagon-princess','cushion','oblong-cushion'],
   deccan: ['oval','pear','princess','marquise','heart','triangle','octagon-step','octagon-princess','cushion','asscher','clover','flower5','tapered','baguette'],
 };

@@ -86,9 +86,11 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
   const shapeIdsRaw = (Array.isArray(baseShapeIds) && baseShapeIds.length && Array.isArray(rawShapeIds))
     ? rawShapeIds.filter((s) => baseShapeIds.indexOf(s) !== -1)
     : rawShapeIds;
-  // 'alphabet' (A–Z faceted letters) is offered only under Moissanite DEF White.
+  // 'alphabet' (A–Z faceted letters) is offered under Moissanite DEF White and
+  // White Fancy · Au Desus; stripped from every other grade.
   const shapeIds = (Array.isArray(shapeIdsRaw) && shapeIdsRaw.indexOf('alphabet') !== -1
-      && !(route.cat === 'moissanite' && grade && grade.id === 'def'))
+      && !((route.cat === 'moissanite' && grade && grade.id === 'def')
+        || (route.cat === 'whitefancy' && grade && grade.id === 'audesus')))
     ? shapeIdsRaw.filter((s) => s !== 'alphabet')
     : shapeIdsRaw;
   // Some shapes (e.g. Opaque · Cut Stones) open a second grid of cut shapes.
@@ -620,6 +622,7 @@ function BrowseScreen({ route, setRoute, addToCart, wishlist, toggleWishlist, pe
               category.id === 'evileye' && window.evileyeSizes ? window.evileyeSizes(s) :
               category.id === 'corundum' && window.corSizes ? window.corSizes(_gid, _cid, s) :
               category.id === 'whitecz' && window.czSizes ? window.czSizes(_gid, s) :
+              category.id === 'whitefancy' && s === 'alphabet' && window.wfAlphabetSizes ? window.wfAlphabetSizes(s) :
               category.id === 'whitefancy' && window.wfSizes ? window.wfSizes(_gid, s) :
               category.id === 'highdensity' && window.hdSizes ? window.hdSizes(_gid, s) :
               category.id === 'alpanite' && window.alpSheetSizes && window.alpSheetSizes(_cid, s).length ? window.alpSheetSizes(_cid, s) :
@@ -1157,11 +1160,19 @@ function PolkiSeriesPad({ product, grade, color, category, seriesKey, designs,
 // letter glyph stands in. Adds one cart line per letter with quantity > 0.
 function AlphabetOrderPad({ grade, color, category, qtyBySize, setQtyBySize, onBack, addToCart, setRoute }) {
   const fmt = (n) => window.formatINR ? window.formatINR(n) : '₹' + Number(n).toLocaleString('en-IN');
-  const price = window.MOISS_ALPHABET_PRICE || 5000;
-  const letters = window.moissAlphabetList ? window.moissAlphabetList() : [];
+  // Alphabet is offered under Moissanite DEF White and White Fancy (Au Desus) —
+  // each with its own letter set, flat price and photo key.
+  const isWF = category && category.id === 'whitefancy';
+  const price = isWF ? (window.WF_ALPHABET_PRICE || 1200) : (window.MOISS_ALPHABET_PRICE || 5000);
+  const letters = isWF
+    ? (window.wfAlphabetList ? window.wfAlphabetList() : [])
+    : (window.moissAlphabetList ? window.moissAlphabetList() : []);
+  const skuOf = (L) => isWF
+    ? (window.wfAlphabetSku ? window.wfAlphabetSku(L) : null)
+    : (window.moissAlphabetSku ? window.moissAlphabetSku(L) : null);
   const colId = (color && color.id) || 'white';
   const photoFor = (L) => (window.getStoredProductImage
-    ? window.getStoredProductImage('moissanite', colId, 'alphabet-' + L, grade && grade.id) : null);
+    ? window.getStoredProductImage(category.id, colId, 'alphabet-' + L, grade && grade.id) : null);
 
   const bump = (L, d) => setQtyBySize((p) => ({ ...p, [L]: Math.max(0, (p[L] || 0) + d) }));
   const setQ = (L, v) => setQtyBySize((p) => ({ ...p, [L]: Math.max(0, parseInt(v, 10) || 0) }));
@@ -1173,11 +1184,11 @@ function AlphabetOrderPad({ grade, color, category, qtyBySize, setQtyBySize, onB
   const onAddAll = () => {
     if (!chosen.length) return;
     chosen.forEach(([L, n]) => {
-      const sku = window.moissAlphabetSku ? window.moissAlphabetSku(L) : null;
+      const sku = skuOf(L);
       if (!sku) return;
       addToCart({
-        pid: 'EUR-MOI-ALPHA-' + L,
-        name: 'Moissanite ' + (grade ? grade.name : 'DEF White') + ' — Letter ' + L,
+        pid: (isWF ? 'EUR-WF-ALPHA-' : 'EUR-MOI-ALPHA-') + L,
+        name: (isWF ? 'White Fancy ' : 'Moissanite ') + (grade ? grade.name : 'DEF White') + ' — Letter ' + L,
         shape: 'alphabet', size: L, quality: grade ? grade.name : 'DEF White',
         color: color ? color.name : 'White', colorHex: color ? color.hex : '#F2EFE8',
         qty: n, ct: +(sku.ct * n).toFixed(2), unitMode: 'pc', pcsPerUnit: 1,
@@ -1191,8 +1202,9 @@ function AlphabetOrderPad({ grade, color, category, qtyBySize, setQtyBySize, onB
 
   // A direct, shareable link that lands a customer straight on this product.
   const shareLink = () => {
-    // Short, memorable alias (expands to moissanite~def~white~alphabet on load).
-    const url = location.origin + location.pathname + '?go=alphabet';
+    // Short alias for the Moissanite alphabet; White Fancy uses the full path.
+    const go = isWF ? ('whitefancy~' + ((grade && grade.id) || 'audesus') + '~' + colId + '~alphabet') : 'alphabet';
+    const url = location.origin + location.pathname + '?go=' + go;
     const ok = () => { try { alert('Product link copied — share it with customers:\n\n' + url); } catch (e) {} };
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(url).then(ok, () => window.prompt('Copy this product link:', url));
@@ -1274,8 +1286,9 @@ function SizeOrderPad({ product, grade, color, shape, category, qtyBySize, setQt
       qtyBySize={qtyBySize} setQtyBySize={setQtyBySize}
       onBack={onBack} addToCart={addToCart} setRoute={setRoute} />;
   }
-  // Moissanite DEF White · Alphabet uses a bespoke letter pad, not a size list.
-  if (category.id === 'moissanite' && shape === 'alphabet') {
+  // Alphabet (Moissanite DEF White, and White Fancy Au Desus) uses a bespoke
+  // letter pad, not a size list.
+  if ((category.id === 'moissanite' || category.id === 'whitefancy') && shape === 'alphabet') {
     return <AlphabetOrderPad grade={grade} color={color} category={category}
       qtyBySize={qtyBySize} setQtyBySize={setQtyBySize}
       onBack={onBack} addToCart={addToCart} setRoute={setRoute} />;

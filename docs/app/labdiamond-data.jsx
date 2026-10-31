@@ -114,7 +114,7 @@ function LabDiamondOrderPad({ grade, color, shape, category, qtyBySize, setQtyBy
             to order. Contact our trade desk with your sizes and quantities and we'll send a quote.
           </p>
           <p style={{ margin: '14px 0 0', fontSize: 15, fontWeight: 600 }}>
-            📞 +91 98765 43210 &nbsp;·&nbsp; ✉ info@eurostar.com
+            📞 +91 98765 43210 &nbsp;·&nbsp; ✉ info@eurostargems.com
           </p>
         </div>
       </div>

@@ -110,7 +110,7 @@ function OrderDetailScreen({ route, setRoute, persona, addToCart }) {
         <div class="grand"><span>Total payable</span><span>${formatINR(grand)}</span></div>
       </div>
       <div class="terms">Status: ${status.label}${order.ship ? ' · ' + order.ship : ''}.<br>
-        Eurostar Technologies Inc. · Authorised Distributor for Asia-Pacific: Ganesh Jewellery I Pvt Ltd · Mumbai, Jaipur</div>
+        Ganesh Jewellery India Private Limited (Eurostar Gemstones) · Mumbai, Jaipur</div>
       </body></html>`;
   };
 
@@ -158,7 +158,7 @@ function OrderDetailScreen({ route, setRoute, persona, addToCart }) {
       <div class="bill" style="margin-top:14px"><strong>Total pieces: ${itemCount.toLocaleString('en-IN')}</strong> across ${order.lines.length} SKU${order.lines.length > 1 ? 's' : ''}</div>
       <div class="sign"><div>Packed by</div><div>Received by</div></div>
       <div class="terms">No prices are shown on a packing list. Check the goods against this list on delivery and report any shortfall within 48 hours.<br>
-        Eurostar Technologies Inc. · Mumbai, Jaipur</div>
+        Ganesh Jewellery India Private Limited (Eurostar Gemstones) · Mumbai, Jaipur</div>
       </body></html>`;
   };
 

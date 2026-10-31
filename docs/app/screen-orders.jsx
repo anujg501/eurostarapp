@@ -421,7 +421,7 @@ function CartView({ cart, setCart, persona, setRoute, discount }) {
         <div class="grand"><span>Total payable</span><span>${formatINR(grand)}</span></div>
       </div>
       <div class="terms">Payment terms: ${termsShort}. This is a proforma invoice, not a tax invoice. Prices valid 7 days. Dispatch 2–3 business days after confirmation.<br>
-        Eurostar Technologies Inc. · Authorised Distributor for Asia-Pacific: Ganesh Jewellery I Pvt Ltd · Mumbai, Jaipur</div>
+        Ganesh Jewellery India Private Limited (Eurostar Gemstones) · Mumbai, Jaipur</div>
       </body></html>`;
   };
 

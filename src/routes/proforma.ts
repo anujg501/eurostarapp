@@ -164,7 +164,7 @@ proformaRouter.post(
         { width }
       );
     doc.text(
-      'Eurostar Technologies Inc. · Authorised Distributor for Asia-Pacific: Ganesh Jewellery I Pvt Ltd · Mumbai, Jaipur',
+      'Ganesh Jewellery India Private Limited (Eurostar Gemstones) · Mumbai, Jaipur',
       left,
       doc.y + 4,
       { width }

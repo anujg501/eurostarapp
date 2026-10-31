@@ -754,15 +754,15 @@ function Footer() {
         <div>
           <EurostarLogo size={18} />
           <div style={{ fontSize: 12, color: 'var(--fg-meta)', marginTop: 10, maxWidth: 60 + 'ch', lineHeight: 1.6 }}>
-            <strong style={{ color: 'var(--fg-muted)', fontWeight: 700 }}>Eurostar Gem Technologies Inc.</strong> · Estd 1980
+            <strong style={{ color: 'var(--fg-muted)', fontWeight: 700 }}>Eurostar Gemstones — a brand of Ganesh Jewellery India Private Limited</strong> · Estd 1980
             <div style={{ display: 'grid', gap: 7, marginTop: 8 }}>
               <div>
-                <strong style={{ color: 'var(--fg-muted)', fontWeight: 600 }}>Corporate office:</strong><br/>
-                101/103 Krishna Bhavan, Dhanji Street, Mumbai
+                <strong style={{ color: 'var(--fg-muted)', fontWeight: 600 }}>Registered office:</strong><br/>
+                65A Kachwala Building, Dhanji Street, Mumbai
               </div>
               <div>
-                <strong style={{ color: 'var(--fg-muted)', fontWeight: 600 }}>Branch:</strong><br/>
-                65A Kachwala Building, Dhanji Street, Mumbai
+                <strong style={{ color: 'var(--fg-muted)', fontWeight: 600 }}>Office:</strong><br/>
+                101/103 Krishna Bhavan, Dhanji Street, Mumbai
               </div>
               <div>
                 <strong style={{ color: 'var(--fg-muted)', fontWeight: 600 }}>Jaipur Branch:</strong><br/>

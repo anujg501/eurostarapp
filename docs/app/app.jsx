@@ -780,6 +780,17 @@ function Footer() {
           {content.businessHours || 'Mon–Sat 10:00–20:00 IST'}
         </div>
       </div>
+      {/* Registered-company legal line — kept verbatim for Meta business
+          verification and alongside (not replacing) the trade-name block above. */}
+      <div style={{
+        maxWidth: 1320, margin: '18px auto 0', paddingTop: 16,
+        borderTop: '1px solid var(--border)',
+        fontSize: 12, color: 'var(--fg-meta)', lineHeight: 1.7,
+      }}>
+        © Ganesh Jewellery India Private Limited (Eurostar Gemstones) · 65 A, Ground Floor, Kachwala Building, Dhanji Street, Near Mumbadevi Temple, Mumbai, Maharashtra 400003, India · +91&nbsp;77100&nbsp;65480 · GSTIN 27AACG1529K1ZL
+        {' '}·{' '}
+        <a href="/contact" style={{ color: 'var(--fg-muted)', fontWeight: 600, textDecoration: 'none' }}>Contact&nbsp;Us</a>
+      </div>
       <ViewModeToggle />
     </footer>
   );

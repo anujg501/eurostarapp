@@ -125,6 +125,10 @@ const sendPage = (res: express.Response, file: string) => {
 app.get('/', (_req, res) => sendPage(res, path.join(webDir, 'Eurostar Sales website.html')));
 app.get('/portal', (_req, res) => sendPage(res, path.join(webDir, 'index.html')));
 app.get('/login', (_req, res) => sendPage(res, path.join(webDir, 'Eurostar Login.html')));
+// Public contact / legal-details page (no sign-in) so the registered company
+// name, address, phone and GSTIN are readable by anyone — including Meta's and
+// search engines' crawlers, which never log in and otherwise only see /login.
+app.get(['/contact', '/contact/'], (_req, res) => sendPage(res, path.join(webDir, 'contact.html')));
 app.get('/site', (_req, res) => sendPage(res, path.join(webDir, 'Eurostar Sales website.html')));
 app.get('/mobile', (_req, res) => sendPage(res, path.join(webDir, 'Eurostar Sales website (Mobile).html')));
 

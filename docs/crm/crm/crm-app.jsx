@@ -826,6 +826,11 @@ function CartsView({ carts, orders, editItems, removeCart, setDisc, editOrder, r
   const completed = orders || [];
   const abandoned = carts.filter((c) => c.status === 'abandoned');
   const openCarts = carts.filter((c) => c.status !== 'abandoned');
+  // Date shown per row: an order's placed date, a cart's last-activity date
+  // (updatedAt) — so staff can see how stale a cart is and whether a follow-up
+  // is still owed.
+  const fmtDate = (s) => { if (!s) return ''; try { const d = new Date(s); return isNaN(d.getTime()) ? s : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }); } catch (e) { return s; } };
+  const relDays = (s) => { if (!s) return ''; try { const n = Math.floor((Date.now() - new Date(s).getTime()) / 86400000); return n <= 0 ? 'today' : n === 1 ? 'yesterday' : n + 'd ago'; } catch (e) { return ''; } };
   const Row = ({ c, kind }) => {const cu = H.cust(c.cust);const d = c.appliedDisc || 0;const net = Math.round(c.value * (1 - d / 100));
     // Prefer the contact the backend resolved from the linked customer record
     // (c.custName / c.custMobile / c.custCity). Else the CRM's own code-keyed
@@ -849,6 +854,7 @@ function CartsView({ carts, orders, editItems, removeCart, setDisc, editOrder, r
       <td className="crm-muted" style={{ fontSize: 12 }}>{mobile ? <a href={'https://wa.me/91' + String(mobile).replace(/\D/g, '').slice(-10)} target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>{mobile}</a> : '—'}</td>
       <td className="crm-muted">{H.rep(cu && cu.rep).name}</td>
       <td><Pill s={c.status} label={statusLabel(c.status)} /></td>
+      <td className="crm-muted" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{(() => { const ds = kind === 'order' ? c.date : c.updated; return ds ? <span title={ds}>{fmtDate(ds)}<div style={{ fontSize: 10.5, opacity: 0.75 }}>{relDays(ds)}</div></span> : '—'; })()}</td>
       <td className="crm-muted">{c.items}</td>
       <td className="crm-amt" style={{ textAlign: 'right' }}>{H.inr(net)}{d > 0 && <div className="crm-muted" style={{ fontSize: 11, textDecoration: 'line-through' }}>{H.inr(c.value)}</div>}</td>
       {kind !== 'order' && <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
@@ -859,7 +865,7 @@ function CartsView({ carts, orders, editItems, removeCart, setDisc, editOrder, r
         <button className="cbtn cbtn-ghost cbtn-sm" onClick={() => editOrder && editOrder(c.id)}>Edit</button>{' '}
         <button className="cbtn cbtn-ghost cbtn-sm" onClick={() => removeOrder && removeOrder(c.id)}>Remove</button></td>}
     </tr>);};
-  const Head = () => <thead><tr><th>{TH("Customer")}</th><th>{TH("City")}</th><th>{TH("Mobile")}</th><th>{TH("Rep")}</th><th>{TH("Status")}</th><th>{TH("Items")}</th><th style={{ textAlign: 'right' }}>{TH("Value")}</th><th></th></tr></thead>;
+  const Head = () => <thead><tr><th>{TH("Customer")}</th><th>{TH("City")}</th><th>{TH("Mobile")}</th><th>{TH("Rep")}</th><th>{TH("Status")}</th><th>{TH("Date")}</th><th>{TH("Items")}</th><th style={{ textAlign: 'right' }}>{TH("Value")}</th><th></th></tr></thead>;
   return (
     <div className="crm-body">
       <PageHead title={title} sub={sub} />
@@ -868,7 +874,7 @@ function CartsView({ carts, orders, editItems, removeCart, setDisc, editOrder, r
       <div className="crm-card">
         <table className="crm-table" style={{ minWidth: 860 }}><Head />
           <tbody>{completed.map((o) => <Row key={o.id} c={o} kind="order" />)}
-            {completed.length === 0 && <tr><td colSpan="8" className="crm-muted" style={{ padding: '14px 16px' }}>No completed orders.</td></tr>}</tbody>
+            {completed.length === 0 && <tr><td colSpan="9" className="crm-muted" style={{ padding: '14px 16px' }}>No completed orders.</td></tr>}</tbody>
         </table>
       </div>
 
@@ -876,7 +882,7 @@ function CartsView({ carts, orders, editItems, removeCart, setDisc, editOrder, r
       <div className="crm-card">
         <table className="crm-table" style={{ minWidth: 860 }}><Head />
           <tbody>{openCarts.map((c) => <Row key={c.id} c={c} />)}
-            {openCarts.length === 0 && <tr><td colSpan="8" className="crm-muted" style={{ padding: '14px 16px' }}>No open carts.</td></tr>}</tbody>
+            {openCarts.length === 0 && <tr><td colSpan="9" className="crm-muted" style={{ padding: '14px 16px' }}>No open carts.</td></tr>}</tbody>
         </table>
       </div>
 
@@ -884,7 +890,7 @@ function CartsView({ carts, orders, editItems, removeCart, setDisc, editOrder, r
       <div className="crm-card">
         <table className="crm-table" style={{ minWidth: 860 }}><Head />
           <tbody>{abandoned.map((c) => <Row key={c.id} c={c} />)}
-            {abandoned.length === 0 && <tr><td colSpan="8" className="crm-muted" style={{ padding: '14px 16px' }}>No abandoned carts.</td></tr>}</tbody>
+            {abandoned.length === 0 && <tr><td colSpan="9" className="crm-muted" style={{ padding: '14px 16px' }}>No abandoned carts.</td></tr>}</tbody>
         </table>
       </div>
     </div>);

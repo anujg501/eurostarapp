@@ -24,6 +24,7 @@ import { announcementsRouter } from './routes/announcements';
 import { candidatesRouter, mediaRouter, modulesRouter, questionsRouter } from './routes/candidates';
 import { adminRouter } from './routes/admin';
 import { usersRouter } from './routes/users';
+import { iclockRouter, hrBiometricRouter } from './routes/iclock';
 import { liftBuiltinCatalogOverlays } from './services/catalogOverlays';
 
 const app = express();
@@ -38,6 +39,10 @@ app.use(
     credentials: true,
   })
 );
+// Biometric attendance machines (eSSL ADMS push). Mounted before the JSON
+// parser: the machines post tab-separated text, parsed by the router itself.
+app.use('/iclock', iclockRouter);
+
 app.use(
   express.json({
     // Image uploads fall back to an inline base64 data URL whenever object
@@ -75,6 +80,7 @@ app.use('/reports', reportsRouter);
 app.use('/franchise', franchiseRouter);
 app.use('/leads', leadsRouter);
 app.use('/announcements', announcementsRouter);
+app.use('/hr/biometric', hrBiometricRouter);
 app.use('/candidates', candidatesRouter);
 app.use('/modules', modulesRouter);
 app.use('/questions', questionsRouter);

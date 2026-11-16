@@ -20,33 +20,33 @@ datasource db {
 
 // A person who can log in: a customer, a sales rep, or a back-office staffer.
 model User {
-  id           String   @id @default(cuid())
-  role         String // "customer" | "rep" | "office"
-  name         String
-  phone        String?  @unique // customers log in with phone + OTP
-  email        String?  @unique // LMS candidates log in with email + password
-  gstin        String? // captured at first customer sign-up
-  userId       String?  @unique // login id for rep/office (e.g. "REP001", "office")
-  passwordHash String? // set for rep/office, and for candidates who set one
-  repId        String? // if this user IS a rep, their public rep id
-  active       Boolean  @default(true)
+  id            String   @id @default(cuid())
+  role          String // "customer" | "rep" | "office"
+  name          String
+  phone         String?  @unique // customers log in with phone + OTP
+  email         String?  @unique // LMS candidates log in with email + password
+  gstin         String? // captured at first customer sign-up
+  userId        String?  @unique // login id for rep/office (e.g. "REP001", "office")
+  passwordHash  String? // set for rep/office, and for candidates who set one
+  repId         String? // if this user IS a rep, their public rep id
+  active        Boolean  @default(true)
   // Rep-only settings, managed from the CRM's "Reps & commission" screen.
-  region       String? // territory, e.g. "Gujarat"
-  phoneNote    String? // display phone shown in the reps table (phone is unique/login)
-  commissionPct Float?  @default(4) // blended commission %, e.g. 4 = 4%
-  monthlyTarget Int?    @default(50) // new-customers target per month (min 50)
-  asmId        String? // escalation contact (Area Sales Manager)
-  headId       String? // escalation contact (Sales Head)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  region        String? // territory, e.g. "Gujarat"
+  phoneNote     String? // display phone shown in the reps table (phone is unique/login)
+  commissionPct Float?   @default(4) // blended commission %, e.g. 4 = 4%
+  monthlyTarget Int?     @default(50) // new-customers target per month (min 50)
+  asmId         String? // escalation contact (Area Sales Manager)
+  headId        String? // escalation contact (Sales Head)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  refreshTokens RefreshToken[]
+  refreshTokens    RefreshToken[]
   // Customers this user (a rep) owns, via the Customer.rep relation.
-  customersAsRep Customer[] @relation("RepCustomers")
-  ordersTaken    Order[]    @relation("OrderTakenBy")
-  paymentsTaken  Payment[]  @relation("PaymentReceivedBy")
-  paymentsVerified Payment[] @relation("PaymentVerifiedBy")
-  rfqsQuoted     Rfq[]      @relation("RfqQuotedBy")
+  customersAsRep   Customer[]     @relation("RepCustomers")
+  ordersTaken      Order[]        @relation("OrderTakenBy")
+  paymentsTaken    Payment[]      @relation("PaymentReceivedBy")
+  paymentsVerified Payment[]      @relation("PaymentVerifiedBy")
+  rfqsQuoted       Rfq[]          @relation("RfqQuotedBy")
 }
 
 // "Remember me" tokens — let a user stay logged in without retyping.
@@ -80,9 +80,9 @@ model OtpCode {
 // ---------------------------------------------------------------------------
 
 model Customer {
-  id        String   @id @default(cuid())
-  code      String   @unique // human-friendly code, e.g. "CUST-1042"
-  name      String // company or contact name
+  id          String   @id @default(cuid())
+  code        String   @unique // human-friendly code, e.g. "CUST-1042"
+  name        String // company or contact name
   contact     String? // contact person, e.g. "Kiran Mehta"
   email       String?
   phone       String?
@@ -91,16 +91,16 @@ model Customer {
   pincode     String? // field capture: the shop's PIN code
   shipAddress String? // delivery address (profile "Addresses" tab)
   billAddress String? // billing address; null = same as shipping
-  gstinNorm String? // normalised GSTIN for dedupe (CRM customer master)
+  gstinNorm   String? // normalised GSTIN for dedupe (CRM customer master)
   // Filled by a rep signing up a shop in person (CRM → My customers → Add):
   // a photo of the shopfront and the lat,lng where it was taken.
   shopPhoto   String? // data URL of the shopfront photo
   geo         String? // "18.52040, 73.85670"
-  terms     String   @default("cash") // "cash" | "15" | "30" | "45" | "60"
-  repUserId String? // which rep owns this customer
-  rep       User?    @relation("RepCustomers", fields: [repUserId], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  terms       String   @default("cash") // "cash" | "15" | "30" | "45" | "60"
+  repUserId   String? // which rep owns this customer
+  rep         User?    @relation("RepCustomers", fields: [repUserId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   carts    Cart[]
   orders   Order[]
@@ -132,15 +132,15 @@ model SoldOut {
 // ---------------------------------------------------------------------------
 
 model Cart {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   customerId String?
   customer   Customer? @relation(fields: [customerId], references: [id])
   repUserId  String?
   personaId  String? // client-side owner key ("eurostar-drafts-<personaId>")
-  status     String   @default("active") // "active" | "confirmed"
-  discount   Int      @default(0) // % off, set by back office when negotiating a cart
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  status     String    @default("active") // "active" | "confirmed"
+  discount   Int       @default(0) // % off, set by back office when negotiating a cart
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   lines CartLine[]
 
@@ -149,30 +149,30 @@ model Cart {
 }
 
 model CartLine {
-  id         String  @id @default(cuid())
-  cartId     String
-  cart       Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
-  skuId      String?
-  name       String? // product label as shown in the cart / editor
+  id          String  @id @default(cuid())
+  cartId      String
+  cart        Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  skuId       String?
+  name        String? // product label as shown in the cart / editor
   categoryKey String?
-  grade      String?
-  colour     String?
-  shape      String?
-  size       String?
-  unit       String
-  qty        Int
-  unitPrice  Int
-  lineTotal  Int
+  grade       String?
+  colour      String?
+  shape       String?
+  size        String?
+  unit        String
+  qty         Int
+  unitPrice   Int
+  lineTotal   Int
 
   @@index([cartId])
 }
 
 model Order {
-  id         String   @id // client id (e.g. "SO-24987") or server "ESO-2026-0001"
+  id         String    @id // client id (e.g. "SO-24987") or server "ESO-2026-0001"
   customerId String?
   customer   Customer? @relation(fields: [customerId], references: [id])
   repUserId  String?
-  takenBy    User?    @relation("OrderTakenBy", fields: [repUserId], references: [id])
+  takenBy    User?     @relation("OrderTakenBy", fields: [repUserId], references: [id])
 
   // Denormalised snapshot fields the CRM/back-office order stream reads directly
   // (mirrors the object the client wrote to eurostar-crm-incoming-orders).
@@ -185,20 +185,20 @@ model Order {
   subtotal        Int
   tax             Int // GST 3% (0 for export)
   shipping        Int // courier: free over ₹1000 else ₹300
-  insurance       Int      @default(0)
+  insurance       Int       @default(0)
   grand           Int // "value" in the client order object
-  isExport        Boolean  @default(false)
-  paid            Boolean  @default(false)
+  isExport        Boolean   @default(false)
+  paid            Boolean   @default(false)
   dispatchBy      DateTime?
   dispatchByLabel String? // e.g. "Wed, 17 Jul" (as the client stores it)
   courier         String? // CRM pipeline: assigned courier
   track           String? // CRM pipeline: tracking / AWB number
-  status          String   @default("pending") // pending|confirmed|packed|shipped|delivered|cancelled
-  source          String   @default("Sales App")
-  queuedOffline   Boolean  @default(false)
+  status          String    @default("pending") // pending|confirmed|packed|shipped|delivered|cancelled
+  source          String    @default("Sales App")
+  queuedOffline   Boolean   @default(false)
   clientTs        String? // client Date.now() epoch ms (kept as string; can exceed 32-bit)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   lines    OrderLine[]
   payments Payment[]
@@ -232,9 +232,9 @@ model OrderLine {
 // ---------------------------------------------------------------------------
 
 model Payment {
-  id           String   @id // "PAY-APP-<orderId>" (matches client) or generated
+  id           String    @id // "PAY-APP-<orderId>" (matches client) or generated
   orderId      String?
-  order        Order?   @relation(fields: [orderId], references: [id])
+  order        Order?    @relation(fields: [orderId], references: [id])
   customerId   String?
   customer     Customer? @relation(fields: [customerId], references: [id])
   custId       String? // client "custId"
@@ -247,16 +247,16 @@ model Payment {
   by           String? // who collected the payment
   contact      String?
   img          String? // receipt image dataURL | null
-  status       String   @default("confirmed") // pending|confirmed|failed
-  source       String   @default("Sales App")
+  status       String    @default("confirmed") // pending|confirmed|failed
+  source       String    @default("Sales App")
   receivedById String?
-  receivedBy   User?    @relation("PaymentReceivedBy", fields: [receivedById], references: [id])
+  receivedBy   User?     @relation("PaymentReceivedBy", fields: [receivedById], references: [id])
   // Verification audit trail (who confirmed/rejected, when, and why).
   verifiedById String?
-  verifiedBy   User?    @relation("PaymentVerifiedBy", fields: [verifiedById], references: [id])
+  verifiedBy   User?     @relation("PaymentVerifiedBy", fields: [verifiedById], references: [id])
   verifiedAt   DateTime?
   rejectReason String?
-  loggedAt     DateTime @default(now())
+  loggedAt     DateTime  @default(now())
 
   @@index([orderId])
   @@index([customerId])
@@ -267,23 +267,23 @@ model Payment {
 // ---------------------------------------------------------------------------
 
 model Rfq {
-  id         String   @id @default(cuid())
-  customerId String?
-  customer   Customer? @relation(fields: [customerId], references: [id])
-  value      Int
-  status     String   @default("open") // "open" | "answered" | "quoted" | "closed"
-  lines      String // JSON-encoded list of requested items (SQLite has no JSON type)
+  id          String    @id @default(cuid())
+  customerId  String?
+  customer    Customer? @relation(fields: [customerId], references: [id])
+  value       Int
+  status      String    @default("open") // "open" | "answered" | "quoted" | "closed"
+  lines       String // JSON-encoded list of requested items (SQLite has no JSON type)
   assignedRep String? // repId the CRM routed this enquiry to
-  city       String?
-  detail     String? // JSON: product/size/qty/weight/quality/contactName/contact/special/image
+  city        String?
+  detail      String? // JSON: product/size/qty/weight/quality/contactName/contact/special/image
   // The quote the office sends back for this enquiry (status becomes "quoted").
   quoteAmount Int? // ₹ quoted, total for the requested quantity
   quoteNote   String? // validity, terms, packing note shown with the quote
   quotedAt    DateTime?
   quotedById  String? // staff user who sent the quote
-  quotedBy    User?    @relation("RfqQuotedBy", fields: [quotedById], references: [id])
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  quotedBy    User?     @relation("RfqQuotedBy", fields: [quotedById], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@index([customerId])
 }
@@ -409,7 +409,7 @@ model Attendance {
 // each with GPS. The admin Field Visits screen reads these. Distinct from
 // CheckIn (raw in/out points) and Attendance (daily present/absent).
 model FieldVisit {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   userId     String // the rep's User.id
   repId      String // public rep id
   repName    String?
@@ -418,7 +418,7 @@ model FieldVisit {
   custCity   String?
   custMobile String?
   day        String // "YYYY-MM-DD" of the check-in
-  checkInAt  DateTime @default(now())
+  checkInAt  DateTime  @default(now())
   inLat      Float?
   inLng      Float?
   inAcc      Float?
@@ -426,7 +426,7 @@ model FieldVisit {
   checkOutAt DateTime?
   outLat     Float?
   outLng     Float?
-  createdAt  DateTime @default(now())
+  createdAt  DateTime  @default(now())
 
   @@index([repId, day])
   @@index([day])
@@ -491,7 +491,7 @@ model TrainingModule {
 // LMS assessment question. Belongs to a training module so the Question Bank
 // can be filtered by module and the paper can be built to cover the course.
 model TestQuestion {
-  id       String @id @default(cuid())
+  id       String          @id @default(cuid())
   moduleId String?
   module   TrainingModule? @relation(fields: [moduleId], references: [id], onDelete: SetNull)
 
@@ -513,15 +513,15 @@ model TestQuestion {
 // Rep broadcast announcement (single active banner). Written by CRM/Admin,
 // shown once-a-day to reps in the Sales app.
 model Announcement {
-  id          String   @id @default("default")
-  active      Boolean  @default(false)
+  id          String    @id @default("default")
+  active      Boolean   @default(false)
   image       String? // banner image URL / dataURL
   title       String?
   message     String?
   badge       String?
   windowStart DateTime?
   windowEnd   DateTime?
-  updatedAt   DateTime @updatedAt
+  updatedAt   DateTime  @updatedAt
 }
 
 // Sales leads (purchased/uploaded lists, single adds). The CRM "Leads" screen
@@ -529,24 +529,24 @@ model Announcement {
 // reps, and works the pipeline stage. Client supplies the id (LD-…), so create
 // is an upsert.
 model Lead {
-  id        String   @id
-  name      String
-  city      String   @default("")
-  mobile    String   @default("")
-  gst       String   @default("")
-  rep       String   @default("") // assigned repId, or "" when unassigned
-  stage     Int      @default(1)
-  followUp  String   @default("")
-  assigned  Boolean  @default(false)
-  note      String   @default("")
-  flagged   Boolean  @default(false) // matched an existing customer, held for review
-  flagName  String   @default("")
-  flagBy    String   @default("")
+  id           String   @id
+  name         String
+  city         String   @default("")
+  mobile       String   @default("")
+  gst          String   @default("")
+  rep          String   @default("") // assigned repId, or "" when unassigned
+  stage        Int      @default(1)
+  followUp     String   @default("")
+  assigned     Boolean  @default(false)
+  note         String   @default("")
+  flagged      Boolean  @default(false) // matched an existing customer, held for review
+  flagName     String   @default("")
+  flagBy       String   @default("")
   // Set when the lead reaches "Met & added customer" (stage 2) and a Customer
   // record is created from it. Stops a second customer being made if the lead
   // bounces back and forth across that stage.
-  customerCode String @default("")
-  createdAt DateTime @default(now())
+  customerCode String   @default("")
+  createdAt    DateTime @default(now())
 
   @@index([flagged])
   @@index([rep])
@@ -588,24 +588,24 @@ model Setting {
 // the Admin app's "Save pricing" and "Commit N products" had nowhere to write.
 // Seeded from that file, so the original 18 SKUs are preserved verbatim.
 model Product {
-  id         String  @id // e.g. "EUR-MOI-0107"
-  name       String
-  cat        String // Category.key — not a FK: a SKU may outlive a category rename
-  tone       String  @default("")
-  shape      String  @default("")
-  size       String  @default("")
-  clarity    String  @default("")
-  price      Int // wholesale rate in whole rupees
-  unit       String  @default("per pc") // per pc | per ct | per strip | per set…
-  moq        Int     @default(1)
-  stock      String  @default("in") // in | low | out
-  stockCount Int     @default(0)
+  id           String  @id // e.g. "EUR-MOI-0107"
+  name         String
+  cat          String // Category.key — not a FK: a SKU may outlive a category rename
+  tone         String  @default("")
+  shape        String  @default("")
+  size         String  @default("")
+  clarity      String  @default("")
+  price        Int // wholesale rate in whole rupees
+  unit         String  @default("per pc") // per pc | per ct | per strip | per set…
+  moq          Int     @default(1)
+  stock        String  @default("in") // in | low | out
+  stockCount   Int     @default(0)
   // Packet-sold categories only: how many pieces are in one packet of this
   // size. Null means "use the category default" — the storefront's chart value.
   pcsPerPacket Int?
-  badge      String?
-  desc       String?
-  hidden     Boolean @default(false)
+  badge        String?
+  desc         String?
+  hidden       Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -629,4 +629,59 @@ model Category {
   updatedAt DateTime @updatedAt
 
   @@index([sortOrder])
+}
+
+// ---------------------------------------------------------------------------
+// HR — BIOMETRIC ATTENDANCE (eSSL / ZKTeco "ADMS" push protocol)
+// ---------------------------------------------------------------------------
+// The office attendance machine sends every punch to /iclock over the internet,
+// so no office PC is needed. The machine is identified by its serial number.
+// Only an approved machine's punches are stored, so a stranger who finds the
+// URL cannot inject fake attendance.
+
+model BioDevice {
+  id           String    @id @default(cuid())
+  sn           String    @unique // machine serial number
+  name         String? // e.g. "Office entrance"
+  approved     Boolean   @default(false)
+  attlogStamp  String? // last ATTLOG stamp the machine reported (resume point)
+  operlogStamp String? // last OPERLOG stamp (user list changes)
+  lastSeenAt   DateTime?
+  lastIp       String?
+  pushVer      String?
+  info         String? // raw INFO string the machine reports (model, firmware, counts)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+// One fingerprint/face punch. `ts` is the machine's local clock (IST), kept as
+// the exact text it sent, plus `date` for fast per-day queries.
+model BioPunch {
+  id        String   @id @default(cuid())
+  deviceSn  String
+  pin       String // the person's User ID on the machine
+  ts        String // "YYYY-MM-DD HH:MM:SS", machine local time
+  date      String // "YYYY-MM-DD"
+  status    Int? // 0 check-in, 1 check-out, … (as keyed on the machine)
+  verify    Int? // 1 fingerprint, 15 face, …
+  raw       String?
+  createdAt DateTime @default(now())
+
+  @@unique([deviceSn, pin, ts])
+  @@index([date])
+  @@index([pin, date])
+}
+
+// The people enrolled on the machine (PIN → name), as the machine reports them.
+// Used to match machine IDs to the HR staff list.
+model BioUser {
+  id        String   @id @default(cuid())
+  deviceSn  String
+  pin       String
+  name      String?
+  privilege Int?
+  card      String?
+  updatedAt DateTime @updatedAt
+
+  @@unique([deviceSn, pin])
 }

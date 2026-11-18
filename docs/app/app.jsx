@@ -766,7 +766,7 @@ function Footer() {
               </div>
               <div>
                 <strong style={{ color: 'var(--fg-muted)', fontWeight: 600 }}>Jaipur Branch:</strong><br/>
-                4th Floor, Goswami Bhavan, Jaipur 302016
+                77 Gopal Ji Ka Rasta, Ground Floor, Opp. Podar Misthan Bhandar, Jaipur
               </div>
               <div>
                 <strong style={{ color: 'var(--fg-muted)', fontWeight: 600 }}>Hong Kong office:</strong><br/>

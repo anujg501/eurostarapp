@@ -380,6 +380,7 @@ function CartView({ cart, setCart, persona, setRoute, discount }) {
 
   const proformaHTML = () => {
     const rows = cart.map((l) => `<tr>
+      <td style="width:46px;padding-right:0">${l.imageUrl ? '<img src="' + l.imageUrl + '" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:6px;border:1px solid #e4ddcc;display:block">' : ''}</td>
       <td>${l.name || ''}${l.color ? ' · ' + l.color : ''}${l.quality ? ' · ' + l.quality : ''}</td>
       <td>${(findShape(l.shape) || {}).name || l.shape || ''}</td>
       <td>${l.size || ''}</td>
@@ -412,7 +413,7 @@ function CartView({ cart, setCart, persona, setRoute, discount }) {
       </div>
       <div class="bill"><strong>Bill to:</strong> ${persona.company || ''}${acctCode ? ' · ' + acctCode : ''}<br>
         ${persona.location || ''}${persona.gst ? ' · GSTIN ' + persona.gst : ''}</div>
-      <table><thead><tr><th>Product</th><th>Shape</th><th>Size</th><th style="text-align:right">Qty</th><th style="text-align:right">Rate</th><th style="text-align:right">Amount</th></tr></thead>
+      <table><thead><tr><th style="width:46px"></th><th>Product</th><th>Shape</th><th>Size</th><th style="text-align:right">Qty</th><th style="text-align:right">Rate</th><th style="text-align:right">Amount</th></tr></thead>
         <tbody>${rows}</tbody></table>
       <div class="totals">
         <div><span>Subtotal</span><span>${formatINR(subtotal)}</span></div>
